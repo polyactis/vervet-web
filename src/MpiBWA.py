@@ -81,7 +81,7 @@ class MpiBWA(MPIwrapper):
 			sys.stderr.write("Node no.%s working on %s ...\n"%(node_rank, fname))
 			fname_prefix = os.path.splitext(fname)[0]
 			input_fname = os.path.join(param_obj.input_dir, fname)
-			commandline = [param_obj.bwa_path, 'bwasw', '-t', param_obj.no_of_threads, param_obj.fasta_fname, input_fname]
+			commandline = [param_obj.bwa_path, 'bwasw', '-t', '%s'%param_obj.no_of_threads, param_obj.fasta_fname, input_fname]
 			"""
 			commandline = '%s bwasw %s %s | %s calmd -uS - %s | %s sort - %s.sorted'%\
 				(param_obj.bwa_path, param_obj.fasta_fname, input_fname, \
