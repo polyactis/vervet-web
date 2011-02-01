@@ -6,11 +6,14 @@ Examples:
 	mpiexec ~/script/variation/src/MpiBWA.py -t 8 -i ...
 
 	#test parallel run on desktop
-	mpirun -np 5 -machinefile  /tmp/hostfile /usr/bin/mpipython ~/script/...
 	mpirun -np 5 -machinefile ~/hostfile /usr/bin/mpipython ~/script/vervet-web/src/MpiBWA.py
 		-t 6 -f /Network/Data/NCBI/hs_genome.fasta
 		-i /Network/Data/vervet/ref/454/ -o /Network/Data/vervet/ref/454_vs_hg19_20101230
 	
+	#pass "-c 30" to bwa bwasw
+	mpirun -np 5 -machinefile ~/hostfile /usr/bin/mpipython ~/script/vervet-web/src/MpiBWA.py
+		-t 6 -a "-c 30" -f /Network/Data/NCBI/hs_genome.fasta
+		-i /Network/Data/vervet/ref/454/ -o /Network/Data/vervet/ref/454_vs_hg19_20101230
 	
 Description:
 	2011-1-18
@@ -41,6 +44,7 @@ class MpiBWA(MPIwrapper):
 						("bwa_path", 1, ): [os.path.expanduser("~/bin/bwa"), '', 1, 'bwa binary'],\
 						("sam_path", 1, ): [os.path.expanduser("~/bin/samtools"), '', 1, 'samtools binary'],\
 						('no_of_threads', 1, int): [6, 't', 1, 'number of threads run on each node for bwa'],\
+						('additionalArguments', 1, ): ["", 'a', 1, 'space-separated list of additional arguments passed to "bwa bwasw"'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 	def __init__(self, **keywords):
@@ -52,6 +56,7 @@ class MpiBWA(MPIwrapper):
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
 														class_to_have_attr=self)
 		
+		self.additionalArguments = self.additionalArguments.split()
 		# 2010-5-30
 		self.communicator = MPI.world.duplicate()
 		MPIwrapper.__init__(self, self.communicator, debug=self.debug, report=self.report)
@@ -81,7 +86,8 @@ class MpiBWA(MPIwrapper):
 			sys.stderr.write("Node no.%s working on %s ...\n"%(node_rank, fname))
 			fname_prefix = os.path.splitext(fname)[0]
 			input_fname = os.path.join(param_obj.input_dir, fname)
-			commandline = [param_obj.bwa_path, 'bwasw', '-t', '%s'%param_obj.no_of_threads, param_obj.fasta_fname, input_fname]
+			commandline = [param_obj.bwa_path, 'bwasw', '-t', '%s'%param_obj.no_of_threads] + param_obj.additionalArguments + \
+				[param_obj.fasta_fname, input_fname]
 			"""
 			commandline = '%s bwasw %s %s | %s calmd -uS - %s | %s sort - %s.sorted'%\
 				(param_obj.bwa_path, param_obj.fasta_fname, input_fname, \
@@ -96,7 +102,7 @@ class MpiBWA(MPIwrapper):
 			#stdout_content, stderr_content = command_handler.communicate()
 			
 			#sam_convert_cmdline = "%s calmd -uS - %s"%(param_obj.sam_path, param_obj.fasta_fname)
-			sam_convert_cmdline = [param_obj.sam_path, 'view', '-bS', '-']
+			sam_convert_cmdline = [param_obj.sam_path, 'view', '-bSh', '-']
 			#print sam_convert_cmdline
 			p2 = subprocess.Popen(sam_convert_cmdline, shell=False, stdin=p1.stdout, stderr=sys.stderr, stdout=subprocess.PIPE)
 			sam_sort_cmdline = [param_obj.sam_path, 'sort', '-', '%s.sorted'%(os.path.join(param_obj.output_dir, fname_prefix))]
@@ -158,7 +164,8 @@ class MpiBWA(MPIwrapper):
 			self.inputNode(param_obj, free_computing_nodes, param_generator = param_ls, message_size=1)
 		elif node_rank in free_computing_node_set:
 			computing_parameter_obj = PassingData(input_dir=self.input_dir, fasta_fname=self.fasta_fname, output_dir=self.output_dir,\
-												bwa_path=self.bwa_path, sam_path=self.sam_path, no_of_threads=self.no_of_threads)
+												bwa_path=self.bwa_path, sam_path=self.sam_path, no_of_threads=self.no_of_threads,\
+												additionalArguments = self.additionalArguments)
 			self.computing_node(computing_parameter_obj, self.computing_node_handler)
 		else:
 			output_param_obj = PassingData()
