@@ -44,7 +44,7 @@ class MpiBWA(MPIwrapper):
 						("bwa_path", 1, ): [os.path.expanduser("~/bin/bwa"), '', 1, 'bwa binary'],\
 						("sam_path", 1, ): [os.path.expanduser("~/bin/samtools"), '', 1, 'samtools binary'],\
 						('no_of_threads', 1, int): [6, 't', 1, 'number of threads run on each node for bwa'],\
-						('additionalArguments', 1, ): ["", 'a', 1, 'space-separated list of additional arguments passed to "bwa bwasw"'],\
+						('additionalArguments', 0, ): ["", 'a', 1, 'space-separated list of additional arguments passed to "bwa bwasw"'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 	def __init__(self, **keywords):
@@ -55,8 +55,10 @@ class MpiBWA(MPIwrapper):
 		from pymodule import ProcessOptions
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
 														class_to_have_attr=self)
-		
-		self.additionalArguments = self.additionalArguments.split()
+		if self.additionalArguments:	
+			self.additionalArguments = self.additionalArguments.split()
+		else:
+			self.additionalArguments = []
 		# 2010-5-30
 		self.communicator = MPI.world.duplicate()
 		MPIwrapper.__init__(self, self.communicator, debug=self.debug, report=self.report)
