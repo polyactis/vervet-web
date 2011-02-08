@@ -14,6 +14,25 @@ Description:
 """
 import os, sys, numpy
 
+#2007-03-05 common codes to initiate database connection
+import sys, os, math
+bit_number = math.log(sys.maxint)/math.log(2)
+if bit_number>40:       #64bit
+	#sys.path.insert(0, os.path.expanduser('~/lib64/python'))
+	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/annot/bin')))
+	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/test/python')))
+	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/variation/src')))
+	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
+else:   #32bit
+	#sys.path.insert(0, os.path.expanduser('~/lib/python'))
+	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script/annot/bin')))
+	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script/test/python')))
+	sys.path.insert(0, os.path.join(os.path.expanduser('~/script/variation/src')))
+	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+
+#import matplotlib; matplotlib.use("Agg")	#to avoid popup and collapse in X11-disabled environment
+
+
 class VariantDiscovery(object):
 	"""
 	2011-1-6
@@ -126,11 +145,93 @@ class VariantDiscovery(object):
 		del writer
 		sys.stderr.write("%s/%s of mine overlapped with jessica's. Done.\n"%(real_counter, counter))
 	"""
+	
+		#2011-1-6
+		common_prefix = '/Network/Data/vervet/ref/454_vs_hg19_20101230_ANXA_p1'
+		input_fname = '%s.raw.vcf'%(common_prefix)
+		minNumberOfReads=3
+		output_fname = '%s_min%s.raw.hets'%(common_prefix, minNumberOfReads)
+		VariantDiscovery.discoverHets(input_fname, output_fname, minNumberOfReads=minNumberOfReads)
+		sys.exit(0)
+		
 		#2011-1-6
 		myVariantFile = '/Network/Data/vervet/ref/454_vs_hg19_20101230_3eQTL_D100.raw.hets'
+		myVariantFile = '%s_min%s.raw.hets'%(common_prefix, minNumberOfReads)
 		jessicaVariantFname = os.path.expanduser('~/script/vervet-web/data/eQTL summary.txt')
-		output_fname = '/Network/Data/vervet/ref/454_vs_hg19_20101230_3eQTL_D100.overlap.tsv'
+		output_fname = '%s_min%s.overlap.tsv'%(common_prefix, minNumberOfReads)
 		VariantDiscovery.checkOverlapping(myVariantFile, jessicaVariantFname, output_fname)
+		sys.exit(0)
+		
+	"""
+	
+	@classmethod
+	def drawHistogramOfChoosenBWAOutputScore(cls, inputFname, outputFname, scoreType=1, plotType=2):
+		"""
+		2011-2-1
+			scoreType
+				1. mapping quality
+				2. alignment score
+				3. ...
+			plotType
+				1: 1D histogram
+				2: 2D histogram (scoreType has to be =2)
+		"""
+		import os,sys
+		import pysam
+		samfile = pysam.Samfile(inputFname, "rb" )
+		it = samfile.fetch()
+		mapq_ls = []
+		score_ls = []
+		counter = 0
+		sys.stderr.write("Traversing through %s .\n"%(inputFname))
+		C_ls = []
+		for read in it:
+			counter += 1
+			if read.is_unmapped:
+				continue
+			score = None
+			if scoreType==1:
+				score = read.mapq
+			elif scoreType==2:
+				for tag in read.tags:
+					if tag[0]=='AS':
+						score = tag[1]	#'AS'
+						break
+			if score is not None:
+				mapq_ls.append(read.mapq)
+				score_ls.append(score)
+				C_ls.append(1)
+			if counter%10000==0:
+				sys.stderr.write("%s\t%s"%('\x08'*80, counter))
+		sys.stderr.write("Done.\n")
+		if scoreType==1:
+			xlabel = "read map quality"
+		elif scoreType==2:
+			xlabel = 'alignment score'
+		title='%s'%(os.path.split(inputFname)[1])
+		if plotType==2:
+			from variation.src.misc import CNV
+			reduce_C_function = CNV.logSum
+			#reduce_C_function = numpy.mean
+			CNV.drawHexbin(mapq_ls, score_ls, C_ls, fig_fname=outputFname, gridsize=20, \
+								title=title, \
+								xlabel = 'read map quality', \
+								ylabel = 'alignment score',\
+								colorBarLabel='log(count)', reduce_C_function= reduce_C_function)
+		elif plotType==1:
+			import pylab
+			pylab.hist(score_ls, 20)
+			pylab.title(title)
+			pylab.xlabel(xlabel)
+			pylab.savefig(outputFname, dpi=200)
+		
+	"""
+		# 2011-2-1
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_ref_1MbBAC.F4")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType=1
+		outputFname = os.path.expanduser("%s.score%s.hist.png"%(inputPrefix, scoreType))
+		VariantDiscovery.drawHistogramOfChoosenBWAOutputScore(inputFname, outputFname)
 		sys.exit(0)
 	"""
 
@@ -174,92 +275,20 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2011-1-6
-		common_prefix = '/Network/Data/vervet/ref/454_vs_hg19_20101230_ANXA_p1'
-		input_fname = '%s.raw.vcf'%(common_prefix)
-		minNumberOfReads=3
-		output_fname = '%s_min%s.raw.hets'%(common_prefix, minNumberOfReads)
-		VariantDiscovery.discoverHets(input_fname, output_fname, minNumberOfReads=minNumberOfReads)
+		# 2011-2-1
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_ref_1MbBAC_c30_z2.F4")
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_hg19.chr18_26.7M_27.8M")
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_hg19_20101230.chr9_124M_124.2M")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType = 2
+		plotType = 2
+		outputFname = os.path.expanduser("%s.score%s.plot%s.hist.png"%(inputPrefix, scoreType, plotType))
+		VariantDiscovery.drawHistogramOfChoosenBWAOutputScore(inputFname, outputFname, scoreType=scoreType, plotType=plotType)
 		sys.exit(0)
-		
-		#2011-1-6
-		myVariantFile = '/Network/Data/vervet/ref/454_vs_hg19_20101230_3eQTL_D100.raw.hets'
-		myVariantFile = '%s_min%s.raw.hets'%(common_prefix, minNumberOfReads)
-		jessicaVariantFname = os.path.expanduser('~/script/vervet-web/data/eQTL summary.txt')
-		output_fname = '%s_min%s.overlap.tsv'%(common_prefix, minNumberOfReads)
-		VariantDiscovery.checkOverlapping(myVariantFile, jessicaVariantFname, output_fname)
-		sys.exit(0)
-		
-		
-		
-		
-		#2010-11-24
-		CNV.updateCNVQCCallProbeInfo(db_250k, cnv_method_id_ls=[9])
-		sys.exit(0)
-		
 
 
-#2007-03-05 common codes to initiate database connection
-import sys, os, math
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:       #64bit
-	#sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/annot/bin')))
-	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/test/python')))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/variation/src')))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	#sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script/annot/bin')))
-	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script/test/python')))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script/variation/src')))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-#import matplotlib; matplotlib.use("Agg")	#to avoid popup and collapse in X11-disabled environment
 
-"""
-from codense.common import db_connect, form_schema_tables
-hostname='dl324b-1'
-dbname='yhdb'
-schema = 'dbsnp'
-hostname='zhoudb'
-dbname='graphdb'
-schema = 'dbsnp'
-#conn, curs = db_connect(hostname, dbname, schema)
-
-hostname='localhost'
-dbname='stock20070829'
-import MySQLdb
-conn0 = MySQLdb.connect(db=dbname,host=hostname)
-curs0 = conn0.cursor()
-
-hostname='papaya.usc.edu'
-dbname='stock_250k'
-db_user='yh'
-db_passwd = ''
-import MySQLdb
-conn = MySQLdb.connect(db=dbname,host=hostname, user=db_user, passwd=db_passwd)
-curs = conn.cursor()
-
-drivername='mysql'
-schema = None
-import Stock_250kDB
-db_250k = Stock_250kDB.Stock_250kDB(drivername=drivername, username=db_user,
-				password=db_passwd, hostname=hostname, database=dbname, schema=schema)
-db_250k.setup(create_tables=False)
-
-drivername='mysql'
-hostname='papaya.usc.edu'
-dbname='stock'
-db_user='yh'
-db_passwd = ''
-schema = None
-from StockDB import StockDB
-db_149 = StockDB(drivername=drivername, username=db_user,
-				password=db_passwd, hostname=hostname, database=dbname, schema=schema)
-db_149.setup(create_tables=False)
-
-"""
 
 if __name__ == '__main__':
 	from pymodule import ProcessOptions
