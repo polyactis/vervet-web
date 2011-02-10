@@ -216,7 +216,8 @@ class MpiBWA(MPIwrapper):
 				sort it so that it could be used for merge
 			"""
 			bam_output_fname_prefix = '%s.sorted'%(os.path.join(param_obj.output_dir, fname_prefix))
-			sam_sort_cmdline = [param_obj.sam_path, 'sort', '-m', '4000000000', '-', bam_output_fname_prefix]	#maxMemory is 4G
+			sam_sort_cmdline = [param_obj.sam_path, 'sort', '-m', '1000000000', '-', bam_output_fname_prefix]	#maxMemory is down to 1G
+			#because bwa, samtools view, samtools sort are all running at the same time due to the unix pipe.
 			p3 = subprocess.Popen(sam_sort_cmdline, shell=False, stdin=p2.stdout, stderr=sys.stderr, stdout=subprocess.PIPE)
 			try:
 				stdout_content, stderr_content = p3.communicate()
