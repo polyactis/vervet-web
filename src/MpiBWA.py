@@ -1,4 +1,4 @@
-#!/usr/bin/env mpipython
+#!/usr/bin/env python
 """
 
 Examples:
@@ -39,12 +39,13 @@ import getopt, csv, math, random
 import cPickle, subprocess
 from pymodule import PassingData, importNumericArray
 from sets import Set
-from Scientific import MPI
-from pymodule.MPIwrapper import MPIwrapper
+#from Scientific import MPI
+from mpi4py import MPI
+from pymodule.MPIwrapper import MPI4pywrapper
 
 num = importNumericArray()
 
-class MpiBWA(MPIwrapper):
+class MpiBWA(MPI4pywrapper):
 	__doc__ = __doc__
 	option_default_dict = {('input_dir', 1, ): [None, 'i', 1, 'input directory containing *.fastq or *.fastq.gz'],\
 						('fasta_fname', 1, ): [None, 'f', 1, 'fasta file containing chromosome sequences of a ref genome'],\
@@ -71,8 +72,9 @@ class MpiBWA(MPIwrapper):
 		else:
 			self.additionalArguments = []
 		# 2010-5-30
-		self.communicator = MPI.world.duplicate()
-		MPIwrapper.__init__(self, self.communicator, debug=self.debug, report=self.report)
+		#self.communicator = MPI.world.duplicate()
+		self.communicator = MPI.COMM_WORLD
+		MPI4pywrapper.__init__(self, self.communicator, debug=self.debug, report=self.report)
 	
 	def pairInputFiles(self, input_dir):
 		"""
@@ -125,6 +127,9 @@ class MpiBWA(MPIwrapper):
 			files = os.listdir(input_dir)
 			sys.stderr.write("%s files.\n"%(len(files)))
 			for fname in files:
+				fname_prefix, fname_suffix = self.seqInputFilenamePrefix(fname)
+				if fname_suffix!='.fastq':		#skip non-fastq files
+					continue
 				yield (fname,)
 	
 	def seqInputFilenamePrefix(self, fname):
@@ -193,7 +198,7 @@ class MpiBWA(MPIwrapper):
 			
 		"""
 		node_rank = communicator.rank
-		data = cPickle.loads(data)
+		#data = cPickle.loads(data)
 		result_ls = []
 
 		for one_data in data:
@@ -243,7 +248,8 @@ class MpiBWA(MPIwrapper):
 			collect bam output filename from each output node
 		2010-12-21
 		"""
-		result_ls = cPickle.loads(data)
+		#result_ls = cPickle.loads(data)
+		result_ls = data	#2011-2-10
 		counter = 0
 		for result in result_ls:
 			output_param_obj.output_fname_ls.append(result)
@@ -279,7 +285,7 @@ class MpiBWA(MPIwrapper):
 		else:
 			pass
 		
-		self.synchronize()
+		#self.synchronize()
 		if node_rank == 0:
 			#parameter_list = [param_ls, array_id2col_index, data_matrix]
 			#self.input_node(parameter_list, free_computing_nodes, input_handler=self.input_handler, block_size=self.block_size)
