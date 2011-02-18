@@ -164,65 +164,111 @@ class VariantDiscovery(object):
 		
 	"""
 	
+	class DrawHistogramOfChoosenBWAOutputScore(object):
+		"""
+		2011-2-8
+			
+		"""
+		def __init__(self, **keywords):
+			"""
+			keywords shall include scoreType, plotType, mapq_ls, score_ls, C_ls
+			"""
+			self.real_counter = 0
+			
+			# 2010-7-29
+			for keyword, value in keywords.iteritems():
+				setattr(self, keyword, value)
+		
+		def run(self, read, param_obj=None):
+			"""
+			2011-2-8
+			"""
+			param_obj.counter += 1
+			if read.is_unmapped:
+				return
+			if read.qname not in param_obj.qname2count:
+				param_obj.qname2count[read.qname] = 0
+			param_obj.qname2count[read.qname] += 1
+			param_obj.real_counter += 1
+			
+			score = None
+			if self.scoreType==1:
+				score = read.mapq
+			elif self.scoreType in [2,3]:
+				if self.scoreType==2:
+					no_of_bases = read.alen
+				elif self.scoreType==3:
+					no_of_bases = read.rlen
+				for tag in read.tags:
+					if tag[0]=='AS':
+						score = tag[1]	#'AS'
+						score = score/float(no_of_bases) 	#divide the alignment score by the read length
+						break
+			if score is not None:
+				self.mapq_ls.append(read.mapq)
+				self.score_ls.append(score)
+				if self.plotType==2 or self.plotType==1:
+					self.C_ls.append(1)
+				elif self.plotType==3:
+					self.C_ls.append(no_of_bases)	#read.rlen is different from read.alen
+			
+	
 	@classmethod
 	def drawHistogramOfChoosenBWAOutputScore(cls, inputFname, outputFname, scoreType=1, plotType=2):
 		"""
 		2011-2-1
 			scoreType
 				1. mapping quality
-				2. alignment score
-				3. ...
+				2. alignment score per aligned read length
+				3. alignment score per read length
 			plotType
 				1: 1D histogram
-				2: 2D histogram (scoreType has to be =2)
+				2: 2D histogram (scoreType has to be =2, color according to how many reads)
+				3: 2D histogram (color according to median read length)
 		"""
 		import os,sys
 		import pysam
-		samfile = pysam.Samfile(inputFname, "rb" )
-		it = samfile.fetch()
+		
+		sys.stderr.write("Draw histogram of (scoreType=%s, plotType=%s) from %s ...\n"%\
+						(scoreType, plotType, inputFname))
 		mapq_ls = []
 		score_ls = []
-		counter = 0
-		sys.stderr.write("Traversing through %s .\n"%(inputFname))
 		C_ls = []
-		for read in it:
-			counter += 1
-			if read.is_unmapped:
-				continue
-			score = None
-			if scoreType==1:
-				score = read.mapq
-			elif scoreType==2:
-				for tag in read.tags:
-					if tag[0]=='AS':
-						score = tag[1]	#'AS'
-						break
-			if score is not None:
-				mapq_ls.append(read.mapq)
-				score_ls.append(score)
-				C_ls.append(1)
-			if counter%10000==0:
-				sys.stderr.write("%s\t%s"%('\x08'*80, counter))
+		processor = cls.DrawHistogramOfChoosenBWAOutputScore(scoreType=scoreType, \
+									plotType=plotType, mapq_ls=mapq_ls, C_ls=C_ls, score_ls=score_ls)
+		samfile = pysam.Samfile(inputFname, "rb" )
+		cls.traverseBamFile(samfile, processor=processor)
+		
 		sys.stderr.write("Done.\n")
 		if scoreType==1:
-			xlabel = "read map quality"
+			xlabel_1D = "read map quality"
 		elif scoreType==2:
-			xlabel = 'alignment score'
+			xlabel_1D = 'alignment score per aligned read base'
+		elif scoreType==3:
+			xlabel_1D = 'alignment score per read base'
 		title='%s'%(os.path.split(inputFname)[1])
-		if plotType==2:
+		if plotType in [2, 3]:
 			from variation.src.misc import CNV
-			reduce_C_function = CNV.logSum
-			#reduce_C_function = numpy.mean
-			CNV.drawHexbin(mapq_ls, score_ls, C_ls, fig_fname=outputFname, gridsize=20, \
+			if plotType==2:
+				reduce_C_function = CNV.logSum
+				colorBarLabel='log(count)'
+			elif plotType==3:
+				import numpy
+				reduce_C_function = numpy.mean
+				if scoreType==2:
+					colorBarLabel='median aligned read length'
+				elif scoreType==3:
+					colorBarLabel='median read length'
+			CNV.drawHexbin(processor.mapq_ls, processor.score_ls, processor.C_ls, fig_fname=outputFname, gridsize=20, \
 								title=title, \
 								xlabel = 'read map quality', \
-								ylabel = 'alignment score',\
-								colorBarLabel='log(count)', reduce_C_function= reduce_C_function)
+								ylabel = xlabel_1D,\
+								colorBarLabel=colorBarLabel, reduce_C_function= reduce_C_function)
 		elif plotType==1:
 			import pylab
-			pylab.hist(score_ls, 20)
+			pylab.hist(processor.score_ls, 20, log=True)
 			pylab.title(title)
-			pylab.xlabel(xlabel)
+			pylab.xlabel(xlabel_1D)
 			pylab.savefig(outputFname, dpi=200)
 		
 	"""
@@ -233,6 +279,207 @@ class VariantDiscovery(object):
 		outputFname = os.path.expanduser("%s.score%s.hist.png"%(inputPrefix, scoreType))
 		VariantDiscovery.drawHistogramOfChoosenBWAOutputScore(inputFname, outputFname)
 		sys.exit(0)
+		
+		# 2011-2-1
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_BAC/454_vs_ref_1MbBAC_c30.F4")
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19.chr18_26.7M_27.8M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19_20101230.chr9_124M_124.2M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/subspecies/aethiops/aethiops_vs_1MbBAC_by_aln.F4")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType = 3
+		plotType = 3
+		outputFname = os.path.expanduser("%s.score%s.plot%s.hist.png"%(inputPrefix, scoreType, plotType))
+		VariantDiscovery.drawHistogramOfChoosenBWAOutputScore(inputFname, outputFname, scoreType=scoreType, plotType=plotType)
+		sys.exit(0)
+
+	"""
+	
+	class FilterReadsByASPerAlignedBaseAndMapQ(object):
+		"""
+		2011-2-8
+			This class filters bwa output bam file based on two criteria.
+				read.mapq>=minMapQ
+				score >= minPerBaseAS
+			only for bwasw, which has AS (alignment score) tag.
+			
+		"""
+		def __init__(self, **keywords):
+			"""
+			keywords shall include bamOutputF, scoreType, minMapQ, minPerBaseAS
+			"""
+			self.real_counter = 0
+			
+			# 2010-7-29
+			for keyword, value in keywords.iteritems():
+				setattr(self, keyword, value)
+		
+		def run(self, read, param_obj=None):
+			"""
+			2011-2-8
+			"""
+			param_obj.counter += 1
+			if read.is_unmapped:
+				return
+			if read.qname not in param_obj.qname2count:
+				param_obj.qname2count[read.qname] = 0
+			param_obj.qname2count[read.qname] += 1
+			param_obj.real_counter += 1
+			score = None
+			if self.scoreType==1:
+				score = read.mapq
+			elif self.scoreType in [2,3]:
+				if self.scoreType==2:
+					no_of_bases = read.alen
+				elif self.scoreType==3:
+					no_of_bases = read.rlen
+				for tag in read.tags:
+					if tag[0]=='AS':
+						score = tag[1]	#'AS'
+						score = score/float(no_of_bases) 	#divide the alignment score by the read length
+						break
+			if score is not None:
+				if read.mapq>=self.minMapQ and score>=self.minPerBaseAS:
+					self.bamOutputF.write(read)
+			
+			
+	@classmethod
+	def filterReadsByASPerAlignedBaseAndMapQ(cls, inputFname, outputFname=None, minPerBaseAS=0.5, minMapQ=125, scoreType=2):
+		"""
+		2011-2-8
+		"""
+		import os, sys
+		import pysam
+		samfile = pysam.Samfile(inputFname, "rb" )
+		bamOutputF = pysam.Samfile(outputFname, 'wb', template=samfile)
+		sys.stderr.write("Filter reads from %s (minPerBaseAS>=%s, minMapQ>=%s) ...\n"%(inputFname, minPerBaseAS, minMapQ))
+		processor = cls.FilterReadsByASPerAlignedBaseAndMapQ(bamOutputF=bamOutputF, \
+									scoreType=scoreType, minMapQ=minMapQ, minPerBaseAS=minPerBaseAS)
+		cls.traverseBamFile(samfile, processor=processor)
+		
+		bamOutputF.close()
+	"""
+		#2011-2-8
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_BAC/454_vs_ref_1MbBAC.F4")
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19.chr18_26.7M_27.8M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19_20101230.chr9_124M_124.2M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/subspecies/aethiops/aethiops_vs_1MbBAC_by_aln.F4")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType = 3
+		minPerBaseAS = 0.5
+		minMapQ = 125
+		outputFname = os.path.expanduser("%s.minPerBaseAS%s.minMapQ%s.score%s.bam"%(inputPrefix, minPerBaseAS, minMapQ, scoreType))
+		
+		VariantDiscovery.filterReadsByASPerAlignedBaseAndMapQ(inputFname, outputFname, minPerBaseAS=minPerBaseAS, minMapQ=minMapQ,\
+				scoreType=scoreType)
+		sys.exit(0)
+	"""
+	@classmethod
+	def traverseBamFile(cls, samfile, processor=None):
+		"""
+		2011-2-8
+			a traverser used by other functions
+		"""
+		import os,sys
+		import pysam
+		from pymodule import PassingData
+		it = samfile.fetch()
+		counter = 0
+		real_counter = 0
+		qname2count = {}
+		param_obj = PassingData(real_counter=real_counter, counter=counter, qname2count=qname2count)
+		for read in it:
+			counter += 1
+			processor.run(read, param_obj=param_obj)
+				
+			if counter%10000==0:
+				sys.stderr.write("%s\t%s"%('\x08'*80, counter))
+		processor.qname2count = param_obj.qname2count	#2011-2-9 pass it to the processor
+		max_redundant_read_count = max(param_obj.qname2count.values())
+		sys.stderr.write(" %s unique reads among %s mapped reads, max redundant read count=%s. Done.\n"%\
+						(len(param_obj.qname2count), param_obj.real_counter, max_redundant_read_count))
+		del samfile
+	"""
+		
+	"""
+	
+	
+	class SelectReadsAlignedInMultiplePlaces(object):
+		"""
+		2011-2-8
+			This class select reads that appear in more than minAlignmentOccurrence alignments.
+				
+			
+		"""
+		def __init__(self, **keywords):
+			"""
+			keywords shall include minAlignmentOccurrence, bamOutputF
+			"""
+			self.real_counter = 0
+			
+			# 2010-7-29
+			for keyword, value in keywords.iteritems():
+				setattr(self, keyword, value)
+		
+		def run(self, read, param_obj=None):
+			"""
+			2011-2-8
+			"""
+			param_obj.counter += 1
+			if read.is_unmapped:
+				return
+			
+			if read.qname not in param_obj.qname2count:
+				param_obj.qname2count[read.qname] = 0
+			param_obj.qname2count[read.qname] += 1
+			
+			
+			if read.qname not in self.qname2count:
+				sys.stderr.write("Skip. Read %s not in qname2count.\n"%(read.qname))
+				return
+			count = self.qname2count.get(read.qname)
+			if count>=self.minAlignmentOccurrence:
+				param_obj.real_counter += 1
+				self.bamOutputF.write(read)
+	
+	@classmethod
+	def selectReadsAlignedInMultiplePlaces(cls, inputFname, outputFname=None, minAlignmentOccurrence=2):
+		"""
+		2011-2-8
+		"""
+		import os, sys
+		import pysam
+		samfile = pysam.Samfile(inputFname, "rb" )
+		bamOutputF = pysam.Samfile(outputFname, 'wb', template=samfile)
+		sys.stderr.write("Select multi-alined reads from %s...\n"%(inputFname, ))
+		
+		processorRecord = cls.DrawHistogramOfChoosenBWAOutputScore(scoreType=2, \
+									plotType=1, mapq_ls=[], C_ls=[], score_ls=[])
+		# this processor is only used to get qname2count
+		cls.traverseBamFile(samfile, processor=processorRecord)
+		
+		samfile.seek(0)
+		
+		processor = cls.SelectReadsAlignedInMultiplePlaces(bamOutputF=bamOutputF, \
+											minAlignmentOccurrence=minAlignmentOccurrence, \
+											qname2count=processorRecord.qname2count)
+		cls.traverseBamFile(samfile, processor=processor)
+		
+		bamOutputF.close()
+	"""
+		#2011-2-9
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_BAC/454_vs_ref_1MbBAC_c30.F4")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19.chr18_26.7M_27.8M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19_20101230.chr9_124M_124.2M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/subspecies/aethiops/aethiops_vs_1MbBAC_by_aln.F4")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType = 1
+		plotType = 1
+		minAlignmentOccurrence = 2
+		outputFname = os.path.expanduser("%s.minAlnOccu%s.bam"%(inputPrefix, minAlignmentOccurrence))
+		VariantDiscovery.selectReadsAlignedInMultiplePlaces(inputFname, outputFname, minAlignmentOccurrence=minAlignmentOccurrence)
+		sys.exit(0)
+
+	
 	"""
 
 class Main(object):
@@ -275,17 +522,35 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		# 2011-2-1
-		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_ref_1MbBAC_c30_z2.F4")
-		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_hg19.chr18_26.7M_27.8M")
-		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_hg19_20101230.chr9_124M_124.2M")
+		
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/subspecies/aethiops/aethiops_vs_hg19_by_bwasw.F4.chr18_26.7M_27.8M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19.chr18_26.7M_27.8M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19_20101230.chr9_124M_124.2M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/subspecies/aethiops/aethiops_vs_1MbBAC_by_aln.F4")
 		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
 		scoreType = 2
-		plotType = 2
+		plotType = 3
 		outputFname = os.path.expanduser("%s.score%s.plot%s.hist.png"%(inputPrefix, scoreType, plotType))
 		VariantDiscovery.drawHistogramOfChoosenBWAOutputScore(inputFname, outputFname, scoreType=scoreType, plotType=plotType)
 		sys.exit(0)
-
+		
+		
+		#2011-2-9
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_BAC/454_vs_ref_1MbBAC.F4.minPerBaseAS0.75.minMapQ150.score2")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19.chr18_26.7M_27.8M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19_20101230.chr9_124M_124.2M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/subspecies/aethiops/aethiops_vs_1MbBAC_by_aln.F4")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType = 1
+		plotType = 1
+		minAlignmentOccurrence = 2
+		outputFname = os.path.expanduser("%s.minAlnOccu%s.bam"%(inputPrefix, minAlignmentOccurrence))
+		VariantDiscovery.selectReadsAlignedInMultiplePlaces(inputFname, outputFname, minAlignmentOccurrence=minAlignmentOccurrence)
+		sys.exit(0)
+		
+		
+		
+		
 
 
 
