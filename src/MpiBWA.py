@@ -9,17 +9,21 @@ Examples:
 	mpirun -np 5 -machinefile ~/hostfile /usr/bin/mpipython ~/script/vervet-web/src/MpiBWA.py
 		-t 6 -f /Network/Data/NCBI/hs_genome.fasta -y2
 		-i /Network/Data/vervet/ref/454/ -o /Network/Data/vervet/ref/454_vs_hg19_20101230
+		-m /Network/Data/vervet/ref/454_vs_hg19_20101230.bam
 	
 	#pass "-c 30" to bwa bwasw
 	mpirun -np 5 -machinefile ~/hostfile /usr/bin/mpipython ~/script/vervet-web/src/MpiBWA.py
 		-t 6 -a "-c 30" -f /Network/Data/NCBI/hs_genome.fasta -y2
 		-i /Network/Data/vervet/ref/454/ -o /Network/Data/vervet/ref/454_vs_hg19_20101230
-	
+		-m /Network/Data/vervet/ref/454_vs_hg19_20101230.bam
 	
 	mpirun -np 5 -machinefile ~/hostfile /usr/bin/mpipython ~/script/vervet-web/src/MpiBWA.py
 		-f ~/script/vervet-web/data/ref/BAC/1Mb-BAC.fa -t 6 -i /Network/Data/vervet/subspecies/aethiops/fastq/
 		-o /Network/Data/vervet/subspecies/aethiops/aethiops_vs_1MbBAC_by_aln
 		-m /Network/Data/vervet/subspecies/aethiops/aethiops_vs_1MbBAC.bam -p -y1
+	
+	# run under openmpi
+	mpiexec -n 3 -machinefile ~/hostfile_4 ~/script/vervet-web/src/MpiBWA.py ...
 	
 Description:
 	2011-1-18
