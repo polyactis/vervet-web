@@ -41,7 +41,7 @@ class VariantDiscovery(object):
 		pass
 	
 	@classmethod
-	def discoverHets(cls, input_fname, output_fname, minNumberOfReads=4):
+	def discoverHetsFromVCF(cls, input_fname, output_fname, minNumberOfReads=4):
 		import csv
 		reader =csv.reader(open(input_fname), delimiter='\t')
 		writer = csv.writer(open(output_fname, 'w'), delimiter='\t')
@@ -50,7 +50,9 @@ class VariantDiscovery(object):
 		reader.next()
 		reader.next()
 		for row in reader:
-			chr = row[0][8:]
+			if row[0][0]=='#':
+				continue
+			chr = row[0][3:]
 			pos = row[1]
 			quality = row[5]
 			info = row[7]
@@ -85,13 +87,13 @@ class VariantDiscovery(object):
 		#2011-1-6
 		input_fname = '/Network/Data/vervet/ref/454_vs_hg19_20101230_3eQTL_D100.raw.vcf'
 		output_fname = '/Network/Data/vervet/ref/454_vs_hg19_20101230_3eQTL_D100.raw.hets'
-		VariantDiscovery.discoverHets(input_fname, output_fname, minNumberOfReads=4)
+		VariantDiscovery.discoverHetsFromVCF(input_fname, output_fname, minNumberOfReads=4)
 		
 		common_prefix = '/Network/Data/vervet/ref/454_vs_hg19_20101230_3eQTL_p1'
 		input_fname = '%s.raw.vcf'%(common_prefix)
 		minNumberOfReads=2
 		output_fname = '%s_min%s.raw.hets'%(common_prefix, minNumberOfReads)
-		VariantDiscovery.discoverHets(input_fname, output_fname, minNumberOfReads=minNumberOfReads)
+		VariantDiscovery.discoverHetsFromVCF(input_fname, output_fname, minNumberOfReads=minNumberOfReads)
 		sys.exit(0)
 	"""
 	
@@ -151,7 +153,7 @@ class VariantDiscovery(object):
 		input_fname = '%s.raw.vcf'%(common_prefix)
 		minNumberOfReads=3
 		output_fname = '%s_min%s.raw.hets'%(common_prefix, minNumberOfReads)
-		VariantDiscovery.discoverHets(input_fname, output_fname, minNumberOfReads=minNumberOfReads)
+		VariantDiscovery.discoverHetsFromVCF(input_fname, output_fname, minNumberOfReads=minNumberOfReads)
 		sys.exit(0)
 		
 		#2011-1-6
@@ -164,7 +166,7 @@ class VariantDiscovery(object):
 		
 	"""
 	
-	class DrawHistogramOfChoosenBWAOutputScore(object):
+	class DrawHistogramOfChosenBWAOutputScore(object):
 		"""
 		2011-2-8
 			
@@ -214,7 +216,7 @@ class VariantDiscovery(object):
 			
 	
 	@classmethod
-	def drawHistogramOfChoosenBWAOutputScore(cls, inputFname, outputFname, scoreType=1, plotType=2):
+	def drawHistogramOfChosenBWAOutputScore(cls, inputFname, outputFname, scoreType=1, plotType=2):
 		"""
 		2011-2-1
 			scoreType
@@ -234,7 +236,7 @@ class VariantDiscovery(object):
 		mapq_ls = []
 		score_ls = []
 		C_ls = []
-		processor = cls.DrawHistogramOfChoosenBWAOutputScore(scoreType=scoreType, \
+		processor = cls.DrawHistogramOfChosenBWAOutputScore(scoreType=scoreType, \
 									plotType=plotType, mapq_ls=mapq_ls, C_ls=C_ls, score_ls=score_ls)
 		samfile = pysam.Samfile(inputFname, "rb" )
 		cls.traverseBamFile(samfile, processor=processor)
@@ -277,7 +279,7 @@ class VariantDiscovery(object):
 		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
 		scoreType=1
 		outputFname = os.path.expanduser("%s.score%s.hist.png"%(inputPrefix, scoreType))
-		VariantDiscovery.drawHistogramOfChoosenBWAOutputScore(inputFname, outputFname)
+		VariantDiscovery.drawHistogramOfChosenBWAOutputScore(inputFname, outputFname)
 		sys.exit(0)
 		
 		# 2011-2-1
@@ -289,9 +291,18 @@ class VariantDiscovery(object):
 		scoreType = 3
 		plotType = 3
 		outputFname = os.path.expanduser("%s.score%s.plot%s.hist.png"%(inputPrefix, scoreType, plotType))
-		VariantDiscovery.drawHistogramOfChoosenBWAOutputScore(inputFname, outputFname, scoreType=scoreType, plotType=plotType)
+		VariantDiscovery.drawHistogramOfChosenBWAOutputScore(inputFname, outputFname, scoreType=scoreType, plotType=plotType)
 		sys.exit(0)
-
+		
+		
+		#2011-2-24
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_hg19/454_vs_hg19.3eQTL")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType = 2
+		plotType = 2
+		outputFname = os.path.expanduser("%s.score%s.plot%s.hist.png"%(inputPrefix, scoreType, plotType))
+		VariantDiscovery.drawHistogramOfChosenBWAOutputScore(inputFname, outputFname, scoreType=scoreType, plotType=plotType)
+		sys.exit(0)
 	"""
 	
 	class FilterReadsByASPerAlignedBaseAndMapQ(object):
@@ -330,7 +341,8 @@ class VariantDiscovery(object):
 			elif self.scoreType in [2,3]:
 				if self.scoreType==2:
 					no_of_bases = read.alen
-				elif self.scoreType==3:
+				else:
+					# self.scoreType==3:
 					no_of_bases = read.rlen
 				for tag in read.tags:
 					if tag[0]=='AS':
@@ -346,6 +358,9 @@ class VariantDiscovery(object):
 	def filterReadsByASPerAlignedBaseAndMapQ(cls, inputFname, outputFname=None, minPerBaseAS=0.5, minMapQ=125, scoreType=2):
 		"""
 		2011-2-8
+			scoreType
+				2: minPerBaseAS is alignment score per aligned base.
+				3: minPerBaseAS is alignment score per read base.
 		"""
 		import os, sys
 		import pysam
@@ -366,6 +381,19 @@ class VariantDiscovery(object):
 		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
 		scoreType = 3
 		minPerBaseAS = 0.5
+		minMapQ = 125
+		outputFname = os.path.expanduser("%s.minPerBaseAS%s.minMapQ%s.score%s.bam"%(inputPrefix, minPerBaseAS, minMapQ, scoreType))
+		
+		VariantDiscovery.filterReadsByASPerAlignedBaseAndMapQ(inputFname, outputFname, minPerBaseAS=minPerBaseAS, minMapQ=minMapQ,\
+				scoreType=scoreType)
+		sys.exit(0)
+		
+		#2011-2-18
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_hg19/454_vs_hg19.3eQTL")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_hg19/454_vs_hg19.3eQTL")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType = 2
+		minPerBaseAS = 0.4
 		minMapQ = 125
 		outputFname = os.path.expanduser("%s.minPerBaseAS%s.minMapQ%s.score%s.bam"%(inputPrefix, minPerBaseAS, minMapQ, scoreType))
 		
@@ -452,7 +480,7 @@ class VariantDiscovery(object):
 		bamOutputF = pysam.Samfile(outputFname, 'wb', template=samfile)
 		sys.stderr.write("Select multi-alined reads from %s...\n"%(inputFname, ))
 		
-		processorRecord = cls.DrawHistogramOfChoosenBWAOutputScore(scoreType=2, \
+		processorRecord = cls.DrawHistogramOfChosenBWAOutputScore(scoreType=2, \
 									plotType=1, mapq_ls=[], C_ls=[], score_ls=[])
 		# this processor is only used to get qname2count
 		cls.traverseBamFile(samfile, processor=processorRecord)
@@ -479,9 +507,58 @@ class VariantDiscovery(object):
 		VariantDiscovery.selectReadsAlignedInMultiplePlaces(inputFname, outputFname, minAlignmentOccurrence=minAlignmentOccurrence)
 		sys.exit(0)
 
-	
+		#2011-2-9
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_BAC/454_vs_ref_1MbBAC.F4.minPerBaseAS0.75.minMapQ150.score2")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19.chr18_26.7M_27.8M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19_20101230.chr9_124M_124.2M")
+		#inputPrefix = os.path.expanduser("/Network/Data/vervet/subspecies/aethiops/aethiops_vs_1MbBAC_by_aln.F4")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType = 1
+		plotType = 1
+		minAlignmentOccurrence = 2
+		outputFname = os.path.expanduser("%s.minAlnOccu%s.bam"%(inputPrefix, minAlignmentOccurrence))
+		VariantDiscovery.selectReadsAlignedInMultiplePlaces(inputFname, outputFname, minAlignmentOccurrence=minAlignmentOccurrence)
+		sys.exit(0)
 	"""
-
+	
+	@classmethod
+	def discoverHetsFromBAM(cls, inputFname, outputFname, minNumberOfReads=4, monomorphicDiameter=100):
+		"""
+		2011-2-18
+			discover Hets from BAM files based on coverage of either allele and monomorphic span
+			not tested and not finished.
+		"""
+		import pysam
+		samfile = pysam.Samfile("ex1.bam", "rb" )
+		current_locus = None	# record of polymorphic loci
+		previous_locus = None
+		candidate_locus = None
+		good_polymorphic_loci = []
+		for pileupcolumn in samfile.pileup():
+			print
+			print 'coverage at base %s %s = %s' % (pileupcolumn.tid, pileupcolumn.pos , pileupcolumn.n)
+			current_locus = (pileupcolumn.tid, pileupcolumn.pos)
+			base2count = {}
+			for pileupread in pileupcolumn.pileups:
+				base = pileupread.alignment.seq[pileupread.qpos]
+				if base not in base2count:
+					base2count[base] = 0
+				base2count[base] += 1
+				#print '\tbase in read %s = %s' % (pileupread.alignment.qname, base)
+			if len(base2count)>=2:
+				if previous_locus!=None and previous_locus[0]==current_locus[0]:
+					gap = current_locus[1]-previous_locus[1]
+					if gap>=monomorphicDiameter:
+						if candidate_locus is not None and candidate_locus==previous_locus:
+							#prior candidate locus is in proper distance. there's no polymorphic locus in between.
+							good_polymorphic_loci.append(candidate_locus)
+						candidate_locus = current_locus
+					else:
+						candidate_locus = None
+				previous_locus = current_locus
+		samfile.close()
+		
+	
 class Main(object):
 	__doc__ = __doc__
 	option_default_dict = {('drivername', 1,):['mysql', 'v', 1, 'which type of database? mysql or postgres', ],\
@@ -522,37 +599,15 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		
-		inputPrefix = os.path.expanduser("/Network/Data/vervet/subspecies/aethiops/aethiops_vs_hg19_by_bwasw.F4.chr18_26.7M_27.8M")
-		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19.chr18_26.7M_27.8M")
-		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19_20101230.chr9_124M_124.2M")
-		#inputPrefix = os.path.expanduser("/Network/Data/vervet/subspecies/aethiops/aethiops_vs_1MbBAC_by_aln.F4")
-		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
-		scoreType = 2
-		plotType = 3
-		outputFname = os.path.expanduser("%s.score%s.plot%s.hist.png"%(inputPrefix, scoreType, plotType))
-		VariantDiscovery.drawHistogramOfChoosenBWAOutputScore(inputFname, outputFname, scoreType=scoreType, plotType=plotType)
+		#2011-3-1
+		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.D100'
+		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.D100'
+		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.GATK'
+		input_fname = '%s.vcf'%(common_prefix)
+		minNumberOfReads=3
+		output_fname = '%s_min%s.hets'%(common_prefix, minNumberOfReads)
+		VariantDiscovery.discoverHetsFromVCF(input_fname, output_fname, minNumberOfReads=minNumberOfReads)
 		sys.exit(0)
-		
-		
-		#2011-2-9
-		inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/454_vs_BAC/454_vs_ref_1MbBAC.F4.minPerBaseAS0.75.minMapQ150.score2")
-		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19.chr18_26.7M_27.8M")
-		#inputPrefix = os.path.expanduser("/Network/Data/vervet/ref/fineMapping/454_vs_hg19_20101230.chr9_124M_124.2M")
-		#inputPrefix = os.path.expanduser("/Network/Data/vervet/subspecies/aethiops/aethiops_vs_1MbBAC_by_aln.F4")
-		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
-		scoreType = 1
-		plotType = 1
-		minAlignmentOccurrence = 2
-		outputFname = os.path.expanduser("%s.minAlnOccu%s.bam"%(inputPrefix, minAlignmentOccurrence))
-		VariantDiscovery.selectReadsAlignedInMultiplePlaces(inputFname, outputFname, minAlignmentOccurrence=minAlignmentOccurrence)
-		sys.exit(0)
-		
-		
-		
-		
-
-
 
 
 if __name__ == '__main__':
