@@ -41,48 +41,139 @@ class VariantDiscovery(object):
 		pass
 	
 	@classmethod
-	def discoverHetsFromVCF(cls, input_fname, output_fname, minNumberOfReads=4):
+	def getIndividual2ColIndex(cls, header, col_name2index, sampleStartingColumn=9):
+		"""
+		2011-3-4
+			called by discoverHetsFromVCF
+		"""
+		sys.stderr.write("Finding all individuals ...")
+		no_of_cols = len(header)
+		individual_name2col_index = {}	#individual's column name -> an opened file handler to store genetic data
+		counter = 0
+		for i in xrange(sampleStartingColumn, no_of_cols):
+			individualName = header[i]
+			col_index = col_name2index.get(individualName)
+			if not individualName:	#ignore empty column
+				continue
+			if individualName[:-4]=='.bam':
+				individualCode = individualName[:-4]	#get rid of .bam
+			else:
+				individualCode = individualName
+			individual_name2col_index[individualCode] = col_index
+			counter += 1
+		sys.stderr.write("%s individuals added. Done.\n"%(counter))
+		return individual_name2col_index
+	
+	@classmethod
+	def discoverHetsFromVCF(cls, input_fname, output_fname, minNumberOfReads=4, VCFOutputType=1):
+		"""
+		2011-3-4
+			VCF output by GATK has a different format
+			argument VCFOutputType
+				1: output by samtools's vcfutils.pl
+				2: output by GATK
+		2011-1-6
+			input_fname is VCF output by "vcfutils.pl varFilter" of samtools
+		"""
 		import csv
+		from pymodule.utils import runLocalCommand, getColName2IndexFromHeader
+		
 		reader =csv.reader(open(input_fname), delimiter='\t')
 		writer = csv.writer(open(output_fname, 'w'), delimiter='\t')
-		header = ['id', 'chr', 'pos', 'qual', 'DP', 'minDP4', 'DP4_ratio', 'MQ']
+		header = ['sample', 'snp_id', 'chr', 'pos', 'qual', 'DP', 'minDP4', 'DP4_ratio', 'MQ']
+		moreHeader = ['GQ', 'GL', 'SB']
+		#['AF', 'AC','AN', 'Dels', 'HRun', 'HaplotypeScore','MQ0', 'QD']	#2011-3-4 useless
+		if VCFOutputType==2:
+			header += moreHeader
 		writer.writerow(header)
-		reader.next()
-		reader.next()
+		individual_name2col_index = None
+		col_name2index = None
+		counter = 0
+		real_counter = 0
 		for row in reader:
-			if row[0][0]=='#':
+			if row[0] =='#CHROM':
+				row[0] = 'CHROM'	#discard the #
+				header = row
+				col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+				individual_name2col_index = cls.getIndividual2ColIndex(header, col_name2index)
+				continue
+			elif row[0][0]=='#':	#2011-3-4
 				continue
 			chr = row[0][3:]
 			pos = row[1]
 			quality = row[5]
+			
+			outputHet= False
+			
 			info = row[7]
 			info_ls = info.split(';')
 			info_tag2value = {}
-			outputHet= False
 			for info in info_ls:
 				try:
 					tag, value = info.split('=')
 				except:
-					sys.stderr.write("Error %s.\n"%info)
+					sys.stderr.write("Error in splitting %s by =.\n"%info)
 					continue
-				if tag=='DP4':
-					tag = 'DP4_ratio'
-					value = value.split(',')
-					value = map(int, value)
-					no_of_ref_allele = sum(value[0:2])
-					no_of_non_ref_allele = sum(value[2:])
-					if no_of_ref_allele>=minNumberOfReads and no_of_non_ref_allele>=minNumberOfReads:
-						outputHet = True
-						value = float(no_of_ref_allele)/no_of_non_ref_allele
-						info_tag2value['minDP4'] = min(no_of_ref_allele, no_of_non_ref_allele)
-					else:
-						value = None
 				info_tag2value[tag] = value
-			if outputHet:
-				output_row = ['chr%s:%s'%(chr, pos), chr, pos, quality, info_tag2value.get('DP'), \
-							info_tag2value.get('minDP4'), info_tag2value.get('DP4_ratio'), info_tag2value.get('MQ')]
-				writer.writerow(output_row)
+			
+			if VCFOutputType==2:	#2011-3-4
+				format_column = row[col_name2index['FORMAT']]
+				format_column_ls = format_column.split(':')
+				format_column_name2index = getColName2IndexFromHeader(format_column_ls)
+				for individual_name, individual_col_index in individual_name2col_index.iteritems():
+					genotype_data = row[individual_col_index]
+					genotype_data_ls = genotype_data.split(':')
+					genotype_call = genotype_data_ls[format_column_name2index['GT']]
+					genotype_quality_index = format_column_name2index.get('GQ')
+					if genotype_quality_index is None:
+						genotype_quality_index = format_column_name2index.get('DP')
+					genotype_quality = genotype_data_ls[genotype_quality_index]
+					GL_index = format_column_name2index.get('GL')
+					if genotype_call=='0/1':	#heterozygous
+						GL = genotype_data_ls[GL_index]
+						GL = GL.split(',')
+						GL = GL[1]
+						
+						AD = genotype_data_ls[format_column_name2index.get('AD')]
+						AD = map(int, AD.split(','))
+						if AD[0]>=minNumberOfReads and AD[1]>=minNumberOfReads:	#satisfy read support
+							minDP4 = min(AD)
+							DP4_ratio = float(AD[0])/AD[1]
+							data_row = [individual_name, 'chr%s:%s'%(chr, pos), chr, pos, quality, \
+									genotype_data_ls[format_column_name2index.get('DP')], minDP4, DP4_ratio,\
+									info_tag2value.get('MQ'), genotype_quality, GL,\
+									info_tag2value.get('SB')]
+							for i in range(3, len(moreHeader)):
+								info_tag = moreHeader[i]
+								data_row.append(info_tag2value.get(info_tag))
+							writer.writerow(data_row)
+							real_counter += 1
+			elif VCFOutputType==1:
+				sample_id = row[8]
+				for tag, value in info_tag2value.iteritems():
+					if tag=='DP4':
+						tag = 'DP4_ratio'
+						value = value.split(',')
+						value = map(int, value)
+						no_of_ref_allele = sum(value[0:2])
+						no_of_non_ref_allele = sum(value[2:])
+						if no_of_ref_allele>=minNumberOfReads and no_of_non_ref_allele>=minNumberOfReads:
+							outputHet = True
+							value = float(no_of_ref_allele)/no_of_non_ref_allele
+							info_tag2value['minDP4'] = min(no_of_ref_allele, no_of_non_ref_allele)
+						else:
+							value = None
+						info_tag2value[tag] = value
+				if outputHet:
+					real_counter += 1
+					output_row = [sample_id, 'chr%s:%s'%(chr, pos), chr, pos, quality, info_tag2value.get('DP'), \
+								info_tag2value.get('minDP4'), info_tag2value.get('DP4_ratio'), info_tag2value.get('MQ')]
+					writer.writerow(output_row)
+			counter += 1
+			if counter%2000==0:
+				sys.stderr.write("%s\t%s\t%s"%("\x08"*80, counter, real_counter))
 		del reader, writer
+		sys.stderr.write("%s\t%s\t%s.\n"%("\x08"*80, counter, real_counter))
 	"""
 		#2011-1-6
 		input_fname = '/Network/Data/vervet/ref/454_vs_hg19_20101230_3eQTL_D100.raw.vcf'
@@ -94,6 +185,17 @@ class VariantDiscovery(object):
 		minNumberOfReads=2
 		output_fname = '%s_min%s.raw.hets'%(common_prefix, minNumberOfReads)
 		VariantDiscovery.discoverHetsFromVCF(input_fname, output_fname, minNumberOfReads=minNumberOfReads)
+		sys.exit(0)
+		
+		#2011-3-4
+		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.D100'
+		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.D100'
+		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.GATK'
+		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.GATK'
+		input_fname = '%s.vcf'%(common_prefix)
+		minNumberOfReads=3
+		output_fname = '%s_min%s.hets'%(common_prefix, minNumberOfReads)
+		VariantDiscovery.discoverHetsFromVCF(input_fname, output_fname, minNumberOfReads=minNumberOfReads, VCFOutputType=2)
 		sys.exit(0)
 	"""
 	
@@ -127,7 +229,10 @@ class VariantDiscovery(object):
 		sys.stderr.write("Reading in my variants ... ")
 		reader = csv.reader(open(myVariantFile), delimiter='\t')
 		writer = csv.writer(open(output_fname, 'w'), delimiter='\t')
-		header = ['snp_id', 'chr_pos', 'status', 'chr', 'pos', 'qual', 'DP', 'minDP4', 'DP4_ratio', 'MQ']
+		header = ['snp_id', 'chr_pos|string', 'status', 'chr', 'pos', 'qual', 'DP', 'minDP4', 'DP4_ratio', 'MQ']
+		moreHeader = ['GQ', 'GL', 'SB']
+		#['AF', 'AC','AN', 'Dels', 'HRun', 'HaplotypeScore','MQ0', 'QD']
+		header += moreHeader
 		writer.writerow(header)
 		
 		from pymodule.utils import getColName2IndexFromHeader
@@ -135,11 +240,11 @@ class VariantDiscovery(object):
 		counter = 0
 		real_counter = 0
 		for row in reader:
-			chr_pos = row[col_name2index['id']]
+			chr_pos = row[col_name2index['snp_id']]
 			pos = row[col_name2index['pos']]
 			if chr_pos in chr_pos2data_ls:
 				snp_id, work_status = chr_pos2data_ls[chr_pos]
-				data_row = [snp_id, chr_pos, work_status] + row[1:]
+				data_row = [snp_id, chr_pos, work_status] + row[2:]
 				writer.writerow(data_row)
 				real_counter += 1
 			
@@ -599,16 +704,27 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2011-3-1
+		#2011-3-4
 		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.D100'
 		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.D100'
 		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.GATK'
+		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.GATK'
 		input_fname = '%s.vcf'%(common_prefix)
-		minNumberOfReads=3
+		minNumberOfReads=2
 		output_fname = '%s_min%s.hets'%(common_prefix, minNumberOfReads)
-		VariantDiscovery.discoverHetsFromVCF(input_fname, output_fname, minNumberOfReads=minNumberOfReads)
+		VariantDiscovery.discoverHetsFromVCF(input_fname, output_fname, minNumberOfReads=minNumberOfReads, VCFOutputType=2)
+		#sys.exit(0)
+		
+		#2011-3-4
+		minNumberOfReads =2
+		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.GATK'
+		#common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.GATK'
+		myVariantFile = '%s_min%s.hets'%(common_prefix, minNumberOfReads)
+		
+		jessicaVariantFname = os.path.expanduser('~/script/vervet-web/data/eQTL summary.txt')
+		output_fname = '%s_min%s.overlap.tsv'%(common_prefix, minNumberOfReads)
+		VariantDiscovery.checkOverlapping(myVariantFile, jessicaVariantFname, output_fname)
 		sys.exit(0)
-
 
 if __name__ == '__main__':
 	from pymodule import ProcessOptions
