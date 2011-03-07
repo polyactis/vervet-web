@@ -1,8 +1,21 @@
 #!/bin/sh
-#
-# $0 454_vs_BAC LS454 input_prefix
-# $0 aethiops_vs_BAC ILLUMINA input_prefix
-#
+
+if test $# -lt 3
+then
+	echo "Usage: $0 RG_ID RG_PL InputFnamePrefix"
+	echo
+	echo "Given a bam file without read group (RG) information, this script add RGs to the file."
+	echo "	  1. output RG info into /tmp/rg.txt."
+	echo "	  2. call samtools view and awk to add RG and RG_ID to the bam file."
+	
+	echo "Note:
+		InputFnamePrefix is part of the filename without .bam."
+	echo
+	echo "Examples:	addRGToBAM.sh 454_vs_BAC LS454 input_prefix"
+	echo "	addRGToBAM.sh aethiops_vs_BAC ILLUMINA input_prefix"
+exit
+fi
+
 
 rg_id=$1
 rg_sample=$1
