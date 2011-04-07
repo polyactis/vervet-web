@@ -55,7 +55,7 @@ class MpiBWA(MPI4pywrapper):
 						('fasta_fname', 1, ): [None, 'f', 1, 'fasta file containing chromosome sequences of a ref genome'],\
 						("output_dir", 1, ): [None, 'o', 1, 'directory to hold individual bam output before they are merged into finalBamFile'],\
 						("bwa_path", 1, ): [os.path.expanduser("~/bin/bwa"), '', 1, 'bwa binary'],\
-						("sam_path", 1, ): [os.path.expanduser("~/bin/samtools"), '', 1, 'samtools binary'],\
+						("samtools_path", 1, ): [os.path.expanduser("~/bin/samtools"), '', 1, 'samtools binary'],\
 						('no_of_threads', 1, int): [6, 't', 1, 'number of threads run on each node for bwa'],\
 						('alnType', 1, int): [1, 'y', 1, 'Alignment type. 1: aln (short read), 2: bwasw (long read)'],\
 						('additionalArguments', 0, ): ["", 'a', 1, 'space-separated list of additional arguments passed to aln or bwasw'],\
@@ -215,8 +215,8 @@ class MpiBWA(MPI4pywrapper):
 				convert sam to bam
 			"""
 			## convert sam into bam and remove unmapped reads (or queries)
-			#sam_convert_cmdline = "%s calmd -uS - %s"%(param_obj.sam_path, param_obj.fasta_fname)
-			sam_convert_cmdline = [param_obj.sam_path, 'view',  '-F', '4', '-bSh', '-']
+			#sam_convert_cmdline = "%s calmd -uS - %s"%(param_obj.samtools_path, param_obj.fasta_fname)
+			sam_convert_cmdline = [param_obj.samtools_path, 'view',  '-F', '4', '-bSh', '-']
 			#print sam_convert_cmdline
 			p2 = subprocess.Popen(sam_convert_cmdline, shell=False, stdin=p1.stdout, stderr=sys.stderr, stdout=subprocess.PIPE)
 			
@@ -225,7 +225,7 @@ class MpiBWA(MPI4pywrapper):
 				sort it so that it could be used for merge
 			"""
 			bam_output_fname_prefix = '%s.sorted'%(os.path.join(param_obj.output_dir, fname_prefix))
-			sam_sort_cmdline = [param_obj.sam_path, 'sort', '-m', '1000000000', '-', bam_output_fname_prefix]	#maxMemory is down to 1G
+			sam_sort_cmdline = [param_obj.samtools_path, 'sort', '-m', '1000000000', '-', bam_output_fname_prefix]	#maxMemory is down to 1G
 			#because bwa, samtools view, samtools sort are all running at the same time due to the unix pipe.
 			p3 = subprocess.Popen(sam_sort_cmdline, shell=False, stdin=p2.stdout, stderr=sys.stderr, stdout=subprocess.PIPE)
 			try:
@@ -298,7 +298,7 @@ class MpiBWA(MPI4pywrapper):
 			self.inputNode(param_obj, free_computing_nodes, param_generator = param_ls, message_size=1)
 		elif node_rank in free_computing_node_set:
 			computing_parameter_obj = PassingData(input_dir=self.input_dir, fasta_fname=self.fasta_fname, output_dir=self.output_dir,\
-												bwa_path=self.bwa_path, sam_path=self.sam_path, no_of_threads=self.no_of_threads,\
+												bwa_path=self.bwa_path, samtools_path=self.samtools_path, no_of_threads=self.no_of_threads,\
 												additionalArguments = self.additionalArguments, alnType=self.alnType)
 			self.computing_node(computing_parameter_obj, self.computing_node_handler)
 		else:
@@ -311,7 +311,7 @@ class MpiBWA(MPI4pywrapper):
 			2011-2-7
 				to merge all bam files into one.
 			"""
-			cmdline = [self.sam_path, 'merge', self.finalBamFile] + output_param_obj.output_fname_ls
+			cmdline = [self.samtools_path, 'merge', self.finalBamFile] + output_param_obj.output_fname_ls
 			p0 = subprocess.Popen(cmdline, shell=False, stdin=None, stderr=sys.stderr, stdout=sys.stderr)
 			try:
 				stdout_content, stderr_content = p0.communicate()
