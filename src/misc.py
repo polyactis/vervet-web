@@ -132,11 +132,16 @@ class PhastCons(object):
 		return db_entry
 		
 	@classmethod
-	def saveHighPhastConsLoci(cls, db_vervet, inputFname, minPhastConsScore=0.95, locus_method_id=1,\
+	def saveHighPhastConsLoci(cls, db_vervet, inputFname, minPhastConsScore=0.95, maxPhastConsScore=1.0, locus_method_id=1,\
 							ref_ind_seq_id=9, score_method_id=1, minSegmentLength=1000, commit=False):
 		"""
 		2011-4-6
-			choose segments with high phastCons scores from UCSC phastCons data and save them into db
+			choose segments in which every score is [minPhastConsScore, maxPhastConsScore] and length>minSegmentLength.
+				It will save them into db (Locus, LocusScore).
+			A better way to define segments is through segmentation algorithm (like GADA).
+			
+			phastCons scores are from UCSC genome browser.
+			
 		"""
 		sys.stderr.write("Saving segments of high phastCons score (>=%s) from %s into db ... \n"%\
 						(minPhastConsScore, os.path.basename(inputFname)))
@@ -183,7 +188,7 @@ class PhastCons(object):
 			elif chr is not None and start is not None and step is not None:
 				start += step
 				score = float(line.strip())
-				if score>=minPhastConsScore:
+				if score>=minPhastConsScore and score<=maxPhastConsScore:
 					if conserved_segment_start is None:
 						conserved_segment_start = start
 					conserved_segment_score_ls.append(score)
@@ -228,6 +233,30 @@ class PhastCons(object):
 			minSegmentLength=minSegmentLength, commit=commit)
 		sys.exit(0)
 		
+		#2011-4-6
+		inputDir = '/Network/Data/UCSC/phastCons46way/primates/'
+		for inputFname in os.listdir(inputDir):
+			if inputFname[-9:]=='wigFix.gz' or inputFname[-6:]=='wigFix':
+				#common_prefix = os.path.expanduser('/Network/Data/UCSC/phastCons46way/primates/chr22.phastCons46way.primates')
+				#inputFname = '%s.wigFix.gz'%(common_prefix)
+				inputFname = os.path.join(inputDir, inputFname)
+				minPhastConsScore=0.4
+				maxPhastConsScore=0.6
+				locus_method_id=1
+				ref_ind_seq_id=9
+				score_method_id=1
+				minSegmentLength=500
+				commit = True
+				try:
+					PhastCons.saveHighPhastConsLoci(db_vervet, inputFname, minPhastConsScore=minPhastConsScore, \
+												locus_method_id=locus_method_id, ref_ind_seq_id=ref_ind_seq_id, \
+												score_method_id=score_method_id, \
+												minSegmentLength=minSegmentLength, commit=commit)
+				except:
+					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+					import traceback
+					traceback.print_exc()
+		sys.exit(0)
 	"""
 
 def sortCMPBySecondTupleValue(a, b):
@@ -1326,6 +1355,7 @@ class VariantDiscovery(object):
 	def calculatePairwiseDistanceOutOfSNPXStrainMatrix(cls, inputFname, outputFname, convertHetero2NA=False,
 													max_NA_rate=0.4, min_MAF=0.2):
 		"""
+		2011-4-7 output the pairwise distance as matrix
 		2011-3-30
 			add argument convertHetero2NA, max_NA_rate, min_MAF
 		2011-3-29
@@ -1345,9 +1375,35 @@ class VariantDiscovery(object):
 		snpData = snpData.removeColsByMAF(snpData, min_MAF=min_MAF)
 		
 		# add outputFname to function below to output the row pairwise distance
-		row_id2pairwise_dist = snpData.calRowPairwiseDist(assumeBiAllelic=True, outputFname=outputFname)
+		row_id2pairwise_dist_ls = snpData.calRowPairwiseDist(assumeBiAllelic=True, outputFname=outputFname)
 	
-	
+		#2011-4-7 output the pairwise distance as matrix
+		import csv, numpy
+		no_of_rows = len(row_id2pairwise_dist_ls)
+		row_id_ls = row_id2pairwise_dist_ls.keys()
+		row_id_ls.sort()
+		row_id2index = {}
+		for row_id in row_id_ls:
+			row_id2index[row_id] = len(row_id2index)
+		
+		data_matrix = numpy.zeros([no_of_rows, no_of_rows], dtype=numpy.float)
+		writer = csv.writer(open(outputFname, 'a'), delimiter='\t')
+		for row_id in row_id_ls:
+			pairwise_dist_ls = row_id2pairwise_dist_ls.get(row_id)
+			for dist in pairwise_dist_ls:
+				mismatch_rate, row_id2, no_of_mismatches, no_of_non_NA_pairs = dist[:4]
+				i = row_id2index.get(row_id)
+				j = row_id2index.get(row_id2)
+				data_matrix[i][j] = mismatch_rate
+				data_matrix[j][i] = mismatch_rate
+		header = [''] + row_id_ls
+		writer.writerow(header)
+		for i in range(no_of_rows):
+			row_id = row_id_ls[i]
+			data_row = [row_id] + list(data_matrix[i])
+			writer.writerow(data_row)
+		del writer
+		
 	"""
 	
 		#2011-3-24
@@ -1584,31 +1640,20 @@ class Main(object):
 		#import MySQLdb
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
-
 		
-		#2011-4-6
-		inputDir = '/Network/Data/UCSC/phastCons46way/primates/'
-		for inputFname in os.listdir(inputDir):
-			if inputFname[-9:]=='wigFix.gz' or inputFname[-6:]=='wigFix':
-				#common_prefix = os.path.expanduser('/Network/Data/UCSC/phastCons46way/primates/chr22.phastCons46way.primates')
-				#inputFname = '%s.wigFix.gz'%(common_prefix)
-				inputFname = os.path.join(inputDir, inputFname)
-				minPhastConsScore=0.9
-				locus_method_id=1
-				ref_ind_seq_id=9
-				score_method_id=1
-				minSegmentLength=500
-				commit = True
-				try:
-					PhastCons.saveHighPhastConsLoci(db_vervet, inputFname, minPhastConsScore=minPhastConsScore, \
-												locus_method_id=locus_method_id, ref_ind_seq_id=ref_ind_seq_id, \
-												score_method_id=score_method_id, \
-												minSegmentLength=minSegmentLength, commit=commit)
-				except:
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
+		
+		
+		#2011-4-7
+		inputFname = os.path.expanduser('~/script/vervet-web/data/topConservedHG19_random_100loci_vervetSNP.tsv')
+		convertHetero2NA = True
+		max_NA_rate = 0.4
+		min_MAF = 0.2
+		outputFname ='%s.pairwiseDist.convertHetero2NA%s.minMAF%s.maxNA%s.tsv'%(os.path.splitext(inputFname)[0], \
+												convertHetero2NA, min_MAF, max_NA_rate)
+		VariantDiscovery.calculatePairwiseDistanceOutOfSNPXStrainMatrix(inputFname, outputFname, \
+							convertHetero2NA=convertHetero2NA, min_MAF=min_MAF, max_NA_rate=max_NA_rate)
 		sys.exit(0)
+		
 		
 
 if __name__ == '__main__':
