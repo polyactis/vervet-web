@@ -127,6 +127,8 @@ class DiscoverSNPsFromChosenAlignment(MPI4pywrapper):
 	def prepareMergedBAMGivenLoci(self, locus_ls, alignment_ls=None, tmp_dir='/tmp/', samtools_path=None, picard_path=None,\
 								addRGToBAM_path=None, maxNumberOfBamsBeforeMerge=200):
 		"""
+		2011-4-8
+			remove the intermediate RG-tagged sam file if it contains no reads and gets skipped.
 		2011-4-6
 			1. select region out of each alignment (samtools/pysam)
 			2. sort it
@@ -168,6 +170,7 @@ class DiscoverSNPsFromChosenAlignment(MPI4pywrapper):
 						outf.write('%s\tRG:Z:%s\n'%(line.strip(), read_group))
 				outf.close()
 				if no_of_reads==0:	#skip this region for this alignment. nothing is there.
+					os.remove(sam_output_fname)
 					continue
 				
 				"""
