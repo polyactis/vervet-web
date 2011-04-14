@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.47 r22583"
+   width="737.90448"
+   height="416"
+   sodipodi:docname="vervetSubspeciesDistributionMap_label.svg"
+   inkscape:export-filename="/home/yh/script/vervet-web/doc/20110413FreimerLabMeeting/figures/vervetSubspeciesDistributionMap_label.png"
+   inkscape:export-xdpi="150"
+   inkscape:export-ydpi="150">
+  <metadata
+     id="metadata8">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <defs
+     id="defs6">
+    <inkscape:perspective
+       sodipodi:type="inkscape:persp3d"
+       inkscape:vp_x="0 : 0.5 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_z="1 : 0.5 : 1"
+       inkscape:persp3d-origin="0.5 : 0.33333333 : 1"
+       id="perspective10" />
+    <inkscape:perspective
+       id="perspective3649"
+       inkscape:persp3d-origin="0.5 : 0.33333333 : 1"
+       inkscape:vp_z="1 : 0.5 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_x="0 : 0.5 : 1"
+       sodipodi:type="inkscape:persp3d" />
+  </defs>
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1115"
+     inkscape:window-height="743"
+     id="namedview4"
+     showgrid="false"
+     inkscape:zoom="0.56730769"
+     inkscape:cx="337.15254"
+     inkscape:cy="204.47458"
+     inkscape:window-x="0"
+     inkscape:window-y="25"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg2" />
+  <image
+     xlink:href="file:///home/yh/script/vervet-web/doc/20110413FreimerLabMeeting/figures/vervetSubspeciesDistributionMap.png"
+     width="736"
+     height="416"
+     id="image12"
+     x="0"
+     y="0" />
+  <text
+     xml:space="preserve"
+     style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+     x="473.83051"
+     y="134.91525"
+     id="text2839"><tspan
+       sodipodi:role="line"
+       id="tspan2841"
+       x="473.83051"
+       y="134.91525">tantalus</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+     x="318.16949"
+     y="124.44067"
+     id="text2843"><tspan
+       sodipodi:role="line"
+       id="tspan2845"
+       x="318.16949"
+       y="124.44067">sabaeus</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+     x="471.45764"
+     y="257.69492"
+     id="text2847"><tspan
+       sodipodi:role="line"
+       id="tspan2849"
+       x="471.45764"
+       y="257.69492">cynosurus</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+     x="616.44067"
+     y="113.86441"
+     id="text2851"><tspan
+       sodipodi:role="line"
+       id="tspan2853"
+       x="616.44067"
+       y="113.86441">aethiops</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+     x="569.15253"
+     y="339.15253"
+     id="text2855"><tspan
+       sodipodi:role="line"
+       id="tspan2857"
+       x="569.15253"
+       y="339.15253">pygerythrus</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+     x="122.10169"
+     y="121.52542"
+     id="text2859"><tspan
+       sodipodi:role="line"
+       id="tspan2861"
+       x="122.10169"
+       y="121.52542">Barbados</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+     x="92.13559"
+     y="60.745766"
+     id="text2863"><tspan
+       sodipodi:role="line"
+       id="tspan2865"
+       x="92.13559"
+       y="60.745766">St. Kitts (Ref)</tspan></text>
+  <path
+     sodipodi:type="arc"
+     id="path2867"
+     sodipodi:cx="87.254234"
+     sodipodi:cy="77.559319"
+     sodipodi:rx="16.745764"
+     sodipodi:ry="15.864407"
+     d="m 104,77.559319 a 16.745764,15.864407 0 1 1 -33.491529,0 16.745764,15.864407 0 1 1 33.491529,0 z"
+     style="fill:none;stroke:#ff0000;stroke-width:2.49582839;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
+     transform="matrix(0.80133717,0,0,0.80133717,12.859597,14.057823)" />
+  <path
+     sodipodi:type="arc"
+     id="path2867-2"
+     sodipodi:cx="87.254234"
+     sodipodi:cy="77.559319"
+     sodipodi:rx="16.745764"
+     sodipodi:ry="15.864407"
+     d="m 104,77.559319 a 16.745764,15.864407 0 1 1 -33.491529,0 16.745764,15.864407 0 1 1 33.491529,0 z"
+     style="fill:none;stroke:#ff0000;stroke-width:2.52858949;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
+     transform="matrix(0.79095477,0,0,0.79095477,33.174485,43.128663)" />
+</svg>
