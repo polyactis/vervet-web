@@ -191,6 +191,7 @@ class PhastCons(object):
 				if score>=minPhastConsScore and score<=maxPhastConsScore:
 					if conserved_segment_start is None:
 						conserved_segment_start = start
+						conserved_segment_score_ls = []
 					conserved_segment_score_ls.append(score)
 				else:
 					if conserved_segment_start is not None:
@@ -207,9 +208,9 @@ class PhastCons(object):
 							real_counter += 1
 							if real_counter%1000==0 and real_counter>0:
 								db_vervet.session.flush()
-						#reset
-						conserved_segment_start = None
-						conserved_segment_score_ls = []
+					#reset
+					conserved_segment_start = None
+					conserved_segment_score_ls = []
 					
 			if counter%50000==0:
 				sys.stderr.write("%s%s\t%s"%('\x08'*80, counter, real_counter))
@@ -688,9 +689,9 @@ class VariantDiscovery(object):
 			xlabel_1D = 'alignment score per read base'
 		title='%s'%(os.path.split(inputFname)[1])
 		if plotType in [2, 3]:
-			from variation.src.misc import CNV
+			from pymodule import yh_matplotlib
 			if plotType==2:
-				reduce_C_function = CNV.logSum
+				reduce_C_function = yh_matplotlib.logSum
 				colorBarLabel='log(count)'
 			elif plotType==3:
 				import numpy
@@ -699,7 +700,7 @@ class VariantDiscovery(object):
 					colorBarLabel='median aligned read length'
 				elif scoreType==3:
 					colorBarLabel='median read length'
-			CNV.drawHexbin(processor.mapq_ls, processor.score_ls, processor.C_ls, fig_fname=outputFname, gridsize=20, \
+			yh_matplotlib.drawHexbin(processor.mapq_ls, processor.score_ls, processor.C_ls, fig_fname=outputFname, gridsize=20, \
 								title=title, \
 								xlabel = 'read map quality', \
 								ylabel = xlabel_1D,\
@@ -853,9 +854,9 @@ class VariantDiscovery(object):
 		title='%s'%(os.path.split(inputFname)[1])
 		"""
 		if plotType in [2, 3]:
-			from variation.src.misc import CNV
+			from pymodule import yh_matplotlib
 			if plotType==2:
-				reduce_C_function = CNV.logSum
+				reduce_C_function = yh_matplotlib.logSum
 				colorBarLabel='log(count)'
 			elif plotType==3:
 				import numpy
@@ -865,10 +866,10 @@ class VariantDiscovery(object):
 				elif scoreType==3:
 					colorBarLabel='median read length'
 		"""
-		from variation.src.misc import CNV
-		reduce_C_function = CNV.logSum
+		from pymodule import yh_matplotlib
+		reduce_C_function = yh_matplotlib.logSum
 		colorBarLabel = 'log(count)'
-		CNV.drawHexbin(small_mapq_ls, big_mapq_ls, [1]*len(small_mapq_ls), fig_fname='%s_2D_hist_PE_mapq.png'%(outputFnamePrefix), \
+		yh_matplotlib.drawHexbin(small_mapq_ls, big_mapq_ls, [1]*len(small_mapq_ls), fig_fname='%s_2D_hist_PE_mapq.png'%(outputFnamePrefix), \
 					gridsize=20, title=title, \
 					xlabel = 'read map quality', ylabel = xlabel_1D,\
 					colorBarLabel=colorBarLabel, reduce_C_function= reduce_C_function)
@@ -1599,6 +1600,332 @@ class VariantDiscovery(object):
 		VariantDiscovery.drawCoverageHistFromBAM(inputFname, outputFname)
 		sys.exit(2)
 	"""
+
+
+class DBVervet(object):
+	"""
+	2011-4-27
+		class to hold functions related to vervetdb
+	"""
+	def __init__(self):
+		pass
+	
+	@classmethod
+	def putCarribean2011IntoDB(cls, db_vervet, inputFname):
+		"""
+		2011-4-27
+		"""
+	
+	@classmethod
+	def filterValue(cls, value, data_type=None, NA_str_set=set(["", "NA", "N/A", 'n/a'])):
+		"""
+		2011-4-28
+			adapted from variation.src.misc class DBGenome
+		"""
+		if value in NA_str_set:
+			value = None
+		if value is not None and data_type is not None:
+			value = data_type(value)
+		return value
+	
+	@classmethod
+	def put2010SouthAfricanCollectionIntoDB(cls, db_vervet, inputFname, monkeyIDPrefix="VSA", \
+										collector_name='Christopher A. Schmitt'):
+		"""
+		2011-4-28
+		"""
+		sys.stderr.write("Putting 2010 south african collection (%s) into db ...\n"%(inputFname))
+		db_vervet.session.begin()
+		import csv, re
+		from datetime import datetime
+		reader = csv.reader(open(inputFname,), delimiter='\t')
+		header = reader.next()
+		from pymodule.utils import getColName2IndexFromHeader
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("Monkey ID")
+		site_index = col_name2index.get("Location")
+		gps_index = col_name2index.get("GPS")
+		sex_index = col_name2index.get("Sex")
+		age_index = col_name2index.get("Dental Age Category")
+		age_cas_index = col_name2index.get("CAS Dental Age")
+		phenotype_start_index = col_name2index.get("Age/Dentition present")
+		collection_date_index = col_name2index.get("Date")
+		
+		gps_pattern = re.compile(r'(?P<lat_direction>[SN])(?P<lat_hr>\d+) (?P<lat_min>\d+) (?P<lat_sec>[\d.]+) (?P<lon_direction>[EW])(?P<lon_hr>\d+) (?P<lon_min>\d+) (?P<lon_sec>[\d.]+)')
+		any_character_pattern = re.compile(r'[a-zA-Z]')
+		collector = db_vervet.getUser(collector_name)
+		
+		for row in reader:
+			monkey_id = monkeyIDPrefix + row[monkey_id_index]
+			site_str = row[site_index]
+			gps = row[gps_index]
+			sex = row[sex_index]
+			age = row[age_index]
+			age = cls.filterValue(age, int)
+			age_cas = row[age_cas_index]
+			age_cas = cls.filterValue(age_cas, int)
+			collection_date = row[collection_date_index]
+			collection_date = datetime.strptime(collection_date, '%Y/%m/%d')	#2008/03/17
+			
+			gps_pattern_search = gps_pattern.search(gps)
+			if gps_pattern_search:
+				lat_direction = gps_pattern_search.group("lat_direction")
+				lat_hr = float(gps_pattern_search.group('lat_hr'))
+				lat_min = float(gps_pattern_search.group('lat_min'))
+				lat_sec = float(gps_pattern_search.group('lat_sec'))
+				latitude = lat_hr + lat_min/60. + lat_sec/3600.
+				if lat_direction=='S':
+					latitude = -latitude	#"-" because it's south
+				
+				lon_direction = gps_pattern_search.group("lon_direction")
+				lon_hr = float(gps_pattern_search.group('lon_hr'))
+				lon_min = float(gps_pattern_search.group('lon_min'))
+				lon_sec = float(gps_pattern_search.group('lon_sec'))
+				longitude = lon_hr + lon_min/60. + lon_sec/3600.
+				if lon_direction=='W':
+					longitude = -longitude
+			else:
+				sys.stderr.write("Error: gps %s is not parsable.\n"%(gps))
+				sys.exit(0)
+			
+			site_name_ls = site_str.split(",")
+			strip_func = lambda x: x.strip()
+			site_name_ls = map(strip_func, site_name_ls)
+			if len(site_name_ls)==3:
+				city, province, country = site_name_ls
+				description = None
+			elif len(site_name_ls)==4:
+				description, city, province, country = site_name_ls
+			else:
+				sys.stderr.write("Error: site %s is neither 3-entry nor 4-entry.\n"%site_str)
+				sys.exit(0)
+			site = db_vervet.getSite(description=description, city=city, stateprovince=province, country_name=country)
+			
+			individual = db_vervet.getIndividual(code=monkey_id, sex=sex[0], age=age, age_cas=age_cas, latitude=latitude,\
+								longitude=longitude, altitude=None, ucla_id=monkey_id, site=site, \
+								collection_date=collection_date, collector=collector)
+			for i in range(phenotype_start_index, len(row)):
+				if header[i] and row[i]:
+					phenotype_name = header[i].strip()
+					if phenotype_name not in ['Age/Dentition present', 'diagnostic physical features', 'Additional comments']:
+						if any_character_pattern.search(row[i]):	#ignore any column with any character in it.
+							# should be number only
+							continue
+						value = cls.filterValue(row[i], data_type=float)
+						comment =None
+					else:
+						value = None
+						comment = row[i]
+					db_vervet.getPhenotype(phenotype_name=phenotype_name, value=value, replicate=None, \
+										individual_id=individual.id, comment=comment, collector_name=collector_name)
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		sys.stderr.write("Done.\n")
+	
+	"""
+		#2011-4-28
+		inputFname = os.path.expanduser("~/mnt/banyan/mnt/win/vervet-analysis/Yu/2010 SA.tsv")
+		DBVervet.put2010SouthAfricanCollectionIntoDB(db_vervet, inputFname)
+		sys.exit(0)
+	"""
+	
+	@classmethod
+	def put2010AfricanCollectionIntoDB(cls, db_vervet, inputFname, monkeyIDPrefix="", \
+										collector_name=''):
+		"""
+		2011-4-28
+		"""
+		sys.stderr.write("Putting 2010 African collection (%s) into db ...\n"%(inputFname))
+		db_vervet.session.begin()
+		import csv, re
+		from datetime import datetime
+		from pymodule import PassingData
+		# 2011-4-29 a handy function to strip blanks around strings
+		strip_func = lambda x: x.strip()
+		
+		reader = csv.reader(open(inputFname,), delimiter='\t')
+		
+		sys.stderr.write("\t Getting data for all sites and its code ...")
+		header = reader.next()
+		from pymodule.utils import getColName2IndexFromHeader
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		
+		#2011-4-29 first get the location infomation into db.
+		code_index = col_name2index.get("CODE")
+		site_index = col_name2index.get("CITY")
+		gps_index = col_name2index.get("COORDINATES")
+		collector_index = col_name2index.get("Collection")
+		# to match "S 140 56.564 E 0250 54.361  Altitude 1074 meters", "N 4 22 E 18 35"
+		gps_pattern = re.compile(r"(?P<lat_direction>[SN]) (?P<lat_hr>\d+) (?P<lat_min>[\d.]+) +(?P<lon_direction>[EW]) (?P<lon_hr>\d+) (?P<lon_min>[\d.]+) *((Altitude (?P<alt>[\d.]+) meters)|)")
+		# a dictionary which maps code to site and collector
+		code2data = {}
+		for row in reader:
+			if row[0]=="Unique ID":
+				#the actual monkey individual collection starts from here
+				break
+			code = row[code_index]
+			if code not in code2data:
+				code2data[code] = PassingData()
+			site_str = row[site_index]
+			gps = row[gps_index]
+			if gps:
+				gps_pattern_search = gps_pattern.search(gps)
+				if gps_pattern_search:
+					lat_direction = gps_pattern_search.group("lat_direction")
+					lat_hr = float(gps_pattern_search.group('lat_hr'))
+					lat_min = float(gps_pattern_search.group('lat_min'))
+					latitude = lat_hr + lat_min/60.
+					if lat_direction=='S':
+						latitude = -latitude	#"-" because it's south
+					
+					lon_direction = gps_pattern_search.group("lon_direction")
+					lon_hr = float(gps_pattern_search.group('lon_hr'))
+					lon_min = float(gps_pattern_search.group('lon_min'))
+					longitude = lon_hr + lon_min/60.
+					if lon_direction=='W':
+						longitude = -longitude
+					
+					altitude = gps_pattern_search.group("alt")
+					if altitude:
+						altitude = float(altitude)
+					else:
+						altitude = None
+				else:
+					lat_lon_ls = gps.split(',')
+					lat_lon_ls = map(strip_func, lat_lon_ls)
+					lat_lon_ls = map(float, lat_lon_ls)
+					latitude, longitude = lat_lon_ls[:2]
+					altitude = None
+					#sys.stderr.write("Error: gps %s is not parsable.\n"%(gps))
+					#sys.exit(0)
+			else:
+				longitude = None
+				latitude = None
+				altitude = None
+			
+			city = "Unknown"
+			description = None
+			province = None
+			country = None
+			if site_str!='?':
+				site_name_ls = site_str.split(",")
+				site_name_ls = map(strip_func, site_name_ls)
+				if len(site_name_ls)==2:
+					city, country = site_name_ls[:2]
+				elif len(site_name_ls)==1:
+					country = site_name_ls[0]
+				else:
+					sys.stderr.write("Error: site %s is neither 1-entry nor 2-entry.\n"%site_str)
+					sys.exit(0)
+				
+				site = db_vervet.getSite(description=description, city=city, stateprovince=province, country_name=country,\
+								latitude=latitude, longitude=longitude, altitude=altitude)
+			else:
+				site = None
+			collector_name = row[collector_index]
+			collector = db_vervet.getUser(collector_name)
+			code2data[code].site = site
+			code2data[code].collector = collector
+		sys.stderr.write("%s sites found.\n"%(len(code2data)))
+		
+		sys.stderr.write("\t Putting individuals into db ...\n")
+		header = row
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("Animal ID")
+		sex_index = col_name2index.get("Sex")
+		age_index = col_name2index.get("Approximate Age")
+		location_code_index = col_name2index.get("Location *")
+		collection_date_index = col_name2index.get("Collection Date")
+		phenotype_start_index = col_name2index.get("Weight (Kg)")
+		species_index = col_name2index.get("Species (C=Chlorocebus)")
+		
+		any_character_pattern = re.compile(r'[a-zA-Z]')
+		
+		# to match either "June 23-25" or "2009/7/16"
+		collection_date_pattern = re.compile(r'((?P<Month>\w+) (?P<Day>\d+)-\d+)|((?P<year>\d+)/(?P<month>\d+)/(?P<day>\d+))')
+		
+		# to match "Yearling", "Adult", "15 yrs", "5 years"
+		age_pattern = re.compile(r"([a-z A-Z]+)|((?P<age>\d+) ((yrs)|(years)))")
+		counter = 0
+		real_counter = 0
+		species2tax_id = {'sabaeus':60711, 'aethiops':101841, 'pygerythrus':460674, 'cynosurus':460675, 'tantalus':60712,\
+						'cynosuros':460675, 'pygerytherus':460674 }	#typos
+		for row in reader:
+			counter += 1
+			
+			monkey_id = monkeyIDPrefix + row[monkey_id_index]
+			location_code = row[location_code_index]
+			sex = row[sex_index]
+			species = row[species_index].strip()
+			if species and species[-1]=='?':	#some name has a trailing ?
+				species = species[:-1]
+			if species in species2tax_id:
+				tax_id = species2tax_id.get(species)
+			else:
+				if species!='??' and species!='?' and species!='':
+					sys.stderr.write("Error, species %s didn't find its tax_id.\n"%species)
+					sys.exit(2)
+				tax_id = None
+			age = row[age_index]
+			age_pattern_search_result = age_pattern.search(age)
+			if age_pattern_search_result:
+				if age_pattern_search_result.group('age'):
+					age = int(age_pattern_search_result.group('age'))
+					approx_age_group_at_collection = None
+				else:
+					approx_age_group_at_collection = row[age_index]
+					age = None
+			else:
+				approx_age_group_at_collection = None
+				age = None
+			collection_date = row[collection_date_index]
+			collection_date_pattern_search_result = collection_date_pattern.search(collection_date)
+			if collection_date_pattern_search_result:
+				if collection_date_pattern_search_result.group('Month'):
+					year = "2009"
+					month = collection_date_pattern_search_result.group('Month')
+					day = collection_date_pattern_search_result.group('Day')
+					collection_date = datetime.strptime("%s %s %s"%(year, month, day), '%Y %B %d')	#2008 June 9
+				else:
+					collection_date = datetime.strptime(collection_date, '%Y/%m/%d')	#2008/03/17
+			else:
+				collection_date = None
+			if location_code not in code2data:
+				sys.stderr.write("Error: location code %s nowhere in the location table.\n"%(location_code))
+				sys.exit(1)
+			site = code2data.get(location_code).site
+			collector = code2data.get(location_code).collector
+			if site is not None:
+				latitude = site.latitude
+				longitude = site.longitude
+				altitude = site.altitude
+			else:
+				latitude = None
+				longitude = None
+				altitude = None
+			individual = db_vervet.getIndividual(code=monkey_id, sex=sex[0], age=age, latitude=latitude,\
+								longitude=longitude, altitude=altitude, ucla_id=monkey_id, site=site, \
+								collection_date=collection_date, collector=collector, \
+								approx_age_group_at_collection = approx_age_group_at_collection, tax_id=tax_id)
+			
+			#phenotype
+			value = row[phenotype_start_index]
+			if value and not any_character_pattern.search(value):	#ignore any column with any character in it.
+					# should be number only:
+				phenotype_name = "Weight"
+				value = cls.filterValue(value, data_type=float)
+				comment =None
+				db_vervet.getPhenotype(phenotype_name=phenotype_name, value=value, replicate=None, \
+									individual_id=individual.id, comment=comment, collector_name=collector.realname)
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		sys.stderr.write("%s individuals. Done.\n"%(counter))
+	"""
+		#2011-4-29
+		inputFname = os.path.expanduser("~/mnt/banyan/mnt/win/vervet-analysis/Yu/Africa 20l09.tsv")
+		DBVervet.put2010AfricanCollectionIntoDB(db_vervet, inputFname)
+		sys.exit(0)
+	"""
 	
 class Main(object):
 	__doc__ = __doc__
@@ -1632,7 +1959,7 @@ class Main(object):
 		
 		
 		import VervetDB
-		db_vervet = VervetDB.AutismDB(drivername=self.drivername, username=self.db_user,
+		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
 					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
@@ -1641,6 +1968,10 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
+		#2011-4-29
+		inputFname = os.path.expanduser("~/mnt/banyan/mnt/win/vervet-analysis/Yu/Africa 20l09.tsv")
+		DBVervet.put2010AfricanCollectionIntoDB(db_vervet, inputFname)
+		sys.exit(0)
 		
 		
 		#2011-4-7
