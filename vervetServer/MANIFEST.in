@@ -1,0 +1,3 @@
+include vervetserver/config/deployment.ini_tmpl
+recursive-include vervetserver/public *
+recursive-include vervetserver/templates *
