@@ -60,6 +60,8 @@ class AccessionController(BaseController):
 	@classmethod
 	def findAccessions(cls, condition=None, extra_tables=None):
 		"""
+		2011-5-3
+			return "code" info as well
 		2011-4-29
 		"""
 		if condition:
@@ -73,7 +75,9 @@ class AccessionController(BaseController):
 													(table_str, condition))
 		
 		#3rd finally construct the full data and turn it into json
-		column_name_type_ls = [("tg_ecotypeid", ("number", "Individual ID")), ("nativename", ("string", "UCLA ID")), \
+		column_name_type_ls = [("tg_ecotypeid", ("number", "Individual ID")), \
+							("code", ("string", "Code")),\
+							("nativename", ("string", "UCLA ID")), \
 							("tax_id",("number", "Tax ID")), \
 							("sex",("string", "sex")), \
 							("age",("number", "age")), \
