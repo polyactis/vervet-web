@@ -236,6 +236,8 @@ class GeographicIntegrity(Entity):
 
 class Individual(Entity, TableClass):
 	"""
+	2011-5-4
+		add a unique constraint on ucla_id
 	2011-4-8
 		change (firstname, lastname) to one field, name.
 	2011-3-1
@@ -269,6 +271,7 @@ class Individual(Entity, TableClass):
 	using_options(tablename='individual', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('family_id', 'code', 'tax_id'))
+	using_table_options(UniqueConstraint('ucla_id', ))
 	
 	@classmethod
 	def getIndividualsForACL(cls, user = None):
