@@ -264,6 +264,7 @@ class Individual(Entity, TableClass):
 	site = ManyToOne("Site", colname='site_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-3-1
 	group_ls = ManyToMany('Group',tablename='individual2group', local_colname='individual_id', remote_colname='group_id')	#2011-3-1
 	user_ls = ManyToMany('User',tablename='individual2user', local_colname='individual_id', remote_colname='user_id')	#2011-3-1
+	vrc_founder = Field(Boolean)
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -310,6 +311,10 @@ class Individual(Entity, TableClass):
 		return False
 
 class Ind2Ind(Entity, TableClass):
+	"""
+	2011-5-5
+		add a unique constraint
+	"""
 	individual1 = ManyToOne('Individual', colname='individual1_id', ondelete='CASCADE', onupdate='CASCADE')
 	individual2 = ManyToOne('Individual', colname='individual2_id', ondelete='CASCADE', onupdate='CASCADE')
 	relationship_type = ManyToOne('RelationshipType', colname='relationship_type_id', ondelete='CASCADE', onupdate='CASCADE')
@@ -319,6 +324,7 @@ class Ind2Ind(Entity, TableClass):
 	date_updated = Field(DateTime)
 	using_options(tablename='ind2ind', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
+	using_table_options(UniqueConstraint('individual1_id', 'individual2_id', 'relationship_type_id'))
 
 class RelationshipType(Entity, TableClass):
 	short_name = Field(String(256), unique=True)
@@ -364,11 +370,15 @@ class IndividualAlignment(Entity, TableClass):
 
 class IndividualSequence(Entity, TableClass):
 	"""
+	2011-5-8
+		add column coverage
 	2011-3-3
 	"""
 	individual = ManyToOne('Individual', colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
 	sequencer = Field(String(512))
-	sequence_type = Field(String(512))	#assembled genome, contig, reads or ...
+	sequence_type = Field(String(512))	#assembled genome, contig, reads or RNA...
+	tissue  = ManyToOne('Tissue', colname='tissue_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-5-9
+	coverage = Field(Float)	#2011-5-8
 	path = Field(Text)	#storage folder path
 	format = Field(String(512))
 	created_by = Field(String(128))
@@ -377,7 +387,20 @@ class IndividualSequence(Entity, TableClass):
 	date_updated = Field(DateTime)
 	using_options(tablename='individual_sequence', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-	using_table_options(UniqueConstraint('individual_id', 'sequencer', 'sequence_type'))
+	using_table_options(UniqueConstraint('individual_id', 'sequencer', 'sequence_type', 'tissue_id'))
+
+class Tissue(Entity, TableClass):
+	"""
+	2011-5-9
+	"""
+	short_name = Field(String(512), unique=True)
+	description = Field(Text)
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='tissue', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
 
 class IndividualSequence2Sequence(Entity, TableClass):
 	"""
@@ -628,13 +651,30 @@ class Phenotype(Entity, TableClass):
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('individual_id', 'replicate', 'phenotype_method_id'))
 
+class BiologyCategory(Entity):
+	#2011-5-4
+	short_name = Field(String(256), unique=True)
+	description = Field(Text)
+	phenotype_method_ls = OneToMany("PhenotypeMethod")
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='biology_category', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+
+
 class PhenotypeMethod(Entity, TableClass):
 	"""
+	2011-5-4
+		add biology_category, phenotype_scoring
 	2011-3-1
 		add user_ls/group_ls information
 	"""
 	short_name = Field(String(256), unique=True)
 	description = Field(Text)
+	phenotype_scoring = Field(Text)
+	biology_category = ManyToOne("BiologyCategory", colname='biology_category_id', ondelete='CASCADE', onupdate='CASCADE')
 	collector = ManyToOne("User",colname='collector_id')
 	access = Field(Enum("public", "restricted", name="access_enum_type"), default='restricted')
 	group_ls = ManyToMany('Group',tablename='group2phenotype_method', local_colname='phenotype_method_id', remote_colname='group_id')
@@ -763,6 +803,64 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
+	def getAlignmentMethod(self, alignment_method_name=''):
+		"""
+		2011-5-6
+		"""
+		db_entry = AlignmentMethod.query.filter_by(short_name=alignment_method_name).first()
+		if not db_entry:
+			db_entry = AlignmentMethod(short_name=alignment_method_name)
+			self.session.add(db_entry)
+			self.session.flush()
+		return db_entry
+	
+	def getAlignment(self, individual_code=None, path_to_original_alignment=None, sequencer='GA', \
+					sequence_type='short-read', sequence_format='fastq', \
+					ref_individual_sequence_id=10, \
+					alignment_method_name='bwa-short-read', alignment_format='bam', subFolder='individual_alignment'):
+		"""
+		2011-5-6
+			subFolder is the name of the folder in self.data_dir that is used to hold the alignment files.
+		"""
+		individual = self.getIndividual(individual_code)
+		individual_sequence = self.getIndividualSequence(individual.id, sequencer=sequencer, sequence_type=sequence_type,\
+								sequence_format=sequence_format)
+		alignment_method = self.getAlignmentMethod(alignment_method_name=alignment_method_name)
+		query = IndividualAlignment.query.filter_by(ind_seq_id=individual_sequence.id).\
+				filter_by(ref_ind_seq_id=ref_individual_sequence_id).\
+				filter_by(aln_method_id=alignment_method.id)
+		if alignment_format:
+			query = query.filter_by(format=alignment_format)
+		db_entry = query.first()
+		if not db_entry:
+			db_entry = IndividualAlignment(ind_seq_id=individual_sequence.id, ref_ind_seq_id=ref_individual_sequence_id,\
+								aln_method_id=alignment_method.id, format=alignment_format)
+			self.session.add(db_entry)
+			self.session.flush()
+			#copy the file over
+			
+			#'/' must not be put in front of the relative path.
+			# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
+			dst_relative_path = '%s/%s_%s_vs_%s_by_%s.%s'%(subFolder, db_entry.id, db_entry.ind_seq_id,\
+											ref_individual_sequence_id, alignment_method.id, alignment_format)
+			
+			dst_pathname = os.path.join(self.data_dir, dst_relative_path)
+			from pymodule.utils import runLocalCommand
+			if path_to_original_alignment and (os.path.isfile(path_to_original_alignment) or os.path.isdir(path_to_original_alignment)):
+				dst_dir = os.path.join(self.data_dir, subFolder)
+				if not os.path.isdir(dst_dir):	#the upper directory has to be created at this moment.
+					commandline = 'mkdir %s'%(dst_dir)
+					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+				
+				commandline = 'cp -r %s %s'%(path_to_original_alignment, dst_pathname)
+				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+				#update its path in db to the relative path
+				db_entry.path = dst_relative_path
+				self.session.add(db_entry)
+				self.session.flush()
+		return db_entry
+	
+	
 	def getAlleleType(self, allele_type_name):
 		"""
 		2011-2-11
@@ -776,22 +874,110 @@ class VervetDB(ElixirDB):
 	
 	def getIndividual(self, code=None, sex=None, age=None, age_cas=None, latitude=None, longitude=None, \
 					altitude=None, ucla_id=None, site=None, collection_date=None, collector=None, \
-					approx_age_group_at_collection=None, tax_id=None):
+					approx_age_group_at_collection=None, tax_id=None, birthdate=None, vrc_founder=None):
 		"""
+		2011-5-6
+			ucla_id should be unique.
+			add birthdate
+		2011-5-5
+			take first letter of sex and upper case.
 		2011-2-11
 			code can't be None
 		"""
-		query = Individual.query.filter_by(code=code)
-		if tax_id:
-			query = query.filter_by(tax_id=tax_id)
-		db_entry = query.first()
+		if ucla_id:	#ucla_id should be unique
+			db_entry = Individual.query.filter_by(ucla_id=ucla_id).first()
+		else:
+			query = Individual.query.filter_by(code=code)
+			if tax_id:
+				query = query.filter_by(tax_id=tax_id)
+			db_entry = query.first()
 		if not db_entry:
-			if sex=='?':	#2011-4-29
+			if sex=='?' or sex=='':	#2011-4-29
 				sex = None
+			elif len(sex)>=1:	#2011-5-5 take the first letter
+				sex = sex[0].upper()
 			db_entry = Individual(code=code, sex=sex, age=age, age_cas=age_cas, latitude=latitude,\
 						longitude=longitude, altitude=altitude, ucla_id=ucla_id, site=site, \
 						collection_date=collection_date, collector=collector,\
-						approx_age_group_at_collection=approx_age_group_at_collection, tax_id=tax_id)
+						approx_age_group_at_collection=approx_age_group_at_collection, tax_id=tax_id, birthdate=birthdate,\
+						vrc_founder=vrc_founder)
+			self.session.add(db_entry)
+			self.session.flush()
+		return db_entry
+	
+	def getIndividualSequence(self, individual_id=None, sequencer=None, sequence_type=None,\
+						sequence_format=None, path_to_original_sequence=None, tissue_name=None, coverage=None,\
+						subFolder='individual_sequence'):
+		"""
+		2011-5-7
+			subFolder is the name of the folder in self.data_dir that is used to hold the sequence files.
+		"""
+		query = IndividualSequence.query.filter_by(individual_id=individual_id)
+		if sequencer:
+			query = query.filter_by(sequencer=sequencer)
+		if sequence_type:
+			query = query.filter_by(sequence_type=sequence_type)
+		if sequence_format:
+			query = query.filter_by(format=sequence_format)
+		if tissue_name:
+			tissue = self.getTissue(short_name=tissue_name)
+			query = query.filter_by(tissue_id=tissue.id)
+		db_entry = query.first()
+		if not db_entry:
+			if tissue_name:
+				tissue = self.getTissue(short_name=tissue_name)
+			else:
+				tissue = None
+			db_entry = IndividualSequence(individual_id=individual_id, sequencer=sequencer, sequence_type=sequence_type,\
+									format=sequence_format, tissue=tissue, coverage=coverage)
+			self.session.add(db_entry)
+			self.session.flush()
+			
+			#'/' must not be put in front of the relative path.
+			# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
+			dst_relative_path = '%s/%s_%s_%s.%s'%(subFolder, db_entry.id, individual_id,\
+															getattr(tissue, 'id', 0), sequence_format)
+			
+			dst_pathname = os.path.join(self.data_dir, dst_relative_path)
+			from pymodule.utils import runLocalCommand
+			if path_to_original_sequence and (os.path.isfile(path_to_original_sequence) or os.path.isdir(path_to_original_sequence)):
+				dst_dir = os.path.join(self.data_dir, subFolder)
+				if not os.path.isdir(dst_dir):	#the upper directory has to be created at this moment.
+					commandline = 'mkdir %s'%(dst_dir)
+					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+				
+				commandline = 'cp -r %s %s'%(path_to_original_sequence, dst_pathname)
+				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+				#update its path in db to the relative path
+				db_entry.path = dst_relative_path
+				self.session.add(db_entry)
+				self.session.flush()
+		return db_entry
+		
+	def getRelationshipType(self, relationship_type_name=None):
+		"""
+		2011-5-5
+			fetch (and add) a RelationshipType entry
+		"""
+		query = RelationshipType.query.filter_by(short_name=relationship_type_name)
+		db_entry = query.first()
+		if not db_entry:
+			db_entry = RelationshipType(short_name=relationship_type_name)
+			self.session.add(db_entry)
+			self.session.flush()
+		return db_entry
+	
+	def getInd2Ind(self, individual1=None, individual2=None, relationship_type_name=None):
+		"""
+		2011-5-5
+			fetch (and add) a Ind2Ind entry
+		"""
+		relationship_type = self.getRelationshipType(relationship_type_name)
+		query = Ind2Ind.query.filter_by(individual1_id=individual1.id).filter_by(individual2_id=individual2.id).\
+			filter_by(relationship_type_id=relationship_type.id)
+		db_entry = query.first()
+		if not db_entry:
+			db_entry = Ind2Ind(individual1=individual1, individual2=individual2, relationship_type=relationship_type)
 			self.session.add(db_entry)
 			self.session.flush()
 		return db_entry
@@ -856,6 +1042,18 @@ class VervetDB(ElixirDB):
 		if not db_entry:
 			db_entry = Site(short_name=short_name, description=description, city=city, stateprovince=stateprovince, \
 						country=country, latitude=latitude, longitude=longitude, altitude=altitude)
+			self.session.add(db_entry)
+			self.session.flush()
+		return db_entry
+	
+	def getTissue(self, short_name=None, description=None):
+		"""
+		2011-5-9
+			fetch a tissue entry (create one if none existent)
+		"""
+		db_entry = Tissue.query.filter_by(short_name=short_name).first()
+		if not db_entry:
+			db_entry = Tissue(short_name=short_name, description=description)
 			self.session.add(db_entry)
 			self.session.flush()
 		return db_entry
@@ -929,7 +1127,8 @@ class VervetDB(ElixirDB):
 		dataDirEntry = README.query.filter_by(title='data_dir').first()
 		if not dataDirEntry or not dataDirEntry.description or not os.path.isdir(dataDirEntry.description):
 			# todo: need to test dataDirEntry.description is writable to the user
-			sys.stderr.write("data_dir not available in db or not accessible on the harddisk. quit.\n")
+			sys.stderr.write("data_dir not available in db or not accessible on the harddisk. Raise exception.\n")
+			raise
 			return None
 		else:
 			return dataDirEntry.description
