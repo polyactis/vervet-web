@@ -1019,10 +1019,10 @@ class VervetDB(ElixirDB):
 		2011-4-28
 		"""
 		country = self.getCountry(country_name=country_name)
-		if city:
-			short_name = city
-		elif description:
+		if description:
 			short_name = description
+		elif city:
+			short_name = city
 		else:
 			short_name = None
 		query = Site.query.filter_by(country_id=country.id)
