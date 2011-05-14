@@ -75,9 +75,9 @@ class AccessionController(BaseController):
 													(table_str, condition))
 		
 		#3rd finally construct the full data and turn it into json
-		column_name_type_ls = [("tg_ecotypeid", ("number", "Individual ID")), \
-							("code", ("string", "Code")),\
-							("nativename", ("string", "UCLA ID")), \
+		column_name_type_ls = [("accession_id", ("number", "Individual ID")), \
+							("nativename", ("string", "Code")),\
+							("ucla_id", ("string", "UCLA ID")), \
 							("tax_id",("number", "Tax ID")), \
 							("sex",("string", "sex")), \
 							("age",("number", "age")), \
@@ -107,10 +107,10 @@ class AccessionController(BaseController):
 					default_value = None
 				
 				#2011-4-29 fake some ids so that it can work with MapWithPhenotype from the client end
-				if column_name=='tg_ecotypeid':
+				if column_name=='accession_id':
 					column_value = getattr(row, 'id', default_value)
 				elif column_name=='nativename':
-					column_value = getattr(row, 'ucla_id', default_value)
+					column_value = getattr(row, 'code', default_value)
 				else:
 					column_value = getattr(row, column_name, default_value)
 				entry[column_name] = column_value
