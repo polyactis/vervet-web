@@ -278,7 +278,7 @@ class MpiBWA(MPI4pywrapper):
 				import traceback
 				traceback.print_exc()
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-			if self.pairedEndInput:	#2011-2-7
+			if self.pairedEndInput and self.alnType==1:	#2011-2-7	2011-6-28 alnType has to be 1. pair-end doesn't apply to 2(bwasw)
 				pairedEndPrefix2FileLs = self.pairInputFiles(self.input_dir)
 			else:
 				pairedEndPrefix2FileLs = None
@@ -309,7 +309,7 @@ class MpiBWA(MPI4pywrapper):
 		if node_rank==output_node_rank:
 			"""
 			2011-2-7
-				to merge all bam files into one.
+				to merge all bam files into one and index it
 			"""
 			cmdline = [self.samtools_path, 'merge', self.finalBamFile] + output_param_obj.output_fname_ls
 			p0 = subprocess.Popen(cmdline, shell=False, stdin=None, stderr=sys.stderr, stdout=sys.stderr)
@@ -326,6 +326,17 @@ class MpiBWA(MPI4pywrapper):
 				sys.stderr.write('stderr of %s: %s \n'%(cmdline, stderr_content))
 			if stdout_content:
 				sys.stderr.write('stdout of %s: %s \n'%(cmdline, stdout_content))
+				
+			cmdline = [self.samtools_path, 'index', self.finalBamFile]
+			p0 = subprocess.Popen(cmdline, shell=False, stdin=None, stderr=sys.stderr, stdout=sys.stderr)
+			try:
+				stdout_content, stderr_content = p0.communicate()
+			except:
+				import traceback
+				traceback.print_exc()
+				sys.stderr.write("Error on node %s in merging all bam files.\n"%(node_rank))
+				sys.stderr.write("cmdline: %s\n"%cmdline)
+				sys.stderr.write('Except error info: %s\n'%repr(sys.exc_info()))
 			
 if __name__ == '__main__':
 	from pymodule import ProcessOptions
