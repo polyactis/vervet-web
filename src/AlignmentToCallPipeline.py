@@ -7,12 +7,15 @@ Examples:
 	# 1Mb-BAC (9) is used as reference.
 	%s -o workflow.xml -a 9 -i 1-4
 	
+	# 8 genomes versus top 156 contigs
+	%s -o workflow_8GenomeVsTop156Contigs.xml -u yh  -a 128 -i 1-8 -t 156
+	
 Description:
 	2011-7-12
 		a program which generates a pegasus workflow dag (xml file) to call genotypes on all chosen alignments.
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 
 from sqlalchemy.types import LargeBinary
 
@@ -26,7 +29,7 @@ else:   #32bit
 
 import subprocess, cStringIO
 import VervetDB
-from pymodule import ProcessOptions, getListOutOfStr
+from pymodule import ProcessOptions, getListOutOfStr, PassingData
 from Pegasus.DAX3 import *
 
 
@@ -47,7 +50,7 @@ class AlignmentToCallPipeline(object):
 						('maxMajorAlleleCoverage', 1, int): [10, '', 1, 'maximum read depth'],\
 						('maxNoOfReadsMultiSampleMultiplier', 1, int): [3, '', 1, 'across n samples, ignore bases where read depth > n*maxNoOfReads*multiplier.'],\
 						("samtools_path", 1, ): [os.path.expanduser("~/bin/samtools"), '', 1, 'samtools binary'],\
-						("picard_path", 1, ): [os.path.expanduser("~/script/vervet/bin/picard-tools-1.37"), '', 1, 'picard folder containing the jar binaries'],\
+						("picard_path", 1, ): [os.path.expanduser("~/script/vervet/bin/picard-tools"), '', 1, 'picard folder containing the jar binaries'],\
 						("topNumberOfContigs", 1, int): [156, '', 1, 'number of contigs'],\
 						('outputFname', 1, ): [None, 'o', 1, 'xml workflow output file'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
@@ -99,6 +102,155 @@ class AlignmentToCallPipeline(object):
 		sys.stderr.write("%s alignments Done.\n"%(len(alignmentLs)))
 		return alignmentLs
 	
+	def addSelectAndSplitJobs(self, db_vervet, workflow, alignmentLs, site_handler, topNumberOfContigs, refNameLs, samtools, \
+							java, picard_path, mkdir=None, namespace="workflow", version="1.0", mkCallDirJob=None):
+		"""
+		2011-7-14
+			1. select reference out of whole-alignment
+			2. index
+			3. add read groups
+			4. index
+		"""
+		refName2jobDataLs = {}
+		for alignment in alignmentLs:
+			# Add input file to the DAX-level replica catalog
+			inputFname = os.path.join(db_vervet.data_dir, alignment.path)
+			input = File(inputFname)
+			input.addPFN(PFN("file://" + inputFname, site_handler))
+			workflow.addFile(input)
+			
+			inputFileBaseNamePrefix = os.path.splitext(os.path.basename(alignment.path))[0]
+			outputDir = inputFileBaseNamePrefix
+			
+			
+			# add RG to this bam
+			sequencer = alignment.ind_sequence.sequencer
+			read_group = '%s_%s_vs_top%sContigs'%(alignment.ind_sequence.individual.code, sequencer, topNumberOfContigs)
+			if sequencer=='454':
+				platform_id = 'LS454'
+			elif sequencer=='GA':
+				platform_id = 'ILLUMINA'
+			else:
+				platform_id = 'ILLUMINA'
+			# Add a mkdir job
+			mkdirJob = Job(namespace=namespace, name=mkdir.name, version=version)
+			
+			mkdirJob.addArguments(outputDir)
+			#mkdir.uses(input, transfer=True, register=True, link=Link.INPUT)	#don't add this file. otherwise it'll be staged. transfer=False will result deletion of original file.
+			workflow.addJob(mkdirJob)
+			workflow.addDependency(parent=mkCallDirJob, child=mkdirJob)
+			
+			for refName in refNameLs:
+				if refName not in refName2jobDataLs:
+					refName2jobDataLs[refName] = []
+				
+				selectRefJob = Job(namespace=namespace, name=samtools.name, version=version)
+				
+				outputFname = os.path.join(outputDir, '%s_%s.bam'%(inputFileBaseNamePrefix, refName))
+				#outputFname = '%s_%s.bam'%(inputFileBaseNamePrefix, refName)
+				output = File(outputFname)
+				selectRefJob.addArguments('view', '-h', input, refName, "-o", output, "-b", "-u")	# -b -u forces uncompressed bam output
+				workflow.addJob(selectRefJob)
+				workflow.addDependency(parent=mkdirJob, child=selectRefJob)
+				
+				# add the index job
+				index_1_job = Job(namespace=namespace, name=samtools.name, version=version)
+				index_1_job.addArguments("index", output)
+				#index_1_job.uses(output, transfer=True, register=False, link=Link.INPUT)	#this file is input & output
+				#index_1_job.uses(output, transfer=True, register=True, link=Link.OUTPUT)	#registering here would result in their early deletion.
+				bai_output = File('%s.bai'%outputFname)
+				#index_1_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
+				workflow.addJob(index_1_job)
+				workflow.addDependency(parent=selectRefJob, child=index_1_job)
+				
+				# the add-read-group job
+				addRGJob = Job(namespace=namespace, name=java.name, version=version)
+				outputRGFname = os.path.join(outputDir, '%s_%s.RG.bam'%(inputFileBaseNamePrefix, refName))
+				#outputRGFname = '%s_%s.RG.bam'%(inputFileBaseNamePrefix, refName)
+				outputRG = File(outputRGFname)
+				addRGJob.addArguments('-jar', os.path.join(picard_path, 'AddOrReplaceReadGroups.jar'), \
+									"INPUT=%s"%(outputFname),\
+									'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
+									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
+									'OUTPUT=%s'%outputRGFname)	#'SORT_ORDER=coordinate', 
+				addRGJob.uses(output, transfer=False, register=True, link=Link.INPUT)	#time to discard them
+				addRGJob.uses(bai_output, transfer=False, register=True, link=Link.INPUT)	#time to discard them
+				workflow.addJob(addRGJob)
+				workflow.addDependency(parent=index_1_job, child=addRGJob)
+				#output.addPFN(PFN("file://" + outputFname, site_handler))
+				#selectAndSplitJob.uses(output, transfer=True, register=False, link=Link.OUTPUT)	#registering here would result in their early deletion.
+				
+				# add the index job
+				samtools_index_job = Job(namespace=namespace, name=samtools.name, version=version)
+				samtools_index_job.addArguments("index", outputRG)
+				#samtools_index_job.uses(output, transfer=True, register=False, link=Link.INPUT)	#this file is input & output
+				#samtools_index_job.uses(output, transfer=True, register=True, link=Link.OUTPUT)	#registering here would result in their early deletion.
+				bai_output = File('%s.bai'%outputRGFname)
+				#samtools_index_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
+				workflow.addJob(samtools_index_job)
+				workflow.addDependency(parent=addRGJob, child=samtools_index_job)
+				refName2jobDataLs[refName].append((outputRG, samtools_index_job, bai_output))
+		return PassingData(refName2jobDataLs=refName2jobDataLs, workflow=workflow)
+	
+	def addMergeAlignmentAndGenotypeCallJobs(self, workflow, refName2jobDataLs, refNameLs, samtools, \
+				java, picard_path, genotypeCallByCoverage, refFastaFname=None, \
+				namespace='workflow', version="1.0", callOutputDir = "call"):
+		"""
+		2011-7-14
+			1. merge alignments based on same reference from different genomes into one
+			2. run genotypeCallByCoverage on each merged alignment
+		"""
+	
+		# add merge jobs for every reference
+		refName2mergedBamCallJob = {}
+		for refName, jobDataLs in refName2jobDataLs.iteritems():
+			# add the index job
+			picard_job = Job(namespace=namespace, name=java.name, version=version)
+			outputFname = '%s.bam'%(refName)
+			picard_output = File(outputFname)
+			picard_job.addArguments('-jar', os.path.join(picard_path, 'MergeSamFiles.jar'), \
+				'USE_THREADING=true', 'SORT_ORDER=coordinate', 'ASSUME_SORTED=false', 'OUTPUT=%s'%outputFname)
+			#picard_job.uses(picard_output, transfer=False, register=False, link=Link.OUTPUT)	#registering here would result in their early deletion.
+			
+			workflow.addJob(picard_job)
+			
+			input_list = []
+			
+			for jobData in jobDataLs:
+				bamFile, samtools_index_job, bamFileBai = jobData[:3]
+				input_list.append('INPUT=%s'%bamFile.name)
+				picard_job.addArguments('INPUT=%s'%bamFile.name)
+				picard_job.uses(bamFileBai, transfer=False, register=True, link=Link.INPUT)	#register them here to be deleted 
+				picard_job.uses(bamFile, transfer=False, register=True, link=Link.INPUT)
+				#this picard merge job depends on a bunch of prior samtools index jobs
+				workflow.addDependency(parent=samtools_index_job, child=picard_job)
+			
+			# add the index job on the merged bam file
+			samtools_index_job = Job(namespace=namespace, name=samtools.name, version=version)
+			samtools_index_job.addArguments("index", picard_output)
+			samtools_index_job.uses(picard_output, transfer=False, register=True, link=Link.OUTPUT)	#write this as OUTPUT, otherwise it'll be deleted and next program won't know 
+			bai_output = File('%s.bai'%outputFname)
+			samtools_index_job.uses(bai_output, transfer=False, register=True, link=Link.OUTPUT)
+			workflow.addJob(samtools_index_job)
+			workflow.addDependency(parent=picard_job, child=samtools_index_job)
+			
+			
+			#add the genotype call job after index is done
+			genotypeCallByCoverage_job = Job(namespace=namespace, name=genotypeCallByCoverage.name, version=version)
+			genotypeCallOutputFname = os.path.join(callOutputDir, '%s.call'%(refName))	#genotypeCallByCoverage_job would create directory "call".
+			genotypeCallOutput = File(genotypeCallOutputFname)
+			genotypeCallByCoverage_job.addArguments("-i", picard_output, "-n", str(len(jobDataLs)), \
+										"-o", genotypeCallOutput, '-e', refFastaFname)
+			genotypeCallByCoverage_job.uses(bai_output, transfer=False, register=True, link=Link.INPUT)	#make sure the bai file is still there upon start of this job 
+			genotypeCallByCoverage_job.uses(picard_output, transfer=False, register=True, link=Link.INPUT)
+			genotypeCallByCoverage_job.uses(genotypeCallOutput, transfer=False, register=True, link=Link.OUTPUT)
+			workflow.addJob(genotypeCallByCoverage_job)
+			workflow.addDependency(parent=samtools_index_job, child=genotypeCallByCoverage_job)
+			
+			refName2mergedBamCallJob[refName] = [genotypeCallOutput, genotypeCallByCoverage_job]
+		
+		return PassingData(refName2mergedBamCallJob=refName2mergedBamCallJob)
+	
 	def run(self):
 		"""
 		2011-7-11
@@ -121,12 +273,13 @@ class AlignmentToCallPipeline(object):
 		
 		alignmentLs = self.getAlignments(self.aln_ref_ind_seq_id, self.ind_seq_id_ls)
 		
+		refSequence = VervetDB.IndividualSequence.get(self.aln_ref_ind_seq_id)
+		
+		refFastaFname = os.path.join(db_vervet.data_dir, refSequence.path)
 		
 		# Create a abstract dag
 		workflow = ADAG("AlignmentToCallPipeline")
-		
 		vervetSrcPath = os.path.expanduser("~/script/vervet/src/")
-		
 		site_handler = "condorpool"
 		
 		#add the MergeSamFiles.jar file into workflow
@@ -134,134 +287,59 @@ class AlignmentToCallPipeline(object):
 		mergeSamFilesJar.addPFN(PFN("file://" + os.path.join(self.picard_path, 'MergeSamFiles.jar'), site_handler))
 		workflow.addFile(mergeSamFilesJar)
 		
-		"""
-		
-		"""
 		# Add executables to the DAX-level replica catalog
 		# In this case the binary is keg, which is shipped with Pegasus, so we use
 		# the remote PEGASUS_HOME to build the path.
 		architecture = "x86_64"
 		operatingSystem = "linux"
-		selectAndSplit = Executable(namespace="workflow", name="SelectAndSplitAlignment", version="1.0", os=operatingSystem, arch=architecture, installed=True)
+		namespace = "workflow"
+		version="1.0"
+		
+		mkdir = Executable(namespace=namespace, name="mkdir", version=version, os=operatingSystem, arch=architecture, installed=True)
+		mkdir.addPFN(PFN("file://" + '/bin/mkdir', site_handler))
+		workflow.addExecutable(mkdir)
+		
+		selectAndSplit = Executable(namespace=namespace, name="SelectAndSplitAlignment", version=version, os=operatingSystem, arch=architecture, installed=True)
 		selectAndSplit.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "SelectAndSplitAlignment.py"), site_handler))
 		workflow.addExecutable(selectAndSplit)
 			
-		samtools = Executable(namespace="workflow", name="samtools", version="1.0", os=operatingSystem, arch=architecture, installed=True)
+		samtools = Executable(namespace=namespace, name="samtools", version=version, os=operatingSystem, arch=architecture, installed=True)
 		samtools.addPFN(PFN("file://" + self.samtools_path, site_handler))
 		workflow.addExecutable(samtools)
 			
-		java = Executable(namespace="workflow", name="java", version="1.0", os=operatingSystem, arch=architecture, installed=True)
+		java = Executable(namespace=namespace, name="java", version=version, os=operatingSystem, arch=architecture, installed=True)
 		java.addPFN(PFN("file://" + "/usr/bin/java", site_handler))
 		workflow.addExecutable(java)
 		
-		genotypeCallByCoverage = Executable(namespace="workflow", name="GenotypeCallByCoverage", version="1.0", os=operatingSystem, arch=architecture, installed=True)
+		genotypeCallByCoverage = Executable(namespace=namespace, name="GenotypeCallByCoverage", version=version, os=operatingSystem, arch=architecture, installed=True)
 		genotypeCallByCoverage.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "GenotypeCallByCoverage.py"), site_handler))
 		workflow.addExecutable(genotypeCallByCoverage)
 		
-		mergeGenotypeMatrix = Executable(namespace="workflow", name="MergeGenotypeMatrix", version="1.0", os=operatingSystem, arch=architecture, installed=True)
+		mergeGenotypeMatrix = Executable(namespace=namespace, name="MergeGenotypeMatrix", version=version, os=operatingSystem, arch=architecture, installed=True)
 		mergeGenotypeMatrix.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "MergeGenotypeMatrix.py"), site_handler))
 		workflow.addExecutable(mergeGenotypeMatrix)
 		
-		refName2jobDataLs = {}
-		for alignment in alignmentLs:
-			# Add input file to the DAX-level replica catalog
-			inputFname = os.path.join(self.db_vervet.data_dir, alignment.path)
-			input = File(inputFname)
-			input.addPFN(PFN("file://" + inputFname, site_handler))
-			workflow.addFile(input)
-			
-			inputFileBaseNamePrefix = os.path.splitext(os.path.basename(alignment.path))[0]
-			outputDir = inputFileBaseNamePrefix
-			
-			# Add a select & split job
-			selectAndSplitJob = Job(namespace="workflow", name=selectAndSplit.name, version="1.0")
-			
-			# add RG to this bam
-			sequencer = alignment.ind_sequence.sequencer
-			read_group = '%s_%s_vs_top%sContigs'%(alignment.ind_sequence.individual.code, sequencer, self.topNumberOfContigs)
-			if sequencer=='454':
-				platform_id = 'LS454'
-			elif sequencer=='GA':
-				platform_id = 'ILLUMINA'
-			else:
-				platform_id = 'ILLUMINA'
-			selectAndSplitJob.addArguments("-i", input, "-e", refNameLsStr, "-a", read_group, "-p", platform_id, "-o", outputDir)
-			# selectAndSplitJob will create the directory itself if outputDir doesn't exist
-			#selectAndSplitJob.uses(input, transfer=True, register=True, link=Link.INPUT)	#don't add this file. otherwise it'll be staged. transfer=False will result deletion of original file.
-			workflow.addJob(selectAndSplitJob)
-			
-			for refName in refNameLs:
-				if refName not in refName2jobDataLs:
-					refName2jobDataLs[refName] = []
-				
-				outputFname = os.path.join(outputDir, '%s_%s.bam'%(inputFileBaseNamePrefix, refName))
-				output = File(outputFname)
-				
-				
-				#output.addPFN(PFN("file://" + outputFname, site_handler))
-				#selectAndSplitJob.uses(output, transfer=True, register=False, link=Link.OUTPUT)	#registering here would result in their early deletion.
-				
-				# add the index job
-				samtools_index_job = Job(namespace="workflow", name=samtools.name, version="1.0")
-				samtools_index_job.addArguments("index", output)
-				#samtools_index_job.uses(output, transfer=True, register=False, link=Link.INPUT)	#this file is input & output
-				#samtools_index_job.uses(output, transfer=True, register=True, link=Link.OUTPUT)	#registering here would result in their early deletion.
-				bai_output = File('%s.bai'%outputFname)
-				#samtools_index_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
-				workflow.addJob(samtools_index_job)
-				
-				workflow.addDependency(parent=selectAndSplitJob, child=samtools_index_job)
-				refName2jobDataLs[refName].append((output, samtools_index_job, bai_output))
 		
-		# add merge jobs for every reference
-		refName2mergedBamCallJob = {}
-		for refName, jobDataLs in refName2jobDataLs.iteritems():
-			# add the index job
-			picard_job = Job(namespace="workflow", name=java.name, version="1.0")
-			outputFname = '%s.bam'%(refName)
-			picard_output = File(outputFname)
-			picard_job.addArguments('-jar', os.path.join(self.picard_path, 'MergeSamFiles.jar'), \
-				'USE_THREADING=true', 'ASSUME_SORTED=true', 'OUTPUT=%s'%outputFname)
-			#picard_job.uses(picard_output, transfer=False, register=False, link=Link.OUTPUT)	#registering here would result in their early deletion.
-			
-			workflow.addJob(picard_job)
-			
-			input_list = []
-			
-			for jobData in jobDataLs:
-				bamFile, samtools_index_job, bamFileBai = jobData[:3]
-				input_list.append('INPUT=%s'%bamFile.name)
-				picard_job.addArguments('INPUT=%s'%bamFile.name)
-				picard_job.uses(bamFileBai, transfer=False, register=True, link=Link.INPUT)	#register them here to be deleted 
-				picard_job.uses(bamFile, transfer=False, register=True, link=Link.INPUT)
-				#this picard merge job depends on a bunch of prior samtools index jobs
-				workflow.addDependency(parent=samtools_index_job, child=picard_job)
-			
-			# add the index job on the merged bam file
-			samtools_index_job = Job(namespace="workflow", name=samtools.name, version="1.0")
-			samtools_index_job.addArguments("index", picard_output)
-			samtools_index_job.uses(picard_output, transfer=False, register=True, link=Link.OUTPUT)	#write this as OUTPUT, otherwise it'll be deleted and next program won't know 
-			bai_output = File('%s.bai'%outputFname)
-			samtools_index_job.uses(bai_output, transfer=False, register=True, link=Link.OUTPUT)
-			workflow.addJob(samtools_index_job)
-			workflow.addDependency(parent=picard_job, child=samtools_index_job)
-			
-			#add the genotype call job after index is done
-			genotypeCallByCoverage_job = Job(namespace="workflow", name=genotypeCallByCoverage.name, version="1.0")
-			genotypeCallOutputFname = 'call/%s.call'%(refName)	#genotypeCallByCoverage_job would create directory "call".
-			genotypeCallOutput = File(genotypeCallOutputFname)
-			genotypeCallByCoverage_job.addArguments("-i", picard_output, "-n", str(len(jobDataLs)), "-o", genotypeCallOutput)
-			genotypeCallByCoverage_job.uses(bai_output, transfer=False, register=True, link=Link.INPUT)	#make sure the bai file is still there upon start of this job 
-			genotypeCallByCoverage_job.uses(picard_output, transfer=False, register=True, link=Link.INPUT)
-			genotypeCallByCoverage_job.uses(genotypeCallOutput, transfer=False, register=True, link=Link.OUTPUT)
-			workflow.addJob(genotypeCallByCoverage_job)
-			workflow.addDependency(parent=samtools_index_job, child=genotypeCallByCoverage_job)
-			
-			refName2mergedBamCallJob[refName] = [genotypeCallOutput, genotypeCallByCoverage_job]
+		# Add a mkdir job for the call directory.
+		#letting numerou genotype call jobs detect&create this directory runs into race condition.
+		mkCallDirJob = Job(namespace=namespace, name=mkdir.name, version=version)
+		callOutputDir = "call"
+		mkCallDirJob.addArguments(callOutputDir)
+		#mkdir.uses(input, transfer=True, register=True, link=Link.INPUT)	#don't add this file. otherwise it'll be staged. transfer=False will result deletion of original file.
+		workflow.addJob(mkCallDirJob)
 		
+		addSelectAndSplitJobsReturnData = self.addSelectAndSplitJobs(db_vervet, workflow, alignmentLs, site_handler, \
+											self.topNumberOfContigs, refNameLs, samtools, \
+							java, self.picard_path, mkdir=mkdir, namespace=namespace, version=version, mkCallDirJob=mkCallDirJob)
+		refName2jobDataLs = addSelectAndSplitJobsReturnData.refName2jobDataLs
+		
+		returnData2 = self.addMergeAlignmentAndGenotypeCallJobs(workflow, refName2jobDataLs, refNameLs, samtools, \
+							java, self.picard_path, genotypeCallByCoverage, refFastaFname=refFastaFname, \
+							namespace=namespace, version=version, callOutputDir = callOutputDir)
+		refName2mergedBamCallJob =returnData2.refName2mergedBamCallJob
 		
 		#merge all genotype call files
-		mergeGenotypeMatrix_job = Job(namespace="workflow", name=mergeGenotypeMatrix.name, version="1.0")
+		mergeGenotypeMatrix_job = Job(namespace=namespace, name=mergeGenotypeMatrix.name, version=version)
 		finalCallOutputFname = '%s_genomes_vs_top%sReferences_call.tsv'%(len(alignmentLs), len(refNameLs))
 		finalCallOutput = File(finalCallOutputFname)
 		mergeGenotypeMatrix_job.addArguments("-o", finalCallOutput)
@@ -276,7 +354,7 @@ class AlignmentToCallPipeline(object):
 			inputFnameLs.append(callJobOutput.name)
 			workflow.addDependency(parent=callJob, child=mergeGenotypeMatrix_job)
 		
-		mergeGenotypeMatrix_job.addArguments("-i", ','.join(inputFnameLs))
+			mergeGenotypeMatrix_job.addArguments(callJobOutput)
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
