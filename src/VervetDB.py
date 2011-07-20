@@ -817,8 +817,12 @@ class VervetDB(ElixirDB):
 	def getAlignment(self, individual_code=None, path_to_original_alignment=None, sequencer='GA', \
 					sequence_type='short-read', sequence_format='fastq', \
 					ref_individual_sequence_id=10, \
-					alignment_method_name='bwa-short-read', alignment_format='bam', subFolder='individual_alignment'):
+					alignment_method_name='bwa-short-read', alignment_format='bam', subFolder='individual_alignment', \
+					createSymbolicLink=False):
 		"""
+		2011-7-11
+			add argument createSymbolicLink. default to False
+				if True, create a symbolic from source file to target, instead of cp
 		2011-5-6
 			subFolder is the name of the folder in self.data_dir that is used to hold the alignment files.
 		"""
@@ -851,9 +855,21 @@ class VervetDB(ElixirDB):
 				if not os.path.isdir(dst_dir):	#the upper directory has to be created at this moment.
 					commandline = 'mkdir %s'%(dst_dir)
 					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-				
-				commandline = 'cp -r %s %s'%(path_to_original_alignment, dst_pathname)
+				if createSymbolicLink:
+					commandline = 'ln -s %s %s'%(path_to_original_alignment, dst_pathname)
+				else:
+					commandline = 'cp -r %s %s'%(path_to_original_alignment, dst_pathname)
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+				
+				#2011-7-11 copy the samtools index file as well
+				indexFname = '%s.bai'%(path_to_original_alignment)
+				if os.path.isfile(indexFname):
+					dstIndexPathname = '%s.bai'%(dst_pathname)
+					if createSymbolicLink:
+						commandline = 'ln -s %s %s'%(indexFname, dstIndexPathname)
+					else:
+						commandline = 'cp -r %s %s'%(indexFname, dstIndexPathname)
+					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 				#update its path in db to the relative path
 				db_entry.path = dst_relative_path
 				self.session.add(db_entry)
