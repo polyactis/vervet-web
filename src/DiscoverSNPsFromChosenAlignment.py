@@ -11,7 +11,7 @@ Description:
 
 	1. the program picks all loci based on (score_method_id, min_score, max_score)
 	2. find all qualified alignment instances from db
-	3. for each locus (parallelize)
+	3. for each locus (parallel)
 		1. select region out of each alignment (samtools/pysam)
 		2. sort it
 		3. maybe add a custom RG to identify this genome
@@ -58,8 +58,9 @@ class DiscoverSNPsFromChosenAlignment(MPI4pywrapper):
 						('maxNoOfReadsMultiSampleMultiplier', 1, int): [3, '', 1, 'across n samples, ignore bases where read depth > n*maxNoOfReads*multiplier.'],\
 						("tmp_dir", 1, ): ["/tmp", 'e', 1, 'temporary directory to hold temporary files'],\
 						("samtools_path", 1, ): [os.path.expanduser("~/bin/samtools"), '', 1, 'samtools binary'],\
-						("picard_path", 1, ): [os.path.expanduser("~/script/vervet-web/bin/picard-tools-1.37"), '', 1, 'picard folder containing the jar binaries'],\
-						("addRGToBAM_path", 1, ): [os.path.expanduser("~/script/vervet-web/src/addRGToBAM.sh"), '', 1, 'script to add read-group to a bam file'],\
+						("picard_path", 1, ): [os.path.expanduser("~/script/vervet/bin/picard-tools-1.37"), '', 1, 'picard folder containing the jar binaries'],\
+						("addRGToBAM_path", 1, ): [os.path.expanduser("~/script/vervet/src/addRGToBAM.sh"), '', 1, 'script to add read-group to a bam file'],\
+						('refFastaFname', 1, ): [None, '', 1, 'the fasta file containing reference sequences.'],\
 						('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
@@ -259,7 +260,7 @@ class DiscoverSNPsFromChosenAlignment(MPI4pywrapper):
 		
 		
 		
-		db_vervet = VervetDB.AutismDB(drivername=self.drivername, username=self.db_user,
+		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
 					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
@@ -273,9 +274,10 @@ class DiscoverSNPsFromChosenAlignment(MPI4pywrapper):
 									samtools_path=self.samtools_path, picard_path=self.picard_path,\
 									addRGToBAM_path=self.addRGToBAM_path)
 		if picard_output_fname is not None:
-			from misc import VariantDiscovery
+			from vervet.src.misc import VariantDiscovery
 			maxNoOfReadsForAllSamples = len(alignment_ls)*self.maxNoOfReads*self.maxNoOfReadsMultiSampleMultiplier
 			VariantDiscovery.discoverHetsFromBAM(picard_output_fname, self.outputFname, \
+									refFastaFname = self.refFastaFname,\
 							maxNoOfReads=self.maxNoOfReads, minMinorAlleleCoverage=self.minMinorAlleleCoverage, \
 							maxMinorAlleleCoverage=self.maxMinorAlleleCoverage,\
 							maxNoOfReadsForGenotypingError=self.maxNoOfReadsForGenotypingError, \
