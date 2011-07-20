@@ -2,7 +2,7 @@
 """
 Examples:
 	#testing merge three identical genotype files
-	%s -i/tmp/call_1.tsv,/tmp/call_1.tsv,/tmp/call_1.tsv -o /tmp/ccc.tsv
+	%s -o /tmp/ccc.tsv /tmp/call_1.tsv /tmp/call_1.tsv /tmp/call_1.tsv
 	
 	%s 
 	
@@ -35,18 +35,17 @@ from pymodule import ProcessOptions
 
 class MergeGenotypeMatrix(object):
 	__doc__ = __doc__
-	option_default_dict = {('inputFnameLs', 1, ): ['', 'i', 1, 'comma-separated list of input files.', ],\
-						('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
+	option_default_dict = {('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 
-	def __init__(self,  **keywords):
+	def __init__(self, inputFnameLs, **keywords):
 		"""
 		2011-7-12
 		"""
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
 														class_to_have_attr=self)
-		self.inputFnameLs=self.inputFnameLs.split(',')
+		self.inputFnameLs = inputFnameLs
 	
 	def run(self):
 		
@@ -70,5 +69,6 @@ class MergeGenotypeMatrix(object):
 if __name__ == '__main__':
 	main_class = MergeGenotypeMatrix
 	po = ProcessOptions(sys.argv, main_class.option_default_dict, error_doc=main_class.__doc__)
-	instance = main_class(**po.long_option2value)
+	import copy
+	instance = main_class(po.arguments, **po.long_option2value)
 	instance.run()
