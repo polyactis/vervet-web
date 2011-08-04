@@ -352,6 +352,8 @@ class AlignmentMethod(Entity, TableClass):
 
 class IndividualAlignment(Entity, TableClass):
 	"""
+	2011-8-3
+		add column median_depth, mode_depth
 	2011-3-3
 	"""
 	ind_sequence = ManyToOne('IndividualSequence', colname='ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
@@ -360,6 +362,8 @@ class IndividualAlignment(Entity, TableClass):
 	genotype_method_ls = ManyToMany("GenotypeMethod",tablename='genotype_method2individual_alignment', local_colname='individual_alignment_id')
 	path = Field(Text)
 	format = Field(String(512))
+	median_depth = Field(Float)	#2011-8-2
+	mode_depth = Field(Float)	#2011-8-2
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -370,6 +374,8 @@ class IndividualAlignment(Entity, TableClass):
 
 class IndividualSequence(Entity, TableClass):
 	"""
+	2011-8-3
+		add column base_count
 	2011-5-8
 		add column coverage
 	2011-3-3
@@ -379,6 +385,7 @@ class IndividualSequence(Entity, TableClass):
 	sequence_type = Field(String(512))	#assembled genome, contig, reads or RNA...
 	tissue  = ManyToOne('Tissue', colname='tissue_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-5-9
 	coverage = Field(Float)	#2011-5-8
+	base_count = Field(Integer)	#2011-8-2
 	path = Field(Text)	#storage folder path
 	format = Field(String(512))
 	created_by = Field(String(128))
@@ -925,6 +932,8 @@ class VervetDB(ElixirDB):
 						sequence_format=None, path_to_original_sequence=None, tissue_name=None, coverage=None,\
 						subFolder='individual_sequence'):
 		"""
+		2011-8-3
+			the path field is now considered a folder (rather than a file).
 		2011-5-7
 			subFolder is the name of the folder in self.data_dir that is used to hold the sequence files.
 		"""
@@ -944,6 +953,7 @@ class VervetDB(ElixirDB):
 				tissue = self.getTissue(short_name=tissue_name)
 			else:
 				tissue = None
+			individual = Individual.get(individual_id)
 			db_entry = IndividualSequence(individual_id=individual_id, sequencer=sequencer, sequence_type=sequence_type,\
 									format=sequence_format, tissue=tissue, coverage=coverage)
 			self.session.add(db_entry)
@@ -951,23 +961,25 @@ class VervetDB(ElixirDB):
 			
 			#'/' must not be put in front of the relative path.
 			# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-			dst_relative_path = '%s/%s_%s_%s.%s'%(subFolder, db_entry.id, individual_id,\
-															getattr(tissue, 'id', 0), sequence_format)
+			dst_relative_path = '%s/%s_%s_%s_%s_%s'%(subFolder, db_entry.id, individual_id, individual.code,\
+											sequencer, getattr(tissue, 'id', 0),)
+			#update its path in db to the relative path
+			db_entry.path = dst_relative_path
 			
-			dst_pathname = os.path.join(self.data_dir, dst_relative_path)
+			dst_abs_path = os.path.join(self.data_dir, dst_relative_path)
 			from pymodule.utils import runLocalCommand
 			if path_to_original_sequence and (os.path.isfile(path_to_original_sequence) or os.path.isdir(path_to_original_sequence)):
 				dst_dir = os.path.join(self.data_dir, subFolder)
 				if not os.path.isdir(dst_dir):	#the upper directory has to be created at this moment.
 					commandline = 'mkdir %s'%(dst_dir)
 					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-				
-				commandline = 'cp -r %s %s'%(path_to_original_sequence, dst_pathname)
+				if not os.path.isdir(dst_abs_path):	#2011-8-3 create the directory to host all sequences.
+					commandline = 'mkdir %s'%(dst_abs_path)
+					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+				commandline = 'cp -r %s %s'%(path_to_original_sequence, dst_abs_path)
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-				#update its path in db to the relative path
-				db_entry.path = dst_relative_path
-				self.session.add(db_entry)
-				self.session.flush()
+			self.session.add(db_entry)
+			self.session.flush()
 		return db_entry
 		
 	def getRelationshipType(self, relationship_type_name=None):
