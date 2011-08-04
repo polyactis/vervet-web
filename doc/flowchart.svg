@@ -7,10 +7,11 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="531.91406"
-   height="250.13951"
+   width="1870.7751"
+   height="761.96057"
    id="svg5491"
    version="1.1"
    inkscape:version="0.47 r22583"
@@ -24,6 +25,45 @@
        inkscape:vp_z="744.09448 : 526.18109 : 1"
        inkscape:persp3d-origin="372.04724 : 350.78739 : 1"
        id="perspective5499" />
+    <inkscape:perspective
+       id="perspective5661"
+       inkscape:persp3d-origin="0.5 : 0.33333333 : 1"
+       inkscape:vp_z="1 : 0.5 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_x="0 : 0.5 : 1"
+       sodipodi:type="inkscape:persp3d" />
+    <inkscape:perspective
+       id="perspective5704"
+       inkscape:persp3d-origin="0.5 : 0.33333333 : 1"
+       inkscape:vp_z="1 : 0.5 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_x="0 : 0.5 : 1"
+       sodipodi:type="inkscape:persp3d" />
+    <inkscape:perspective
+       id="perspective5792"
+       inkscape:persp3d-origin="0.5 : 0.33333333 : 1"
+       inkscape:vp_z="1 : 0.5 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_x="0 : 0.5 : 1"
+       sodipodi:type="inkscape:persp3d" />
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend"
+       style="overflow:visible">
+      <path
+         id="path4459"
+         d="M 0,0 5,-5 -12.5,0 5,5 0,0 z"
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;marker-start:none"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <path
+       style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend);font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans"
+       d="m 205.41267,1875.7739 c 0,0 -99.60771,-9.4962 -121.726507,-28.1063 -44.473369,-37.4185 -57.710772,-299.4804 -57.710772,-299.4804"
+       id="path14940"
+       sodipodi:nodetypes="csc" />
   </defs>
   <sodipodi:namedview
      id="base"
@@ -33,15 +73,15 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.35"
-     inkscape:cx="510.95145"
-     inkscape:cy="-331.67969"
+     inkscape:cx="747.54511"
+     inkscape:cy="160.14133"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="884"
-     inkscape:window-height="893"
-     inkscape:window-x="0"
-     inkscape:window-y="278"
+     inkscape:window-width="1089"
+     inkscape:window-height="955"
+     inkscape:window-x="305"
+     inkscape:window-y="132"
      inkscape:window-maximized="0" />
   <metadata
      id="metadata5496">
@@ -51,7 +91,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -59,26 +99,252 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(135.95145,49.457018)">
+     transform="translate(697.77484,58.028446)">
     <text
        xml:space="preserve"
        style="font-size:40px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
-       x="-105.71429"
-       y="-19.066393"
+       x="473.14285"
+       y="-27.637821"
        id="text5501"><tspan
          sodipodi:role="line"
          id="tspan5503"
-         x="-105.71429"
-         y="-19.066393">shell/wgetGivenURL.sh</tspan></text>
+         x="473.14285"
+         y="-27.637821">shell/wgetGivenURL.sh</tspan></text>
     <text
        xml:space="preserve"
        style="font-size:40px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
-       x="-137.14285"
-       y="192.36218"
+       x="441.71429"
+       y="183.79076"
        id="text5505"><tspan
          sodipodi:role="line"
          id="tspan5507"
-         x="-137.14285"
-         y="192.36218">vervet-web/src/MpiBWA.py</tspan></text>
+         x="441.71429"
+         y="183.79076">vervet-web/src/MpiBWA.py</tspan></text>
+    <flowRoot
+       xml:space="preserve"
+       style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans"
+       id="flowRoot2796-9"
+       transform="translate(208.98566,2027.7982)"><flowRegion
+         id="flowRegion2798-4"><use
+           x="0"
+           y="0"
+           xlink:href="#rect16486"
+           id="use2800-3"
+           width="744.09448"
+           height="1052.3622"
+           transform="translate(-10,-18)" /></flowRegion><flowPara
+         id="flowPara2802-5">DB</flowPara><flowPara
+         id="flowPara2804-1">Postgres</flowPara><flowPara
+         id="flowPara2806-7">/MySQL</flowPara></flowRoot>    <g
+       id="g5830"
+       transform="matrix(0.78757177,0,0,0.78757177,-45.153136,131.75843)">
+      <g
+         id="g2792"
+         transform="matrix(2.3449749,0,0,2.3449749,-736.67989,152.50203)"
+         style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans">
+        <rect
+           rx="19.290995"
+           ry="19.290995"
+           y="188.18002"
+           x="264.41534"
+           height="55.842354"
+           width="54.827038"
+           id="rect2794"
+           style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:none;stroke:#0a0203;stroke-width:1.51400006;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:0.96097568;stroke-dasharray:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans" />
+        <flowRoot
+           transform="translate(12,22)"
+           id="flowRoot2796"
+           style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans"
+           xml:space="preserve"><flowRegion
+             id="flowRegion2798"><use
+               transform="translate(-10,-18)"
+               height="1052.3622"
+               width="744.09448"
+               id="use2800"
+               xlink:href="#rect16486"
+               y="0"
+               x="0" /></flowRegion><flowPara
+             id="flowPara2802">DB</flowPara><flowPara
+             id="flowPara2804">Postgres</flowPara><flowPara
+             id="flowPara2806">/MySQL</flowPara></flowRoot>      </g>
+      <text
+         transform="translate(-135.95145,-49.457018)"
+         id="text5776"
+         y="690.13953"
+         x="54.285713"
+         style="font-size:32px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="690.13953"
+           x="54.285713"
+           id="tspan5778"
+           sodipodi:role="line">DB</tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-700.52289"
+       y="390.11108"
+       id="text5780"><tspan
+         sodipodi:role="line"
+         id="tspan5782"
+         x="-700.52289"
+         y="390.11108">Individual vervet collection spreadsheets</tspan></text>
+    <g
+       style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans"
+       transform="matrix(1.8857956,-0.29296816,0.29296816,1.8857956,-1039.6994,-3543.4535)"
+       id="g4187">
+      <g
+         id="g4626"
+         transform="matrix(0.99087188,0.13480693,-0.13480693,0.99087188,290.72748,12.747876)">
+        <path
+           sodipodi:nodetypes="cc"
+           id="path4179"
+           d="m -35.238805,2111.8814 170.407845,98.8432"
+           style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend);font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans" />
+        <text
+           xml:space="preserve"
+           style="font-size:14.67184639px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+           x="67.245262"
+           y="2133.4712"
+           id="text5842"
+           transform="matrix(0.99982131,0.0189034,-0.0189034,0.99982131,0,0)"><tspan
+             sodipodi:role="line"
+             id="tspan5844"
+             x="67.245262"
+             y="2133.4712">DBVervet.putxxx() of misc.py</tspan></text>
+      </g>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="218.33427"
+       y="377.82535"
+       id="text3256"><tspan
+         sodipodi:role="line"
+         id="tspan3258"
+         x="218.33427"
+         y="377.82535">VariantDiscovery.calculatePairwiseDistanceOutOfSNPXStrainMatrix()</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="481.19138"
+       y="574.96826"
+       id="text3260"><tspan
+         sodipodi:role="line"
+         id="tspan3262"
+         x="481.19138"
+         y="574.96826">VariantDiscovery.discoverHetsFromBAM()</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:bold;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Andale Mono Bold"
+       x="-674.91772"
+       y="1057.3607"
+       id="text2946"><tspan
+         sodipodi:role="line"
+         id="tspan2948"
+         x="-674.91772"
+         y="1057.3607">Alignment2CallPipeline.py pegasus workflow</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-637.77484"
+       y="1401.6873"
+       id="text2950"><tspan
+         sodipodi:role="line"
+         id="tspan2952"
+         x="-637.77484"
+         y="1401.6873">CalculatePairwiseDistanceOutOfSNPXStrainMatrix.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-637.77484"
+       y="1352.8708"
+       id="text2954"><tspan
+         sodipodi:role="line"
+         id="tspan2956"
+         x="-637.77484"
+         y="1352.8708">GenotypeCallByCoverage.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-638.95062"
+       y="1450.5035"
+       id="text2958"><tspan
+         sodipodi:role="line"
+         id="tspan2960"
+         x="-638.95062"
+         y="1450.5035">MergeGenotypeMatrix.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-638.04828"
+       y="1108.7893"
+       id="text2962"><tspan
+         sodipodi:role="line"
+         id="tspan2964"
+         x="-638.04828"
+         y="1108.7893">SelectAndSplitFastaRecords.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-638.74554"
+       y="1255.2383"
+       id="text2966"><tspan
+         sodipodi:role="line"
+         id="tspan2968"
+         x="-638.74554"
+         y="1255.2383">picard's AddOrReplaceReadGroupsAndCleanSQHeader.jar</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-643.48914"
+       y="1206.4219"
+       id="text2970"><tspan
+         sodipodi:role="line"
+         id="tspan2972"
+         x="-643.48914"
+         y="1206.4219">picard's MergeSamFiles.jar</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-637.77484"
+       y="1304.0546"
+       id="text2974"><tspan
+         sodipodi:role="line"
+         id="tspan2976"
+         x="-637.77484"
+         y="1304.0546">GATK's GenomeAnalysisTK.jar</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-638.74554"
+       y="1157.6056"
+       id="text2978"><tspan
+         sodipodi:role="line"
+         id="tspan2980"
+         x="-638.74554"
+         y="1157.6056">picard's CreateSequenceDictionary.jar</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:bold;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Andale Mono Bold"
+       x="37.142857"
+       y="919.10345"
+       id="text2982"
+       transform="translate(-697.77484,-58.028446)"><tspan
+         sodipodi:role="line"
+         id="tspan2984"
+         x="37.142857"
+         y="919.10345">UnpackAndAddIndividualSequence2DB.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="165.71429"
+       y="984.81769"
+       id="text2986"
+       transform="translate(-697.77484,-58.028446)"><tspan
+         sodipodi:role="line"
+         id="tspan2988"
+         x="165.71429"
+         y="984.81769">convertBamToFastqAndGzip.sh</tspan></text>
   </g>
 </svg>
