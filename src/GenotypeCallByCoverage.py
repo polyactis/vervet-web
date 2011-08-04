@@ -3,18 +3,26 @@
 Examples:
 	# call one genome (nothing because no polymorphic sites)
 	%s -i /tmp/vs_top150Contigs_by_aln_Contig0.bam -n 1 -o /tmp/vs_top150Contigs_by_aln_Contig0.call
+		-y2 -e ...
 	
 	# call genotype from 8 genomes
 	%s -n 8 -i script/vervet/data/8_genome_vs_Contig0.RG.bam -o script/vervet/data/8_genome_vs_Contig0.RG.call
+		-y2 -e ...
+	
+	# 2011-7-21 call from GATK vcf file
+	%s -n 8 -y1 -i ~/script/vervet/data/1MbBAC_as_ref/454_illu_6_sub_vs_1MbBAC.GATK.vcf
+		-o ~/script/vervet/data/1MbBAC_as_ref/454_illu_6_sub_vs_1MbBAC.GATK.call
+		-e /Network/Data/vervet/db/individual_sequence/9_1Mb-BAC.fa
 	
 Description:
-	2011-7-12
-		A multi-sample genotype caller based entirely on coverage of reads.
-		It invokes VariantDiscovery.discoverHetsFromBAM() from vervet/src/misc.py
-		sam/bam file has to be indexed beforehand.
+	2011-8-3
+		Two functions:
+		1. A multi-sample genotype caller based entirely on coverage of reads.
+			sam/bam file has to be indexed beforehand.
+		2. A coverage-based GATK-generated VCF file filter.
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 
 from sqlalchemy.types import LargeBinary
 
@@ -26,10 +34,10 @@ else:   #32bit
 	sys.path.insert(0, os.path.expanduser('~/lib/python'))
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import subprocess, cStringIO
+import subprocess, cStringIO, re, csv
 import VervetDB
 from pymodule import ProcessOptions
-
+from pymodule.utils import sortCMPBySecondTupleValue
 
 class GenotypeCallByCoverage(object):
 	__doc__ = __doc__
@@ -40,9 +48,11 @@ class GenotypeCallByCoverage(object):
 						('maxMinorAlleleCoverage', 1, int): [7, '', 1, 'maximum read depth for the minor allele of a heterozygous call', ],\
 						('maxNoOfReadsForGenotypingError', 1, int): [1, '', 1, 'if read depth for one allele is below or equal to this number, regarded as genotyping error ', ],\
 						('maxNoOfReads', 1, int): [20, '', 1, 'maximum read depth for one base to be considered'],\
+						('minNoOfReads', 1, int): [2, '', 1, 'minimum read depth for one base to be considered'],\
 						('maxMajorAlleleCoverage', 1, int): [10, '', 1, 'maximum read depth'],\
 						('maxNoOfReadsMultiSampleMultiplier', 1, int): [3, '', 1, 'across n samples, ignore bases where read depth > n*maxNoOfReads*multiplier.'],\
 						('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
+						("run_type", 1, int): [1, 'y', 1, '1: discoverFromVCF (output of GATK), 2: discoverFromBAM'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
@@ -53,6 +63,249 @@ class GenotypeCallByCoverage(object):
 		"""
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
 														class_to_have_attr=self)
+	
+	@classmethod
+	def addCountToDictionaryByKey(cls, dictionary, key):
+		"""
+		2011-3-24
+		"""
+		if key not in dictionary:
+			dictionary[key] = 0
+		dictionary[key] += 1
+	
+	@classmethod
+	def reportValueOfDictionaryByKeyLs(cls, dictionary, key_ls, title=None):
+		"""
+		2011-3-24
+		"""
+		if title:
+			sys.stderr.write('%s\n'%title)
+		for key in key_ls:
+			value = dictionary.get(key)
+			sys.stderr.write("\t%s: %s\n"%(key, value))
+
+	@classmethod
+	def discoverFromBAM(cls, inputFname, outputFname, refFastaFname=None, monomorphicDiameter=100, \
+						maxNoOfReads=300, minNoOfReads=2, minMinorAlleleCoverage=3, maxMinorAlleleCoverage=7,\
+						maxNoOfReadsForGenotypingError=1, maxMajorAlleleCoverage=30, maxNoOfReadsForAllSamples=1000,\
+						nt_set = set(['a','c','g','t','A','C','G','T'])):
+		"""
+		2011-7-20
+			copied from discoverHetsFromBAM() of vervet.src.misc
+		2011-7-18
+			add argument refFastaFname
+			ref is at column 0. no read_group should bear the name "ref".
+		2011-7-8
+			it discovers homozygous SNPs as well.
+		2011-3-24
+			the BAM file needs to support RG tag for all its reads.
+		2011-2-18
+			discover Hets from BAM files based on coverage of either allele and monomorphic span
+			not tested and not finished.
+		"""
+		import pysam, csv
+		sys.stderr.write("Looking for heterozygous SNPs in %s (%s<=MinorAC<=%s), maxNoOfReads=%s, \
+				maxNoOfReadsForGenotypingError=%s, maxMajorAlleleCoverage=%s, maxNoOfReadsForAllSamples=%s.\n"%\
+					(os.path.basename(inputFname), minMinorAlleleCoverage, maxMinorAlleleCoverage ,\
+					maxNoOfReads, maxNoOfReadsForGenotypingError, maxMajorAlleleCoverage, maxNoOfReadsForAllSamples))
+		samfile = pysam.Samfile(inputFname, "rb" )
+		current_locus = None	# record of polymorphic loci
+		previous_locus = None
+		candidate_locus = None
+		good_polymorphic_loci = []
+		read_group2no_of_snps_with_trialleles = {}
+		read_group2no_of_snps_with_quad_alleles = {}
+		read_group2no_of_snps_with_penta_alleles = {}
+		read_group2no_of_good_hets = {}
+		read_group2no_of_good_tris = {}
+		counter = 0
+		real_counter = 0
+		
+		read_group2col_index = {'ref':0}	#ref is at column 0. "ref" must not be equal to any read_group.
+		locus_id2row_index = {}
+		data_matrix = []
+		
+		tid2refName = {}	#dictionary storing the target references which have SNP calls
+		refNameSet = set()	#reverse map of tid2refName
+		for pileupcolumn in samfile.pileup():
+			#print
+			#print 'coverage at base %s %s = %s'%(pileupcolumn.tid, pileupcolumn.pos , pileupcolumn.n)
+			counter += 1
+			refName = samfile.getrname(pileupcolumn.tid)
+			current_locus = '%s_%s'%(refName, pileupcolumn.pos+1)
+			if pileupcolumn.tid not in tid2refName:
+				tid_str = str(pileupcolumn.tid)
+				tid2refName[tid_str] = refName
+				refNameSet.add(refName)
+			
+			read_group2base2count = {}
+			read_group2depth = {}
+			if pileupcolumn.n<=maxNoOfReadsForAllSamples:
+				for pileupread in pileupcolumn.pileups:
+					read_group = None
+					# find the read group
+					for tag in pileupread.alignment.tags:
+						if tag[0]=='RG':
+							tag_value = tag[1]
+							if tag_value.find('sorted')==-1:	# sometimes one read has >1 RGs, take the one without 'sorted'
+								read_group = tag_value
+								break
+					if read_group is None:
+						sys.stderr.write("This read (tags:%s) has no non-sorted-embedded RG. Exit.\n"%(repr(pileupread.alignment.tags)))
+						sys.exit(3)
+					if read_group not in read_group2base2count:
+						read_group2base2count[read_group] = {}
+						read_group2depth[read_group] = 0
+					if read_group not in read_group2col_index:
+						read_group2col_index[read_group] = len(read_group2col_index)
+					
+					read_group2depth[read_group] += 1
+					if pileupread.qpos<0 or pileupread.qpos>=len(pileupread.alignment.seq):	#2011-7-13 need to investigate what happens here??
+						continue	#
+					base = pileupread.alignment.seq[pileupread.qpos]
+					base2count = read_group2base2count.get(read_group)
+					if base in nt_set:	#make sure it's a nucleotide
+						if base not in base2count:
+							base2count[base] = 0
+						base2count[base] += 1
+					#print '\tbase in read %s = %s' % (pileupread.alignment.qname, base)
+				data_row = ['NA']*len(read_group2col_index)
+				
+				found_one_het = False	#2011 flag to see if any het in all samples is called at this locus.
+				allele2count = {}	#2011-3-29
+				for read_group, base2count in read_group2base2count.iteritems():
+					depth = read_group2depth.get(read_group)
+					col_index = read_group2col_index.get(read_group)
+					
+					if depth>maxNoOfReads:	#2011-3-29 skip. coverage too high.
+						continue
+					allele = 'NA'	#default
+					if len(base2count)>=2:
+						item_ls = base2count.items()
+						item_ls.sort(cmp=sortCMPBySecondTupleValue)
+						
+						if len(item_ls)==3:
+							cls.addCountToDictionaryByKey(read_group2no_of_snps_with_trialleles, read_group)
+							if item_ls[0][1]>maxNoOfReadsForGenotypingError:
+								continue
+						elif len(item_ls)==4:
+							cls.addCountToDictionaryByKey(read_group2no_of_snps_with_quad_alleles, read_group)
+							if item_ls[1][1]>maxNoOfReadsForGenotypingError:	# because sorted, count_ls[0] < count_ls[1]
+								continue
+						elif len(item_ls)>4:	#shouldn't happen. but maybe deletion/insertion + 4 nucleotides
+							cls.addCountToDictionaryByKey(read_group2no_of_snps_with_penta_alleles, read_group)
+							continue
+						MinorAllele = item_ls[-2][0]
+						MinorAC = item_ls[-2][1]
+						
+						MajorAllele = item_ls[-1][0]
+						MajorAC = item_ls[-1][1]
+						if MinorAC>=minMinorAlleleCoverage and MinorAC<=maxMinorAlleleCoverage and MajorAC<=maxMajorAlleleCoverage:
+							real_counter += 1
+							found_one_het = True
+							#pysam position is 0-based.
+							allele = min(MinorAllele, MajorAllele) + max(MinorAllele, MajorAllele)
+							#data_row = [read_group, pileupcolumn.tid, pileupcolumn.pos+1, MinorAC, MajorAC]
+							#writer.writerow(data_row)
+							if len(item_ls)>2:
+								cls.addCountToDictionaryByKey(read_group2no_of_good_tris, read_group)
+							else:
+								cls.addCountToDictionaryByKey(read_group2no_of_good_hets, read_group)
+						elif MinorAC<=maxNoOfReadsForGenotypingError:	#2011-3-29 it's homozygous with the major allele
+							allele = MajorAllele+MajorAllele
+						else:
+							continue
+					elif len(base2count)==1:
+						base = base2count.keys()[0]
+						count = base2count.get(base)
+						if count>=minMinorAlleleCoverage:
+							allele = '%s%s'%(base, base)
+					
+					data_row[col_index] = allele
+					if allele!='NA':
+						if allele not in allele2count:
+							allele2count[allele] = 0
+						allele2count[allele] += 1
+				if len(allele2count)>1:	#polymorphic across samples
+					locus_id2row_index[current_locus] = len(locus_id2row_index)
+					data_matrix.append(data_row)
+			if counter%1000==0:
+				sys.stderr.write("%s\t%s\t%s"%('\x08'*80, counter, real_counter))
+				"""
+				if previous_locus!=None and previous_locus[0]==current_locus[0]:
+					gap = current_locus[1]-previous_locus[1]
+					if gap>=monomorphicDiameter:
+						if candidate_locus is not None and candidate_locus==previous_locus:
+							#prior candidate locus is in proper distance. there's no polymorphic locus in between.
+							good_polymorphic_loci.append(candidate_locus)
+						candidate_locus = current_locus
+					else:
+						candidate_locus = None
+				previous_locus = current_locus
+				"""
+		samfile.close()
+		cls.outputCallMatrix(data_matrix, refFastaFname, outputFname=outputFname, \
+					refNameSet=refNameSet, read_group2col_index=read_group2col_index, \
+					locus_id2row_index=locus_id2row_index)
+		
+		unique_read_group_ls = read_group2col_index.keys()
+		unique_read_group_ls.sort()
+		cls.reportValueOfDictionaryByKeyLs(read_group2no_of_good_hets, unique_read_group_ls, title="No of good hets")
+		cls.reportValueOfDictionaryByKeyLs(read_group2no_of_good_tris, unique_read_group_ls, title="No of good SNPs with tri-or-more alleles")
+		cls.reportValueOfDictionaryByKeyLs(read_group2no_of_snps_with_trialleles, unique_read_group_ls, title="No of SNPs with tri alleles")
+		cls.reportValueOfDictionaryByKeyLs(read_group2no_of_snps_with_quad_alleles, unique_read_group_ls, title="No of SNPs with 4 alleles")
+		cls.reportValueOfDictionaryByKeyLs(read_group2no_of_snps_with_penta_alleles, unique_read_group_ls, title="No of SNPs with 5-or-more alleles")
+	
+	@classmethod
+	def outputCallMatrix(cls, data_matrix, refFastaFname, outputFname=None, refNameSet=None, read_group2col_index=None, \
+						locus_id2row_index=None):
+		"""
+		2011-7-26
+			replace arguments refName2tid & tid2refName with refNameSet
+		2011-7-20
+			Meaning of tid from refName2tid and tid2refName depends on whether it's discoverFromBAM() or discoverFromVCF().
+				In the former, tid is a consecutive number ID used in bam file to track reference sequences.
+				In the latter, tid is chromosome number (could be 1,2,3 or X, Y).
+			So in either case, the type of tid has been casted to str.
+		"""
+		#2011-7-18 read in the reference sequences in order to find out the ref base
+		refName2Seq = {}
+		from Bio import SeqIO
+		handle = open(refFastaFname, "rU")
+		for record in SeqIO.parse(handle, "fasta"):
+			contig_id = record.id.split()[0]
+			if contig_id in refNameSet:
+				refName2Seq[contig_id] = record.seq
+			if len(refName2Seq)>=len(refNameSet):	#enough data, exit.
+				break
+		handle.close()
+		
+		# output the matrix in the end
+		#read_group2col_index.pop('ref', None)	#remove the "ref" item if "ref" is in read_group2col_index. None is for failsafe when "ref" is not present.
+		read_group_col_index_ls = read_group2col_index.items()
+		read_group_col_index_ls.sort(cmp=sortCMPBySecondTupleValue)
+		header = ['locus_id', 'locus_id']+[row[0] for row in read_group_col_index_ls]
+		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		#header = ['RG', 'chr', 'pos', 'MinorAlleleCoverage', 'MajorAlleleCoverage']
+		#writer.writerow(header)
+		writer.writerow(header)
+		
+		locus_id_and_row_index_ls = locus_id2row_index.items()
+		locus_id_and_row_index_ls.sort(cmp=sortCMPBySecondTupleValue)
+		for i in xrange(len(locus_id_and_row_index_ls)):
+			locus_id, row_index = locus_id_and_row_index_ls[i]
+			refName, pos = locus_id.split('_')[:2]
+			refSeq = refName2Seq[refName]
+			pos = int(pos)
+			refBase = refSeq[pos-1]
+			data_row = data_matrix[i]
+			data_row[0] = refBase	#2011-7-18
+			# if data_row is shorter than read_group_col_index_ls, add "NA" to fill it up
+			for j in xrange(len(data_row), len(read_group_col_index_ls)):
+				data_row.append('NA')
+			writer.writerow([locus_id, locus_id] + data_row)
+		del writer
+		
 	
 	@classmethod
 	def getIndividual2ColIndex(cls, header, col_name2index, sampleStartingColumn=9):
@@ -79,11 +332,13 @@ class GenotypeCallByCoverage(object):
 		return individual_name2col_index
 	
 	@classmethod
-	def discoverHetsFromVCF(cls, inputFname, outputFname, minMinorAlleleCoverage=4, VCFOutputType=1, maxMinorAlleleCoverage=8,\
+	def discoverFromVCF(cls, inputFname, outputFname, refFastaFname=None, VCFOutputType=2, minMinorAlleleCoverage=4, maxMinorAlleleCoverage=8,\
 						maxNoOfReads=30, minNoOfReads=2, \
 						maxNoOfReadsForGenotypingError=1, maxMajorAlleleCoverage=30, maxNoOfReadsForAllSamples=1000,\
 						nt_set = set(['a','c','g','t','A','C','G','T'])):
 		"""
+		2011-7-20
+			copied from discoverHetsFromVCF() of vervet.src.misc
 		2011-3-24
 			add maxMinorAlleleCoverage
 			Even a heterozygote's MAC is within [minMinorAlleleCoverage, maxMinorAlleleCoverage], it could still be
@@ -101,17 +356,31 @@ class GenotypeCallByCoverage(object):
 		sys.stderr.write("Looking for heterozygous SNPs in %s (%s<=MAC<=%s).\n"%(os.path.basename(inputFname), \
 																		minMinorAlleleCoverage, maxMinorAlleleCoverage))
 		reader =csv.reader(open(inputFname), delimiter='\t')
+		
+		
+		read_group2col_index = {'ref':0}	#ref is at column 0. "ref" must not be equal to any read_group.
+		locus_id2row_index = {}
+		data_matrix = []
+		
+		tid2refName = {}	#dictionary storing the target references which have SNP calls
+		refNameSet = set()
+		"""
 		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
 		header = ['sample', 'snp_id', 'chr', 'pos', 'qual', 'DP', 'minDP4', 'DP4_ratio', 'MQ']
 		moreHeader = ['GQ', 'GL', 'SB', 'QD', 'sndHighestGL', 'deltaGL']
 		#['AF', 'AC','AN', 'Dels', 'HRun', 'HaplotypeScore','MQ0', 'QD']	#2011-3-4 useless
 		if VCFOutputType==2:
 			header += moreHeader
-		writer.writerow(header)
+		chr_pure_number_pattern = re.compile(r'[a-z_A-Z]+(\d+)')
+		chr_number_pattern = re.compile(r'chr(\d+)')
+		"""
+		
 		individual_name2col_index = None
 		col_name2index = None
 		counter = 0
 		real_counter = 0
+		
+		
 		for row in reader:
 			if row[0] =='#CHROM':
 				row[0] = 'CHROM'	#discard the #
@@ -121,7 +390,18 @@ class GenotypeCallByCoverage(object):
 				continue
 			elif row[0][0]=='#':	#2011-3-4
 				continue
-			chr = row[0][3:]
+			"""
+			if chr_number_pattern.search(row[0]):
+				chr = chr_number_pattern.search(row[0]).group(1)
+			elif chr_pure_number_pattern.search(row[0]):
+				chr = chr_pure_number_pattern.search(row[0]).group(1)
+			else:
+				sys.stderr.write("Couldn't parse the chromosome number/character from %s.\n Exit.\n"%(row[0]))
+				sys.exit(4)
+			"""
+			chr = row[0]
+			refNameSet.add(chr)
+			
 			pos = row[1]
 			quality = row[5]
 			
@@ -134,15 +414,25 @@ class GenotypeCallByCoverage(object):
 				try:
 					tag, value = info.split('=')
 				except:
-					sys.stderr.write("Error in splitting %s by =.\n"%info)
+					#sys.stderr.write("Error in splitting %s by =.\n"%info)	###Error in splitting DS by =.
 					continue
 				info_tag2value[tag] = value
 			
-			if VCFOutputType==2:	#2011-3-4
+			current_locus = '%s_%s'%(chr, pos)
+			refBase = row[col_name2index['REF']]
+			altBase = row[col_name2index['ALT']]
+			if VCFOutputType==2:	#2011-3-4 GATK
 				format_column = row[col_name2index['FORMAT']]
 				format_column_ls = format_column.split(':')
 				format_column_name2index = getColName2IndexFromHeader(format_column_ls)
+				data_row = ['NA']*(len(individual_name2col_index)+1)	# extra 1 for the ref
+				allele2count = {}
 				for individual_name, individual_col_index in individual_name2col_index.iteritems():
+					read_group = individual_name
+					if read_group not in read_group2col_index:
+						read_group2col_index[read_group] = len(read_group2col_index)
+					
+					
 					genotype_data = row[individual_col_index]
 					genotype_data_ls = genotype_data.split(':')
 					genotype_call = genotype_data_ls[format_column_name2index['GT']]
@@ -153,28 +443,55 @@ class GenotypeCallByCoverage(object):
 						continue
 					genotype_quality = genotype_data_ls[genotype_quality_index]
 					GL_index = format_column_name2index.get('GL')
-					if genotype_call=='0/1':	#heterozygous
+					depth = int(genotype_data_ls[format_column_name2index.get('DP')])
+					if depth>maxNoOfReads or depth<minNoOfReads:	#2011-3-29 skip. coverage too high or too low
+						continue
+					allele = 'NA'
+					if genotype_call=='0/1' or genotype_call =='1/0':	#heterozygous, the latter notation is never used though.
+						"""
 						GL_list = genotype_data_ls[GL_index]
 						GL_list = GL_list.split(',')
 						GL_list = map(float, GL_list)
 						GL = GL_list[1]
 						sndHighestGL = max([GL_list[0], GL_list[2]])
 						deltaGL = GL-sndHighestGL
+						"""
 						AD = genotype_data_ls[format_column_name2index.get('AD')]
 						AD = map(int, AD.split(','))
-						minDP4 = min(AD)
-						if minDP4<=maxMinorAlleleCoverage and minDP4>=minMinorAlleleCoverage:
+						minorAlleleCoverage = min(AD)
+						majorAlleleCoverage = max(AD)
+						
+						if minorAlleleCoverage<=maxMinorAlleleCoverage and minorAlleleCoverage>=minMinorAlleleCoverage and majorAlleleCoverage<=maxMajorAlleleCoverage:
 							DP4_ratio = float(AD[0])/AD[1]
+							allele = '%s%s'%(refBase, altBase)
+							"""
 							data_row = [individual_name, 'chr%s:%s'%(chr, pos), chr, pos, quality, \
-									genotype_data_ls[format_column_name2index.get('DP')], minDP4, DP4_ratio,\
+									depth, minorAlleleCoverage, DP4_ratio,\
 									info_tag2value.get('MQ'), genotype_quality, GL,\
 									info_tag2value.get('SB'), info_tag2value.get('QD'), sndHighestGL, deltaGL]
 							#for i in range(3, len(moreHeader)):
 							#	info_tag = moreHeader[i]
 							#	data_row.append(info_tag2value.get(info_tag))
 							writer.writerow(data_row)
-							real_counter += 1
-			elif VCFOutputType==1:
+							"""
+					elif genotype_call=='./.':	#missing
+						continue
+					elif genotype_call =='1/1':
+						allele = '%s%s'%(altBase, altBase)
+					elif genotype_call =='0/0':
+						allele = '%s%s'%(refBase, refBase)
+					col_index = read_group2col_index.get(read_group)
+					data_row[col_index] = allele
+					if allele!='NA':
+						if allele not in allele2count:
+							allele2count[allele] = 0
+						allele2count[allele] += 1
+				if len(allele2count)>1:	#polymorphic across samples
+					real_counter += 1
+					locus_id2row_index[current_locus] = len(locus_id2row_index)
+					data_matrix.append(data_row)
+			"""
+			elif VCFOutputType==1:	#samtools. 2011-7-20 outdated.
 				sample_id = row[8]
 				for tag in info_tag2value.keys():
 					value = info_tag2value.get(tag)
@@ -197,70 +514,18 @@ class GenotypeCallByCoverage(object):
 					output_row = [sample_id, 'chr%s:%s'%(chr, pos), chr, pos, quality, info_tag2value.get('DP'), \
 								info_tag2value.get('minDP4'), info_tag2value.get('DP4_ratio'), info_tag2value.get('MQ')]
 					writer.writerow(output_row)
+			"""
 			counter += 1
 			if counter%2000==0:
 				sys.stderr.write("%s\t%s\t%s"%("\x08"*80, counter, real_counter))
-		del reader, writer
+		del reader
+		
+		cls.outputCallMatrix(data_matrix, refFastaFname, outputFname=outputFname, refNameSet=refNameSet, \
+					read_group2col_index=read_group2col_index, \
+					locus_id2row_index=locus_id2row_index)
+		
 		sys.stderr.write("%s\t%s\t%s.\n"%("\x08"*80, counter, real_counter))
-	"""
-		#2011-1-6
-		inputFname = '/Network/Data/vervet/ref/454_vs_hg19_20101230_3eQTL_D100.raw.vcf'
-		outputFname = '/Network/Data/vervet/ref/454_vs_hg19_20101230_3eQTL_D100.raw.hets'
-		VariantDiscovery.discoverHetsFromVCF(inputFname, outputFname, minMinorAlleleCoverage=4)
-		
-		common_prefix = '/Network/Data/vervet/ref/454_vs_hg19_20101230_3eQTL_p1'
-		inputFname = '%s.raw.vcf'%(common_prefix)
-		minMinorAlleleCoverage=2
-		outputFname = '%s_min%s.raw.hets'%(common_prefix, minMinorAlleleCoverage)
-		VariantDiscovery.discoverHetsFromVCF(inputFname, outputFname, minMinorAlleleCoverage=minMinorAlleleCoverage)
-		sys.exit(0)
-		
-		#2011-3-4
-		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.D100'
-		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.D100'
-		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.GATK'
-		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.GATK'
-		inputFname = '%s.vcf'%(common_prefix)
-		minMinorAlleleCoverage=2
-		outputFname = '%s_min%s.hets'%(common_prefix, minMinorAlleleCoverage)
-		VariantDiscovery.discoverHetsFromVCF(inputFname, outputFname, minMinorAlleleCoverage=minMinorAlleleCoverage, VCFOutputType=2)
-		sys.exit(0)
-		
-		#2011-3-4
-		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.D100'
-		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.D100'
-		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.GATK'
-		#common_prefix = os.path.expanduser('~/mnt/hoffman2_home/script/vervet/data/ref/illumina/ref_illu_vs_hg9_by_aln.3eQTL.RG.GATK')
-		inputFname = '%s.vcf'%(common_prefix)
-		minMinorAlleleCoverage=2
-		maxMinorAlleleCoverage=7
-		outputFname = '%s_minMAC%s_maxMAC%s.hets'%(common_prefix, minMinorAlleleCoverage, maxMinorAlleleCoverage)
-		VariantDiscovery.discoverHetsFromVCF(inputFname, outputFname, minMinorAlleleCoverage=minMinorAlleleCoverage,\
-			VCFOutputType=2, maxMinorAlleleCoverage=maxMinorAlleleCoverage)
-
-		myVariantFile = '%s_min%s.hets'%(common_prefix, minMinorAlleleCoverage)
-		
-		jessicaVariantFname = os.path.expanduser('~/script/vervet/data/eQTL summary.txt')
-		outputType=3
-		outputFname = '%s_min%s.outputType%s.tsv'%(common_prefix, minMinorAlleleCoverage, outputType)
-		VariantDiscovery.checkOverlapping(myVariantFile, jessicaVariantFname, outputFname, outputType=outputType)
-		sys.exit(0)
-		
-		#2011-3-24
-		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.D100'
-		common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.D100'
-		#common_prefix = '/Network/Data/vervet/ref/454/454_vs_hg19/454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.GATK'
-		#common_prefix = os.path.expanduser('~/mnt/hoffman2_home/script/vervet/data/ref/illumina/ref_illu_vs_hg9_by_aln.3eQTL.RG.GATK')
-		#common_prefix = os.path.expanduser('~/mnt/hoffman2_home/script/vervet/data/454_illu_6_sub_vs_1MbBAC.GATK')
-		inputFname = '%s.vcf'%(common_prefix)
-		minMinorAlleleCoverage=2
-		maxMinorAlleleCoverage=7
-		outputFname = '%s_minMAC%s_maxMAC%s.hets'%(common_prefix, minMinorAlleleCoverage, maxMinorAlleleCoverage)
-		VariantDiscovery.discoverHetsFromVCF(inputFname, outputFname, minMinorAlleleCoverage=minMinorAlleleCoverage,\
-			VCFOutputType=1, maxMinorAlleleCoverage=maxMinorAlleleCoverage)
-		sys.exit(2)
-		
-	"""
+	
 	
 	def run(self):
 		if self.debug:
@@ -276,13 +541,27 @@ class GenotypeCallByCoverage(object):
 		
 		from vervet.src.misc import VariantDiscovery
 		maxNoOfReadsForAllSamples = self.numberOfReadGroups*self.maxNoOfReads*self.maxNoOfReadsMultiSampleMultiplier
-		VariantDiscovery.discoverHetsFromBAM(self.inputFname, self.outputFname, \
+		if self.run_type==2:
+			self.discoverFromBAM(self.inputFname, self.outputFname, \
 						refFastaFname=self.refFastaFname,\
-						maxNoOfReads=self.maxNoOfReads, minMinorAlleleCoverage=self.minMinorAlleleCoverage, \
+						maxNoOfReads=self.maxNoOfReads, minNoOfReads=self.minNoOfReads,\
+						minMinorAlleleCoverage=self.minMinorAlleleCoverage, \
 						maxMinorAlleleCoverage=self.maxMinorAlleleCoverage,\
 						maxNoOfReadsForGenotypingError=self.maxNoOfReadsForGenotypingError, \
 						maxMajorAlleleCoverage=self.maxMajorAlleleCoverage, \
 						maxNoOfReadsForAllSamples=maxNoOfReadsForAllSamples)
+		elif self.run_type==1:
+			self.discoverFromVCF(self.inputFname, self.outputFname, \
+					refFastaFname=self.refFastaFname,\
+					maxNoOfReads=self.maxNoOfReads, minNoOfReads=self.minNoOfReads,\
+					minMinorAlleleCoverage=self.minMinorAlleleCoverage, \
+					maxMinorAlleleCoverage=self.maxMinorAlleleCoverage,\
+					maxNoOfReadsForGenotypingError=self.maxNoOfReadsForGenotypingError, \
+					maxMajorAlleleCoverage=self.maxMajorAlleleCoverage, \
+					maxNoOfReadsForAllSamples=maxNoOfReadsForAllSamples, VCFOutputType=2)
+		else:
+			sys.stderr.write("Unsupported run_type %s.Exit.\n"%(self.run_type))
+			sys.exit(5)
 
 if __name__ == '__main__':
 	main_class = GenotypeCallByCoverage
