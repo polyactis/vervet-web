@@ -2114,6 +2114,122 @@ class VariantDiscovery(object):
 		sys.exit(2)
 	"""
 
+	@classmethod
+	def PCAContigByDistVectorFromOtherGenomes(cls, inputDir, outputFnamePrefix):
+		"""
+		2011-8-2
+			Run PCA on the vervet ref contigs based on distance vector of other genomes to these contigs
+			
+			input file name looks like this:
+			
+				workflow_8GenomeVsTop156Contigs_GATK/call/Contig9.pairwiseDist.convertHetero2NATrue.minMAF0.maxNA0.4.tsv
+			
+			output the data in a matrix fashion that the web MotionChartAppMCPanel app would recognize 
+		"""
+		vectorData = cls.readContigDistVector(inputDir)
+
+		# run PCA
+		sys.stderr.write("Carrying out contig-wise PCA ...")
+		phenotypePCA_fname = '%s_VRefContig.tsv'%outputFnamePrefix
+		phenotypePCA_writer = csv.writer(open(phenotypePCA_fname, 'w'), delimiter='\t')
+		
+		import pca_module
+		from pymodule.PCA import PCA
+		#T, P, explained_var = pca_module.PCA_svd(phenData_trans.data_matrix, standardize=True)
+		T, P, explained_var = PCA.eig(vectorData.data_matrix, normalize=False)	#normalize=True causes missing value in the covariance matrix
+		# get the category information for each phenotype
+		header = ['ContigID', 'DummyTime', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6']
+		phenotypePCA_writer.writerow(header)
+		for i in range(len(vectorData.row_id_ls)):
+			row_id = vectorData.row_id_ls[i]
+			data_row = [row_id, '2011'] + list(T[i,0:6])
+			phenotypePCA_writer.writerow(data_row)
+		del phenotypePCA_writer
+		sys.stderr.write("Done.\n")
+		
+	"""
+		#2011-8-2
+		inputDir = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
+		outputFnamePrefix = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
+		VariantDiscovery.PCAContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
+		sys.exit(3)
+	"""
+	
+	@classmethod
+	def readContigDistVector(cls, inputDir):
+		"""
+		2011-8-2
+			used by PCAContigByDistVectorFromOtherGenomes() and drawContigByDistVectorFromOtherGenomes()
+		"""
+		from pymodule import SNPData
+		import numpy, csv, os, sys, re
+		contig_id_pattern = re.compile(r'Contig(\d+).*')
+		row_id_ls = []
+		col_id_ls = []
+		data_matrix = []
+		for fname in os.listdir(inputDir):
+			sys.stderr.write("%s ..."%fname)
+			inputFname = os.path.join(inputDir, fname)
+			contig_id_pattern_sr = contig_id_pattern.search(inputFname)
+			if contig_id_pattern_sr:
+				contig_id = contig_id_pattern_sr.group(1)
+			else:
+				contig_id = os.path.splitext(os.path.split(inputFname)[1])[0]
+			row_id_ls.append(contig_id)
+			reader = csv.reader(open(inputFname, ), delimiter='\t')
+			matrixStart = False
+			for row in reader:
+				if row[0]=='':
+					if not col_id_ls:
+						col_id_ls = row[1:]
+					matrixStart = True
+				if matrixStart and row[0]=='ref':
+					data_row = row[1:]
+					data_row = map(float, data_row)
+					data_matrix.append(data_row)
+			sys.stderr.write("Done.\n")
+		data_matrix = numpy.array(data_matrix)
+		take1stSplit = lambda x: x.split("_")[0]
+		col_id_ls = map(take1stSplit, col_id_ls)
+		vectorData = SNPData(row_id_ls=row_id_ls, col_id_ls=col_id_ls, data_matrix=data_matrix)
+		
+		return vectorData
+	
+	@classmethod
+	def drawContigByDistVectorFromOtherGenomes(cls, inputDir, outputFnamePrefix):
+		"""
+		2011-8-2
+			This program draws the distance vector of other genomes to each contig.
+			
+			The inputDir contains output by CalculatePairwiseDistanceOutOfSNPXStrainMatrix.py
+		"""
+		vectorData = cls.readContigDistVector(inputDir)
+		
+		# run PCA
+		sys.stderr.write("Drawing all distance vectors ...")
+		outputFname = '%s.png'%outputFnamePrefix
+		
+		import pylab
+		pylab.clf()
+		xlabel_ls = vectorData.col_id_ls[1:3] + [vectorData.col_id_ls[0]] + vectorData.col_id_ls[3:6] + vectorData.col_id_ls[7:9]
+		for data_row in vectorData.data_matrix:
+			data_row = list(data_row)
+			new_data_row = data_row[1:3] + [data_row[0]] + data_row[3:6] + data_row[7:9]
+			
+			pylab.plot(range(len(new_data_row)), new_data_row)
+		pylab.title("Distance vector from %s genomes to %s contigs"%(len(xlabel_ls), len(vectorData.row_id_ls)))
+		pylab.xlabel(xlabel_ls)
+		pylab.savefig(outputFname, dpi=200)
+		sys.stderr.write("Done.\n")
+		
+	"""
+		#2011-8-2
+		inputDir = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
+		outputFnamePrefix = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
+		VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
+		sys.exit(3)
+	"""
+	
 # 2011-4-29 a handy function to strip blanks around strings
 strip_func = lambda x: x.strip()
 
@@ -3671,7 +3787,7 @@ class VervetGenome(object):
 	def outputTopNumberContigsIntoSeparateFiles(cls, contigFastaFname, outputDir=None, maxContigNumber=193):
 		"""
 		2011-7-7
-			
+			for symap
 		"""
 		contigFastaRecordFilter = VervetGenome.ContigFastaRecordFilter(maxContigNumber=maxContigNumber)
 		from variation.src.misc import FileFormatExchange
@@ -3727,6 +3843,26 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
+		#2011-8-2
+		inputDir = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
+		outputFnamePrefix = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
+		VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
+		sys.exit(3)
+
+		#2011-8-2
+		inputDir = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
+		outputFnamePrefix = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
+		VariantDiscovery.PCAContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
+		sys.exit(3)
+		
+		#2011-6-27
+		contigFastaFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.fasta")
+		minSize = 1000
+		outputFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/superContigsMinSize%s.fasta"%minSize)
+		VervetGenome.outputContigsAboveCertainSize(contigFastaFname=contigFastaFname, \
+				outputFname=outputFname, minSize=minSize)
+		sys.exit(3)
+		
 		#2011-4-7
 		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110712T234818-0700/8_genomes_vs_top156References_call.tsv'
 		inputFname = '/usr/local/vervetData/vervetPipeline/outputs/call/vervet_path2.call'
@@ -3737,6 +3873,7 @@ class Main(object):
 		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110714T015458-0700/call/Contig1.call'
 		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110712T234818-0700/call/Contig110.call'
 		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110719T011659-0700/call/Contig0.call'
+		inputFname = os.path.expanduser("~/script/vervet/data/1MbBAC_as_ref/454_illu_6_sub_vs_1MbBAC.GATK.call")
 		snpFnameToDoFiltering = None
 		convertHetero2NA = True
 		max_NA_rate = 0.4
