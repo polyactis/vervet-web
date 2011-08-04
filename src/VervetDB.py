@@ -928,6 +928,18 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
+	def constructRelativePathForIndividualSequence(self, individual_id=None, individual_sequence_id=None, individual_code=None,\
+												sequencer='GA', tissue=None, subFolder='individual_sequence'):
+		"""
+		2011-8-3
+			called by getIndividualSequence() and other outside programs
+		"""
+		#'/' must not be put in front of the relative path.
+		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
+		dst_relative_path = '%s/%s_%s_%s_%s_%s'%(subFolder, individual_sequence_id, individual_id, individual_code,\
+										sequencer, getattr(tissue, 'id', 0),)
+		return dst_relative_path
+		
 	def getIndividualSequence(self, individual_id=None, sequencer=None, sequence_type=None,\
 						sequence_format=None, path_to_original_sequence=None, tissue_name=None, coverage=None,\
 						subFolder='individual_sequence'):
@@ -959,10 +971,10 @@ class VervetDB(ElixirDB):
 			self.session.add(db_entry)
 			self.session.flush()
 			
-			#'/' must not be put in front of the relative path.
-			# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-			dst_relative_path = '%s/%s_%s_%s_%s_%s'%(subFolder, db_entry.id, individual_id, individual.code,\
-											sequencer, getattr(tissue, 'id', 0),)
+			dst_relative_path = self.constructRelativePathForIndividualSequence(individual_id=individual.id, \
+												individual_sequence_id=db_entry.id, individual_code=individual.code,\
+												sequencer=sequencer, tissue=tissue, subFolder=subFolder)
+			
 			#update its path in db to the relative path
 			db_entry.path = dst_relative_path
 			
