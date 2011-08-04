@@ -15,6 +15,7 @@ Description:
 			3. submit the job
 		
 		This program has to be run on the submission host, (currently only hoffman2) because it invokes qsub.
+		option "-c" not only commits the db transaction and also qsub all jobs.
 """
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0])
@@ -54,7 +55,7 @@ class UnpackAndAddIndividualSequence2DB(object):
 						("sequencer", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger'],\
 						("sequence_type", 1, ): ["short-read", '', 1, 'choices: BAC, genome, scaffold, short-read'],\
 						("sequence_format", 1, ): ["fastq", '', 1, 'fasta, fastq, etc.'],\
-						('commit', 0, int):[0, 'c', 0, 'commit db transaction'],\
+						('commit', 0, int):[0, 'c', 0, 'commit db transaction and qsub jobs'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 
@@ -192,7 +193,8 @@ echo %s
 			jobFname = os.path.join(self.jobFileDir, 'job%s.bam2fastq.sh'%(monkeyID))
 			self.writeQsubJob(jobFname, bamFname, os.path.join(self.dataDir, individual_sequence.path), self.vervet_path)
 			commandline = 'qsub %s'%(jobFname)
-			#return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+			if self.commit:	#qsub only when db transaction will be committed.
+				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 		if self.commit:
 			session.commit()
 		else:
