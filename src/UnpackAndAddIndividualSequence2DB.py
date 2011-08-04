@@ -2,8 +2,8 @@
 """
 Examples:
 	# run the program on the hoffman2 cluster. It'll submit jobs in the end.
-	%s -i /usr/local/vervetData/VRC/xfer.genome.wustl.edu/ -t /u/home/eeskintmp/polyacti/Network/Data/vervet/db/ 
-		-u yh -j ~/qjob -m ~/script/vervet/data/VRC_sequencing_20110802.tsv -c
+	%s -i ~/NetworkData/vervet/VRC/ -t /u/home/eeskintmp/polyacti/NetworkData/vervet/db/ 
+		-u yh -j ~/qjob -m ~/script/vervet/data/VRC_sequencing_20110802.tsv -c -z dl324b-1.cmb.usc.edu
 	
 Description:
 	2011-8-2
@@ -134,6 +134,8 @@ class UnpackAndAddIndividualSequence2DB(object):
 		bamBaseFname = os.path.split(bamFname)[1]
 		bamBaseFnamePrefix = os.path.splitext(bamBaseFname)[0]
 		outputFnamePrefix = os.path.join(outputDir, bamBaseFnamePrefix)
+		commandline="%s/convertBamToFastqAndGzip.sh %s %s"%(vervet_path, bamFname, outputFnamePrefix)
+		
 		jobF = open(jobFname, 'w')
 		jobF.write("""#!/bin/bash
 #$ -S /bin/bash
@@ -145,9 +147,8 @@ class UnpackAndAddIndividualSequence2DB(object):
 #$ -r n
 
 mkdir %s	#create the output directory
-commandline="%s/convertBamToFastqAndGzip.sh %s %s"
-echo $commandline
-$commandline"""%(outputDir, vervet_path, bamFname, outputFnamePrefix))
+echo %s
+%s"""%(outputDir, commandline, commandline))
 		jobF.close()
 	
 	def run(self):
@@ -181,10 +182,17 @@ $commandline"""%(outputDir, vervet_path, bamFname, outputFnamePrefix))
 			monkeyID = bamFname2MonkeyID.get(bamBaseFname)
 			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer=self.sequencer, sequence_type=self.sequence_type, \
 														sequence_format=self.sequence_format)
+			if individual_sequence.path is None:
+				individual = individual_sequence.individual
+				individual_sequence.path = db_vervet.constructRelativePathForIndividualSequence(individual_id=individual.id, \
+								individual_sequence_id=individual_sequence.id, individual_code=individual.code,\
+								sequencer=self.sequencer, tissue=None)
+				session.add(individual_sequence)
+				session.flush()
 			jobFname = os.path.join(self.jobFileDir, 'job%s.bam2fastq.sh'%(monkeyID))
 			self.writeQsubJob(jobFname, bamFname, os.path.join(self.dataDir, individual_sequence.path), self.vervet_path)
 			commandline = 'qsub %s'%(jobFname)
-			return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+			#return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 		if self.commit:
 			session.commit()
 		else:
