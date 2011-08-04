@@ -20,7 +20,6 @@ Description:
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0])
 
-from sqlalchemy.types import LargeBinary
 
 bit_number = math.log(sys.maxint)/math.log(2)
 if bit_number>40:	   #64bit
@@ -30,7 +29,6 @@ else:   #32bit
 	sys.path.insert(0, os.path.expanduser('~/lib/python'))
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import subprocess, cStringIO
 from pymodule import ProcessOptions
 
 class MergeGenotypeMatrix(object):
