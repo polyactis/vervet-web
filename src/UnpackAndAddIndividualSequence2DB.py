@@ -53,9 +53,9 @@ class UnpackAndAddIndividualSequence2DB(object):
 						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
 						("dataDir", 1, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. If not given, use the default stored in db.'],\
 						("sequencer", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger'],\
-						("sequence_type", 1, ): ["short-read", '', 1, 'choices: BAC, genome, scaffold, short-read'],\
+						("sequence_type", 1, ): ["PE", '', 1, 'choices: BAC, genome, scaffold, PE, SR, ...'],\
 						("sequence_format", 1, ): ["fastq", '', 1, 'fasta, fastq, etc.'],\
-						('commit', 0, int):[0, 'c', 0, 'commit db transaction and qsub jobs'],\
+						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_sequence.path) and qsub jobs'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 
