@@ -25,7 +25,7 @@ else:   #32bit
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 from sqlalchemy.engine.url import URL
-from elixir import Unicode, DateTime, String, Integer, UnicodeText, Text, Boolean, Float, Binary, Enum
+from elixir import Unicode, DateTime, String, BigInteger, Integer, UnicodeText, Text, Boolean, Float, Binary, Enum
 from elixir import Entity, Field, using_options, using_table_options
 from elixir import OneToMany, ManyToOne, ManyToMany
 from elixir import setup_all, session, metadata, entities
@@ -374,6 +374,8 @@ class IndividualAlignment(Entity, TableClass):
 
 class IndividualSequence(Entity, TableClass):
 	"""
+	2011-8-5
+		change type of base_count to BigInteger
 	2011-8-3
 		add column base_count
 	2011-5-8
@@ -381,13 +383,13 @@ class IndividualSequence(Entity, TableClass):
 	2011-3-3
 	"""
 	individual = ManyToOne('Individual', colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
-	sequencer = Field(String(512))
-	sequence_type = Field(String(512))	#assembled genome, contig, reads or RNA...
+	sequencer = Field(String(512))	# 454, GA, Sanger
+	sequence_type = Field(String(512))	#genome, contig, SR (single-end read) or PE ...
 	tissue  = ManyToOne('Tissue', colname='tissue_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-5-9
 	coverage = Field(Float)	#2011-5-8
-	base_count = Field(Integer)	#2011-8-2
+	base_count = Field(BigInteger)	#2011-8-2
 	path = Field(Text)	#storage folder path
-	format = Field(String(512))
+	format = Field(String(512))	#fasta, fastq
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -822,7 +824,7 @@ class VervetDB(ElixirDB):
 		return db_entry
 	
 	def getAlignment(self, individual_code=None, path_to_original_alignment=None, sequencer='GA', \
-					sequence_type='short-read', sequence_format='fastq', \
+					sequence_type='SR', sequence_format='fastq', \
 					ref_individual_sequence_id=10, \
 					alignment_method_name='bwa-short-read', alignment_format='bam', subFolder='individual_alignment', \
 					createSymbolicLink=False):
