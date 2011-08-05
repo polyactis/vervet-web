@@ -80,8 +80,12 @@ class MpiBWA(MPI4pywrapper):
 		self.communicator = MPI.COMM_WORLD
 		MPI4pywrapper.__init__(self, self.communicator, debug=self.debug, report=self.report)
 	
-	def pairInputFiles(self, input_dir):
+	@classmethod
+	def getPEInputFiles(cls, input_dir, isPE=True):
 		"""
+		2011-8-5
+			add argument isPE, which flags whether input_dir contains PE or single-end reads
+			become a classmethod
 		2011-2-7
 			for paired-end files, sequence_628BWAAXX_1_1.fastq.gz and sequence_628BWAAXX_1_2.fastq.gz
 				are regarded as one pair of two files.
@@ -91,20 +95,23 @@ class MpiBWA(MPI4pywrapper):
 		files = os.listdir(input_dir)
 		no_of_fastq_files = 0
 		for fname in files:
-			fname_prefix, fname_suffix = self.seqInputFilenamePrefix(fname)
+			fname_prefix, fname_suffix = cls.seqInputFilenamePrefix(fname)
 			if fname_suffix!='.fastq':		#skip non-fastq files
 				continue
 			no_of_fastq_files += 1
-			pairedEndPrefix = fname_prefix[:-2]
-			pairedEndOrder = fname_prefix[-2:]
-			
-			if pairedEndPrefix not in pairedEndPrefix2FileLs:
-				pairedEndPrefix2FileLs[pairedEndPrefix] = ['', '']
-			
-			if pairedEndOrder=='_1':	#the first file
-				pairedEndPrefix2FileLs[pairedEndPrefix][0] = fname
+			if isPE==True:
+				pairedEndPrefix = fname_prefix[:-2]
+				pairedEndOrder = fname_prefix[-2:]
+				
+				if pairedEndPrefix not in pairedEndPrefix2FileLs:
+					pairedEndPrefix2FileLs[pairedEndPrefix] = ['', '']
+				
+				if pairedEndOrder=='_1':	#the first file
+					pairedEndPrefix2FileLs[pairedEndPrefix][0] = fname
+				else:
+					pairedEndPrefix2FileLs[pairedEndPrefix][1] = fname
 			else:
-				pairedEndPrefix2FileLs[pairedEndPrefix][1] = fname
+				pairedEndPrefix2FileLs[fname_prefix] = [fname]	#single End
 		no_of_files = len(files)
 		no_of_pairedEndPrefix = len(pairedEndPrefix2FileLs)
 		if no_of_pairedEndPrefix>0:
@@ -136,7 +143,8 @@ class MpiBWA(MPI4pywrapper):
 					continue
 				yield (fname,)
 	
-	def seqInputFilenamePrefix(self, fname):
+	@classmethod
+	def seqInputFilenamePrefix(cls, fname):
 		"""
 		2011-2-7
 			become an independent function because same functionality is used in multiple places.
@@ -279,7 +287,7 @@ class MpiBWA(MPI4pywrapper):
 				traceback.print_exc()
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 			if self.pairedEndInput and self.alnType==1:	#2011-2-7	2011-6-28 alnType has to be 1. pair-end doesn't apply to 2(bwasw)
-				pairedEndPrefix2FileLs = self.pairInputFiles(self.input_dir)
+				pairedEndPrefix2FileLs = self.getPEInputFiles(self.input_dir)
 			else:
 				pairedEndPrefix2FileLs = None
 			param_ls = self.generate_params(self.input_dir, debug=self.debug, pairedEndPrefix2FileLs=pairedEndPrefix2FileLs)
