@@ -374,6 +374,8 @@ class IndividualAlignment(Entity, TableClass):
 
 class IndividualSequence(Entity, TableClass):
 	"""
+	2011-8-18
+		add field original_path, quality_score_format, parent_individual_sequence, filtered
 	2011-8-5
 		change type of base_count to BigInteger
 	2011-8-3
@@ -390,6 +392,11 @@ class IndividualSequence(Entity, TableClass):
 	base_count = Field(BigInteger)	#2011-8-2
 	path = Field(Text)	#storage folder path
 	format = Field(String(512))	#fasta, fastq
+	original_path = Field(Text)	#the path to the original file
+	quality_score_format = Field(String(512))	#Standard=Phred+33 (=Sanger), Illumina=Phred+64 (roughly, check pymodule/utils for exact formula)
+	# Illumina1.8+ (after 2011-02) is Standard.
+	parent_individual_sequence = ManyToOne('IndividualSequence', colname='parent_individual_sequence_id', ondelete='SET NULL', onupdate='CASCADE')
+	filtered = Field(Integer, default=0)	#0 means not. 1 means yes.
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -944,8 +951,10 @@ class VervetDB(ElixirDB):
 		
 	def getIndividualSequence(self, individual_id=None, sequencer=None, sequence_type=None,\
 						sequence_format=None, path_to_original_sequence=None, tissue_name=None, coverage=None,\
-						subFolder='individual_sequence'):
+						subFolder='individual_sequence', quality_score_format="Standard"):
 		"""
+		2011-8-18
+			add argument quality_score_format, default to "Standard"
 		2011-8-3
 			the path field is now considered a folder (rather than a file).
 		2011-5-7
@@ -969,7 +978,9 @@ class VervetDB(ElixirDB):
 				tissue = None
 			individual = Individual.get(individual_id)
 			db_entry = IndividualSequence(individual_id=individual_id, sequencer=sequencer, sequence_type=sequence_type,\
-									format=sequence_format, tissue=tissue, coverage=coverage)
+									format=sequence_format, tissue=tissue, coverage=coverage, \
+									quality_score_format=quality_score_format)
+			#to make db_entry.id valid
 			self.session.add(db_entry)
 			self.session.flush()
 			
@@ -994,6 +1005,37 @@ class VervetDB(ElixirDB):
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 			self.session.add(db_entry)
 			self.session.flush()
+		return db_entry
+	
+	def copyParentIndividualSequence(self, parent_individual_sequence=None, parent_individual_sequence_id=None,\
+									subFolder='individual_sequence'):
+		"""
+		2011-8-11
+			make a copy of parent_individual_sequence_id individual_sequence entity
+		"""
+		if parent_individual_sequence is None:
+			parent_individual_sequence = IndividualSequence.get(parent_individual_sequence_id)
+		
+		pis = parent_individual_sequence
+		
+		individual = Individual.get(pis.individual_id)
+		db_entry = IndividualSequence(individual_id=pis.individual_id, sequencer=pis.sequencer, sequence_type=pis.sequence_type,\
+							format=pis.format, tissue=pis.tissue, quality_score_format=pis.quality_score_format)
+		
+		#to make db_entry.id valid
+		self.session.add(db_entry)
+		self.session.flush()
+		
+		dst_relative_path = self.constructRelativePathForIndividualSequence(individual_id=individual.id, \
+											individual_sequence_id=db_entry.id, individual_code=individual.code,\
+											sequencer=pis.sequencer, tissue=pis.tissue, subFolder=subFolder)
+		
+		#update its path in db to the relative path
+		db_entry.path = dst_relative_path
+		db_entry.filtered = 1
+		db_entry.parent_individual_sequence = pis
+		self.session.add(db_entry)
+		self.session.flush()
 		return db_entry
 		
 	def getRelationshipType(self, relationship_type_name=None):
