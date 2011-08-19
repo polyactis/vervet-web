@@ -51,7 +51,7 @@ class UnpackAndAddIndividualSequence2DB(object):
 						("gatk_path", 1, ): ["%s/script/vervet/bin/GenomeAnalysisTK", '', 1, 'GATK folder containing its jar binaries'],\
 						("vervet_path", 1, ): ["%s/script/vervet/src", '', 1, 'folder containing programs in vervet repositary'],\
 						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
-						("dataDir", 1, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. If not given, use the default stored in db.'],\
+						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. If not given, use the default stored in db.'],\
 						("sequencer", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger'],\
 						("sequence_type", 1, ): ["PE", '', 1, 'choices: BAC, genome, scaffold, PE, SR, ...'],\
 						("sequence_format", 1, ): ["fastq", '', 1, 'fasta, fastq, etc.'],\
@@ -188,6 +188,7 @@ echo %s
 				individual_sequence.path = db_vervet.constructRelativePathForIndividualSequence(individual_id=individual.id, \
 								individual_sequence_id=individual_sequence.id, individual_code=individual.code,\
 								sequencer=self.sequencer, tissue=None)
+				individual_sequence.original_path = bamFname
 				session.add(individual_sequence)
 				session.flush()
 			jobFname = os.path.join(self.jobFileDir, 'job%s.bam2fastq.sh'%(monkeyID))
