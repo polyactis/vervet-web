@@ -60,6 +60,7 @@ class AlignmentToCallPipeline(object):
 						("samtools_path", 1, ): ["%s/bin/samtools", '', 1, 'samtools binary'],\
 						("picard_path", 1, ): ["%s/script/picard/dist", '', 1, 'picard folder containing its jar binaries'],\
 						("gatk_path", 1, ): ["%s/script/vervet/bin/GenomeAnalysisTK", '', 1, 'GATK folder containing its jar binaries'],\
+						("vervetSrcPath", 1, ): ["%s/script/vervet/src", '', 1, 'vervet source code folder'],\
 						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
 						("site_handler", 1, ): ["condorpool", 'l', 1, 'which site to run the jobs: condorpool, hoffman2'],\
 						("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
@@ -81,6 +82,7 @@ class AlignmentToCallPipeline(object):
 		self.samtools_path = self.samtools_path%self.home_path
 		self.picard_path = self.picard_path%self.home_path
 		self.gatk_path = self.gatk_path%self.home_path
+		self.vervetSrcPath = self.vervetSrcPath%self.home_path
 	
 	def getTopNumberOfContigs(self, topNumberOfContigs, tax_id=60711, sequence_type_id=9):
 		"""
@@ -456,7 +458,7 @@ class AlignmentToCallPipeline(object):
 		
 		# Create a abstract dag
 		workflow = ADAG("AlignmentToCallPipeline")
-		vervetSrcPath = os.path.expanduser("~/script/vervet/src/")
+		vervetSrcPath = self.vervetSrcPath
 		site_handler = self.site_handler
 		
 		#add the MergeSamFiles.jar file into workflow
