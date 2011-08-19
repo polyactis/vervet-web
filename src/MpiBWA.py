@@ -41,7 +41,7 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import getopt, csv, math, random
 import cPickle, subprocess
-from pymodule import PassingData, importNumericArray
+from pymodule import PassingData, importNumericArray, utils
 from sets import Set
 #from Scientific import MPI
 from mpi4py import MPI
@@ -146,16 +146,15 @@ class MpiBWA(MPI4pywrapper):
 	@classmethod
 	def seqInputFilenamePrefix(cls, fname):
 		"""
+		2011-8-18
+			call utils.getRealPrefixSuffixOfFilenameWithVariableSuffix() instead
 		2011-2-7
 			become an independent function because same functionality is used in multiple places.
 			
 			fname is either sequence_628BWAAXX_4_1.fastq.gz or sequence_628BWAAXX_4_1.fastq (without gz).
 			Prefix is always sequence_628BWAAXX_4_1.fastq.
 		"""
-		fname_prefix, fname_suffix = os.path.splitext(fname)
-		if fname_suffix=='.gz':	#the input file is gzipped. get the new prefix
-			fname_prefix, fname_suffix = os.path.splitext(fname_prefix)
-		return fname_prefix, fname_suffix
+		return utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(fname)
 	
 	def runAlignmentTillSamOutput(self, inputFnameLs=[], param_obj=None):
 		"""
