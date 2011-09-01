@@ -5,9 +5,13 @@ Examples:
 	#run it on hpc-cmb cluster
 	mpiexec %s -u yh ...
 
-	# test parallel run on desktop (old mpich way)
+	# 2010 test parallel mpich run on desktop (exclude uclaOffice as its ssh port is on 1999)
 	mpirun -np 5 -machinefile ~/hostfile /usr/bin/mpipython %s
-	 -u yh -o ~/sequence_baseCount.tsv  -i 3-5 -z uclaOffice -c
+	 -u yh -o ~/sequence_baseCount.tsv  -i 3-5 -z dl324b-1.cmb.usc.edu -c -p secret
+	
+	# 2011-8-30 test parallel openmpi run on desktop (exclude uclaOffice as its ssh port is on 1999)
+	mpiexec -n 5 -machinefile ~/hostfile %s
+	 -u yh -o ~/sequence_baseCount.tsv  -i 3-5 -z dl324b-1.cmb.usc.edu -c -p secret
 	
 	# run under openmpi on the hoffman2 (tunnel first)
 	ssh -N -f -L 5432:dbserver.com:5432 username@login4
@@ -20,12 +24,11 @@ Description:
 		a program counts the number of reads for individual sequences recorded in db,
 			individual file is in either fasta or fastq format.
 			
-		For PE reads, it will only count the bases from one file and multiple it by 2.
 		The output file has only two columns: individual_sequence.id baseCount.
 			The output data will also be updated into db (individual_sequence.coverage & individual_sequence.base_count).
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
@@ -73,54 +76,22 @@ class MpiBaseCount(MPI4pywrapper):
 		MPI4pywrapper.__init__(self, self.communicator, debug=self.debug, report=self.report)
 	
 	
-	def getIndividualSequenceID2FileLs(self, db_vervet, individualSequenceIDList, dataDir=None):
+	def generate_params(self, individualSequenceID2FilePairLs, \
+					param_obj=None, dataDir=None, debug=None,):
 		"""
-		2011-8-5
+		2011-8-30
+			add argument dataDir
+			pass dataDir to computing node as well
 		"""
-		sys.stderr.write("Getting individualSequenceID2FileLs ...")
-		individualSequenceID2FileLs = {}
-		if not dataDir:
-			dataDir = db_vervet.data_dir
-		for individualSequenceID in individualSequenceIDList:
-			individual_sequence = VervetDB.IndividualSequence.get(individualSequenceID)
-			if individual_sequence and individual_sequence.path:
-				abs_path = os.path.join(dataDir, individual_sequence.path)
-				if individual_sequence.id not in individualSequenceID2FileLs:
-					individualSequenceID2FileLs[individual_sequence.id] = []
-				if os.path.isfile(abs_path):
-					individualSequenceID2FileLs[individual_sequence.id].append((abs_path, individual_sequence.format, \
-																	'SR'))	#"SR" means it's single-end
-				elif os.path.isdir(abs_path):	#it's a folder, sometimes it's nothing there
-					if individual_sequence.sequence_type=='PE':
-						isPE = True
-					else:
-						isPE = False
-					pairedEndPrefix2FileLs = MpiBWA.getPEInputFiles(abs_path, isPE=isPE)
-					for pairedEndPrefix, fileLs in pairedEndPrefix2FileLs.iteritems():
-						if isPE and len(fileLs)==2 and fileLs[0] and fileLs[1]:	#PE
-							filename = os.path.join(abs_path, fileLs[0])	#take one file only
-							individualSequenceID2FileLs[individual_sequence.id].append((filename, individual_sequence.format, \
-																	'PE'))	#"PE" means it's paired-end
-						else:
-							for filename in fileLs:	#usually should be only one file
-								if filename:
-									filename = os.path.join(abs_path, filename)
-									individualSequenceID2FileLs[individual_sequence.id].append((filename, individual_sequence.format, \
-																	'SR'))	#"SR" means it's single-end
-		sys.stderr.write("%s individual sequences. Done.\n"%(len(individualSequenceID2FileLs)))
-		return individualSequenceID2FileLs
-		
-	
-	def generate_params(self, individualSequenceID2FileLs, \
-					param_obj=None, debug=None):
-		"""
-		"""
-		for individualSequenceID, FileLs in individualSequenceID2FileLs.iteritems():
-			for filename, format, sequence_type in FileLs:
-				yield (individualSequenceID, filename, format, sequence_type)
+		for individualSequenceID, FilePairLs in individualSequenceID2FilePairLs.iteritems():
+			for filePair in FilePairLs:
+				#filename, format, sequence_type
+				yield (individualSequenceID, filePair, dataDir)
 	
 	def computing_node_handler(self, communicator, data, param_obj):
 		"""
+		2011-8-30
+			no more multiplying factor for Paired-end data. read every file
 			
 		"""
 		node_rank = communicator.rank
@@ -133,31 +104,28 @@ class MpiBaseCount(MPI4pywrapper):
 		for one_data in data:
 			sys.stderr.write("Node no.%s working on %s ...\n"%(node_rank, one_data))
 			
-			individualSequenceID, filename, format, sequence_type = one_data[:4]
-			
-			fname_prefix, fname_suffix = os.path.splitext(filename)
-			if fname_suffix=='.gz':	#the input file is gzipped. get the new prefix
-				import gzip
-				inf = gzip.open(filename, 'rb')
-			else:
-				inf = open(filename, 'r')
-			
-			if sequence_type=='PE':
-				multiply_factor = 2
-			else:
-				multiply_factor = 1
+			individualSequenceID, filePair, dataDir = one_data[:3]
 			baseCount = 0
-			
-			for line in inf:
-				if line[0] in ignore_set:
-					if line[0]=='+':	#skip the quality line
-						inf.next()
-					continue
-				baseCount += len(line.strip())*multiply_factor
+			for fileRecord in filePair:
+				relativePath, format, sequence_type = fileRecord[:3]
+				filename = os.path.join(dataDir, relativePath)
+				fname_prefix, fname_suffix = os.path.splitext(filename)
+				if fname_suffix=='.gz':	#the input file is gzipped. get the new prefix
+					import gzip
+					inf = gzip.open(filename, 'rb')
+				else:
+					inf = open(filename, 'r')
 				
-				#if baseCount>10000:	#temporary, for testing
-				#	break
-			del inf
+				for line in inf:
+					if line[0] in ignore_set:
+						if line[0]=='+':	#skip one more quality line
+							inf.next()
+						continue
+					baseCount += len(line.strip())
+					
+					#if baseCount>10000:	#temporary, for testing
+					#	break
+				del inf
 			individualSequenceID2baseCount[individualSequenceID] = baseCount
 			
 		sys.stderr.write("Node no.%s done with %s results.\n"%(node_rank, len(individualSequenceID2baseCount)))
@@ -195,8 +163,8 @@ class MpiBaseCount(MPI4pywrapper):
 			if not self.dataDir:
 				self.dataDir = db_vervet.data_dir
 			
-			individualSequenceID2FileLs = self.getIndividualSequenceID2FileLs(db_vervet, self.individualSequenceIDList, self.dataDir)
-			param_ls = self.generate_params(individualSequenceID2FileLs, debug=self.debug)
+			individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.individualSequenceIDList, self.dataDir)
+			param_ls = self.generate_params(individualSequenceID2FilePairLs, dataDir=self.dataDir, debug=self.debug)
 			
 		elif node_rank in free_computing_node_set:
 			pass
@@ -232,9 +200,9 @@ class MpiBaseCount(MPI4pywrapper):
 			for individualSequenceID, baseCount in output_param_obj.individualSequenceID2baseCount.iteritems():
 				writer.writerow([individualSequenceID, baseCount])
 				individual_sequence = VervetDB.IndividualSequence.get(individualSequenceID)
-				if individual_sequence.base_count and individual_sequence.base_count!=baseCount:
+				if individual_sequence.base_count is None or individual_sequence.base_count!=baseCount:
 					individual_sequence.base_count = baseCount
-					individual_sequence.coverage = baseCount/self.genomeSize
+					individual_sequence.coverage = baseCount/float(self.genomeSize)
 					session.add(individual_sequence)
 			del writer
 			
