@@ -8,7 +8,7 @@ Examples:
 	# 2011-8-16 use hoffman2 site_handler. watch additional arguments for tunnel setup
 	%s -o filterShortReadPipeline.xml -u yh -i 1-8,15-130 
 		-l hoffman2 -e /u/home/eeskin/polyacti
-		-s polyacti@login3 -a 5432 -z dl324b-1.cmb.usc.edu -t ~/NetworkData/vervet/db
+		-s polyacti@login3 -a 5432 -z dl324b-1.cmb.usc.edu -t /u/home/eeskin/polyacti/NetworkData/vervet/db
 	
 	
 Description:
@@ -38,7 +38,7 @@ from Pegasus.DAX3 import *
 class FilterShortReadPipeline(object):
 	__doc__ = __doc__
 	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
+						('hostname', 1, ): ['dl324b-1.cmb.usc.edu', 'z', 1, 'hostname of the db server', ],\
 						('dbname', 1, ): ['vervetdb', 'd', 1, 'stock_250k database name', ],\
 						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
 						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
@@ -102,14 +102,18 @@ class FilterShortReadPipeline(object):
 		namespace = "workflow"
 		version="1.0"
 		
-		mkdir = Executable(namespace=namespace, name="mkdir", version=version, os=operatingSystem, arch=architecture, installed=True)
-		mkdir.addPFN(PFN("file://" + '/bin/mkdir', site_handler))
-		workflow.addExecutable(mkdir)
+		#add the MergeSamFiles.jar file into workflow
+		filterReadJar = File('FilterRead.jar')
+		filterReadJar.addPFN(PFN("file://" + os.path.join(self.picard_path, 'FilterRead.jar'), site_handler))
+		workflow.addFile(filterReadJar)
 		
+		
+		"""2011-8-31 replace filterReadJar
 		filterShortRead = Executable(namespace=namespace, name="FilterShortRead", version=version, \
 								os=operatingSystem, arch=architecture, installed=True)
 		filterShortRead.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "FilterShortRead.py"), site_handler))
 		workflow.addExecutable(filterShortRead)
+		"""
 		
 		addFilteredSequences2DB = Executable(namespace=namespace, name="AddFilteredSequences2DB", version=version, \
 								os=operatingSystem, arch=architecture, installed=True)
@@ -121,21 +125,20 @@ class FilterShortReadPipeline(object):
 		java.addPFN(PFN("file://" + "/usr/bin/java", site_handler))
 		workflow.addExecutable(java)
 		
-		for ind_seq_id in self.ind_seq_id_ls:
+		#must use db_vervet.data_dir.
+		# If self.dataDir differs from db_vervet.data_dir, this program (must be run on submission host) won't find files.
+		individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, dataDir=db_vervet.data_dir)
+		
+		for ind_seq_id, FilePairLs in individualSequenceID2FilePairLs.iteritems():
 			individual_sequence = VervetDB.IndividualSequence.get(ind_seq_id)
 			if individual_sequence is not None and individual_sequence.format=='fastq':
-				inputDir = os.path.join(self.dataDir, individual_sequence.path)
-				
 				#start to collect all files affiliated with this individual_sequence record 
 				inputFnameLs = []
-				if os.path.isfile(inputDir):	#it's a file already
-					inputFname = inputDir
-					inputFnameLs.append(inputFname)
-				elif os.path.isdir(inputDir):
-					files = os.listdir(inputDir)
-					for fname in files:
-						inputFname = os.path.join(inputDir, fname)
-						inputFnameLs.append(inputFname)
+				for filePair in FilePairLs:
+					for fileRecord in filePair:
+						filename, format, sequence_type = fileRecord[:3]
+						filename = os.path.join(self.dataDir, filename)
+						inputFnameLs.append(filename)
 				
 				#create filter jobs
 				
@@ -158,13 +161,13 @@ class FilterShortReadPipeline(object):
 				for inputFname in inputFnameLs:
 					prefix, suffix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(inputFname)
 					if suffix=='.fastq':	#sometimes other files get in the way
-						outputFname = os.path.split(inputFname)[1]
+						outputFname = '%s_%s'%(individual_sequence.id, os.path.split(inputFname)[1])
 						outputFile = File(outputFname)		#take the base filename as the output filename. it'll be in scratch/.
 						filterShortRead_job = Job(namespace=namespace, name=java.name, version=version)
-						filterShortRead_job.addArguments('-jar', os.path.join(self.picard_path, 'FilterRead.jar'),\
+						filterShortRead_job.addArguments('-jar', filterReadJar,\
 										"I=%s"%inputFname, 'V=%s'%individual_sequence.quality_score_format,\
 										'O=%s'%outputFname)
-						#samtools_index_job.uses(picard_output, transfer=False, register=True, link=Link.OUTPUT)	
+						filterShortRead_job.uses(filterReadJar, transfer=True, register=True, link=Link.INPUT)	
 						#write this as OUTPUT, otherwise it'll be deleted and next program won't know 
 						#samtools_index_job.uses(bai_output, transfer=False, register=True, link=Link.OUTPUT)
 						workflow.addJob(filterShortRead_job)
