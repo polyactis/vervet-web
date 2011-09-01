@@ -12,7 +12,8 @@ then
 	echo "	  3. It doesn't replace the old RG if InputFname contains some RG already."
 	
 	echo "Note:
-		Output goes to OutputFname.
+		Input could be sam or bam.
+		Output goes to OutputFname, sam or bam.
 		If InputFname is -, it i stdin.
 		TmpRGFname will be created and deleted."
 	echo
@@ -35,8 +36,17 @@ fi
 TmpRGFname=$4
 OutputFname=$5
 
+outputSuffix=`echo $OutputFname |awk 'BEGIN {FS="."} {print $NF}'`
+
+if test $outputSuffix = 'bam'
+then
+	viewArgument="-bhS"
+else
+	viewArgument="-hS"
+fi
+
 echo -e "@RG\tID:$rg_id\tSM:$rg_sample\tLB:$platform\tPL:$platform" > $TmpRGFname
 
-samtools view -h $inputFname | cat $TmpRGFname - | awk '{ if (substr($1,1,1)=="@") print; else printf "%s\tRG:Z:'$rg_id'\n",$0; }' | samtools view -bhS -o $OutputFname -
+samtools view -h $inputFname | cat $TmpRGFname - | awk '{ if (substr($1,1,1)=="@") print; else printf "%s\tRG:Z:'$rg_id'\n",$0; }' | samtools view $viewArgument -o $OutputFname -
 
 rm $TmpRGFname
