@@ -7,7 +7,7 @@ Examples:
 	
 	# 2011-8-16 use hoffman2 site_handler
 	%s -o inspectBaseQuality.xml -u yh -i 1-8,15-130 
-		-l hoffman2 -e /u/home/eeskin/polyacti
+		-l hoffman2 -e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db
 	
 	
 Description:
@@ -104,22 +104,21 @@ class InspectBaseQualityPipeline(object):
 		inspectBaseQuality.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "InspectBaseQuality.py"), site_handler))
 		workflow.addExecutable(inspectBaseQuality)
 		
+		#must use db_vervet.data_dir.
+		# If self.dataDir differs from db_vervet.data_dir, this program (must be run on submission host) won't find files.
+		individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, dataDir=db_vervet.data_dir)
 		
-		for ind_seq_id in self.ind_seq_id_ls:
+		for ind_seq_id, FilePairLs in individualSequenceID2FilePairLs.iteritems():
 			individual_sequence = VervetDB.IndividualSequence.get(ind_seq_id)
 			if individual_sequence is not None and individual_sequence.format=='fastq':
-				inputDir = os.path.join(self.dataDir, individual_sequence.path)
-				
 				#start to collect all files affiliated with this individual_sequence record 
 				inputFnameLs = []
-				if os.path.isfile(inputDir):	#it's a file already
-					inputFname = inputDir
-					inputFnameLs.append(inputFname)
-				elif os.path.isdir(inputDir):
-					files = os.listdir(inputDir)
-					for fname in files:
-						inputFname = os.path.join(inputDir, fname)
-						inputFnameLs.append(inputFname)
+				for filePair in FilePairLs:
+					for fileRecord in filePair:
+						relativePath, format, sequence_type = fileRecord[:3]
+						filename = os.path.join(self.dataDir, relativePath)
+						inputFnameLs.append(filename)
+				
 				#create jobs
 				for inputFname in inputFnameLs:
 					prefix, suffix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(inputFname)
