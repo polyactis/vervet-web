@@ -38,7 +38,7 @@ from sqlalchemy import and_, or_, not_
 from datetime import datetime
 
 from pymodule.db import ElixirDB, TableClass
-from pymodule import ProcessOptions
+from pymodule import ProcessOptions, utils, NextGenSeq
 import os
 import hashlib
 
@@ -338,9 +338,12 @@ class RelationshipType(Entity, TableClass):
 
 class AlignmentMethod(Entity, TableClass):
 	"""
+	2011-9-1
+		add column command
 	2011-3-3
 	"""
 	short_name = Field(String(256), unique=True)
+	command = Field(String(256))	#sub-command of bwa
 	description = Field(Text)
 	individual_alignment_ls = OneToMany("IndividualAlignment")
 	created_by = Field(String(128))
@@ -374,6 +377,8 @@ class IndividualAlignment(Entity, TableClass):
 
 class IndividualSequence(Entity, TableClass):
 	"""
+	2011-8-30
+		add column chromosome
 	2011-8-18
 		add field original_path, quality_score_format, parent_individual_sequence, filtered
 	2011-8-5
@@ -387,6 +392,7 @@ class IndividualSequence(Entity, TableClass):
 	individual = ManyToOne('Individual', colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
 	sequencer = Field(String(512))	# 454, GA, Sanger
 	sequence_type = Field(String(512))	#genome, contig, SR (single-end read) or PE ...
+	chromosome = Field(String(512))	#1,2,4,5,X,Y,etc
 	tissue  = ManyToOne('Tissue', colname='tissue_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-5-9
 	coverage = Field(Float)	#2011-5-8
 	base_count = Field(BigInteger)	#2011-8-2
@@ -403,7 +409,8 @@ class IndividualSequence(Entity, TableClass):
 	date_updated = Field(DateTime)
 	using_options(tablename='individual_sequence', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-	using_table_options(UniqueConstraint('individual_id', 'sequencer', 'sequence_type', 'tissue_id'))
+	using_table_options(UniqueConstraint('individual_id', 'sequencer', 'sequence_type', 'tissue_id',\
+		'filtered', "chromosome"))
 
 class Tissue(Entity, TableClass):
 	"""
@@ -830,12 +837,29 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
-	def getAlignment(self, individual_code=None, path_to_original_alignment=None, sequencer='GA', \
+	def constructRelativePathForIndividualAlignment(self, individual_alignment_id=None, individual_sequence_id=None, \
+									ref_individual_sequence_id=None, alignment_method=None, alignment_format=None,\
+									subFolder='individual_alignment'):
+		"""
+		2011-8-29
+			called by getAlignment() and other programs
+		"""
+		#'/' must not be put in front of the relative path.
+		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
+		dst_relative_path = '%s/%s_%s_vs_%s_by_%s.%s'%(subFolder, individual_alignment_id, individual_sequence_id,\
+										ref_individual_sequence_id, alignment_method.id, alignment_format)
+		
+		return dst_relative_path
+	
+	def getAlignment(self, individual_code=None, individual_sequence_id=None, path_to_original_alignment=None, sequencer='GA', \
 					sequence_type='SR', sequence_format='fastq', \
 					ref_individual_sequence_id=10, \
 					alignment_method_name='bwa-short-read', alignment_format='bam', subFolder='individual_alignment', \
-					createSymbolicLink=False):
+					createSymbolicLink=False, individual_sequence_filtered=0):
 		"""
+		2011-8-30
+			add argument individual_sequence_id
+			use constructRelativePathForIndividualAlignment() to come up path
 		2011-7-11
 			add argument createSymbolicLink. default to False
 				if True, create a symbolic from source file to target, instead of cp
@@ -843,8 +867,11 @@ class VervetDB(ElixirDB):
 			subFolder is the name of the folder in self.data_dir that is used to hold the alignment files.
 		"""
 		individual = self.getIndividual(individual_code)
-		individual_sequence = self.getIndividualSequence(individual.id, sequencer=sequencer, sequence_type=sequence_type,\
-								sequence_format=sequence_format)
+		if individual_sequence_id:
+			individual_sequence = IndividualSequence.get(individual_sequence_id)
+		else:
+			individual_sequence = self.getIndividualSequence(individual.id, sequencer=sequencer, sequence_type=sequence_type,\
+								sequence_format=sequence_format, filtered=individual_sequence_filtered)
 		alignment_method = self.getAlignmentMethod(alignment_method_name=alignment_method_name)
 		query = IndividualAlignment.query.filter_by(ind_seq_id=individual_sequence.id).\
 				filter_by(ref_ind_seq_id=ref_individual_sequence_id).\
@@ -861,8 +888,13 @@ class VervetDB(ElixirDB):
 			
 			#'/' must not be put in front of the relative path.
 			# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-			dst_relative_path = '%s/%s_%s_vs_%s_by_%s.%s'%(subFolder, db_entry.id, db_entry.ind_seq_id,\
-											ref_individual_sequence_id, alignment_method.id, alignment_format)
+			dst_relative_path = self.constructRelativePathForIndividualAlignment(individual_alignment_id=db_entry.id, \
+								individual_sequence_id=db_entry.ind_seq_id, \
+								ref_individual_sequence_id=ref_individual_sequence_id, alignment_method=alignment_method, \
+								alignment_format=alignment_format, subFolder=subFolder)
+			
+			#update its path in db to the relative path
+			db_entry.path = dst_relative_path
 			
 			dst_pathname = os.path.join(self.data_dir, dst_relative_path)
 			from pymodule.utils import runLocalCommand
@@ -886,10 +918,8 @@ class VervetDB(ElixirDB):
 					else:
 						commandline = 'cp -r %s %s'%(indexFname, dstIndexPathname)
 					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-				#update its path in db to the relative path
-				db_entry.path = dst_relative_path
-				self.session.add(db_entry)
-				self.session.flush()
+			self.session.add(db_entry)
+			self.session.flush()
 		return db_entry
 	
 	
@@ -924,7 +954,7 @@ class VervetDB(ElixirDB):
 				query = query.filter_by(tax_id=tax_id)
 			db_entry = query.first()
 		if not db_entry:
-			if sex=='?' or sex=='':	#2011-4-29
+			if sex is None or sex=='?' or sex=='':	#2011-4-29
 				sex = None
 			elif len(sex)>=1:	#2011-5-5 take the first letter
 				sex = sex[0].upper()
@@ -951,8 +981,10 @@ class VervetDB(ElixirDB):
 		
 	def getIndividualSequence(self, individual_id=None, sequencer=None, sequence_type=None,\
 						sequence_format=None, path_to_original_sequence=None, tissue_name=None, coverage=None,\
-						subFolder='individual_sequence', quality_score_format="Standard"):
+						subFolder='individual_sequence', quality_score_format="Standard", filtered=0):
 		"""
+		2011-8-30
+			add argument filtered
 		2011-8-18
 			add argument quality_score_format, default to "Standard"
 		2011-8-3
@@ -970,6 +1002,7 @@ class VervetDB(ElixirDB):
 		if tissue_name:
 			tissue = self.getTissue(short_name=tissue_name)
 			query = query.filter_by(tissue_id=tissue.id)
+		query= query.filter_by(filtered=filtered)
 		db_entry = query.first()
 		if not db_entry:
 			if tissue_name:
@@ -979,7 +1012,7 @@ class VervetDB(ElixirDB):
 			individual = Individual.get(individual_id)
 			db_entry = IndividualSequence(individual_id=individual_id, sequencer=sequencer, sequence_type=sequence_type,\
 									format=sequence_format, tissue=tissue, coverage=coverage, \
-									quality_score_format=quality_score_format)
+									quality_score_format=quality_score_format, filtered=filtered)
 			#to make db_entry.id valid
 			self.session.add(db_entry)
 			self.session.flush()
@@ -1008,8 +1041,10 @@ class VervetDB(ElixirDB):
 		return db_entry
 	
 	def copyParentIndividualSequence(self, parent_individual_sequence=None, parent_individual_sequence_id=None,\
-									subFolder='individual_sequence'):
+									subFolder='individual_sequence', quality_score_format='Standard'):
 		"""
+		2011-9-1
+			add quality_score_format
 		2011-8-11
 			make a copy of parent_individual_sequence_id individual_sequence entity
 		"""
@@ -1020,8 +1055,10 @@ class VervetDB(ElixirDB):
 		
 		individual = Individual.get(pis.individual_id)
 		db_entry = IndividualSequence(individual_id=pis.individual_id, sequencer=pis.sequencer, sequence_type=pis.sequence_type,\
-							format=pis.format, tissue=pis.tissue, quality_score_format=pis.quality_score_format)
+							format=pis.format, tissue=pis.tissue, quality_score_format=quality_score_format)
 		
+		db_entry.filtered = 1
+		db_entry.parent_individual_sequence = pis
 		#to make db_entry.id valid
 		self.session.add(db_entry)
 		self.session.flush()
@@ -1032,8 +1069,6 @@ class VervetDB(ElixirDB):
 		
 		#update its path in db to the relative path
 		db_entry.path = dst_relative_path
-		db_entry.filtered = 1
-		db_entry.parent_individual_sequence = pis
 		self.session.add(db_entry)
 		self.session.flush()
 		return db_entry
@@ -1201,6 +1236,55 @@ class VervetDB(ElixirDB):
 			self.session.add(db_entry)
 			self.session.flush()
 		return db_entry
+	
+	def getIndividualSequenceID2FilePairLs(self, individualSequenceIDList, dataDir=None, needPair=True):
+		"""
+		2011-8-30
+			filename in individualSequenceID2FilePairLs is path relative to dataDir
+		2011-8-28
+			add argument needPair
+			copied from MpiBaseCount.py
+		2011-8-5
+		"""
+		sys.stderr.write("Getting individualSequenceID2FilePairLs ...")
+		individualSequenceID2FilePairLs = {}
+		if not dataDir:
+			dataDir = self.data_dir
+		for individualSequenceID in individualSequenceIDList:
+			individual_sequence = IndividualSequence.get(individualSequenceID)
+			if individual_sequence and individual_sequence.path:
+				abs_path = os.path.join(dataDir, individual_sequence.path)
+				if individual_sequence.id not in individualSequenceID2FilePairLs:
+					individualSequenceID2FilePairLs[individual_sequence.id] = []
+				if os.path.isfile(abs_path):
+					fileRecord = [individual_sequence.path, individual_sequence.format, 'SR', individual_sequence.sequencer]
+						#"SR" means it's single-end
+					individualSequenceID2FilePairLs[individual_sequence.id].append([fileRecord])
+				elif os.path.isdir(abs_path):	#it's a folder, sometimes it's nothing there
+					if individual_sequence.sequence_type=='PE':
+						isPE = True
+					else:
+						isPE = False
+					pairedEndPrefix2FileLs = NextGenSeq.getPEInputFiles(abs_path, isPE=isPE)
+					for pairedEndPrefix, fileLs in pairedEndPrefix2FileLs.iteritems():
+						if isPE and len(fileLs)==2 and fileLs[0] and fileLs[1]:	#PE
+							filename = os.path.join(individual_sequence.path, fileLs[0])	#take one file only
+							fileRecord = [filename, individual_sequence.format, 'PE', individual_sequence.sequencer]
+							#"PE" means it's paired-end
+							filename2 = os.path.join(individual_sequence.path, fileLs[1])	#take one file only
+							fileRecord2 = [filename2, individual_sequence.format, 'PE', individual_sequence.sequencer]
+							#"PE" means it's paired-end
+							individualSequenceID2FilePairLs[individual_sequence.id].append([fileRecord, fileRecord2])	#"PE" means it's paired-end
+						else:
+							for filename in fileLs:	#usually should be only one file
+								if filename:
+									filename = os.path.join(individual_sequence.path, filename)
+									fileRecord = [filename, individual_sequence.format, 'SR', individual_sequence.sequencer]
+									#"SR" means it's single-end
+									individualSequenceID2FilePairLs[individual_sequence.id].append([fileRecord])
+		sys.stderr.write("%s individual sequences. Done.\n"%(len(individualSequenceID2FilePairLs)))
+		return individualSequenceID2FilePairLs
+	
 	
 	@property
 	def data_dir(self, ):
