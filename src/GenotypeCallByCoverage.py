@@ -44,15 +44,16 @@ class GenotypeCallByCoverage(object):
 	option_default_dict = {('inputFname', 1, ): ['', 'i', 1, 'The input Bam file.', ],\
 						('refFastaFname', 1, ): [None, 'e', 1, 'the fasta file containing reference sequences.'],\
 						('numberOfReadGroups', 1, int): [None, 'n', 1, 'number of read groups/genomes in the inputFname', ],\
-						('minMinorAlleleCoverage', 1, int): [3, '', 1, 'minimum read depth for an allele to be called (heterozygous or homozygous)', ],\
-						('maxMinorAlleleCoverage', 1, int): [7, '', 1, 'maximum read depth for the minor allele of a heterozygous call', ],\
-						('maxNoOfReadsForGenotypingError', 1, int): [1, '', 1, 'if read depth for one allele is below or equal to this number, regarded as genotyping error ', ],\
-						('maxNoOfReads', 1, int): [20, '', 1, 'maximum read depth for one base to be considered'],\
-						('minNoOfReads', 1, int): [2, '', 1, 'minimum read depth for one base to be considered'],\
-						('maxMajorAlleleCoverage', 1, int): [10, '', 1, 'maximum read depth'],\
-						('maxNoOfReadsMultiSampleMultiplier', 1, int): [3, '', 1, 'across n samples, ignore bases where read depth > n*maxNoOfReads*multiplier.'],\
+						('minMinorAlleleCoverage', 1, int): [3, 'M', 1, 'minimum read depth for an allele to be called (heterozygous or homozygous)', ],\
+						('maxMinorAlleleCoverage', 1, int): [7, 'A', 1, 'maximum read depth for the minor allele of a heterozygous call', ],\
+						('maxMajorAlleleCoverage', 1, int): [10, 'a', 1, 'maximum read depth for the major allele of het call'],\
+						('maxNoOfReadsForGenotypingError', 1, int): [1, 'x', 1, 'if read depth for one allele is below or equal to this number, regarded as genotyping error ', ],\
+						('maxNoOfReads', 1, int): [20, 'm', 1, 'maximum read depth for one base to be considered'],\
+						('minNoOfReads', 1, int): [2, 'O', 1, 'minimum read depth for one base to be considered'],\
+						('maxNoOfReadsMultiSampleMultiplier', 1, int): [3, 'N', 1, 'across n samples, ignore bases where read depth > n*maxNoOfReads*multiplier.'],\
 						('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
 						("run_type", 1, int): [1, 'y', 1, '1: discoverFromVCF (output of GATK), 2: discoverFromBAM'],\
+						("site_type", 1, int): [1, 's', 1, '1: all sites, 2: variants only'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
@@ -88,8 +89,10 @@ class GenotypeCallByCoverage(object):
 	def discoverFromBAM(cls, inputFname, outputFname, refFastaFname=None, monomorphicDiameter=100, \
 						maxNoOfReads=300, minNoOfReads=2, minMinorAlleleCoverage=3, maxMinorAlleleCoverage=7,\
 						maxNoOfReadsForGenotypingError=1, maxMajorAlleleCoverage=30, maxNoOfReadsForAllSamples=1000,\
-						nt_set = set(['a','c','g','t','A','C','G','T'])):
+						nt_set = set(['a','c','g','t','A','C','G','T']), report=0, site_type=1):
 		"""
+		2011-8-31
+			add argument site_type
 		2011-7-20
 			copied from discoverHetsFromBAM() of vervet.src.misc
 		2011-7-18
@@ -226,7 +229,7 @@ class GenotypeCallByCoverage(object):
 						if allele not in allele2count:
 							allele2count[allele] = 0
 						allele2count[allele] += 1
-				if len(allele2count)>1:	#polymorphic across samples
+				if len(allele2count)>site_type-1:	#polymorphic across samples
 					locus_id2row_index[current_locus] = len(locus_id2row_index)
 					data_matrix.append(data_row)
 			if counter%1000==0:
@@ -335,8 +338,11 @@ class GenotypeCallByCoverage(object):
 	def discoverFromVCF(cls, inputFname, outputFname, refFastaFname=None, VCFOutputType=2, minMinorAlleleCoverage=4, maxMinorAlleleCoverage=8,\
 						maxNoOfReads=30, minNoOfReads=2, \
 						maxNoOfReadsForGenotypingError=1, maxMajorAlleleCoverage=30, maxNoOfReadsForAllSamples=1000,\
-						nt_set = set(['a','c','g','t','A','C','G','T'])):
+						nt_set = set(['a','c','g','t','A','C','G','T']), report=0, site_type=1):
 		"""
+		2011-8-26
+			add argument site_type
+			function is also more robust against missing fields etc.
 		2011-7-20
 			copied from discoverHetsFromVCF() of vervet.src.misc
 		2011-3-24
@@ -432,18 +438,21 @@ class GenotypeCallByCoverage(object):
 					if read_group not in read_group2col_index:
 						read_group2col_index[read_group] = len(read_group2col_index)
 					
-					
 					genotype_data = row[individual_col_index]
 					genotype_data_ls = genotype_data.split(':')
-					genotype_call = genotype_data_ls[format_column_name2index['GT']]
+					genotype_call_index = format_column_name2index.get('GT')
 					genotype_quality_index = format_column_name2index.get('GQ')
 					if genotype_quality_index is None:
 						genotype_quality_index = format_column_name2index.get('DP')
+					depth_index = format_column_name2index.get("DP")
+					#GL_index = format_column_name2index.get('GL')
 					if len(genotype_data_ls)<len(format_column_name2index):
 						continue
-					genotype_quality = genotype_data_ls[genotype_quality_index]
-					GL_index = format_column_name2index.get('GL')
-					depth = int(genotype_data_ls[format_column_name2index.get('DP')])
+					if depth_index is None or genotype_call_index is None:
+						continue
+					#genotype_quality = genotype_data_ls[genotype_quality_index]
+					genotype_call = genotype_data_ls[genotype_call_index]
+					depth = int(genotype_data_ls[depth_index])
 					if depth>maxNoOfReads or depth<minNoOfReads:	#2011-3-29 skip. coverage too high or too low
 						continue
 					allele = 'NA'
@@ -486,7 +495,8 @@ class GenotypeCallByCoverage(object):
 						if allele not in allele2count:
 							allele2count[allele] = 0
 						allele2count[allele] += 1
-				if len(allele2count)>1:	#polymorphic across samples
+				
+				if len(allele2count)>site_type-1:	#whether polymorphic across samples or all sites in vcf
 					real_counter += 1
 					locus_id2row_index[current_locus] = len(locus_id2row_index)
 					data_matrix.append(data_row)
@@ -516,7 +526,7 @@ class GenotypeCallByCoverage(object):
 					writer.writerow(output_row)
 			"""
 			counter += 1
-			if counter%2000==0:
+			if counter%2000==0 and report:
 				sys.stderr.write("%s\t%s\t%s"%("\x08"*80, counter, real_counter))
 		del reader
 		
@@ -549,7 +559,8 @@ class GenotypeCallByCoverage(object):
 						maxMinorAlleleCoverage=self.maxMinorAlleleCoverage,\
 						maxNoOfReadsForGenotypingError=self.maxNoOfReadsForGenotypingError, \
 						maxMajorAlleleCoverage=self.maxMajorAlleleCoverage, \
-						maxNoOfReadsForAllSamples=maxNoOfReadsForAllSamples)
+						maxNoOfReadsForAllSamples=maxNoOfReadsForAllSamples, \
+						report=self.report, site_type=self.site_type)
 		elif self.run_type==1:
 			self.discoverFromVCF(self.inputFname, self.outputFname, \
 					refFastaFname=self.refFastaFname,\
@@ -558,7 +569,8 @@ class GenotypeCallByCoverage(object):
 					maxMinorAlleleCoverage=self.maxMinorAlleleCoverage,\
 					maxNoOfReadsForGenotypingError=self.maxNoOfReadsForGenotypingError, \
 					maxMajorAlleleCoverage=self.maxMajorAlleleCoverage, \
-					maxNoOfReadsForAllSamples=maxNoOfReadsForAllSamples, VCFOutputType=2)
+					maxNoOfReadsForAllSamples=maxNoOfReadsForAllSamples, VCFOutputType=2, \
+					report=self.report, site_type=self.site_type)
 		else:
 			sys.stderr.write("Unsupported run_type %s.Exit.\n"%(self.run_type))
 			sys.exit(5)
