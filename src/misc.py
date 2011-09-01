@@ -30,7 +30,7 @@ else:	#32bit
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script/variation/src')))
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-#import matplotlib; matplotlib.use("Agg")	#to avoid popup and collapse in X11-disabled environment
+import matplotlib; matplotlib.use("Agg")	#to disable pop-up requirement
 
 
 
@@ -1753,6 +1753,61 @@ class VariantDiscovery(object):
 		outputFname = os.path.expanduser("%s.Contig0.bam"%(inputPrefix))
 		VariantDiscovery.filterAlignmentByReferenceIDs(inputFname, outputFname, referenceIDSet=referenceIDSet, readGroup='454_vs_Contig0')
 		sys.exit(0)
+		
+				
+		#2011-4-7
+		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110712T234818-0700/8_genomes_vs_top156References_call.tsv'
+		inputFname = '/usr/local/vervetData/vervetPipeline/outputs/call/vervet_path2.call'
+		inputFname = '/usr/local/vervetData/vervetPipeline/7GenomeVsVervet1MbAsRef/7_genomes_vs_top1References_call.tsv'
+		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110714T013718-0700/call/Contig1.call'
+		inputFname = '/usr/local/vervetData/vervetPipeline/top2Contigs8Genome/8_genomes_vs_top2References_call.tsv'
+		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110714T015458-0700/call/Contig0.call'
+		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110714T015458-0700/call/Contig1.call'
+		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110712T234818-0700/call/Contig110.call'
+		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110719T011659-0700/call/Contig0.call'
+		inputFname = os.path.expanduser("~/script/vervet/data/1MbBAC_as_ref/454_illu_6_sub_vs_1MbBAC.GATK.call")
+		snpFnameToDoFiltering = None
+		convertHetero2NA = True
+		max_NA_rate = 0.4
+		min_MAF = 0
+		outputFname ='%s.pairwiseDist.convertHetero2NA%s.minMAF%s.maxNA%s.tsv'%(os.path.splitext(inputFname)[0], \
+												convertHetero2NA, min_MAF, max_NA_rate)
+		VariantDiscovery.calculatePairwiseDistanceOutOfSNPXStrainMatrix(inputFname, outputFname, snpFnameToDoFiltering=snpFnameToDoFiltering,\
+							convertHetero2NA=convertHetero2NA, min_MAF=min_MAF, max_NA_rate=max_NA_rate)
+		sys.exit(0)
+		
+		
+		#2011-3-24
+		common_prefix = os.path.expanduser('~/script/vervet/data/8_genome_vs_Contig0.RG')
+		inputFname = '%s.bam'%(common_prefix)
+		minMinorAlleleCoverage=3
+		maxMinorAlleleCoverage=7
+		maxNoOfReadsForGenotypingError=1
+		maxNoOfReads = 30
+		maxMajorAlleleCoverage=10
+		outputFname = '%s_minMAC%s_maxMAC%s_maxNoOfReadsForGenotypingError%s.maxCoverage%s.maxMajorAC%s.hets'%(common_prefix, \
+								minMinorAlleleCoverage, maxMinorAlleleCoverage, maxNoOfReadsForGenotypingError, maxNoOfReads,\
+								maxMajorAlleleCoverage)
+		
+		VariantDiscovery.discoverHetsFromBAM(inputFname, outputFname, monomorphicDiameter=100, \
+						maxNoOfReads=maxNoOfReads, minNoOfReads=None, minMinorAlleleCoverage=minMinorAlleleCoverage, \
+						maxMinorAlleleCoverage=maxMinorAlleleCoverage, maxNoOfReadsForGenotypingError=maxNoOfReadsForGenotypingError,\
+						maxMajorAlleleCoverage=maxMajorAlleleCoverage)
+		sys.exit(2)
+		
+		#2011-4-7
+		inputFname = '%s_minMAC%s_maxMAC%s_maxNoOfReadsForGenotypingError%s.maxCoverage%s.maxMajorAC%s.hets'%(common_prefix, \
+								minMinorAlleleCoverage, maxMinorAlleleCoverage, maxNoOfReadsForGenotypingError, maxNoOfReads,\
+								maxMajorAlleleCoverage)
+		snpFnameToDoFiltering = None
+		convertHetero2NA = True
+		max_NA_rate = 0.4
+		min_MAF = 0
+		outputFname ='%s.pairwiseDist.convertHetero2NA%s.minMAF%s.maxNA%s.tsv'%(os.path.splitext(inputFname)[0], \
+												convertHetero2NA, min_MAF, max_NA_rate)
+		VariantDiscovery.calculatePairwiseDistanceOutOfSNPXStrainMatrix(inputFname, outputFname, snpFnameToDoFiltering=snpFnameToDoFiltering,\
+							convertHetero2NA=convertHetero2NA, min_MAF=min_MAF, max_NA_rate=max_NA_rate)
+		sys.exit(0)
 	"""
 	
 	@classmethod
@@ -2218,7 +2273,7 @@ class VariantDiscovery(object):
 			
 			pylab.plot(range(len(new_data_row)), new_data_row)
 		pylab.title("Distance vector from %s genomes to %s contigs"%(len(xlabel_ls), len(vectorData.row_id_ls)))
-		pylab.xlabel(xlabel_ls)
+		pylab.xticks(range(len(xlabel_ls)), xlabel_ls)
 		pylab.savefig(outputFname, dpi=200)
 		sys.stderr.write("Done.\n")
 		
@@ -2228,6 +2283,44 @@ class VariantDiscovery(object):
 		outputFnamePrefix = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
 		VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
 		sys.exit(3)
+	"""
+	
+	@classmethod
+	def compareContigByDistVectorFromTwoDifferentRuns(cls, inputDir1, inputDir2, outputFnamePrefix, partOfTitle=""):
+		"""
+		2011-8-26
+			This program draws the distance vector of other genomes to each contig.
+			
+			The inputDir contains output by CalculatePairwiseDistanceOutOfSNPXStrainMatrix.py
+		"""
+		vectorData1 = cls.readContigDistVector(inputDir1)
+		vectorData2 = cls.readContigDistVector(inputDir2)
+		import numpy	#numpy.linalg.norm(a-b)	#euclidean distance
+		
+		from scipy import spatial
+		
+		#>>> spatial.distance.correlation
+		import rpy
+		cor_ls = []
+		index_ls = [0,] + range(3,6) + range(7,9)
+		for row_id, row_index in vectorData1.row_id2row_index.iteritems():
+			if row_id in vectorData2.row_id2row_index:
+				row_index2 = vectorData2.row_id2row_index[row_id]
+				data_row = vectorData1.data_matrix[row_index]
+				vector1 = data_row[index_ls]
+				data_row = vectorData2.data_matrix[row_index2]
+				vector2 = data_row[index_ls]
+				#cor = spatial.distance.correlation(vector1, vector2)
+				cor = rpy.r.cor(vector1, vector2)
+				cor_ls.append(cor)
+		
+		from pymodule import yh_matplotlib
+		yh_matplotlib.drawHist(cor_ls, title="correlation of distance-2-contig vectors %s"%(partOfTitle), \
+							xlabel_1D="correlation", xticks=None, outputFname="%s.png"%outputFnamePrefix,\
+							min_no_of_data_points=50, needLog=False, dpi=200,)
+		
+	"""
+		
 	"""
 	
 # 2011-4-29 a handy function to strip blanks around strings
@@ -3677,6 +3770,8 @@ class VervetGenome(object):
 				record.id = contig_id	#superfluous. record.id is 1st word of description.
 				record.description = contig_id
 				sequences.append(record)
+			if len(sequences)>=len(selected_contig_id_set):
+				break
 		handle.close()
 		sys.stderr.write("Done.\n")
 		
@@ -3843,15 +3938,33 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
+		#2011-6-27
+		contigAGPFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.agp")
+		contigFastaFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.fasta")
+		topNumber=156
+		outputFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/top%ssupercontigs.fasta"%topNumber)
+		VervetGenome.outputTopBigContigs(contigAGPFname=contigAGPFname, contigFastaFname=contigFastaFname, \
+				outputFname=outputFname, topNumber=topNumber)
+		sys.exit(3)
+		
+		#2011-8-26
+		
+		inputDir1 = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_all_bases/pairwiseDistMatrix/'
+		inputDir2 = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
+		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_ContigByDistVectorFrom8Genomes_all_bases_vs_variants_only'
+		VariantDiscovery.compareContigByDistVectorFromTwoDifferentRuns(inputDir1, inputDir2, outputFnamePrefix, partOfTitle='all_sites vs variants only')
+		sys.exit(3)
+		
 		#2011-8-2
-		inputDir = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
-		outputFnamePrefix = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
+		inputDir = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_all_bases/pairwiseDistMatrix/'
+		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_all_bases_ContigByDistVectorFrom8Genomes'
 		VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
 		sys.exit(3)
+		
 
 		#2011-8-2
-		inputDir = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
-		outputFnamePrefix = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
+		inputDir = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
+		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
 		VariantDiscovery.PCAContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
 		sys.exit(3)
 		
@@ -3862,60 +3975,6 @@ class Main(object):
 		VervetGenome.outputContigsAboveCertainSize(contigFastaFname=contigFastaFname, \
 				outputFname=outputFname, minSize=minSize)
 		sys.exit(3)
-		
-		#2011-4-7
-		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110712T234818-0700/8_genomes_vs_top156References_call.tsv'
-		inputFname = '/usr/local/vervetData/vervetPipeline/outputs/call/vervet_path2.call'
-		inputFname = '/usr/local/vervetData/vervetPipeline/7GenomeVsVervet1MbAsRef/7_genomes_vs_top1References_call.tsv'
-		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110714T013718-0700/call/Contig1.call'
-		inputFname = '/usr/local/vervetData/vervetPipeline/top2Contigs8Genome/8_genomes_vs_top2References_call.tsv'
-		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110714T015458-0700/call/Contig0.call'
-		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110714T015458-0700/call/Contig1.call'
-		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110712T234818-0700/call/Contig110.call'
-		inputFname = '/usr/local/vervetData/vervetPipeline/work/outputs/crocea/pegasus/AlignmentToCallPipeline/20110719T011659-0700/call/Contig0.call'
-		inputFname = os.path.expanduser("~/script/vervet/data/1MbBAC_as_ref/454_illu_6_sub_vs_1MbBAC.GATK.call")
-		snpFnameToDoFiltering = None
-		convertHetero2NA = True
-		max_NA_rate = 0.4
-		min_MAF = 0
-		outputFname ='%s.pairwiseDist.convertHetero2NA%s.minMAF%s.maxNA%s.tsv'%(os.path.splitext(inputFname)[0], \
-												convertHetero2NA, min_MAF, max_NA_rate)
-		VariantDiscovery.calculatePairwiseDistanceOutOfSNPXStrainMatrix(inputFname, outputFname, snpFnameToDoFiltering=snpFnameToDoFiltering,\
-							convertHetero2NA=convertHetero2NA, min_MAF=min_MAF, max_NA_rate=max_NA_rate)
-		sys.exit(0)
-		
-		
-		#2011-3-24
-		common_prefix = os.path.expanduser('~/script/vervet/data/8_genome_vs_Contig0.RG')
-		inputFname = '%s.bam'%(common_prefix)
-		minMinorAlleleCoverage=3
-		maxMinorAlleleCoverage=7
-		maxNoOfReadsForGenotypingError=1
-		maxNoOfReads = 30
-		maxMajorAlleleCoverage=10
-		outputFname = '%s_minMAC%s_maxMAC%s_maxNoOfReadsForGenotypingError%s.maxCoverage%s.maxMajorAC%s.hets'%(common_prefix, \
-								minMinorAlleleCoverage, maxMinorAlleleCoverage, maxNoOfReadsForGenotypingError, maxNoOfReads,\
-								maxMajorAlleleCoverage)
-		"""
-		VariantDiscovery.discoverHetsFromBAM(inputFname, outputFname, monomorphicDiameter=100, \
-						maxNoOfReads=maxNoOfReads, minNoOfReads=None, minMinorAlleleCoverage=minMinorAlleleCoverage, \
-						maxMinorAlleleCoverage=maxMinorAlleleCoverage, maxNoOfReadsForGenotypingError=maxNoOfReadsForGenotypingError,\
-						maxMajorAlleleCoverage=maxMajorAlleleCoverage)
-		sys.exit(2)
-		"""
-		#2011-4-7
-		inputFname = '%s_minMAC%s_maxMAC%s_maxNoOfReadsForGenotypingError%s.maxCoverage%s.maxMajorAC%s.hets'%(common_prefix, \
-								minMinorAlleleCoverage, maxMinorAlleleCoverage, maxNoOfReadsForGenotypingError, maxNoOfReads,\
-								maxMajorAlleleCoverage)
-		snpFnameToDoFiltering = None
-		convertHetero2NA = True
-		max_NA_rate = 0.4
-		min_MAF = 0
-		outputFname ='%s.pairwiseDist.convertHetero2NA%s.minMAF%s.maxNA%s.tsv'%(os.path.splitext(inputFname)[0], \
-												convertHetero2NA, min_MAF, max_NA_rate)
-		VariantDiscovery.calculatePairwiseDistanceOutOfSNPXStrainMatrix(inputFname, outputFname, snpFnameToDoFiltering=snpFnameToDoFiltering,\
-							convertHetero2NA=convertHetero2NA, min_MAF=min_MAF, max_NA_rate=max_NA_rate)
-		sys.exit(0)
 		
 		
 		
