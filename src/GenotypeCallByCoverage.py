@@ -15,11 +15,15 @@ Examples:
 		-e /Network/Data/vervet/db/individual_sequence/9_1Mb-BAC.fa
 	
 Description:
-	2011-8-3
+	2011-9-1
 		Two functions:
 		1. A multi-sample genotype caller based entirely on coverage of reads.
 			sam/bam file has to be indexed beforehand.
 		2. A coverage-based GATK-generated VCF file filter.
+		
+		For multi-read-group input, seqCoverageFname will provide coverage for each individual sequence.
+			Each read group has the individual_sequence.id embedded as 2nd value if it's split by "_".
+			Read group formula: alnID_isqID_individual.code_sequencer_vs_alignment.ref_ind_seq_id
 """
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
@@ -36,7 +40,7 @@ else:   #32bit
 
 import subprocess, cStringIO, re, csv
 import VervetDB
-from pymodule import ProcessOptions
+from pymodule import ProcessOptions, figureOutDelimiter
 from pymodule.utils import sortCMPBySecondTupleValue
 
 class GenotypeCallByCoverage(object):
@@ -44,13 +48,15 @@ class GenotypeCallByCoverage(object):
 	option_default_dict = {('inputFname', 1, ): ['', 'i', 1, 'The input Bam file.', ],\
 						('refFastaFname', 1, ): [None, 'e', 1, 'the fasta file containing reference sequences.'],\
 						('numberOfReadGroups', 1, int): [None, 'n', 1, 'number of read groups/genomes in the inputFname', ],\
-						('minMinorAlleleCoverage', 1, int): [3, 'M', 1, 'minimum read depth for an allele to be called (heterozygous or homozygous)', ],\
-						('maxMinorAlleleCoverage', 1, int): [7, 'A', 1, 'maximum read depth for the minor allele of a heterozygous call', ],\
-						('maxMajorAlleleCoverage', 1, int): [10, 'a', 1, 'maximum read depth for the major allele of het call'],\
-						('maxNoOfReadsForGenotypingError', 1, int): [1, 'x', 1, 'if read depth for one allele is below or equal to this number, regarded as genotyping error ', ],\
-						('maxNoOfReads', 1, int): [20, 'm', 1, 'maximum read depth for one base to be considered'],\
-						('minNoOfReads', 1, int): [2, 'O', 1, 'minimum read depth for one base to be considered'],\
-						('maxNoOfReadsMultiSampleMultiplier', 1, int): [3, 'N', 1, 'across n samples, ignore bases where read depth > n*maxNoOfReads*multiplier.'],\
+						('minMinorAlleleCoverage', 1, float): [1/4., 'M', 1, 'minimum read depth multiplier for an allele to be called (heterozygous or homozygous)', ],\
+						('maxMinorAlleleCoverage', 1, float): [3/4., 'A', 1, 'maximum read depth multiplier for the minor allele of a heterozygous call', ],\
+						('maxMajorAlleleCoverage', 1, float): [7/8., 'a', 1, 'maximum read depth multiplier for the major allele of het call'],\
+						('maxNoOfReadsForGenotypingError', 1, float): [1, 'x', 1, 'if read depth for one allele is below or equal to this number, regarded as genotyping error ', ],\
+						('maxNoOfReads', 1, float): [2, 'm', 1, 'maximum read depth multiplier for one base to be considered'],\
+						('minNoOfReads', 1, float): [1/4., 'O', 1, 'minimum read depth multiplier for one base to be considered'],\
+						('maxNoOfReadsMultiSampleMultiplier', 1, float): [3, 'N', 1, 'across n samples, ignore bases where read depth > n*maxNoOfReads*multiplier.'],\
+						('seqCoverageFname', 1, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
+						('defaultCoverage', 1, float): [5, 'd', 1, 'default coverage when coverage is not available for a read group'],\
 						('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
 						("run_type", 1, int): [1, 'y', 1, '1: discoverFromVCF (output of GATK), 2: discoverFromBAM'],\
 						("site_type", 1, int): [1, 's', 1, '1: all sites, 2: variants only'],\
@@ -64,6 +70,22 @@ class GenotypeCallByCoverage(object):
 		"""
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
 														class_to_have_attr=self)
+		self.discoverFuncDict = {1: self.discoverFromVCF, 2: self.discoverFromBAM}
+	def get_isqID2coverage(self, seqCoverageFname,):
+		"""
+		2011-9-2
+		"""
+		sys.stderr.write("Fetching sequence coverage info from %s ..."%(seqCoverageFname))
+		
+		reader = csv.reader(open(seqCoverageFname, 'r'), delimiter=figureOutDelimiter(seqCoverageFname))
+		isqID2coverage = {}
+		header = reader.next()
+		for row in reader:
+			isqID = int(row[0])
+			coverage = float(row[1])
+			isqID2coverage[isqID] = coverage
+		sys.stderr.write("%s entries.\n"%len(isqID2coverage))
+		return isqID2coverage
 	
 	@classmethod
 	def addCountToDictionaryByKey(cls, dictionary, key):
@@ -89,8 +111,11 @@ class GenotypeCallByCoverage(object):
 	def discoverFromBAM(cls, inputFname, outputFname, refFastaFname=None, monomorphicDiameter=100, \
 						maxNoOfReads=300, minNoOfReads=2, minMinorAlleleCoverage=3, maxMinorAlleleCoverage=7,\
 						maxNoOfReadsForGenotypingError=1, maxMajorAlleleCoverage=30, maxNoOfReadsForAllSamples=1000,\
-						nt_set = set(['a','c','g','t','A','C','G','T']), report=0, site_type=1):
+						nt_set = set(['a','c','g','t','A','C','G','T']), VCFOutputType=None, \
+						isqID2coverage=None, defaultCoverage=10, report=0, site_type=1):
 		"""
+		2011-9-2
+			additional arguments, isqID2coverage and defaultCoverage, are not used right now.
 		2011-8-31
 			add argument site_type
 		2011-7-20
@@ -335,11 +360,14 @@ class GenotypeCallByCoverage(object):
 		return individual_name2col_index
 	
 	@classmethod
-	def discoverFromVCF(cls, inputFname, outputFname, refFastaFname=None, VCFOutputType=2, minMinorAlleleCoverage=4, maxMinorAlleleCoverage=8,\
-						maxNoOfReads=30, minNoOfReads=2, \
-						maxNoOfReadsForGenotypingError=1, maxMajorAlleleCoverage=30, maxNoOfReadsForAllSamples=1000,\
-						nt_set = set(['a','c','g','t','A','C','G','T']), report=0, site_type=1):
+	def discoverFromVCF(cls, inputFname, outputFname, refFastaFname=None, VCFOutputType=2, \
+					minMinorAlleleCoverage=1/4., maxMinorAlleleCoverage=3/4.,\
+					maxNoOfReads=2., minNoOfReads=1/4., \
+					maxNoOfReadsForGenotypingError=1, maxMajorAlleleCoverage=7/8., maxNoOfReadsForAllSamples=1000,\
+					nt_set = set(['a','c','g','t','A','C','G','T']), isqID2coverage=None, defaultCoverage=10, report=0, site_type=1):
 		"""
+		2011-9-2
+			add argument isqID2coverage, defaultCoverage
 		2011-8-26
 			add argument site_type
 			function is also more robust against missing fields etc.
@@ -365,6 +393,7 @@ class GenotypeCallByCoverage(object):
 		
 		
 		read_group2col_index = {'ref':0}	#ref is at column 0. "ref" must not be equal to any read_group.
+		read_group2coverage = {}	#2011-9-2
 		locus_id2row_index = {}
 		data_matrix = []
 		
@@ -437,7 +466,20 @@ class GenotypeCallByCoverage(object):
 					read_group = individual_name
 					if read_group not in read_group2col_index:
 						read_group2col_index[read_group] = len(read_group2col_index)
+						#2011-9-2
+						try:
+							isqID = read_group.split('_')[1]
+							isqID = int(isqID)
+							coverage = isqID2coverage[isqID]
+						except:
+							sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+							import traceback
+							traceback.print_exc()
+							sys.stderr.write("Coverage for %s not available. use default=%s.\n"%(read_group, defaultCoverage))
+							coverage = defaultCoverage
+						read_group2coverage[read_group] = coverage
 					
+					coverage = read_group2coverage[read_group]
 					genotype_data = row[individual_col_index]
 					genotype_data_ls = genotype_data.split(':')
 					genotype_call_index = format_column_name2index.get('GT')
@@ -453,7 +495,7 @@ class GenotypeCallByCoverage(object):
 					#genotype_quality = genotype_data_ls[genotype_quality_index]
 					genotype_call = genotype_data_ls[genotype_call_index]
 					depth = int(genotype_data_ls[depth_index])
-					if depth>maxNoOfReads or depth<minNoOfReads:	#2011-3-29 skip. coverage too high or too low
+					if depth>maxNoOfReads*coverage or depth<minNoOfReads*coverage:	#2011-3-29 skip. coverage too high or too low
 						continue
 					allele = 'NA'
 					if genotype_call=='0/1' or genotype_call =='1/0':	#heterozygous, the latter notation is never used though.
@@ -470,7 +512,8 @@ class GenotypeCallByCoverage(object):
 						minorAlleleCoverage = min(AD)
 						majorAlleleCoverage = max(AD)
 						
-						if minorAlleleCoverage<=maxMinorAlleleCoverage and minorAlleleCoverage>=minMinorAlleleCoverage and majorAlleleCoverage<=maxMajorAlleleCoverage:
+						if minorAlleleCoverage<=maxMinorAlleleCoverage*coverage and minorAlleleCoverage>=minMinorAlleleCoverage*coverage \
+								and majorAlleleCoverage<=maxMajorAlleleCoverage*coverage:
 							DP4_ratio = float(AD[0])/AD[1]
 							allele = '%s%s'%(refBase, altBase)
 							"""
@@ -549,8 +592,24 @@ class GenotypeCallByCoverage(object):
 		if outputDir and not os.path.isdir(outputDir):
 			os.makedirs(outputDir)
 		
+		isqID2coverage = self.get_isqID2coverage(self.seqCoverageFname)
 		from vervet.src.misc import VariantDiscovery
-		maxNoOfReadsForAllSamples = self.numberOfReadGroups*self.maxNoOfReads*self.maxNoOfReadsMultiSampleMultiplier
+		maxNoOfReadsForAllSamples = self.numberOfReadGroups*self.maxNoOfReads*self.defaultCoverage*self.maxNoOfReadsMultiSampleMultiplier
+		if self.run_type in self.discoverFuncDict:
+			self.discoverFuncDict[self.run_type](self.inputFname, self.outputFname, \
+					refFastaFname=self.refFastaFname,\
+					maxNoOfReads=self.maxNoOfReads, minNoOfReads=self.minNoOfReads,\
+					minMinorAlleleCoverage=self.minMinorAlleleCoverage, \
+					maxMinorAlleleCoverage=self.maxMinorAlleleCoverage,\
+					maxNoOfReadsForGenotypingError=self.maxNoOfReadsForGenotypingError, \
+					maxMajorAlleleCoverage=self.maxMajorAlleleCoverage, \
+					maxNoOfReadsForAllSamples=maxNoOfReadsForAllSamples, VCFOutputType=2, \
+					isqID2coverage=isqID2coverage, defaultCoverage=self.defaultCoverage, \
+					report=self.report, site_type=self.site_type)
+		else:
+			sys.stderr.write("Unsupported run_type %s.Exit.\n"%(self.run_type))
+			sys.exit(5)
+		"""
 		if self.run_type==2:
 			self.discoverFromBAM(self.inputFname, self.outputFname, \
 						refFastaFname=self.refFastaFname,\
@@ -570,10 +629,10 @@ class GenotypeCallByCoverage(object):
 					maxNoOfReadsForGenotypingError=self.maxNoOfReadsForGenotypingError, \
 					maxMajorAlleleCoverage=self.maxMajorAlleleCoverage, \
 					maxNoOfReadsForAllSamples=maxNoOfReadsForAllSamples, VCFOutputType=2, \
+					isqID2coverage=isqID2coverage, defaultCoverage=self.defaultCoverage, \
 					report=self.report, site_type=self.site_type)
-		else:
-			sys.stderr.write("Unsupported run_type %s.Exit.\n"%(self.run_type))
-			sys.exit(5)
+		"""
+		
 
 if __name__ == '__main__':
 	main_class = GenotypeCallByCoverage
