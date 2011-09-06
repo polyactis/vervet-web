@@ -101,6 +101,9 @@ class AddFilteredSequences2DB(object):
 			commandline = 'mv %s %s/'%(inputFname, outputDir)
 			if self.commit:	#qsub only when db transaction will be committed.
 				return_data = utils.runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+				if return_data.stderr_content:
+					sys.stderr.write("Error in moving file. Exit now.\n")
+					sys.exit(3)
 				
 		if self.commit:
 			session.commit()
