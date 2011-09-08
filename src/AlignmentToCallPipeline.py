@@ -19,11 +19,11 @@ Examples:
 	
 	#2011-8-31 work 10 VWP and one VRC ref monkeys, variants only
 	~/script/vervet/src/AlignmentToCallPipeline.py -a 9 -I 495,498-507 -u yh  
-		-l condorpool -y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC.xml -s2
+		-l condorpool -y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC.xml -s2 -q /tmp/all_isq_coverage.tsv
 	
 	~/script/vervet/src/AlignmentToCallPipeline.py -a 120 -I 34,38 -u yh -l hoffman2
 	-y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC_hoffman2.xml  -s2 -e /u/home/eeskin/polyacti
-	-t /u/home/eeskin/polyacti/NetworkData/vervet/db -N 4
+	-t /u/home/eeskin/polyacti/NetworkData/vervet/db -N 4 -q /tmp/all_isq_coverage.tsv
 	
 Description:
 	2011-7-12
@@ -63,12 +63,6 @@ class AlignmentToCallPipeline(object):
 						('aln_ref_ind_seq_id', 1, int): [120, 'a', 1, 'IndividualSequence.id. To pick alignments with this sequence as reference', ],\
 						('ind_seq_id_ls', 0, ): ['1-3,4,5', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. alignments come from these', ],\
 						('ind_aln_id_ls', 0, ): ['1-3,4,5', 'I', 1, 'a comma/dash-separated list of IndividualAlignment.id. This overrides ind_seq_id_ls.', ],\
-						('minMinorAlleleCoverage', 1, int): [3, '', 1, 'minimum read depth for an allele to be called (heterozygous or homozygous)', ],\
-						('maxMinorAlleleCoverage', 1, int): [7, '', 1, 'maximum read depth for the minor allele of a heterozygous call', ],\
-						('maxNoOfReadsForGenotypingError', 1, int): [1, '', 1, 'if read depth for one allele is below or equal to this number, regarded as genotyping error ', ],\
-						('maxNoOfReads', 1, int): [20, '', 1, 'maximum read depth for one base to be considered'],\
-						('maxMajorAlleleCoverage', 1, int): [10, '', 1, 'maximum read depth'],\
-						('maxNoOfReadsMultiSampleMultiplier', 1, int): [3, '', 1, 'across n samples, ignore bases where read depth > n*maxNoOfReads*multiplier.'],\
 						("samtools_path", 1, ): ["%s/bin/samtools", '', 1, 'samtools binary'],\
 						("picard_path", 1, ): ["%s/script/picard/dist", '', 1, 'picard folder containing its jar binaries'],\
 						("gatk_path", 1, ): ["%s/script/vervet/bin/GenomeAnalysisTK", '', 1, 'GATK folder containing its jar binaries'],\
@@ -77,9 +71,10 @@ class AlignmentToCallPipeline(object):
 						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
 									If not given, use the default stored in db.'],\
 						("site_handler", 1, ): ["condorpool", 'l', 1, 'which site to run the jobs: condorpool, hoffman2'],\
-						("input_site_handler", 1, ): ["condorpool", 'j', 1, 'which site has all the input files: local, condorpool, hoffman2. \
+						("input_site_handler", 1, ): ["local", 'j', 1, 'which site has all the input files: local, condorpool, hoffman2. \
 							If site_handler is condorpool, this must be condorpool and files will be symlinked. \
 							If site_handler is hoffman2, input_site_handler=local induces file transfer and input_site_handler=hoffman2 induces symlink.'],\
+						('seqCoverageFname', 1, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
 						("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
 						("topNumberOfContigs", 1, int): [156, 'N', 1, 'number of contigs'],\
 						("needFastaIndexJob", 0, int): [0, '', 1, 'need to add a reference index job by samtools?'],\
@@ -214,7 +209,7 @@ class AlignmentToCallPipeline(object):
 	def addSelectAndSplitBamJobs(self, db_vervet, workflow, alignmentLs, site_handler, topNumberOfContigs, refNameLs, samtools=None, \
 							java=None, addOrReplaceReadGroupsAndCleanSQHeaderJar=None, mkdir=None, namespace="workflow",\
 							version="1.0", mkCallDirJob=None,\
-							addRGAndCleanSQHeaderAlignment=None, dataDir=None):
+							addRGExecutable=None, dataDir=None):
 		"""
 		2011-7-14
 			1. select reference out of whole-alignment
@@ -237,8 +232,8 @@ class AlignmentToCallPipeline(object):
 			
 			# add RG to this bam
 			sequencer = alignment.ind_sequence.sequencer
-			read_group = '%s_%s_%s_vs_%s'%(alignment.ind_seq_id, alignment.ind_sequence.individual.code, sequencer, \
-										alignment.ref_ind_seq_id)
+			read_group = '%s_%s_%s_%s_vs_%s'%(alignment.id, alignment.ind_seq_id, alignment.ind_sequence.individual.code, \
+									sequencer, alignment.ref_ind_seq_id)
 			if sequencer=='454':
 				platform_id = 'LS454'
 			elif sequencer=='GA':
@@ -256,7 +251,7 @@ class AlignmentToCallPipeline(object):
 			for refName in refNameLs:
 				if refName not in refName2jobDataLs:
 					refName2jobDataLs[refName] = []
-				
+				#select reads that are aligned to one reference name
 				selectRefJob = Job(namespace=namespace, name=samtools.name, version=version)
 				
 				outputFname = os.path.join(outputDir, '%s_%s.bam'%(inputFileBaseNamePrefix, refName))
@@ -271,27 +266,35 @@ class AlignmentToCallPipeline(object):
 				index_1_job = Job(namespace=namespace, name=samtools.name, version=version)
 				index_1_job.addArguments("index", output)
 				#index_1_job.uses(output, transfer=True, register=False, link=Link.INPUT)	#this file is input & output
-				#index_1_job.uses(output, transfer=True, register=True, link=Link.OUTPUT)	#registering here would result in their early deletion.
+				index_1_job.uses(output, transfer=False, register=True, link=Link.OUTPUT)	#registering here would result in their early deletion.
 				bai_output = File('%s.bai'%outputFname)
-				#index_1_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
+				index_1_job.uses(bai_output, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(index_1_job)
 				workflow.addDependency(parent=selectRefJob, child=index_1_job)
 				
 				# the add-read-group job
-				#addRGJob = Job(namespace=namespace, name=addRGAndCleanSQHeaderAlignment.name, version=version)
+				#addRGJob = Job(namespace=namespace, name=addRGExecutable.name, version=version)
 				addRGJob = Job(namespace=namespace, name=java.name, version=version)
 				#2011-7-27 somehow AddOrReplaceReadGroupsAndCleanSQHeader.jar couldn't output a un-corrupted bam file. so sam first.
 				outputRGSAMFname = os.path.join(outputDir, '%s_%s.RG.sam'%(inputFileBaseNamePrefix, refName))
 				outputRGSAM = File(outputRGSAMFname)
 				"""
-				addRGJob.addArguments("-i", outputFname, '-o', outputRG, '-p', platform_id, '-a', read_group, \
-									'-e', refName)
+				tmpRGFname = os.path.join(outputDir, '%s_%s.RG.txt'%(inputFileBaseNamePrefix, refName))
+				addRGJob.addArguments(read_group, platform_id, output, tmpRGFname, outputRGSAM)
 				"""
 				addRGJob.addArguments('-jar', addOrReplaceReadGroupsAndCleanSQHeaderJar, \
 									"INPUT=", output,\
 									'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
 									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
 									'OUTPUT=', outputRGSAM, 'SQName=%s'%(refName))	#'SORT_ORDER=coordinate', (adding this is useless)
+				"""
+				
+				#addRGJob.addArguments('-jar', addOrReplaceReadGroupsJar, \
+									"INPUT=", output,\
+									'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
+									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
+									'OUTPUT=', outputRGSAM)	#'SORT_ORDER=coordinate', (adding this is useless)
+				"""
 				addRGJob.uses(output, transfer=False, register=True, link=Link.INPUT)	#time to discard them
 				addRGJob.uses(bai_output, transfer=False, register=True, link=Link.INPUT)	#time to discard them
 				addRGJob.uses(outputRGSAM, transfer=False, register=True, link=Link.OUTPUT)	#time to discard them
@@ -319,6 +322,23 @@ class AlignmentToCallPipeline(object):
 				workflow.addJob(samtools_index_job)
 				workflow.addDependency(parent=samToBamJob, child=samtools_index_job)
 				refName2jobDataLs[refName].append((outputRG, samtools_index_job, bai_output))
+				
+				"""
+				#2011-9-1 temporary addition to make sure it's sorted for Vasily
+				# input bam doesn't need to be indexed.
+				outputRGSortSAMFnamePrefix = os.path.join(outputDir, '%s_%s.RG.sorted'%(inputFileBaseNamePrefix, refName))
+				outputRGSortSAMFname = File('%s.bam'%(outputRGSortSAMFnamePrefix))
+				sam_sort_job = Job(namespace=namespace, name=samtools.name, version=version)
+				sam_sort_job.addArguments('sort', '-m', '2000000000', outputRG, outputRGSortSAMFnamePrefix)	#maxMemory is down to 2G
+				sam_sort_job.uses(outputRG, transfer=False, register=False, link=Link.INPUT)
+				sam_sort_job.uses(outputRGSortSAMFname, transfer=True, register=False, link=Link.OUTPUT)
+				job_max_memory = 2000	#in MB
+				sam_sort_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
+				sam_sort_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
+				workflow.addJob(sam_sort_job)
+				workflow.addDependency(parent=samToBamJob, child=sam_sort_job)
+				"""
+				
 		sys.stderr.write(".Done\n")
 		return PassingData(refName2jobDataLs=refName2jobDataLs, workflow=workflow)
 	
@@ -326,9 +346,11 @@ class AlignmentToCallPipeline(object):
 				java, createSequenceDictionaryJar=None, genotypeCallByCoverage=None, refFastaF=None, \
 				namespace='workflow', version="1.0", callOutputDir = "call", genotypeCallerType=1,\
 				mergeSamFilesJar=None, genomeAnalysisTKJar=None, calcula=None, refName2splitFastaJobDataLs=None, \
-				needFastaIndexJob=False, \
+				seqCoverageF=None, needFastaIndexJob=False, \
 				needFastaDictJob=False, site_type=1):
 		"""
+		2011-9-2
+			add argument seqCoverageF
 		2011-8-26
 			add argument needFastaDictJob, needFastaIndexJob, site_type
 		2011-7-26
@@ -412,7 +434,7 @@ class AlignmentToCallPipeline(object):
 				
 				gatk_job.addArguments('-jar', genomeAnalysisTKJar, \
 					"-I", picard_output, "-R", fastaFile, "-T", "UnifiedGenotyper","--out", gatk_output,\
-					'-U', '-S SILENT')
+					'-U', '-S SILENT', "-nt 4")
 				if site_type==1:
 					gatk_job.addArguments('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
 				gatk_job.uses(bai_output, transfer=False, register=True, link=Link.INPUT)	#make sure the bai file is still there upon start of this job 
@@ -450,7 +472,10 @@ class AlignmentToCallPipeline(object):
 			genotypeCallOutput = File(genotypeCallOutputFname)
 			genotypeCallByCoverage_job.addArguments("-i", coverageFilterParentOutput, "-n", str(len(jobDataLs)), \
 					"-o", genotypeCallOutput, '-e', refFastaF, '-y', str(genotypeCallerType), \
-					'-a', repr(self.maxMajorAlleleCoverage), '-M', repr(self.minMinorAlleleCoverage), '-s', repr(self.site_type))
+					'-s', repr(self.site_type))
+			if seqCoverageF:
+				genotypeCallByCoverage_job.addArguments("-q", seqCoverageF)
+				genotypeCallByCoverage_job.uses(seqCoverageF, transfer=True, register=True, link=Link.INPUT)
 			if coverageFilterParentOutput_bai:
 				genotypeCallByCoverage_job.uses(coverageFilterParentOutput_bai, transfer=False, register=True, link=Link.INPUT)	#make sure the bai file is still there upon start of this job 
 			genotypeCallByCoverage_job.uses(coverageFilterParentOutput, transfer=True, register=True, link=Link.INPUT)
@@ -482,6 +507,26 @@ class AlignmentToCallPipeline(object):
 			refName2mergedBamCallJob[refName] = [genotypeCallOutput, genotypeCallByCoverage_job]
 		sys.stderr.write(".Done\n")
 		return PassingData(refName2mergedBamCallJob=refName2mergedBamCallJob)
+	
+	def outputSeqCoverage(self, outputFname, ind_seq_id_ls=[]):
+		"""
+		2011-9-2
+		"""
+		sys.stderr.write("Outputting sequence coverage to %s ..."%outputFname)
+		import csv
+		counter = 0
+		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		writer.writerow(['isq.id', 'coverage'])
+		TableClass = VervetDB.IndividualSequence
+		query = TableClass.query.filter(TableClass.coverage!=None)
+		if ind_seq_id_ls:
+			query = query.filter(TableClass.id.in_(ind_seq_id_ls))
+		query = query.order_by(TableClass.id)
+		for row in query:
+			writer.writerow([row.id, row.coverage])
+			counter += 1
+		del writer
+		sys.stderr.write("%s entries fetched.\n"%(counter))
 	
 	def run(self):
 		"""
@@ -521,6 +566,7 @@ class AlignmentToCallPipeline(object):
 			# and no replica transfer
 		else:
 			refFastaF = File(refFastaFname)
+		
 		# Create a abstract dag
 		workflow = ADAG("AlignmentToCallPipeline")
 		vervetSrcPath = self.vervetSrcPath
@@ -548,6 +594,19 @@ class AlignmentToCallPipeline(object):
 												site_handler))
 		workflow.addFile(addOrReplaceReadGroupsAndCleanSQHeaderJar)
 		
+		abs_path = os.path.join(self.picard_path, 'AddOrReplaceReadGroups.jar')
+		addOrReplaceReadGroupsJar = File(abs_path)
+		addOrReplaceReadGroupsJar.addPFN(PFN("file://" + abs_path, \
+											site_handler))
+		workflow.addFile(addOrReplaceReadGroupsJar)
+		
+		#2011-9-2
+		self.outputSeqCoverage(self.seqCoverageFname)
+		seqCoverageF = File(os.path.basename(self.seqCoverageFname))
+		seqCoverageF.addPFN(PFN("file://" + self.seqCoverageFname, \
+											self.input_site_handler))
+		workflow.addFile(seqCoverageF)
+		
 		# Add executables to the DAX-level replica catalog
 		# In this case the binary is keg, which is shipped with Pegasus, so we use
 		# the remote PEGASUS_HOME to build the path.
@@ -565,11 +624,19 @@ class AlignmentToCallPipeline(object):
 		selectAndSplit.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "SelectAndSplitAlignment.py"), site_handler))
 		workflow.addExecutable(selectAndSplit)
 		
+		"""
 		# 2011-9-1 not used anymore. too slow. replace with addOrReplaceReadGroupsAndCleanSQHeaderJar.
 		addRGAndCleanSQHeaderAlignment = Executable(namespace=namespace, name="AddRGAndCleanSQHeaderAlignment", version=version, \
 												os=operatingSystem, arch=architecture, installed=True)
 		addRGAndCleanSQHeaderAlignment.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "AddRGAndCleanSQHeaderAlignment.py"), site_handler))
 		workflow.addExecutable(addRGAndCleanSQHeaderAlignment)
+		"""
+		# 2011-9-1 used
+		addRGToBAM = Executable(namespace=namespace, name="addRGToBAM", version=version, \
+										os=operatingSystem, arch=architecture, installed=True)
+		addRGToBAM.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "addRGToBAM.sh"), site_handler))
+		workflow.addExecutable(addRGToBAM)
+		
 		
 		selectAndSplitFasta = Executable(namespace=namespace, name="SelectAndSplitFastaRecords", version=version, \
 										os=operatingSystem, arch=architecture, installed=True)
@@ -613,7 +680,7 @@ class AlignmentToCallPipeline(object):
 							java=java, addOrReplaceReadGroupsAndCleanSQHeaderJar=addOrReplaceReadGroupsAndCleanSQHeaderJar, \
 							mkdir=mkdir, namespace=namespace, \
 							version=version, mkCallDirJob=mkCallDirJob,\
-							addRGAndCleanSQHeaderAlignment=addRGAndCleanSQHeaderAlignment, dataDir=self.dataDir)
+							addRGExecutable=addRGToBAM, dataDir=self.dataDir)
 		refName2jobDataLs = addSelectAndSplitBamReturnData.refName2jobDataLs
 		
 		returnData3 = self.addRefFastaFileSplitJobs(workflow, refFastaF, selectAndSplitFasta, refNameLs, mkdir=mkdir, samtools=samtools,
@@ -627,7 +694,8 @@ class AlignmentToCallPipeline(object):
 							namespace=namespace, version=version, callOutputDir = callOutputDir, \
 							genotypeCallerType=self.genotypeCallerType, \
 							mergeSamFilesJar=mergeSamFilesJar, genomeAnalysisTKJar=genomeAnalysisTKJar, calcula=calcula, \
-							refName2splitFastaJobDataLs=refName2splitFastaJobDataLs, needFastaIndexJob=self.needFastaIndexJob, \
+							refName2splitFastaJobDataLs=refName2splitFastaJobDataLs, seqCoverageF=seqCoverageF, \
+							needFastaIndexJob=self.needFastaIndexJob, \
 							needFastaDictJob=self.needFastaDictJob, site_type=self.site_type)
 		
 		refName2mergedBamCallJob =returnData2.refName2mergedBamCallJob
