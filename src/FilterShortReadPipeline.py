@@ -103,8 +103,9 @@ class FilterShortReadPipeline(object):
 		version="1.0"
 		
 		#add the MergeSamFiles.jar file into workflow
-		filterReadJar = File('FilterRead.jar')
-		filterReadJar.addPFN(PFN("file://" + os.path.join(self.picard_path, 'FilterRead.jar'), site_handler))
+		abs_path = os.path.join(self.picard_path, 'FilterRead.jar')
+		filterReadJar = File(abs_path)
+		filterReadJar.addPFN(PFN("file://" + abs_path, site_handler))
 		workflow.addFile(filterReadJar)
 		
 		
