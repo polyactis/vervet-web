@@ -7,3 +7,6 @@ pegasus.catalog.site.file=sites.xml
 pegasus.dir.useTimestamp=true
 pegasus.dir.storage.deep=false
 pegasus.transfer.links=true
+
+cluster.size=20
+dagman.retry=3
