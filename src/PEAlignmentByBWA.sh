@@ -1,5 +1,5 @@
 #!/bin/bash
-# 2011-9-7 bwa alignment through unix pipe for paired-end short-read
+# 2011-9-7 bwa sampe till sorted bam through unix pipe for paired-end short-read
 noOfAlnThreads=3
 if test $# -lt 6
 then
@@ -7,14 +7,13 @@ then
 	echo
 	echo "Note:"
 	echo "	1. refFastaFname must have been indexed by bwa."
-	echo "	2. This script uses $noOfAlnThreads threads in both aln."
-	echo "	3. Unmapped reads will be removed."
-	echo "	4. Final bam output is sorted. sorting uses 2G mem."
-	echo "	5. shell has to be bash. (...) is used."
+	echo "	2. Unmapped reads will be removed."
+	echo "	3. Final bam output is sorted. sorting uses 2G mem."
 	echo "Example:"
-	echo "	$0 120_480K_supercontigs.fasta individual_sequence/435_6136_2004030_GA_5/gerald_81GPBABXX_8_CGATGT_1.fastq.gz individual_sequence/435_6136_2004030_GA_5/gerald_81GPBABXX_8_CGATGT_2.fastq.gz 435_6136_2004030_GA_5/gerald_81GPBABXX_8_CGATGT"
+	echo "	$0 120_480K_supercontigs.fasta gerald_81GPBABXX_8_CGATGT_1.sai gerald_81GPBABXX_8_CGATGT_1.fastq.gz gerald_81GPBABXX_8_CGATGT_2.sai gerald_81GPBABXX_8_CGATGT_2.fastq.gz 435_6136_2004030_GA_5/gerald_81GPBABXX_8_CGATGT"
 exit
 fi
+#	echo "	4. shell has to be bash. (...) is used."
 
 bwaPath=~/bin/bwa
 samtoolsPath=~/bin/samtools
