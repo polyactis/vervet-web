@@ -111,8 +111,8 @@ cat >sites.xml <<EOF
 		<replica-catalog  type="LRC" url="rlsn://dummyValue.url.edu" />
 		<profile namespace="env" key="PEGASUS_HOME" >$CLUSTER_PEGASUS_HOME</profile>
 		<profile namespace="env" key="GLOBUS_LOCATION" >$CLUSTER_GLOBUS_LOCATION</profile>
-		<profile namespace="globus" key="maxwalltime">1380</profile>
-		
+		<profile namespace="globus" key="maxwalltime">1430</profile>
+		<profile namespace="env" key="BOWTIE_INDEXES">$CLUSTER_HOME_DIR/bin/bowtieIndexes</profile>
 		<profile namespace="env" key="HOME">$CLUSTER_HOME_DIR</profile>
 		<profile namespace="env" key="LD_LIBRARY_PATH" >/u/local/apps/python/2.6.5/lib:/u/local/intel/11.1/openmpi/1.4.2/lib:/u/local/compilers/intel/11.1/073/mkl/lib/em64t:/u/local/compilers/intel/11.1/073/lib/intel64</profile>
 		
@@ -141,6 +141,7 @@ cat >sites.xml <<EOF
 		<profile namespace="env" key="GLOBUS_LOCATION" >$USC_CLUSTER_GLOBUS_LOCATION</profile>
 		<profile namespace="globus" key="maxwalltime">13800</profile>
 		<profile namespace="globus" key="queue" >cmb</profile>
+		<profile namespace="env" key="BOWTIE_INDEXES">$USC_CLUSTER_HOME/bin/bowtieIndexes</profile>
 		<profile namespace="env" key="HOME">$USC_CLUSTER_HOME</profile>
 		<profile namespace="env" key="PATH" >$USC_CLUSTER_HOME/bin:/usr/usc/python/default/bin/:/usr/usc/root/5.27.02/bin:/usr/usc/matlab/2009a/bin:/usr/kerberos/bin:/usr/local/bin:/bin:/usr/bin:/usr/usc/jdk/default/bin/</profile>
 		<profile namespace="env" key="PYTHONPATH">$USC_CLUSTER_HOME/lib/python:/usr/usc/python/default/lib/python2.6/site-packages/</profile>
@@ -158,5 +159,6 @@ pegasus-plan \
 	--dir work \
 	--dax $dagFile \
 	--output local \
+	--cluster horizontal \
 	--submit
 #	--nocleanup \
