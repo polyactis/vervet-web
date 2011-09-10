@@ -1,9 +1,9 @@
 #!/bin/bash
 # 2011-9-7 bwa alignment through unix pipe for paired-end short-read
-noOfAlnThreads=4
-if test $# -lt 4
+noOfAlnThreads=3
+if test $# -lt 6
 then
-	echo "Usage: $0 refFastaFname fastqF1 fastqF2 outputBamFnamePrefix"
+	echo "Usage: $0 refFastaFname saiF1 saiF2 fastqF1 fastqF2 outputBamFnamePrefix"
 	echo
 	echo "Note:"
 	echo "	1. refFastaFname must have been indexed by bwa."
@@ -19,8 +19,10 @@ fi
 bwaPath=~/bin/bwa
 samtoolsPath=~/bin/samtools
 refFastaFname=$1
-fastqF1=$2
-fastqF2=$3
-outputBamFnamePrefix=$4
+saiF1=$2
+saiF2=$3
+fastqF1=$4
+fastqF2=$5
+outputBamFnamePrefix=$6
 
-$bwaPath sampe -P $refFastaFname <($bwaPath aln -t $noOfAlnThreads $refFastaFname $fastqF1) <($bwaPath aln -t $noOfAlnThreads $refFastaFname $fastqF2) $fastqF1 $fastqF2 | $samtoolsPath view  -F 4 -bSh - | $samtoolsPath sort -m 2000000000 - $outputBamFnamePrefix
+$bwaPath sampe -P $refFastaFname $saiF1 $saiF2 $fastqF1 $fastqF2 | $samtoolsPath view  -F 4 -bSh - | $samtoolsPath sort -m 2000000000 - $outputBamFnamePrefix
