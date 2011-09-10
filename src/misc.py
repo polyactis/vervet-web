@@ -2439,6 +2439,67 @@ class DBVervet(object):
 	"""
 	
 	@classmethod
+	def moveLostIndividualSeqFileIntoCorrespondingFolder(cls, db_vervet, dataDir=None, inputDir=None, outputDir=None):
+		"""
+		2011-9-7
+			dataDir is where the vanilla copy of db-affiliated storage is, used to generate the fname2folder dict
+			inputDir is where "lost" individual_sequence files are.
+			outputDir is where all "lost" files should be moved into. new folder will be created to house "lost files".
+			
+			If files in respective folder already exist, no move happens.
+		"""
+		sys.stderr.write("Moving lost individual_sequence files in %s into corresponding folders in %s ... \n"%(inputDir, outputDir))
+		import VervetDB
+		query = VervetDB.IndividualSequence.query.filter(VervetDB.IndividualSequence.id>=167)
+		if dataDir is None:
+			dataDir = db_vervet.data_dir
+		fname2folder = {}
+		no_of_folders = 0
+		for row in query:
+			if row.path:
+				abs_path = os.path.join(dataDir, row.path)
+				if os.path.isdir(abs_path):
+					files = os.listdir(abs_path)
+					folder = os.path.basename(abs_path)
+					no_of_folders  += 1
+					for fname in files:
+						if fname  in fname2folder:
+							sys.stderr.write("Error: %s already exists in this folder %s, here %s , 2nd folder.\n"%\
+											(fname, fname2folder.get(fname), folder))
+						else:
+							fname2folder[fname] = folder
+		sys.stderr.write("%s files in %s folders.\n"%(len(fname2folder), no_of_folders))
+		
+		from pymodule import runLocalCommand
+		lostFiles = os.listdir(inputDir)
+		no_of_files_moved = 0
+		for lostFname in lostFiles:
+			if lostFname in fname2folder:
+				folder = fname2folder.get(lostFname)
+				src_abs_path = os.path.join(inputDir, lostFname)
+				dst_folder_abs_path = os.path.join(outputDir, folder)
+				if not os.path.exists(dst_folder_abs_path):
+					os.makedirs(dst_folder_abs_path)
+				dst_abs_path = os.path.join(dst_folder_abs_path, lostFname)
+				if not os.path.exists(dst_abs_path):
+					commandline = "mv %s %s"%(src_abs_path, dst_folder_abs_path)
+					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+					no_of_files_moved += 1
+				else:
+					sys.stderr.write("%s already exists in %s. ignored.\n"%(lostFname, os.path.basename(dst_folder_abs_path)))
+		sys.stderr.write("Moved %s files.\n"%no_of_files_moved)
+	
+	"""
+		#2011-9-7
+		inputDir=os.path.expanduser('~/mnt/hpc-cmb_home/NetworkData/vervet/db/individual_sequence/')
+		DBVervet.moveLostIndividualSeqFileIntoCorrespondingFolder(db_vervet, dataDir=None, \
+			inputDir=inputDir, outputDir=inputDir)
+		sys.exit(0)
+		
+	"""
+	
+	
+	@classmethod
 	def putPedigreeIntoDB(cls, db_vervet, inputFname, monkeyIDPrefix="", \
 						collector_name='Nelson B. Freimer', tax_id=60711, \
 						city='VRC', country_name='United States of America', latitude=36.090, longitude=-80.270,\
@@ -3092,6 +3153,103 @@ class DBVervet(object):
 		
 	"""
 	
+	
+	@classmethod
+	def put2010StKittsColonyIntoDB(cls, db_vervet, inputFname, monkeyIDPrefix="", collector_name='St. Kitts Colony', \
+							country_name='Saint Kitts', tax_id=60711):
+		"""
+		2011-9-8
+			input is a spreasheet prepared by Qiao based on paper slides from Ania
+		"""
+		
+		sys.stderr.write("Putting 2010 St. Kitts Colony Samples (%s) into db ...\n"%(inputFname))
+		db_vervet.session.begin()
+		import csv, re
+		from datetime import datetime
+		from pymodule.utils import getColName2IndexFromHeader, figureOutDelimiter
+		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("AnimalID")
+		site_index = col_name2index.get("ORIGIN")
+		gps_index = col_name2index.get("GPS position")
+		sex_index = col_name2index.get("Sex")
+		age_index = col_name2index.get("Approx. Age (years)")
+		collection_date_index = col_name2index.get("CollectionDate")
+		whatIsIt_index = col_name2index.get("WhatIsIt")
+		comment_index = col_name2index.get("Comment")
+		originalORIGIN_index = col_name2index.get("OriginalORIGIN")
+		
+		gps_pattern = re.compile(r'(?P<lat>[-\d.]+), +(?P<lon>[-\d.]+)')
+		
+		collector = db_vervet.getUser(collector_name)
+		no_of_monkeys = 0
+		for row in reader:
+			monkey_id = monkeyIDPrefix + row[monkey_id_index]
+			site_str = row[site_index]
+			gps = row[gps_index]
+			sex = row[sex_index]
+			if len(row)>age_index:
+				age = row[age_index]
+				age = cls.filterValue(age, float)
+			else:
+				age = None
+			#collection_date = row[collection_date_index].strip()
+			collection_date = "04 2010"	#original text is "April 2010 SK"
+			if collection_date:
+				collection_date = datetime.strptime(collection_date, '%m %Y')
+			else:
+				collection_date = None
+			if gps:
+				gps_pattern_search = gps_pattern.search(gps)
+				if gps_pattern_search:
+					latitude = float(gps_pattern_search.group('lat'))
+					longitude = float(gps_pattern_search.group('lon'))
+				else:
+					sys.stderr.write("Error: gps %s is not parsable.\n"%(gps))
+					sys.exit(0)
+			else:
+				latitude = None
+				longitude = None
+			
+			if len(row)>comment_index:
+				comment = row[comment_index]
+			else:
+				comment = ""
+			if len(row)>whatIsIt_index:
+				whatIsIt = row[whatIsIt_index]
+			else:
+				whatIsIt = ""
+			if len(row)>originalORIGIN_index:
+				originalORIGIN = row[originalORIGIN_index]
+			else:
+				originalORIGIN = ""
+			if originalORIGIN:
+				originalORIGIN = "originalORIGIN: %s"%(originalORIGIN)
+			
+			comment_ls = [whatIsIt, comment, originalORIGIN]
+			comment = "; ".join(comment_ls)
+			
+			city = site_str.strip()
+			site = db_vervet.getSite(description=None, city=city, stateprovince=None, country_name=country_name, latitude=latitude,\
+									longitude=longitude)
+			
+			individual = db_vervet.getIndividual(code=monkey_id, sex=sex, age=age, latitude=latitude,\
+								longitude=longitude, altitude=None, ucla_id=None, site=site, \
+								collection_date=collection_date, collector=collector, tax_id=tax_id, comment=comment)
+			no_of_monkeys += 1
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		sys.stderr.write("%s monkeys. Done.\n"%(no_of_monkeys))
+	
+	"""
+		
+		#2011-9-8
+		inputFname = os.path.expanduser("/tmp/sk blood rna summary gps.csv")
+		DBVervet.put2010StKittsColonyIntoDB(db_vervet, inputFname)
+		sys.exit(0)
+		
+	"""
 	@classmethod
 	def drawPedigree(cls, db_vervet, outputFnamePrefix=None, baseNodeSize=40):
 		"""
@@ -3939,6 +4097,15 @@ class Main(object):
 		#curs = conn.cursor()
 		
 		#2011-6-27
+		contigFastaFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.fasta")
+		minSize = 2000
+		outputFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/superContigsMinSize%s.fasta"%minSize)
+		VervetGenome.outputContigsAboveCertainSize(contigFastaFname=contigFastaFname, \
+				outputFname=outputFname, minSize=minSize)
+		sys.exit(3)
+		
+		
+		#2011-6-27
 		contigAGPFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.agp")
 		contigFastaFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.fasta")
 		topNumber=156
@@ -3966,14 +4133,6 @@ class Main(object):
 		inputDir = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
 		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
 		VariantDiscovery.PCAContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
-		sys.exit(3)
-		
-		#2011-6-27
-		contigFastaFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.fasta")
-		minSize = 1000
-		outputFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/superContigsMinSize%s.fasta"%minSize)
-		VervetGenome.outputContigsAboveCertainSize(contigFastaFname=contigFastaFname, \
-				outputFname=outputFname, minSize=minSize)
 		sys.exit(3)
 		
 		
