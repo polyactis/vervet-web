@@ -276,6 +276,122 @@ class VariantDiscovery(object):
 		pass
 	
 	@classmethod
+	def putFinishedFileIntoReplicaCatalog(cls, inputDir=None, site='uschpc',cutOffTime="2011 09 10 20:00", outputFname=None):
+		"""
+		2011-9-11
+			for a half-finished pegasus workflow (inside inputDir) 
+				regard any file before certain timestamp as finished and replica-catalog-eligible
+			
+			The outputFname contains the replica entries.
+			
+			inputDir has to be in absolute path. no relative path.
+		"""
+		from pymodule.utils import getAllFiles
+		inputFiles = []
+		inputDir = os.path.abspath(inputDir)
+		sys.stderr.write("Finding all files in %s ..."%inputDir)
+		getAllFiles(inputDir, inputFiles)
+		sys.stderr.write("%s files found.\n"%(len(inputFiles)))
+		from datetime import datetime
+		
+		cutOffTime = datetime.strptime(cutOffTime, "%Y %m %d %H:%M")
+		outf = open(outputFname, 'w')
+		no_of_files = 0
+		counter = 0
+		for fname in inputFiles:
+			counter += 1
+			statinfo = os.lstat(fname)	#lstat is same as stat except it doesn't follow sym link
+			if datetime.fromtimestamp(statinfo.st_mtime)<=cutOffTime:	#st_mtime is unix time in seconds
+				no_of_files += 1
+				dirNameLength = len(inputDir)
+				relativePath = fname[dirNameLength:]	#"/" should be excluded
+				if relativePath[0]=="/":	#but in case
+					relativePath = relativePath[1:]
+				outf.write('%s file://%s pool="%s"\n'%(relativePath, fname, site))
+		del outf
+		sys.stderr.write("%s/%s files before cutOffTime %s.\n"%(no_of_files, counter, cutOffTime))
+		
+	
+	"""
+		#2011-9-11
+		inputDir = os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110909T231932-0700/")
+		site='uschpc'
+		cutOffTime="2011 09 10 20:00"
+		outputFname = ""
+		VariantDiscovery.putFinishedFileIntoReplicaCatalog(inputDir=inputDir, site=site,cutOffTime=cutOffTime, \
+			outputFname=outputFname)
+		sys.exit(0)
+		
+		#inputDir = os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110909T231932-0700/")
+		site='uschpc'
+		cutOffTime="2011 09 10 20:00"
+		outputFname = os.path.expanduser("~/replica.txt")
+		VariantDiscovery.putFinishedFileIntoReplicaCatalog(inputDir=self.input, site=site,cutOffTime=cutOffTime, \
+			outputFname=outputFname)
+		sys.exit(0)
+		
+		
+	"""
+	
+	
+	@classmethod
+	def moveFinishedBamIntoTargetFolder(cls, inputDirLs=None, outputDir=None, targetFolderSizeThreshold=1000000000):
+		"""
+		2011-9-12
+			targetFolderSizeThreshold is in KB
+		"""
+		from pymodule.utils import runLocalCommand
+		commandline = "du -s %s |awk '{print $1}'"%(outputDir)
+		return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+		folderSizeInKB = int(return_data.stdout_content.strip())
+		
+		from datetime import datetime, timedelta
+		import os, sys
+		timeGap = timedelta(minutes=5)
+		
+		no_of_files = 0
+		counter = 0
+		
+		while folderSizeInKB<targetFolderSizeThreshold:
+			for inputDir in inputDirLs:
+				fnameLs = os.listdir(inputDir)
+				for fname in fnameLs:
+					fname_ext = os.path.splitext(fname)[1]
+					if fname_ext=='.bam':
+						counter += 1
+						bam_abs_path = os.path.join(inputDir, fname)
+						bai_fname = '%s.bai'%(fname)
+						bai_fname_abs_path = os.path.join(inputDir, bai_fname)
+						if os.path.isfile(bai_fname_abs_path):
+							current_time = datetime.now()
+							statinfo = os.stat(bai_fname_abs_path)	#stat is same as lstat except it does follow sym link
+							bai_mtime = datetime.fromtimestamp(statinfo.st_mtime)
+							
+							if (current_time-bai_mtime)>timeGap:
+								no_of_files += 1
+								#move both files
+								commandline = 'mv %s %s'%(bam_abs_path, outputDir)
+								runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+								
+								commandline = 'mv %s %s'%(bai_fname_abs_path, outputDir)
+								runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+			import os
+			os.system("sleep 120")
+			
+			commandline = "du -s %s |awk '{print $1}'"%(outputDir)
+			return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+			folderSizeInKB = int(return_data.stdout_content.strip())
+		
+		
+		sys.stderr.write("%s/%s files moved. current folder size %s KB.\n"%(no_of_files, counter, folderSizeInKB))
+		
+	"""
+		#2011-9-12
+		
+		VariantDiscovery.moveFinishedBamIntoTargetFolder(inputDirLs=None, outputDir=None, targetFolderSizeThreshold=1000000000)
+		sys.exit(0)
+	"""
+	@classmethod
 	def getIndividual2ColIndex(cls, header, col_name2index, sampleStartingColumn=9):
 		"""
 		2011-3-4
@@ -2439,6 +2555,55 @@ class DBVervet(object):
 	"""
 	
 	@classmethod
+	def pokeBamReadGroupPresence(cls, db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), dataDir=None, commit=False):
+		"""
+		2011-5-9
+		"""
+		sys.stderr.write("checking which bam file in individual_alignment table has read group or not ... \n")
+		import VervetDB
+		if dataDir is None:
+			dataDir = db_vervet.data_dir
+		session = db_vervet.session
+		session.begin()
+		import pysam
+		query = VervetDB.IndividualAlignment.query.filter_by(format='bam')
+		counter = 0
+		real_counter = 0
+		for row in query:
+			counter += 1
+			sys.stderr.write('%s: %s'%(counter, row.path))
+			
+			bam_pathname = os.path.join(dataDir, row.path)
+			if os.path.isfile(bam_pathname):
+				samfile = pysam.Samfile(bam_pathname, "rb" )
+				if "RG" not in samfile.header:
+					read_group_added=0
+				else:
+					read_group_added=1
+				del samfile
+			else:
+				read_group_added=None	#file doesn't exist
+			if row.read_group_added!=read_group_added:
+				row.read_group_added = read_group_added
+				real_counter += 1
+				session.add(row)
+			sys.stderr.write('.\n')
+		if commit:
+			session.commit()
+		else:
+			session.rollback()
+		sys.stderr.write("%s/%s bams has read_group_added changed. Done.\n"%(real_counter, counter))
+	
+	"""
+		#2011-9-15
+		dataDir = os.path.expanduser("~/mnt/hpc-cmb_home/NetworkData/vervet/db/")
+		DBVervet.pokeBamReadGroupPresence(db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), dataDir=dataDir, commit=True)
+		sys.exit(0)
+		
+		
+	"""
+	
+	@classmethod
 	def moveLostIndividualSeqFileIntoCorrespondingFolder(cls, db_vervet, dataDir=None, inputDir=None, outputDir=None):
 		"""
 		2011-9-7
@@ -3958,6 +4123,8 @@ class VervetGenome(object):
 				outputFname=outputFname, topNumber=topNumber)
 		sys.exit(3)
 		
+		
+		
 	"""
 	
 	@classmethod
@@ -4003,6 +4170,14 @@ class VervetGenome(object):
 				outputFname=outputFname, minSize=200)
 		sys.exit(3)
 		
+		
+			#2011-6-27
+		contigFastaFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.fasta")
+		minSize = 2000
+		outputFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/superContigsMinSize%s.fasta"%minSize)
+		VervetGenome.outputContigsAboveCertainSize(contigFastaFname=contigFastaFname, \
+				outputFname=outputFname, minSize=minSize)
+		sys.exit(3)
 		
 	"""
 	
@@ -4065,8 +4240,8 @@ class Main(object):
 							('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
 							('db_user', 1, ): [None, 'u', 1, 'database username', ],\
 							('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-							('inputFname', 0, ): ['', 'i', 1, 'common input file.', ],\
-							('outputFname', 0, ): ['', 'o', 1, 'common output file', ],\
+							('input', 0, ): ['', 'i', 1, 'common input.', ],\
+							('output', 0, ): ['', 'o', 1, 'common output', ],\
 							('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 							('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 	
@@ -4096,23 +4271,20 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2011-6-27
-		contigFastaFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.fasta")
-		minSize = 2000
-		outputFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/superContigsMinSize%s.fasta"%minSize)
-		VervetGenome.outputContigsAboveCertainSize(contigFastaFname=contigFastaFname, \
-				outputFname=outputFname, minSize=minSize)
-		sys.exit(3)
+		#2011-9-15
+		dataDir = os.path.expanduser("~/mnt/hpc-cmb_home/NetworkData/vervet/db/")
+		DBVervet.pokeBamReadGroupPresence(db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), dataDir=dataDir, commit=True)
+		sys.exit(0)
 		
+		#2011-9-12
+		inputDirLs = [os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110913T192749-0700/"),]
 		
-		#2011-6-27
-		contigAGPFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.agp")
-		contigFastaFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.fasta")
-		topNumber=156
-		outputFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/top%ssupercontigs.fasta"%topNumber)
-		VervetGenome.outputTopBigContigs(contigAGPFname=contigAGPFname, contigFastaFname=contigFastaFname, \
-				outputFname=outputFname, topNumber=topNumber)
-		sys.exit(3)
+		#os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110910T002453-0700/"),
+		#os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110910T105558-0700/")
+		outputDir = os.path.expanduser("~/NetworkData/vervet/db/individual_alignment/")
+		VariantDiscovery.moveFinishedBamIntoTargetFolder(inputDirLs=inputDirLs, outputDir=outputDir, \
+														targetFolderSizeThreshold=2000000000)
+		sys.exit(0)
 		
 		#2011-8-26
 		
