@@ -358,6 +358,8 @@ class AlignmentMethod(Entity, TableClass):
 
 class IndividualAlignment(Entity, TableClass):
 	"""
+	2011-9-19
+		add mean_depth, read_group_added
 	2011-8-3
 		add column median_depth, mode_depth
 	2011-3-3
@@ -370,6 +372,8 @@ class IndividualAlignment(Entity, TableClass):
 	format = Field(String(512))
 	median_depth = Field(Float)	#2011-8-2
 	mode_depth = Field(Float)	#2011-8-2
+	mean_depth = Field(Float)	#2011-9-12
+	read_group_added = Field(Integer, default=0)	# 2011-9-15 0=No, 1=Yes
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -858,8 +862,10 @@ class VervetDB(ElixirDB):
 					sequence_type='SR', sequence_format='fastq', \
 					ref_individual_sequence_id=10, \
 					alignment_method_name='bwa-short-read', alignment_format='bam', subFolder='individual_alignment', \
-					createSymbolicLink=False, individual_sequence_filtered=0):
+					createSymbolicLink=False, individual_sequence_filtered=0, read_group_added=None):
 		"""
+		2011-9-15
+			add argument read_group_added
 		2011-8-30
 			add argument individual_sequence_id
 			use constructRelativePathForIndividualAlignment() to come up path
@@ -884,7 +890,7 @@ class VervetDB(ElixirDB):
 		db_entry = query.first()
 		if not db_entry:
 			db_entry = IndividualAlignment(ind_seq_id=individual_sequence.id, ref_ind_seq_id=ref_individual_sequence_id,\
-								aln_method_id=alignment_method.id, format=alignment_format)
+								aln_method_id=alignment_method.id, format=alignment_format, read_group_added=read_group_added)
 			self.session.add(db_entry)
 			self.session.flush()
 			#copy the file over
