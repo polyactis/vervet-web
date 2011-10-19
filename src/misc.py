@@ -2327,8 +2327,10 @@ class VariantDiscovery(object):
 	"""
 	
 	@classmethod
-	def readContigDistVector(cls, inputDir):
+	def readContigDistVector(cls, inputDir, refID='ref'):
 		"""
+		2011-10-18
+			the xlabel will now distinguish the VRC_ref_454 and VRC_ref_GA
 		2011-8-2
 			used by PCAContigByDistVectorFromOtherGenomes() and drawContigByDistVectorFromOtherGenomes()
 		"""
@@ -2339,7 +2341,7 @@ class VariantDiscovery(object):
 		col_id_ls = []
 		data_matrix = []
 		for fname in os.listdir(inputDir):
-			sys.stderr.write("%s ..."%fname)
+			#sys.stderr.write("%s ..."%fname)
 			inputFname = os.path.join(inputDir, fname)
 			contig_id_pattern_sr = contig_id_pattern.search(inputFname)
 			if contig_id_pattern_sr:
@@ -2354,27 +2356,57 @@ class VariantDiscovery(object):
 					if not col_id_ls:
 						col_id_ls = row[1:]
 					matrixStart = True
-				if matrixStart and row[0]=='ref':
+				if matrixStart and row[0]==refID:
 					data_row = row[1:]
 					data_row = map(float, data_row)
 					data_matrix.append(data_row)
-			sys.stderr.write("Done.\n")
+			#sys.stderr.write("Done.\n")
 		data_matrix = numpy.array(data_matrix)
-		take1stSplit = lambda x: x.split("_")[0]
-		col_id_ls = map(take1stSplit, col_id_ls)
+		take1stSplit = lambda x: x.split("_GA_vs_")[0]
+		for i in range(len(col_id_ls)):
+			col_id = col_id_ls[i]
+			newXLabel = take1stSplit(col_id)
+			if newXLabel[:7] == 'VRC_ref':
+				newXLabel = col_id.split('_vs_')[0]	#a different split for VRC_ref to retain the sequencer
+			col_id_ls[i] = newXLabel
 		vectorData = SNPData(row_id_ls=row_id_ls, col_id_ls=col_id_ls, data_matrix=data_matrix)
-		
+		sys.stderr.write("%s rows and %s columns.\n"%(data_matrix.shape[0], data_matrix.shape[1]))
 		return vectorData
 	
 	@classmethod
-	def drawContigByDistVectorFromOtherGenomes(cls, inputDir, outputFnamePrefix):
+	def reorderGenomeDistVector(cls, data_row, subspeciesName2index=None, subspeciesNameLs=[],\
+							target_ID_order=['ref', 'VRC_ref_454', 'VRC_ref_GA', 'Barbados']):
+		"""
+		2011-10-13
+			arrange data entries in data_row so that target_ID2index is met first and then everything else
+		"""
+		new_data_row = []
+		indexUsedSet = set()
+		new_subspeciesName2index = {}
+		for target_ID in target_ID_order:
+			indexOfTarget = subspeciesName2index.get(target_ID)
+			if indexOfTarget is not None:
+				indexUsedSet.add(indexOfTarget)
+				new_subspeciesName2index[target_ID] = len(new_data_row)
+				new_data_row.append(data_row[indexOfTarget])
+		
+		for i in xrange(len(data_row)):
+			if i not in indexUsedSet:
+				subspeciesName = subspeciesNameLs[i]
+				new_subspeciesName2index[subspeciesName] = len(new_data_row)
+				new_data_row.append(data_row[i])
+		return new_data_row, new_subspeciesName2index
+	
+	@classmethod
+	def drawContigByDistVectorFromOtherGenomes(cls, inputDir, outputFnamePrefix, refID="sabaeus_GA_vs_top156Contigs",\
+											subspeciesName='sabaeus'):
 		"""
 		2011-8-2
 			This program draws the distance vector of other genomes to each contig.
 			
 			The inputDir contains output by CalculatePairwiseDistanceOutOfSNPXStrainMatrix.py
 		"""
-		vectorData = cls.readContigDistVector(inputDir)
+		vectorData = cls.readContigDistVector(inputDir, refID=refID)
 		
 		# run PCA
 		sys.stderr.write("Drawing all distance vectors ...")
@@ -2382,25 +2414,44 @@ class VariantDiscovery(object):
 		
 		import pylab
 		pylab.clf()
-		xlabel_ls = vectorData.col_id_ls[1:3] + [vectorData.col_id_ls[0]] + vectorData.col_id_ls[3:6] + vectorData.col_id_ls[7:9]
+		target_ID_order=['ref', 'VRC_ref_454', 'VRC_ref_GA', 'Barbados']
+		xlabel_ls, new_subspeciesName2index = cls.reorderGenomeDistVector(vectorData.col_id_ls, \
+									subspeciesName2index=vectorData.col_id2col_index,\
+									subspeciesNameLs=vectorData.col_id_ls, target_ID_order=target_ID_order)
+		#skip the column for the subspeciesName itself.
+		indexOfrefID = new_subspeciesName2index[subspeciesName]
+		xlabel_ls = xlabel_ls[0:indexOfrefID] + xlabel_ls[indexOfrefID+1:]
+		#xlabel_ls = vectorData.col_id_ls[1:3] + [vectorData.col_id_ls[0]] + vectorData.col_id_ls[3:6] + vectorData.col_id_ls[7:9]
+		
+		for i in range(len(xlabel_ls)):
+			xlabel = xlabel_ls[i]
+			if xlabel[:7] == 'VRC_ref':
+				xlabel = xlabel[4:]
+			xlabel_ls[i] = xlabel
+		
 		for data_row in vectorData.data_matrix:
 			data_row = list(data_row)
-			new_data_row = data_row[1:3] + [data_row[0]] + data_row[3:6] + data_row[7:9]
-			
+			#new_data_row = data_row[1:3] + [data_row[0]] + data_row[3:6] + data_row[7:9]
+			#skip the column for the subspeciesName itself.
+			new_data_row, new_subspeciesName2index = cls.reorderGenomeDistVector(data_row, \
+									subspeciesName2index=vectorData.col_id2col_index,\
+									subspeciesNameLs=vectorData.col_id_ls, target_ID_order=target_ID_order)
+			new_data_row = new_data_row[0:indexOfrefID] + new_data_row[indexOfrefID+1:]
 			pylab.plot(range(len(new_data_row)), new_data_row)
-		pylab.title("Distance vector from %s genomes to %s contigs"%(len(xlabel_ls), len(vectorData.row_id_ls)))
+		pylab.title("Distance vector from %s genomes to %s of %s contigs"%(len(xlabel_ls), subspeciesName, len(vectorData.row_id_ls)))
 		pylab.xticks(range(len(xlabel_ls)), xlabel_ls)
 		pylab.savefig(outputFname, dpi=200)
 		sys.stderr.write("Done.\n")
-		
+
 	"""
 		#2011-8-2
-		inputDir = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
-		outputFnamePrefix = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
-		VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
-		sys.exit(3)
+		inputDir = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_all_bases/pairwiseDistMatrix/'
+		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_all_bases_ContigByDistVectorFrom8Genomes'
+		VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix, refID='ref')
+		sys.exit(0)
+		
 	"""
-	
+
 	@classmethod
 	def compareContigByDistVectorFromTwoDifferentRuns(cls, inputDir1, inputDir2, outputFnamePrefix, partOfTitle=""):
 		"""
@@ -2439,6 +2490,288 @@ class VariantDiscovery(object):
 		
 	"""
 	
+	
+	@classmethod
+	def getContigTsTvList(cls, inputDir, suffix='.TiTv.100000.log'):
+		"""
+		2011-9-23
+			used by drawContigTsTvHistogram
+		"""
+		from pymodule import SNPData
+		import csv, os, sys, re
+		contig_id_pattern = re.compile(r'Contig(\d+).*')
+		row_id_ls = []
+		TsTvLs = []
+		for fname in os.listdir(inputDir):
+			if fname.find(suffix)!=-1:
+				
+				sys.stderr.write("%s ..."%fname)
+				inputFname = os.path.join(inputDir, fname)
+				contig_id_pattern_sr = contig_id_pattern.search(inputFname)
+				if contig_id_pattern_sr:
+					contig_id = contig_id_pattern_sr.group(1)
+				else:
+					contig_id = os.path.splitext(os.path.split(inputFname)[1])[0]
+				row_id_ls.append(contig_id)
+				inf = open(inputFname)
+				for line in inf:
+					if line.find('Ts/Tv ratio: ')==0:
+						row = line.strip().split(":")
+						TsTv = row[-1].strip()
+						TsTv = float(TsTv)
+						TsTvLs.append(TsTv)
+				sys.stderr.write("Done.\n")
+		
+		return TsTvLs
+	
+	@classmethod
+	def drawContigTsTvHistogram(cls, inputDir, outputFname):
+		"""
+		2011-9-23
+		"""
+		TsTvLs = cls.getContigTsTvList(inputDir, suffix='.TiTv.100000.log')
+		from pymodule.yh_matplotlib import drawHist
+		drawHist(TsTvLs, title="hist of TsTv of %s contigs"%(len(TsTvLs)), \
+				xlabel_1D="TsTv", xticks=None, outputFname=outputFname, min_no_of_data_points=20, needLog=False, \
+				dpi=200)
+	
+	"""
+		#2011-9-23
+		inputDir = 
+		outputFname
+		VariantDiscovery.drawHist(inputDir, outputFname)
+		sys.exit(0)
+	"""
+	
+	@classmethod
+	def getContig2Locus2Frequency(cls, inputDir, VCFOutputType=2):
+		"""
+		2011-9-21
+		
+		"""
+		from pymodule import SNPData
+		import numpy, csv, os, sys, re, gzip
+		from pymodule.utils import runLocalCommand, getColName2IndexFromHeader
+		from GenotypeCallByCoverage import GenotypeCallByCoverage
+		contig_id_pattern = re.compile(r'Contig(\d+).*')
+		contig2locus2frequency = {}
+		for fname in os.listdir(inputDir):
+			if fname[-6:]!='vcf.gz' and fname[-3:]!='vcf':
+				continue
+			sys.stderr.write("%s ..."%fname)
+			inputFname = os.path.join(inputDir, fname)
+			contig_id_pattern_sr = contig_id_pattern.search(inputFname)
+			if contig_id_pattern_sr:
+				contig_id = contig_id_pattern_sr.group(1)
+			else:
+				contig_id = os.path.splitext(os.path.split(inputFname)[1])[0]
+			if contig_id not in contig2locus2frequency:
+				contig2locus2frequency[contig_id] = {}
+			
+			if inputFname[-3:]=='.gz':
+				import gzip
+				inf = gzip.open(inputFname)
+			else:
+				inf = open(inputFname)
+			reader = csv.reader(inf, delimiter='\t')
+			
+			counter = 0
+			real_counter = 0
+			
+			
+			for row in reader:
+				if row[0] =='#CHROM':
+					row[0] = 'CHROM'	#discard the #
+					header = row
+					col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+					#individual_name2col_index = GenotypeCallByCoverage.getIndividual2ColIndex(header, col_name2index)
+					continue
+				elif row[0][0]=='#':	#2011-3-4
+					continue
+				"""
+				if chr_number_pattern.search(row[0]):
+					chr = chr_number_pattern.search(row[0]).group(1)
+				elif chr_pure_number_pattern.search(row[0]):
+					chr = chr_pure_number_pattern.search(row[0]).group(1)
+				else:
+					sys.stderr.write("Couldn't parse the chromosome number/character from %s.\n Exit.\n"%(row[0]))
+					sys.exit(4)
+				"""
+				chr = row[0]
+				pos = row[1]
+				quality = row[5]
+				
+				outputHet= False
+				
+				info = row[7]
+				info_ls = info.split(';')
+				info_tag2value = {}
+				for info in info_ls:
+					try:
+						tag, value = info.split('=')
+					except:
+						#sys.stderr.write("Error in splitting %s by =.\n"%info)	###Error in splitting DS by =.
+						continue
+					info_tag2value[tag] = value
+				
+				current_locus = '%s_%s'%(chr, pos)
+				refBase = row[col_name2index['REF']]
+				altBase = row[col_name2index['ALT']]
+				if "AF1" in info_tag2value:
+					AF1 = info_tag2value.get("AF1")
+				else:
+					AF1 = info_tag2value.get("AF")
+				if AF1:
+					AF1 = float(AF1)
+					contig2locus2frequency[contig_id][current_locus] = AF1
+			
+			sys.stderr.write("%s loci. Done.\n"%(len(contig2locus2frequency[contig_id])))
+		return contig2locus2frequency
+	
+	@classmethod
+	def isLocusPolymorphicBasedOnAAF(cls, frequency, frequencyDelta=0.001):
+		"""
+		2011-9-28
+		"""
+		distanceTo1 = abs(frequency-1.0)
+		distanceTo0 = abs(frequency-0.0)
+		if distanceTo0<frequencyDelta or distanceTo1<frequencyDelta:
+			return False
+		else:
+			return True
+	
+	@classmethod
+	def compareAlternativeAlleleFrequencyOfTwoCallSets(cls, inputDir1, inputDir2, outputDir, min_no_of_data_points=10, \
+													xlabel='', ylabel='', dpi=300, frequencyDelta=0.001):
+		"""
+		2011-9-21
+			purpose is to compare alternative allele frequency and get to know what portion is polymorphic.
+		
+			argument frequencyDelta is used to judge whether one frequency is close to 0 or 1, which essentially means
+				these loci are not polymorphic.
+		"""
+		contig2locus2frequency_1 = cls.getContig2Locus2Frequency(inputDir1)
+		contig2locus2frequency_2 = cls.getContig2Locus2Frequency(inputDir2)
+		
+		import os, sys
+		from pymodule import yh_matplotlib
+		if not os.path.isdir(outputDir):
+			os.makedirs(outputDir)
+		
+		for contig in contig2locus2frequency_1:
+			if contig in contig2locus2frequency_2:
+				locus2frequency_1 = contig2locus2frequency_1.get(contig)
+				locus2frequency_2 = contig2locus2frequency_2.get(contig)
+				outputFname = os.path.join(outputDir, '%s_AF1.png'%contig)
+				x_ls = []
+				y_ls = []
+				AAF_ls_1 = []
+				AAF_ls_2 = []
+				locus_set = set(locus2frequency_1.keys())|set(locus2frequency_2.keys())
+				shared_locus_set = set(locus2frequency_1.keys())&set(locus2frequency_2.keys())
+				no_of_loci_Dir1 = len(locus2frequency_1.keys())
+				no_of_loci_Dir2 = len(locus2frequency_2.keys())
+				no_of_total_loci = len(locus_set)
+				no_of_shared_loci = no_of_loci_Dir1 + no_of_loci_Dir2 - no_of_total_loci
+				
+				shared_polymorphic_locus_set = set()
+				for locus in locus_set:
+					frequency_1 = locus2frequency_1.get(locus)
+					frequency_2 = locus2frequency_2.get(locus)
+					if frequency_1 is None:
+						frequency_1 = 0
+					if frequency_2 is None:
+						frequency_2 = 0
+					locusPolymorphicInPop1 = cls.isLocusPolymorphicBasedOnAAF(frequency_1, frequencyDelta=frequencyDelta)
+					locusPolymorphicInPop2 = cls.isLocusPolymorphicBasedOnAAF(frequency_2, frequencyDelta=frequencyDelta)
+					if locusPolymorphicInPop1 and locusPolymorphicInPop2:
+						x_ls.append(frequency_1)
+						y_ls.append(frequency_2)
+						shared_polymorphic_locus_set.add(locus)
+					elif locusPolymorphicInPop1:
+						AAF_ls_1.append(frequency_1)
+					elif locusPolymorphicInPop2:
+						AAF_ls_2.append(frequency_2)
+				
+				no_of_shared_loci = len(shared_polymorphic_locus_set)
+				no_of_loci_Dir1 = len(AAF_ls_1) + no_of_shared_loci
+				no_of_loci_Dir2 = len(AAF_ls_2) + no_of_shared_loci
+				no_of_total_loci = no_of_loci_Dir1 + no_of_loci_Dir2 - no_of_shared_loci
+				
+				
+				import pylab
+				pylab.clf()
+				no_of_data_points = len(x_ls)
+				if no_of_data_points>=min_no_of_data_points:
+					pylab.plot(x_ls, y_ls, ".",)
+					pylab.title('Contig%s %s shared & %s total loci'%(contig, no_of_shared_loci, no_of_total_loci))
+					if xlabel:
+						pylab.xlabel("%s loci in %s"%(no_of_loci_Dir1, xlabel))
+					if ylabel:
+						pylab.ylabel("%s loci in %s"%(no_of_loci_Dir2, ylabel))
+					pylab.savefig(outputFname, dpi=dpi)
+				
+				outputFname = os.path.join(outputDir, '%s_AAF_hist_SNPs_unique_in_%s.png'%(contig, xlabel))
+				yh_matplotlib.drawHist(AAF_ls_1, title="%s SNPs on contig%s unique in %s"%(no_of_loci_Dir1- no_of_shared_loci, contig, xlabel), \
+									xlabel_1D="Alternative Allele Frequency", xticks=None, outputFname=outputFname, min_no_of_data_points=20, needLog=False, \
+									dpi=200)
+				outputFname = os.path.join(outputDir, '%s_AAF_hist_SNPs_unique_in_%s.png'%(contig, ylabel))
+				yh_matplotlib.drawHist(AAF_ls_2, title="%s SNPs on contig%s unique in %s"%(no_of_loci_Dir2- no_of_shared_loci, contig, ylabel), \
+									xlabel_1D="Alternative Allele Frequency", xticks=None, outputFname=outputFname, min_no_of_data_points=20, needLog=False, \
+									dpi=200)
+	
+	"""
+		#2011-9-21
+		inputDir1 = "/Network/Data/vervet/vervetPipeline/AlignmentToCallPipeline_10VWP_627_629_650_656_vs_524_top_156Contigs_uschpc/call/"
+		inputDir2 = "/Network/Data/vervet/vervetPipeline/AlignmentToCallPipeline_552_554_557_605_615_vs_524_top_156Contigs_uschpc_bugfix/call/"
+		outputDir = "/Network/Data/vervet/vervetPipeline/10VWP_vs_552_554_557_605_615/"
+		VariantDiscovery.compareAlternativeAlleleFrequencyOfTwoCallSets(inputDir1, inputDir2, \
+				outputDir, min_no_of_data_points=10, \
+				xlabel="VWP", ylabel='VRC', dpi=200)
+		sys.exit(0)
+		
+		#2011-9-21
+		inputDir1 = "/Network/Data/vervet/vervetPipeline/AlignmentToCallPipeline_4_8_vs_524_top_156Contigs_uschpc/call/"
+		inputDir2 = "/Network/Data/vervet/vervetPipeline/AlignmentToCallPipeline_552_554_557_605_615_vs_524_top_156Contigs_uschpc_bugfix/call/"
+		outputDir = "/Network/Data/vervet/vervetPipeline/5AfricanSubspecies_vs_552_554_557_605_615/"
+		VariantDiscovery.compareAlternativeAlleleFrequencyOfTwoCallSets(inputDir1, inputDir2, \
+				outputDir, min_no_of_data_points=10, \
+				xlabel="5AfricanSubspecies", ylabel='VRC', dpi=200)
+		sys.exit(0)
+		
+		#2011-9-21
+		callFolder = 'call'
+		callFolder = 'samtools'
+		#callFolder = 'gatk'
+		workDir1 = 'AlignmentToCallPipeline_10VWP_627_629_650_656_vs_524_top_156Contigs_condorpool_20110922T1837/call'
+		xlabel = "VWP"
+		workDir1 = "AlignmentToCallPipeline_5StKitts_isq_121-123_125_129_vs_524_top_156Contigs_condor_20110926T1323/%s"%(callFolder)
+		xlabel = "5StKitts_%s"%callFolder
+		workDir1 = "AlignmentToCallPipeline_5Nevis_isq_124_126-128_130_vs_524_top_156Contigs_condor_20110926T1325/%s"%(callFolder)
+		xlabel="5Nevis_%s"%(callFolder)
+		#workDir1 = "AlignmentToCallPipeline_555_559_589_vs_524_top_156Contigs_uschpc_bugfix/call"
+		#xlabel = "VRC_555_559-589"
+		inputDir1 = "/Network/Data/vervet/vervetPipeline/%s/"%(workDir1)
+		
+		workDir2 = "AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/%s"%(callFolder)
+		ylabel = 'AllVRC_Barbados_%s'%(callFolder)
+		#workDir2 = "AlignmentToCallPipeline_5Nevis_isq_124_126-128_130_vs_524_top_156Contigs_condor_20110926T1325/%s"%(callFolder)
+		#ylabel="5Nevis_%s"%(callFolder)
+		workDir2 = "AlignmentToCallPipeline_isq_id_22_31_33_36_43_48_52_56_57_64_68_70_71_81_83_vs_524_top_156Contigs_condor_20110923T1526/%s"%(callFolder)
+		ylabel = "15DistantVRC_%s"%(callFolder)
+		#workDir2 = "AlignmentToCallPipeline_558_616_656_vs_524_top_156Contigs_uschpc/call"
+		#ylabel="VRC_558_616-656"
+		inputDir2 = "/Network/Data/vervet/vervetPipeline/%s/"%(workDir2)
+		
+		outputDir = "/Network/Data/vervet/vervetPipeline/AAF_%s_vs_%s_polymorphic_only/"%(xlabel, ylabel)
+		VariantDiscovery.compareAlternativeAlleleFrequencyOfTwoCallSets(inputDir1, inputDir2, \
+				outputDir, min_no_of_data_points=10, \
+				xlabel=xlabel, ylabel=ylabel, dpi=200)
+		sys.exit(0)
+	"""
+
+		
+
 # 2011-4-29 a handy function to strip blanks around strings
 strip_func = lambda x: x.strip()
 
@@ -3415,6 +3748,7 @@ class DBVervet(object):
 		sys.exit(0)
 		
 	"""
+	
 	@classmethod
 	def drawPedigree(cls, db_vervet, outputFnamePrefix=None, baseNodeSize=40):
 		"""
@@ -3567,6 +3901,67 @@ class DBVervet(object):
 	"""
 	
 	@classmethod
+	def calculateAndDrawPairwiseDistanceInPedigree(cls, db_vervet, inputFname, outputFnamePrefix=None, baseNodeSize=40):
+		"""
+		2011-5-6
+			
+		"""
+		sys.stderr.write("Getting pedigree from db ...")
+		import networkx as nx
+		DG=nx.Graph()
+		
+		import VervetDB
+		
+		for row in VervetDB.Ind2Ind.query:
+			DG.add_edge(row.individual1_id, row.individual2_id)
+		sys.stderr.write("%s edges. %s nodes.\n"%(len(DG.edges()), len(DG.nodes()) ))
+		
+		import csv
+		from pymodule import figureOutDelimiter
+		reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+		monkey_id_ls = []
+		monkey_seq_id_ls = []
+		header = reader.next()
+		for row in reader:
+			if row and row[0]:
+				monkey = VervetDB.Individual.query.filter_by(code=row[0]).first()
+				if monkey:
+					ind_seq_ls = VervetDB.IndividualSequence.query.filter_by(individual_id=monkey.id).filter_by(sequencer='GA').\
+						filter_by(filtered=0).all()
+					if len(ind_seq_ls)>1:
+						sys.stderr.write("monkey %s has %s sequences.\n"%(monkey.code, len(ind_seq_ls)))
+					elif len(ind_seq_ls)==1:
+						ind_seq = ind_seq_ls[0]
+						monkey_seq_id_ls.append(ind_seq.id)
+					monkey_id_ls.append(monkey.id)
+		sys.stderr.write("%s monkeys from %s.\n"%(len(monkey_id_ls), inputFname))
+		
+		monkey_seq_id_ls.sort()
+		monkey_seq_id_ls = map(repr, monkey_seq_id_ls)
+		print "individual sequence id: " + ",".join(monkey_seq_id_ls)
+		
+		monkey_id_ls.sort()
+		print "individual id: ", monkey_id_ls
+		shortest_distance_ls = []
+		for i in range(len(monkey_id_ls)):
+			for j in range(i+1, len(monkey_id_ls)):
+				dist = nx.shortest_path_length(DG,source=monkey_id_ls[i],target=monkey_id_ls[j])
+				shortest_distance_ls.append(dist)
+		
+		from pymodule.yh_matplotlib import drawHist
+		outputFname = "%s_%smonkeys.png"%(outputFnamePrefix, len(monkey_id_ls))
+		drawHist(shortest_distance_ls, title="hist of shortest dist of %s monkeys"%(len(monkey_id_ls)), \
+				xlabel_1D="shortest distance", xticks=None, outputFname=outputFname, min_no_of_data_points=20, needLog=False, \
+				dpi=200)
+	
+	"""
+		#2011-9-22
+		inputFname = '/tmp/LeastRelatedVervets.csv'
+		outputFnamePrefix = '/tmp/LeastRelatedVervets_pedigree_distance'
+		DBVervet.calculateAndDrawPairwiseDistanceInPedigree(db_vervet, inputFname, outputFnamePrefix=outputFnamePrefix)
+		sys.exit(0)
+	"""
+	@classmethod
 	def filterValue(cls, value, data_type=None, NA_str_set=set(["", "NA", "N/A", 'n/a'])):
 		"""
 		2011-5-5
@@ -3650,7 +4045,8 @@ class DBVervet(object):
 			else:
 				sys.stderr.write("Error: site %s is neither 3-entry nor 4-entry.\n"%site_str)
 				sys.exit(0)
-			site = db_vervet.getSite(description=description, city=city, stateprovince=province, country_name=country)
+			site = db_vervet.getSite(description=description, city=city, stateprovince=province, country_name=country, \
+									latitude=latitude, longitude=longitude)
 			
 			individual = db_vervet.getIndividual(code=monkey_id, sex=sex[0], age=age, age_cas=age_cas, latitude=latitude,\
 								longitude=longitude, altitude=None, ucla_id=monkey_id, site=site, \
@@ -3679,6 +4075,225 @@ class DBVervet(object):
 		inputFname = os.path.expanduser("~/mnt/banyan/mnt/win/vervet-analysis/Yu/2010 SA.tsv")
 		DBVervet.put2010SouthAfricanCollectionIntoDB(db_vervet, inputFname)
 		sys.exit(0)
+	"""
+	
+	@classmethod
+	def put2011SouthAfricanCollectionIntoDB(cls, db_vervet, inputFname, monkeyIDPrefix="", \
+										collector_name='Christopher A. Schmitt', province="East Cape", country="South Africa"):
+		"""
+		2011-10-7
+			collection from east cape
+		"""
+		sys.stderr.write("Putting 2011 south african collection (%s) into db ...\n"%(inputFname))
+		db_vervet.session.begin()
+		import csv, re
+		from datetime import datetime
+		from pymodule.utils import getColName2IndexFromHeader, figureOutDelimiter
+		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("Monkey ID")
+		site_index = col_name2index.get("Location")
+		gps_index = col_name2index.get("GPS")
+		sex_index = col_name2index.get("Sex")
+		age_index = col_name2index.get("Dental Age Category")
+		microchip_index = col_name2index.get("Microchip ID")
+		collection_date_index = col_name2index.get("Date")
+		phenotype_start_index = col_name2index.get("diagnostic physical features")
+		
+		collector = db_vervet.getUser(collector_name)
+		counter = 0
+		no_of_phenotype_entries = 0
+		for row in reader:
+			monkey_id = monkeyIDPrefix + row[monkey_id_index]
+			site_str = row[site_index]
+			gps = row[gps_index]
+			sex = row[sex_index]
+			age = row[age_index]
+			age = cls.filterValue(age, int)
+			collection_date = row[collection_date_index]
+			collection_date = datetime.strptime(collection_date, '%m/%d/%y')	#6/20/11
+			
+			latitude, longitude = gps.split(',')[:2]
+			latitude = float(latitude)
+			longitude = float(longitude)
+			
+			microchip_id = row[microchip_index].strip()
+			
+			description = site_str.strip()
+			city = None
+			site = db_vervet.getSite(description=description, city=city, stateprovince=province, country_name=country, \
+									latitude=latitude, longitude=longitude,\
+									altitude=None)
+			
+			individual = db_vervet.getIndividual(code=monkey_id, sex=sex[0], age=age, latitude=latitude,\
+								longitude=longitude, altitude=None, ucla_id=monkey_id, site=site, \
+								collection_date=collection_date, collector=collector,tax_id=None, \
+								birthdate=None, vrc_founder=None, comment=None, microchip_id=microchip_id)
+			counter += 1
+			for i in range(phenotype_start_index, len(row)):
+				if header[i] and row[i]:
+					phenotype_name = header[i].strip()
+					if phenotype_name not in ['Age/Dentition present', 'diagnostic physical features', 'Additional comments']:
+						if cls.any_character_pattern.search(row[i]):	#ignore any column with any character in it.
+							# should be number only
+							continue
+						value = cls.filterValue(row[i], data_type=float)
+						comment =None
+					else:
+						value = None
+						comment = row[i]
+					if value or comment:
+						db_vervet.getPhenotype(phenotype_name=phenotype_name, value=value, replicate=None, \
+										individual_id=individual.id, comment=comment, collector_name=collector_name)
+						no_of_phenotype_entries += 1
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		sys.stderr.write("%s individuals, %s phenotype entries. Done.\n"%(counter, no_of_phenotype_entries))
+	
+	"""
+		#2011-10-7
+		inputFname = os.path.expanduser("/tmp/2011SouthAfrica_cas30sep2011.csv")
+		DBVervet.put2011SouthAfricanCollectionIntoDB(db_vervet, inputFname)
+		sys.exit(0)
+	"""
+	
+	@classmethod
+	def put2011GambiaCollectionIntoDB(cls, db_vervet, inputFname, gpsDataInputFname, monkeyIDPrefix="", \
+						collector_name='TeamGambia', province=None, country="Gambia"):
+		"""
+		2011-10-7
+			collection from Gambia
+		"""
+		db_vervet.session.begin()
+		import csv, re
+		from datetime import datetime
+		from pymodule.utils import getColName2IndexFromHeader, figureOutDelimiter
+		
+		sys.stderr.write("\t Getting gps&site data from %s ..."%(gpsDataInputFname))
+		reader = csv.reader(open(gpsDataInputFname,), delimiter=figureOutDelimiter(gpsDataInputFname))
+		header = reader.next()
+		
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		site_index = col_name2index.get("LocationID")
+		gps_index = col_name2index.get("GPS")
+		gps_pattern = re.compile(r"(?P<lat_direction>[SN]) (?P<lat_hr>\d+) (?P<lat_min>[\.\d]+)' (?P<lon_direction>[EW]) (?P<lon_hr>\d+) (?P<lon_min>[\.\d]+)'")
+
+		#2011-4-29 first get the location infomation into db.
+		# a dictionary which maps code to site and collection_date
+		site_str2gps = {}
+		counter = 0
+		for row in reader:
+			gps = row[gps_index]
+			gps_pattern_search = gps_pattern.search(gps)
+			if gps_pattern_search:
+				lat_direction = gps_pattern_search.group("lat_direction")
+				lat_hr = float(gps_pattern_search.group('lat_hr'))
+				lat_min = float(gps_pattern_search.group('lat_min'))
+				latitude = lat_hr + lat_min/60.
+				if lat_direction=='S':
+					latitude = -latitude	#"-" because it's south
+				
+				lon_direction = gps_pattern_search.group("lon_direction")
+				lon_hr = float(gps_pattern_search.group('lon_hr'))
+				lon_min = float(gps_pattern_search.group('lon_min'))
+				longitude = lon_hr + lon_min/60.
+				if lon_direction=='W':
+					longitude = -longitude
+			elif gps:
+				gps_ls = gps.split(',')
+				gps_ls = map(float, gps_ls)
+				latitude, longitude = gps_ls[:2]
+			else:
+				sys.stderr.write("Error: gps %s is not parsable.\n"%(gps))
+				sys.exit(0)
+			site_str = row[site_index].strip()
+			city = None
+			description = site_str
+			#site = db_vervet.getSite(description=description, city=city, stateprovince=province, country_name=country,\
+			#					latitude=latitude, longitude=longitude)
+			counter += 1
+			site_str2gps[site_str] = (latitude, longitude)
+		del reader
+		sys.stderr.write("%s sites found.\n"%(counter))
+		
+		sys.stderr.write("Putting 2011 Gambia collection (%s) into db ...\n"%(inputFname))
+		
+		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("Monkey ID")
+		site_index = col_name2index.get("Location")
+		gps_index = col_name2index.get("GPS")
+		sex_index = col_name2index.get("Sex")
+		age_index = col_name2index.get("Dental Age Category")
+		age_cas_index = col_name2index.get("CAS Dental Age")
+		
+		
+		microchip_index = col_name2index.get("Microchip ID")
+		collection_date_index = col_name2index.get("Date")
+		phenotype_start_index = col_name2index.get("diagnostic physical features")
+		
+		collector = db_vervet.getUser(collector_name)
+		counter = 0
+		no_of_phenotype_entries = 0
+		for row in reader:
+			monkey_id = monkeyIDPrefix + row[monkey_id_index]
+			site_str = row[site_index].strip()
+			sex = row[sex_index]
+			age = row[age_index]
+			age = cls.filterValue(age, int)
+			age_cas = row[age_cas_index]
+			age_cas = cls.filterValue(age_cas, int)
+			collection_date = row[collection_date_index]
+			collection_date = datetime.strptime(collection_date, '%m/%d/%y')	#6/20/11
+			
+			microchip_id = row[microchip_index].strip()
+			
+			gps = site_str2gps.get(site_str)
+			if gps:
+				latitude, longitude = gps[:2]
+			else:
+				latitude, longitude = None, None
+			description = site_str
+			city = None
+			site = db_vervet.getSite(description=description, city=city, stateprovince=province, country_name=country, \
+									latitude=latitude, longitude=longitude,\
+									altitude=None)
+			
+			individual = db_vervet.getIndividual(code=monkey_id, sex=sex[0], age=age, age_cas=age_cas, latitude=latitude,\
+								longitude=longitude, altitude=None, ucla_id=monkey_id, site=site, \
+								collection_date=collection_date, collector=collector,tax_id=None, \
+								birthdate=None, vrc_founder=None, comment=None, microchip_id=microchip_id)
+			counter += 1
+			for i in range(phenotype_start_index, len(row)):
+				if header[i] and row[i]:
+					phenotype_name = header[i].strip()
+					if phenotype_name not in ['Age/Dentition present', 'diagnostic physical features', 'Additional comments']:
+						if cls.any_character_pattern.search(row[i]):	#ignore any column with any character in it.
+							# should be number only
+							continue
+						value = cls.filterValue(row[i], data_type=float)
+						comment =None
+					else:
+						value = None
+						comment = row[i]
+					if value or comment:
+						db_vervet.getPhenotype(phenotype_name=phenotype_name, value=value, replicate=None, \
+										individual_id=individual.id, comment=comment, collector_name=collector_name)
+						no_of_phenotype_entries += 1
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		sys.stderr.write("%s individuals, %s phenotype entries. Done.\n"%(counter, no_of_phenotype_entries))
+	
+	"""
+		#2011-10-7
+		inputFname = os.path.expanduser("/tmp/gambia 2011 animal datasheet08012011cas.csv")
+		gpsDataInputFname = os.path.expanduser("/tmp/Gambia2011Location_GPS_AJJ.csv")
+		DBVervet.put2011GambiaCollectionIntoDB(db_vervet, inputFname, gpsDataInputFname)
+		sys.exit(0)
+		
+		
 	"""
 	
 	@classmethod
@@ -3798,7 +4413,7 @@ class DBVervet(object):
 		counter = 0
 		real_counter = 0
 		species2tax_id = {'sabaeus':60711, 'aethiops':101841, 'pygerythrus':460674, 'cynosurus':460675, 'tantalus':60712,\
-						'cynosuros':460675, 'pygerytherus':460674 }	#typos
+						'cynosuros':460675, 'pygerythrus':460674 }	#typos
 		for row in reader:
 			counter += 1
 			
@@ -4271,10 +4886,43 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
+		workflowName= '8GenomeVsTop156Contigs_GATK_all_bases_maxNA0_minMAF0_het2NA_20111014T0043'
+		#workflowName = '8GenomeVsTop156Contigs_GATK_all_bases_maxNA0.8_minMAF0_het2NA_20111014T0059'
+		inputDir= "/Network/Data/vervet/vervetPipeline/%s/pairwiseDistMatrix/"%(workflowName)
+		for subspeciesName in ['ref', 'Barbados', 'VRC_ref_454', "VRC_ref_GA", 'aethiops', 'cynosurus', 'sabaeus', 'tantalus','pygerythrus',]:
+			outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/%s/GATK_all_bases_maxNA0_minMAF0_het2NA_DistVectorFrom8Genomes2%s'%\
+				(workflowName, subspeciesName)
+			if subspeciesName=='ref':
+				refID = subspeciesName
+			elif subspeciesName =='VRC_ref_GA' or subspeciesName=='VRC_ref_454':
+				refID = '%s_vs_top156Contigs'%(subspeciesName)
+			else:
+				refID = '%s_GA_vs_top156Contigs'%(subspeciesName)
+			VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix, refID=refID, subspeciesName=subspeciesName)
+		sys.exit(0)
+		
+		
+		#2011-9-22
+		inputFname = '/tmp/LeastRelatedVervets.csv'
+		outputFnamePrefix = '/tmp/LeastRelatedVervets_pedigree_distance'
+		DBVervet.calculateAndDrawPairwiseDistanceInPedigree(db_vervet, inputFname, outputFnamePrefix=outputFnamePrefix)
+		sys.exit(0)
+		
+		#2011-9-23
+		workflowDir = 'AlignmentToCallPipeline_4_8_vs_524_top_156Contigs_uschpc'
+		workflowDir = 'AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110920T2319'
+		workflowDir = 'AlignmentToCallPipeline_10VWP_627_629_650_656_vs_524_top_156Contigs_condorpool_20110922T1837'
+		inputDir = '/Network/Data/vervet/vervetPipeline/%s/samtools/'%workflowDir
+		outputFname = '/Network/Data/vervet/vervetPipeline/%s/samtools_TsTv_hist.png'%(workflowDir)
+		VariantDiscovery.drawContigTsTvHistogram(inputDir, outputFname)
+		sys.exit(0)
+		
+		
 		#2011-9-15
 		dataDir = os.path.expanduser("~/mnt/hpc-cmb_home/NetworkData/vervet/db/")
 		DBVervet.pokeBamReadGroupPresence(db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), dataDir=dataDir, commit=True)
 		sys.exit(0)
+		
 		
 		#2011-9-12
 		inputDirLs = [os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110913T192749-0700/"),]
@@ -4294,13 +4942,6 @@ class Main(object):
 		VariantDiscovery.compareContigByDistVectorFromTwoDifferentRuns(inputDir1, inputDir2, outputFnamePrefix, partOfTitle='all_sites vs variants only')
 		sys.exit(3)
 		
-		#2011-8-2
-		inputDir = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_all_bases/pairwiseDistMatrix/'
-		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_all_bases_ContigByDistVectorFrom8Genomes'
-		VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
-		sys.exit(3)
-		
-
 		#2011-8-2
 		inputDir = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
 		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
