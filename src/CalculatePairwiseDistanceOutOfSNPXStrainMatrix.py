@@ -41,7 +41,7 @@ class CalculatePairwiseDistanceOutOfSNPXStrainMatrix(object):
 							('outputFname', 1, ): ['', 'o', 1, 'common output file', ],\
 							('min_MAF', 1, float): [0.0, 'n', 1, 'minimum MAF for SNP filter', ],\
 							('max_NA_rate', 1, float): [0.4, 'm', 1, 'maximum NA rate for SNP filter', ],\
-							('convertHetero2NA', 1, int):[0, '', 1, 'toggle convertHetero2NA mode'],\
+							('convertHetero2NA', 1, int):[0, 'c', 1, 'toggle convertHetero2NA mode'],\
 							('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 							('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 	
