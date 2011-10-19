@@ -53,7 +53,7 @@ exitCode2=`echo $exitCodeAll|awk -F ' ' '{print $2}'`
 echo exit code: $exitCode, $exitCode2
 if test "$exitCode" = "0" && test "$exitCode2" = "0"
 then
-	$bcftoolsPath view $outputVCF.bcf | $vcfutilsPath varFilter -D1000 > $outputVCF
+	$bcftoolsPath view $outputVCF.bcf | $vcfutilsPath varFilter -D5000 > $outputVCF
 	exitCode=$?
 	rm $outputVCF.bcf
 	exit $exitCode
