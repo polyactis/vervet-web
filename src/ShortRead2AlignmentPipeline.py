@@ -319,7 +319,7 @@ class ShortRead2AlignmentPipeline(object):
 		if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
 			alignmentJob.uses(refFastaF, transfer=True, register=False, link=Link.INPUT)
 		if mkdirJob:
-			workflow.addDependency(parent=mkdirJob, child=alignmentJob)
+			workflow.depends(parent=mkdirJob, child=alignmentJob)
 		return alignmentJob, sortBamF
 	
 	def addAlignmentJob(self, workflow, filePair, individual_alignment=None, \
@@ -379,7 +379,7 @@ class ShortRead2AlignmentPipeline(object):
 				sai2samJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%samse_job_max_memory))
 				
 				workflow.addJob(sai2samJob)
-				workflow.addDependency(parent=alignmentJob, child=sai2samJob)
+				workflow.depends(parent=alignmentJob, child=sai2samJob)
 				
 			elif alignment_method.command=='bwasw' or sequencer=='454':	#long single-end read
 				fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
@@ -397,9 +397,9 @@ class ShortRead2AlignmentPipeline(object):
 				sai2samJob = alignmentJob
 			
 			if refIndexJob:
-				workflow.addDependency(parent=refIndexJob, child=alignmentJob)
+				workflow.depends(parent=refIndexJob, child=alignmentJob)
 			if mkdirJob:
-				workflow.addDependency(parent=mkdirJob, child=alignmentJob)
+				workflow.depends(parent=mkdirJob, child=alignmentJob)
 			
 		elif len(filePair)==2:	#paired end
 			fastqF1, format, sequence_type = filePair[0][:3]
@@ -438,13 +438,13 @@ class ShortRead2AlignmentPipeline(object):
 				workflow.addJob(alignmentJob)
 				
 				if refIndexJob:
-					workflow.addDependency(parent=refIndexJob, child=alignmentJob)
+					workflow.depends(parent=refIndexJob, child=alignmentJob)
 				if mkdirJob:
-					workflow.addDependency(parent=mkdirJob, child=alignmentJob)
+					workflow.depends(parent=mkdirJob, child=alignmentJob)
 				
 				sai2samJob.addArguments(saiOutput)
 				sai2samJob.uses(saiOutput, transfer=False, register=False, link=Link.INPUT)
-				workflow.addDependency(parent=alignmentJob, child=sai2samJob)
+				workflow.depends(parent=alignmentJob, child=sai2samJob)
 				
 			
 			#add a pair of fastq files to sampe in the end
@@ -464,7 +464,7 @@ class ShortRead2AlignmentPipeline(object):
 		sam_convert_job.uses(alignmentSamF, transfer=False, register=False, link=Link.INPUT)
 		sam_convert_job.uses(bamOutputF, transfer=False, register=False, link=Link.OUTPUT)
 		workflow.addJob(sam_convert_job)
-		workflow.addDependency(parent=sai2samJob, child=sam_convert_job)
+		workflow.depends(parent=sai2samJob, child=sam_convert_job)
 		
 		#2011-9-14 add/replace read group in the bam file
 		# add RG to this bam
@@ -493,7 +493,7 @@ class ShortRead2AlignmentPipeline(object):
 		addRGJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%addRGJob_max_memory))
 		addRGJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%addRGJob_max_memory))
 		workflow.addJob(addRGJob)
-		workflow.addDependency(parent=sam_convert_job, child=addRGJob)
+		workflow.depends(parent=sam_convert_job, child=addRGJob)
 		
 		
 		"""
@@ -510,7 +510,7 @@ class ShortRead2AlignmentPipeline(object):
 		sort_sam_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%addRGJob_max_memory))
 		sort_sam_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%addRGJob_max_memory))
 		workflow.addJob(sort_sam_job)
-		workflow.addDependency(parent=addRGJob, child=sort_sam_job)
+		workflow.depends(parent=addRGJob, child=sort_sam_job)
 		
 		return sort_sam_job, sortBamF
 	
@@ -560,7 +560,7 @@ class ShortRead2AlignmentPipeline(object):
 				
 				
 				workflow.addJob(sai2samJob)
-				workflow.addDependency(parent=alignmentJob, child=sai2samJob)
+				workflow.depends(parent=alignmentJob, child=sai2samJob)
 				
 			elif alignment_method.command=='bwasw' or sequencer=='454':	#long single-end read
 				alignmentJob = Job(namespace=namespace, name=bwa.name, version=version)
@@ -581,9 +581,9 @@ class ShortRead2AlignmentPipeline(object):
 				sai2samJob = alignmentJob
 				
 			if refIndexJob:
-				workflow.addDependency(parent=refIndexJob, child=alignmentJob)
+				workflow.depends(parent=refIndexJob, child=alignmentJob)
 			if mkdirJob:
-				workflow.addDependency(parent=mkdirJob, child=alignmentJob)
+				workflow.depends(parent=mkdirJob, child=alignmentJob)
 			
 		elif len(filePair)==2:	#paired end
 			### run sampe to combine two paired-end results into one sam file
@@ -630,14 +630,14 @@ class ShortRead2AlignmentPipeline(object):
 				workflow.addJob(alignmentJob)
 				
 				if refIndexJob:
-					workflow.addDependency(parent=refIndexJob, child=alignmentJob)
+					workflow.depends(parent=refIndexJob, child=alignmentJob)
 				if mkdirJob:
-					workflow.addDependency(parent=mkdirJob, child=alignmentJob)
+					workflow.depends(parent=mkdirJob, child=alignmentJob)
 				
 				sai2samJob.addArguments(saiOutput)
 				sai2samJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
 				sai2samJob.uses(saiOutput, transfer=False, register=False, link=Link.INPUT)
-				workflow.addDependency(parent=alignmentJob, child=sai2samJob)
+				workflow.depends(parent=alignmentJob, child=sai2samJob)
 				
 			
 			#add a pair of fastq files to sampe in the end
@@ -653,7 +653,7 @@ class ShortRead2AlignmentPipeline(object):
 		sam_convert_job.uses(alignmentSamF, transfer=False, register=False, link=Link.INPUT)
 		sam_convert_job.uses(bamOutputF, transfer=False, register=False, link=Link.OUTPUT)
 		workflow.addJob(sam_convert_job)
-		workflow.addDependency(parent=sai2samJob, child=sam_convert_job)
+		workflow.depends(parent=sai2samJob, child=sam_convert_job)
 		
 		"""
 		# 2010-2-4
@@ -669,7 +669,7 @@ class ShortRead2AlignmentPipeline(object):
 		sam_sort_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
 		sam_sort_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
 		workflow.addJob(sam_sort_job)
-		workflow.addDependency(parent=sam_convert_job, child=sam_sort_job)
+		workflow.depends(parent=sam_convert_job, child=sam_sort_job)
 		
 		return sam_sort_job, sortBamF
 	
@@ -696,12 +696,12 @@ class ShortRead2AlignmentPipeline(object):
 				alignmentJob, alignmentOutput = AlignmentJobAndOutput[:2]
 				merge_sam_job.addArguments('INPUT=', alignmentOutput)
 				merge_sam_job.uses(alignmentOutput, transfer=False, register=False, link=Link.INPUT)
-				workflow.addDependency(parent=alignmentJob, child=merge_sam_job)
+				workflow.depends(parent=alignmentJob, child=merge_sam_job)
 		else:	#one input file, no samtools merge. use "mv" to rename it instead
 			alignmentJob, alignmentOutput = AlignmentJobAndOutputLs[0][:2]
 			merge_sam_job = Job(namespace=namespace, name=mv.name, version=version)
 			merge_sam_job.addArguments(alignmentOutput, finalBamFile)
-			workflow.addDependency(parent=alignmentJob, child=merge_sam_job)
+			workflow.depends(parent=alignmentJob, child=merge_sam_job)
 			merge_sam_job.uses(alignmentOutput, transfer=False, register=False, link=Link.INPUT)
 			if stageOutFinalOutput:
 				merge_sam_job.uses(finalBamFile, transfer=True, register=False, link=Link.OUTPUT)
@@ -717,7 +717,7 @@ class ShortRead2AlignmentPipeline(object):
 			index_sam_job.uses(finalBamFile, transfer=True, register=False, link=Link.INPUT)	#write this as OUTPUT, otherwise it'll be deleted and next program won't know 
 			index_sam_job.uses(bai_output, transfer=True, register=False, link=Link.OUTPUT)
 		workflow.addJob(index_sam_job)
-		workflow.addDependency(parent=merge_sam_job, child=index_sam_job)
+		workflow.depends(parent=merge_sam_job, child=index_sam_job)
 	
 	
 	def run(self):
@@ -742,7 +742,8 @@ class ShortRead2AlignmentPipeline(object):
 			self.localDataDir = db_vervet.data_dir
 		
 		# Create a abstract dag
-		workflow = ADAG("ShortRead2AlignmentPipeline")
+		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
+		workflow = ADAG(workflowName)
 		vervetSrcPath = self.vervetSrcPath
 		site_handler = self.site_handler
 		

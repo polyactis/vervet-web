@@ -61,7 +61,7 @@ class AlignmentToCallPipeline(object):
 	__doc__ = __doc__
 	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
 						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-						('dbname', 1, ): ['vervetdb', 'd', 1, 'stock_250k database name', ],\
+						('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
 						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
 						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
 						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
@@ -191,7 +191,7 @@ class AlignmentToCallPipeline(object):
 		selectAndSplitFastaJob.addArguments('-i', refFastaF, "-o", fastaOutputDir)
 		#selectAndSplitFastaJob.uses(input, transfer=True, register=True, link=Link.INPUT)
 		workflow.addJob(selectAndSplitFastaJob)
-		workflow.addDependency(parent=mkDirJob, child=selectAndSplitFastaJob)
+		workflow.depends(parent=mkDirJob, child=selectAndSplitFastaJob)
 		
 		refName2jobDataLs = {}
 		for refName in refNameLs:
@@ -211,7 +211,7 @@ class AlignmentToCallPipeline(object):
 			#fai_index_job.uses(output, transfer=True, register=True, link=Link.OUTPUT)	#registering here would result in their early deletion.
 			#fai_index_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
 			workflow.addJob(fai_index_job)
-			workflow.addDependency(parent=selectAndSplitFastaJob, child=fai_index_job)
+			workflow.depends(parent=selectAndSplitFastaJob, child=fai_index_job)
 			
 			# the add-read-group job
 			createSeqDictJob = Job(namespace=namespace, name=java.name, version=version)
@@ -223,7 +223,7 @@ class AlignmentToCallPipeline(object):
 			createSeqDictJob.uses(dictFile, transfer=True, register=True, link=Link.OUTPUT)	#time to discard them
 			createSeqDictJob.uses(fastaFile, transfer=True, register=True, link=Link.OUTPUT)	#time to discard them
 			workflow.addJob(createSeqDictJob)
-			workflow.addDependency(parent=selectAndSplitFastaJob, child=createSeqDictJob)
+			workflow.depends(parent=selectAndSplitFastaJob, child=createSeqDictJob)
 			
 			
 			refName2jobDataLs[refName] = [fai_index_job, fastaFAIIndexFile, createSeqDictJob, fastaFile, dictFile]
@@ -269,7 +269,7 @@ class AlignmentToCallPipeline(object):
 			mkdirJob.addArguments(outputDir)
 			#mkdir.uses(input, transfer=True, register=True, link=Link.INPUT)	#don't add this file. otherwise it'll be staged. transfer=False will result deletion of original file.
 			workflow.addJob(mkdirJob)
-			workflow.addDependency(parent=mkCallDirJob, child=mkdirJob)
+			workflow.depends(parent=mkCallDirJob, child=mkdirJob)
 			
 			for refName in refNameLs:
 				if refName not in refName2jobDataLs:
@@ -283,7 +283,7 @@ class AlignmentToCallPipeline(object):
 				selectRefJob.addArguments('view', '-h', input, refName, "-o", output, "-b", "-u")	# -b -u forces uncompressed bam output
 				#selectRefJob.uses(input, transfer=True, register=True, link=Link.INPUT)	#don't add this file. otherwise it'll be staged. transfer=False will result deletion of original file.
 				workflow.addJob(selectRefJob)
-				workflow.addDependency(parent=mkdirJob, child=selectRefJob)
+				workflow.depends(parent=mkdirJob, child=selectRefJob)
 				
 				# add the index job
 				index_1_job = Job(namespace=namespace, name=samtools.name, version=version)
@@ -293,7 +293,7 @@ class AlignmentToCallPipeline(object):
 				bai_output = File('%s.bai'%outputFname)
 				index_1_job.uses(bai_output, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(index_1_job)
-				workflow.addDependency(parent=selectRefJob, child=index_1_job)
+				workflow.depends(parent=selectRefJob, child=index_1_job)
 				
 				# the add-read-group job
 				#addRGJob = Job(namespace=namespace, name=addRGExecutable.name, version=version)
@@ -322,7 +322,7 @@ class AlignmentToCallPipeline(object):
 				addRGJob.uses(bai_output, transfer=False, register=True, link=Link.INPUT)	#time to discard them
 				addRGJob.uses(outputRGSAM, transfer=False, register=True, link=Link.OUTPUT)	#time to discard them
 				workflow.addJob(addRGJob)
-				workflow.addDependency(parent=index_1_job, child=addRGJob)
+				workflow.depends(parent=index_1_job, child=addRGJob)
 				#output.addPFN(PFN("file://" + outputFname, site_handler))
 				#selectAndSplitJob.uses(output, transfer=True, register=False, link=Link.OUTPUT)	#registering here would result in their early deletion.
 				
@@ -333,7 +333,7 @@ class AlignmentToCallPipeline(object):
 				samToBamJob.uses(outputRGSAM, transfer=False, register=True, link=Link.INPUT)
 				#samToBamJob.uses(outputRG, transfer=False, register=True, link=Link.OUTPUT)	#don't register it here
 				workflow.addJob(samToBamJob)
-				workflow.addDependency(parent=addRGJob, child=samToBamJob)
+				workflow.depends(parent=addRGJob, child=samToBamJob)
 				
 				# add the index job
 				index_sam_job = Job(namespace=namespace, name=java.name, version=version)
@@ -353,7 +353,7 @@ class AlignmentToCallPipeline(object):
 				samtools_index_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
 				"""
 				workflow.addJob(index_sam_job)
-				workflow.addDependency(parent=samToBamJob, child=index_sam_job)
+				workflow.depends(parent=samToBamJob, child=index_sam_job)
 				refName2jobDataLs[refName].append((outputRG, index_sam_job, bai_output))
 				
 				"""
@@ -369,7 +369,7 @@ class AlignmentToCallPipeline(object):
 				sam_sort_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
 				sam_sort_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
 				workflow.addJob(sam_sort_job)
-				workflow.addDependency(parent=samToBamJob, child=sam_sort_job)
+				workflow.depends(parent=samToBamJob, child=sam_sort_job)
 				"""
 				
 		sys.stderr.write(".Done\n")
@@ -419,7 +419,7 @@ class AlignmentToCallPipeline(object):
 		else:
 			fastaIndexJob = None
 			refFastaIndexF = None
-		#workflow.addDependency(parent=fastaDictJob, child=fastaIndexJob)	#no dependency between these two jobs
+		#workflow.depends(parent=fastaDictJob, child=fastaIndexJob)	#no dependency between these two jobs
 		
 		# add merge jobs for every reference
 		refName2mergedBamCallJob = {}
@@ -439,7 +439,7 @@ class AlignmentToCallPipeline(object):
 				picard_job.uses(bamFileBai, transfer=True, register=True, link=Link.INPUT)	#register them here to be deleted 
 				picard_job.uses(bamFile, transfer=True, register=True, link=Link.INPUT)
 				#this picard merge job depends on a bunch of prior samtools index jobs
-				workflow.addDependency(parent=samtools_index_job, child=picard_job)
+				workflow.depends(parent=samtools_index_job, child=picard_job)
 			
 			# add the index job on the merged bam file
 			samtools_index_job = Job(namespace=namespace, name=samtools.name, version=version)
@@ -448,7 +448,7 @@ class AlignmentToCallPipeline(object):
 			bai_output = File('%s.bai'%outputFname)
 			samtools_index_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
 			workflow.addJob(samtools_index_job)
-			workflow.addDependency(parent=picard_job, child=samtools_index_job)
+			workflow.depends(parent=picard_job, child=samtools_index_job)
 			
 			
 			if genotypeCallerType==2:
@@ -486,13 +486,13 @@ class AlignmentToCallPipeline(object):
 				gatk_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%gatk_job_max_memory))
 				
 				workflow.addJob(gatk_job)
-				workflow.addDependency(parent=samtools_index_job, child=gatk_job)
-				workflow.addDependency(parent=fai_index_job, child=gatk_job)
-				workflow.addDependency(parent=createSeqDictJob, child=gatk_job)
+				workflow.depends(parent=samtools_index_job, child=gatk_job)
+				workflow.depends(parent=fai_index_job, child=gatk_job)
+				workflow.depends(parent=createSeqDictJob, child=gatk_job)
 				if fastaIndexJob:	#2011-7-22 if job doesn't exist, don't add it. means this job isn't necessary to run.
-					workflow.addDependency(parent=fastaIndexJob, child=gatk_job)
+					workflow.depends(parent=fastaIndexJob, child=gatk_job)
 				if fastaDictJob:
-					workflow.addDependency(parent=fastaDictJob, child=gatk_job)
+					workflow.depends(parent=fastaDictJob, child=gatk_job)
 				
 				coverageFilterParentJob = gatk_job
 				coverageFilterParentOutput = gatk_output
@@ -520,7 +520,7 @@ class AlignmentToCallPipeline(object):
 			genotypeCallByCoverage_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
 			genotypeCallByCoverage_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
 			workflow.addJob(genotypeCallByCoverage_job)
-			workflow.addDependency(parent=coverageFilterParentJob, child=genotypeCallByCoverage_job)
+			workflow.depends(parent=coverageFilterParentJob, child=genotypeCallByCoverage_job)
 			
 			
 			#add the pairwise distance matrix job after filter is done
@@ -538,7 +538,7 @@ class AlignmentToCallPipeline(object):
 			calcula_job.uses(calculaOutput, transfer=True, register=False, link=Link.OUTPUT)
 			
 			workflow.addJob(calcula_job)
-			workflow.addDependency(parent=genotypeCallByCoverage_job, child=calcula_job)
+			workflow.depends(parent=genotypeCallByCoverage_job, child=calcula_job)
 			
 			refName2mergedBamCallJob[refName] = [genotypeCallOutput, genotypeCallByCoverage_job]
 		sys.stderr.write(".Done\n")
@@ -560,6 +560,7 @@ class AlignmentToCallPipeline(object):
 		sys.stderr.write("Adding add RG 2 BAM jobs for %s alignments ..."%(len(alignmentLs)))
 		job_max_memory = 3500	#in MB
 		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
+		no_of_rg_jobs = 0
 		alignmentId2RGJobDataLs = {}
 		for alignment in alignmentLs:
 			if alignment.read_group_added==1:
@@ -614,7 +615,7 @@ class AlignmentToCallPipeline(object):
 					mvJob.addArguments(outputRGSAM, inputFname)	#watch, it's inputFname, not input. input is in relative path.
 					#samToBamJob.uses(outputRG, transfer=False, register=True, link=Link.OUTPUT)	#don't register it here
 					workflow.addJob(mvJob)
-					workflow.addDependency(parent=addRGJob, child=mvJob)
+					workflow.depends(parent=addRGJob, child=mvJob)
 					bai_output = File('%s.bai'%inputFname)	#in absolute path, don't register it to the job
 				else:
 					##on different site, input for index should be outputRGSAM and register it as well
@@ -640,10 +641,10 @@ class AlignmentToCallPipeline(object):
 				index_sam_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
 				
 				workflow.addJob(index_sam_job)
-				workflow.addDependency(parent=mvJob, child=index_sam_job)
+				workflow.depends(parent=mvJob, child=index_sam_job)
 				alignmentId2RGJobDataLs[alignment.id]= [index_sam_job, input, bai_output]
-				
-		sys.stderr.write(".Done\n")
+				no_of_rg_jobs += 1
+		sys.stderr.write(" %s alignments need read-group addition. Done\n"%(no_of_rg_jobs))
 		return PassingData(alignmentId2RGJobDataLs=alignmentId2RGJobDataLs)
 	
 	def addRefFastaJobDependency(self, workflow, job, refFastaF=None, fastaDictJob=None, refFastaDictF=None, fastaIndexJob = None, refFastaIndexF = None):
@@ -651,10 +652,10 @@ class AlignmentToCallPipeline(object):
 		2011-9-14
 		"""
 		if fastaIndexJob:	#2011-7-22 if job doesn't exist, don't add it. means this job isn't necessary to run.
-			workflow.addDependency(parent=fastaIndexJob, child=job)
+			workflow.depends(parent=fastaIndexJob, child=job)
 			job.uses(refFastaIndexF, transfer=True, register=True, link=Link.INPUT)
 		if fastaDictJob:
-			workflow.addDependency(parent=fastaDictJob, child=job)
+			workflow.depends(parent=fastaDictJob, child=job)
 			job.uses(refFastaDictF, transfer=True, register=True, link=Link.INPUT)
 		if fastaIndexJob or fastaDictJob:
 			job.uses(refFastaF, transfer=True, register=True, link=Link.INPUT)
@@ -667,6 +668,7 @@ class AlignmentToCallPipeline(object):
 				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
 				mv=None, CallVariantBySamtools=None,\
 				bgzip_tabix=None, vcf_convert=None, vcf_isec=None, vcf_concat=None, \
+				concatGATK=None, concatSamtools=None,\
 				genotypeCallByCoverage=None, refFastaF=None, bamListF=None, \
 				callOutputDirJob =None, gatkDirJob=None, samtoolsDirJob=None, unionDirJob=None, intersectionDirJob=None,\
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
@@ -674,6 +676,8 @@ class AlignmentToCallPipeline(object):
 				needFastaIndexJob=False, needFastaDictJob=False, \
 				chunkSize=2000000, site_type=1, dataDir=None):
 		"""
+		2011-9-22
+			add argument concatGATK, concatSamtools.
 		2011-9-15
 			bamListF is now useless. samtools_job could accept variable-length list of bam input files
 		2011-9-14
@@ -725,16 +729,47 @@ class AlignmentToCallPipeline(object):
 			callOutputFname = os.path.join(callOutputDirJob.folder, '%s.vcf.gz'%refName)
 			callOutputF = File(callOutputFname)
 			wholeRefUnionOfIntersectionJob.addArguments(callOutputF)
+			
 			wholeRefUnionOfIntersectionJob.uses(callOutputF, transfer=True, register=True, link=Link.OUTPUT)
+			callOutput_tbi_F = File("%s.tbi"%callOutputFname)
+			wholeRefUnionOfIntersectionJob.uses(callOutput_tbi_F, transfer=True, register=True, link=Link.OUTPUT)
 			
 			wholeRefUnionOfIntersectionJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%vcf_job_max_memory))
 			wholeRefUnionOfIntersectionJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%vcf_job_max_memory))
 			
 			workflow.addJob(wholeRefUnionOfIntersectionJob)
-			workflow.addDependency(parent=callOutputDirJob, child=wholeRefUnionOfIntersectionJob)
+			workflow.depends(parent=callOutputDirJob, child=wholeRefUnionOfIntersectionJob)
 			
 			#self.addRefFastaJobDependency(workflow, wholeRefUnionOfIntersectionJob, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
 			#							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
+			
+			#2011-9-22 union of all GATK intervals for one contig
+			gatkUnionJob = Job(namespace=namespace, name=concatGATK.name, version=version)
+			gatkUnionOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf.gz'%refName)
+			gatkUnionOutputF = File(gatkUnionOutputFname)
+			gatkUnionJob.addArguments(gatkUnionOutputF)
+			gatkUnionJob.uses(gatkUnionOutputF, transfer=True, register=True, link=Link.OUTPUT)
+			gatkUnionOutput_tbi_F = File("%s.tbi"%gatkUnionOutputFname)
+			gatkUnionJob.uses(gatkUnionOutput_tbi_F, transfer=True, register=True, link=Link.OUTPUT)
+			
+			gatkUnionJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%vcf_job_max_memory))
+			gatkUnionJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%vcf_job_max_memory))
+			workflow.addJob(gatkUnionJob)
+			workflow.depends(parent=gatkDirJob, child=gatkUnionJob)
+			
+			#2011-9-22 union of all samtools intervals for one contig
+			samtoolsUnionJob = Job(namespace=namespace, name=concatSamtools.name, version=version)
+			samtoolsUnionOutputFname = os.path.join(samtoolsDirJob.folder, '%s.vcf.gz'%refName)
+			samtoolsUnionOutputF = File(samtoolsUnionOutputFname)
+			samtoolsUnionJob.addArguments(samtoolsUnionOutputF)
+			samtoolsUnionJob.uses(samtoolsUnionOutputF, transfer=True, register=True, link=Link.OUTPUT)
+			samtoolsUnionOutput_tbi_F = File("%s.tbi"%samtoolsUnionOutputFname)
+			samtoolsUnionJob.uses(samtoolsUnionOutput_tbi_F, transfer=True, register=True, link=Link.OUTPUT)
+			
+			samtoolsUnionJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%vcf_job_max_memory))
+			samtoolsUnionJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%vcf_job_max_memory))
+			workflow.addJob(samtoolsUnionJob)
+			workflow.depends(parent=samtoolsDirJob, child=samtoolsUnionJob)
 			
 			for i in range(no_of_chunks):
 				startPos = i*chunkSize + 1
@@ -742,6 +777,7 @@ class AlignmentToCallPipeline(object):
 				interval = "%s:%s-%s"%(refName, startPos, stopPos)
 				vcfBaseFname = '%s_%s_%s'%(refName, startPos, stopPos)
 				
+				#GATK job
 				gatk_job = Job(namespace=namespace, name=genotyperJava.name, version=version)
 				gatkOutputFname = os.path.join(gatkDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
 				gatkOutputF = File(gatkOutputFname)
@@ -759,7 +795,7 @@ class AlignmentToCallPipeline(object):
 				gatk_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
 				gatk_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
 				workflow.addJob(gatk_job)
-				workflow.addDependency(parent=gatkDirJob, child=gatk_job)
+				workflow.depends(parent=gatkDirJob, child=gatk_job)
 				
 				vcf_convert_gatkOutputF_job = Job(namespace=namespace, name=vcf_convert.name, version=version)
 				vcf4_gatkOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf'%vcfBaseFname)
@@ -768,18 +804,25 @@ class AlignmentToCallPipeline(object):
 				vcf_convert_gatkOutputF_job.uses(gatkOutputF, transfer=False, register=True, link=Link.INPUT)
 				vcf_convert_gatkOutputF_job.uses(vcf4_gatkOutputF, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(vcf_convert_gatkOutputF_job)
-				workflow.addDependency(parent=gatk_job, child=vcf_convert_gatkOutputF_job)
+				workflow.depends(parent=gatk_job, child=vcf_convert_gatkOutputF_job)
 				
 				bgzip_tabix_gatkOutputF_job = Job(namespace=namespace, name=bgzip_tabix.name, version=version)
 				gatkGzipOutputF = File("%s.gz"%vcf4_gatkOutputFname)
 				gatkGzipOutput_tbi_F = File("%s.gz.tbi"%vcf4_gatkOutputFname)
 				bgzip_tabix_gatkOutputF_job.addArguments(vcf4_gatkOutputF, gatkGzipOutputF)
 				bgzip_tabix_gatkOutputF_job.uses(vcf4_gatkOutputF, transfer=False, register=True, link=Link.INPUT)
-				bgzip_tabix_gatkOutputF_job.uses(gatkGzipOutputF, transfer=True, register=True, link=Link.OUTPUT)
-				bgzip_tabix_gatkOutputF_job.uses(gatkGzipOutput_tbi_F, transfer=True, register=True, link=Link.OUTPUT)
+				bgzip_tabix_gatkOutputF_job.uses(gatkGzipOutputF, transfer=False, register=True, link=Link.OUTPUT)
+				bgzip_tabix_gatkOutputF_job.uses(gatkGzipOutput_tbi_F, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(bgzip_tabix_gatkOutputF_job)
-				workflow.addDependency(parent=vcf_convert_gatkOutputF_job, child=bgzip_tabix_gatkOutputF_job)
+				workflow.depends(parent=vcf_convert_gatkOutputF_job, child=bgzip_tabix_gatkOutputF_job)
 				
+				#add this output to a GATK union job
+				gatkUnionJob.addArguments(gatkGzipOutputF)
+				gatkUnionJob.uses(gatkGzipOutputF, transfer=False, register=True, link=Link.INPUT)
+				gatkUnionJob.uses(gatkGzipOutput_tbi_F, transfer=False, register=True, link=Link.INPUT)
+				workflow.depends(parent=bgzip_tabix_gatkOutputF_job, child=gatkUnionJob)
+				
+				#samtools part
 				samtools_job = Job(namespace=namespace, name=CallVariantBySamtools.name, version=version)
 				samtoolsOutputFname = os.path.join(samtoolsDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
 				samtoolsOutputF = File(samtoolsOutputFname)
@@ -790,7 +833,7 @@ class AlignmentToCallPipeline(object):
 				samtools_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%vcf_job_max_memory))
 				samtools_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%vcf_job_max_memory))
 				workflow.addJob(samtools_job)
-				workflow.addDependency(parent=samtoolsDirJob, child=samtools_job)
+				workflow.depends(parent=samtoolsDirJob, child=samtools_job)
 				
 				vcf_convert_samtoolsOutputF_job = Job(namespace=namespace, name=vcf_convert.name, version=version)
 				vcf4_samtoolsOutputFname = os.path.join(samtoolsDirJob.folder, '%s.vcf'%vcfBaseFname)
@@ -799,7 +842,7 @@ class AlignmentToCallPipeline(object):
 				vcf_convert_samtoolsOutputF_job.uses(samtoolsOutputF, transfer=False, register=True, link=Link.INPUT)
 				vcf_convert_samtoolsOutputF_job.uses(vcf4_samtoolsOutputF, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(vcf_convert_samtoolsOutputF_job)
-				workflow.addDependency(parent=samtools_job, child=vcf_convert_samtoolsOutputF_job)
+				workflow.depends(parent=samtools_job, child=vcf_convert_samtoolsOutputF_job)
 				
 				
 				bgzip_tabix_samtoolsOutputF_job = Job(namespace=namespace, name=bgzip_tabix.name, version=version)
@@ -807,16 +850,26 @@ class AlignmentToCallPipeline(object):
 				samtoolsGzipOutput_tbi_F = File("%s.gz.tbi"%vcf4_samtoolsOutputFname)
 				bgzip_tabix_samtoolsOutputF_job.addArguments(vcf4_samtoolsOutputF, samtoolsGzipOutputF)
 				bgzip_tabix_samtoolsOutputF_job.uses(vcf4_samtoolsOutputF, transfer=False, register=True, link=Link.INPUT)
-				bgzip_tabix_samtoolsOutputF_job.uses(samtoolsGzipOutputF, transfer=True, register=True, link=Link.OUTPUT)
-				bgzip_tabix_samtoolsOutputF_job.uses(samtoolsGzipOutput_tbi_F, transfer=True, register=True, link=Link.OUTPUT)
+				bgzip_tabix_samtoolsOutputF_job.uses(samtoolsGzipOutputF, transfer=False, register=True, link=Link.OUTPUT)
+				bgzip_tabix_samtoolsOutputF_job.uses(samtoolsGzipOutput_tbi_F, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(bgzip_tabix_samtoolsOutputF_job)
-				workflow.addDependency(parent=vcf_convert_samtoolsOutputF_job, child=bgzip_tabix_samtoolsOutputF_job)
+				workflow.depends(parent=vcf_convert_samtoolsOutputF_job, child=bgzip_tabix_samtoolsOutputF_job)
 				
+				#add this output to a samtools union job
+				samtoolsUnionJob.addArguments(samtoolsGzipOutputF)
+				samtoolsUnionJob.uses(samtoolsGzipOutputF, transfer=False, register=True, link=Link.INPUT)
+				samtoolsUnionJob.uses(samtoolsGzipOutput_tbi_F, transfer=False, register=True, link=Link.INPUT)
+				workflow.depends(parent=bgzip_tabix_samtoolsOutputF_job, child=samtoolsUnionJob)
+				
+				
+				# intersection of GATK and samtools
 				isectJob = Job(namespace=namespace, name=vcf_isec.name, version=version)
 				intersectionOutputFname = os.path.join(intersectionDirJob.folder, '%s.isec.vcf.gz'%vcfBaseFname)
 				intersectionOutputF = File(intersectionOutputFname)
 				intersectionOutput_tbi_F = File("%s.tbi"%intersectionOutputFname)
 				
+				#put samtools in front of GATK cuz the former outputs better-quality data based on inconsistent rates
+				#	estimated from trios
 				isectJob.addArguments(intersectionOutputF, samtoolsGzipOutputF, gatkGzipOutputF)
 				isectJob.uses(samtoolsGzipOutputF, transfer=True, register=True, link=Link.INPUT)
 				isectJob.uses(samtoolsGzipOutput_tbi_F, transfer=True, register=True, link=Link.INPUT)
@@ -825,16 +878,16 @@ class AlignmentToCallPipeline(object):
 				isectJob.uses(intersectionOutputF, transfer=False, register=True, link=Link.OUTPUT)
 				isectJob.uses(intersectionOutput_tbi_F, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(isectJob)
-				workflow.addDependency(parent=bgzip_tabix_gatkOutputF_job, child=isectJob)
-				workflow.addDependency(parent=bgzip_tabix_samtoolsOutputF_job, child=isectJob)
+				workflow.depends(parent=bgzip_tabix_gatkOutputF_job, child=isectJob)
+				workflow.depends(parent=bgzip_tabix_samtoolsOutputF_job, child=isectJob)
 				
 				isectJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%vcf_job_max_memory))
 				isectJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%vcf_job_max_memory))
-				
+				#union of intersected-intervals from one contig
 				wholeRefUnionOfIntersectionJob.addArguments(intersectionOutputF)
 				wholeRefUnionOfIntersectionJob.uses(intersectionOutputF, transfer=False, register=True, link=Link.INPUT)
 				wholeRefUnionOfIntersectionJob.uses(intersectionOutput_tbi_F, transfer=False, register=True, link=Link.INPUT)
-				workflow.addDependency(parent=isectJob, child=wholeRefUnionOfIntersectionJob)
+				workflow.depends(parent=isectJob, child=wholeRefUnionOfIntersectionJob)
 				
 				"""
 				java -jar /path/to/dist/GenomeAnalysisTK.jar \
@@ -866,9 +919,9 @@ class AlignmentToCallPipeline(object):
 				genotypeUnionJob.uses(samtoolsOutputF, transfer=True, register=True, link=Link.INPUT)
 				genotypeUnionJob.uses(unionOutputF, transfer=True, register=True, link=Link.OUTPUT)
 				workflow.addJob(genotypeUnionJob)
-				workflow.addDependency(parent=unionDirJob, child=genotypeUnionJob)
-				workflow.addDependency(parent=samtools_job, child=genotypeUnionJob)
-				workflow.addDependency(parent=gatk_job, child=genotypeUnionJob)
+				workflow.depends(parent=unionDirJob, child=genotypeUnionJob)
+				workflow.depends(parent=samtools_job, child=genotypeUnionJob)
+				workflow.depends(parent=gatk_job, child=genotypeUnionJob)
 				
 				genotypeIntersectionJob = Job(namespace=namespace, name=java.name, version=version)
 				intersectionOutputFname = os.path.join(intersectionDirJob.folder, '%s.vcf'%vcfBaseFname)
@@ -883,12 +936,12 @@ class AlignmentToCallPipeline(object):
 				genotypeIntersectionJob.uses(unionOutputF, transfer=True, register=True, link=Link.INPUT)
 				genotypeIntersectionJob.uses(intersectionOutputF, transfer=True, register=True, link=Link.OUTPUT)
 				workflow.addJob(genotypeIntersectionJob)
-				workflow.addDependency(parent=intersectionDirJob, child=genotypeIntersectionJob)
-				workflow.addDependency(parent=genotypeUnionJob, child=genotypeIntersectionJob)
+				workflow.depends(parent=intersectionDirJob, child=genotypeIntersectionJob)
+				workflow.depends(parent=genotypeUnionJob, child=genotypeIntersectionJob)
 				
 				#add this intersected output to the union job for the whole refName
 				wholeRefUnionOfIntersectionJob.addArguments("-B:%s,VCF"%vcfBaseFname, intersectionOutputF)
-				workflow.addDependency(parent=genotypeIntersectionJob, child=wholeRefUnionOfIntersectionJob)
+				workflow.depends(parent=genotypeIntersectionJob, child=wholeRefUnionOfIntersectionJob)
 				"""
 
 				lisOfJobs = [gatk_job, samtools_job]
@@ -907,8 +960,8 @@ class AlignmentToCallPipeline(object):
 						samtools_job.uses(bamF, transfer=True, register=True, link=Link.INPUT)
 						samtools_job.uses(bai_output, transfer=True, register=True, link=Link.INPUT)
 						if index_sam_job is not None:
-							workflow.addDependency(parent=index_sam_job, child=gatk_job)
-							workflow.addDependency(parent=index_sam_job, child=samtools_job)
+							workflow.depends(parent=index_sam_job, child=gatk_job)
+							workflow.depends(parent=index_sam_job, child=samtools_job)
 		
 		sys.stderr.write(".Done\n")
 		return None
@@ -1006,7 +1059,8 @@ class AlignmentToCallPipeline(object):
 			refFastaF = File(refFastaFname)
 		
 		# Create a abstract dag
-		workflow = ADAG("AlignmentToCallPipeline")
+		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
+		workflow = ADAG(workflowName)
 		vervetSrcPath = self.vervetSrcPath
 		site_handler = self.site_handler
 		
@@ -1060,16 +1114,20 @@ class AlignmentToCallPipeline(object):
 		operatingSystem = "linux"
 		namespace = "workflow"
 		version="1.0"
+		#clusters_size controls how many jobs will be aggregated as a single job.
+		clusters_size = 20
 		
 		#mkdirWrap is better than mkdir that it doesn't report error when the directory is already there.
 		mkdirWrap = Executable(namespace=namespace, name="mkdirWrap", version=version, os=operatingSystem, \
 							arch=architecture, installed=True)
 		mkdirWrap.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mkdirWrap.sh"), site_handler))
+		mkdirWrap.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(mkdirWrap)
 		
 		#mv to rename files and move them
 		mv = Executable(namespace=namespace, name="mv", version=version, os=operatingSystem, arch=architecture, installed=True)
 		mv.addPFN(PFN("file://" + "/bin/mv", site_handler))
+		mv.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(mv)
 		
 		selectAndSplit = Executable(namespace=namespace, name="SelectAndSplitAlignment", version=version, \
@@ -1148,17 +1206,32 @@ class AlignmentToCallPipeline(object):
 		vcf_convert = Executable(namespace=namespace, name="vcf_convert", version=version, \
 								os=operatingSystem, arch=architecture, installed=True)
 		vcf_convert.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "vcf_convert.sh"), site_handler))
+		vcf_convert.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(vcf_convert)
 		
 		vcf_isec = Executable(namespace=namespace, name="vcf_isec", version=version, \
 										os=operatingSystem, arch=architecture, installed=True)
 		vcf_isec.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "vcf_isec.sh"), site_handler))
+		vcf_isec.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(vcf_isec)
 		
 		vcf_concat = Executable(namespace=namespace, name="vcf_concat", version=version, \
 										os=operatingSystem, arch=architecture, installed=True)
 		vcf_concat.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "vcf_concat.sh"), site_handler))
+		vcf_concat.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(vcf_concat)
+		
+		concatGATK = Executable(namespace=namespace, name="concatGATK", version=version, \
+							os=operatingSystem, arch=architecture, installed=True)
+		concatGATK.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "vcf_concat.sh"), site_handler))
+		concatGATK.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(concatGATK)
+		
+		concatSamtools = Executable(namespace=namespace, name="concatSamtools", version=version, \
+										os=operatingSystem, arch=architecture, installed=True)
+		concatSamtools.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "vcf_concat.sh"), site_handler))
+		concatSamtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(concatSamtools)
 		
 		calcula = Executable(namespace=namespace, name="CalculatePairwiseDistanceOutOfSNPXStrainMatrix", \
 							version=version, os=operatingSystem, arch=architecture, installed=True)
@@ -1167,7 +1240,6 @@ class AlignmentToCallPipeline(object):
 		
 		
 		# Add a mkdir job for the call directory.
-		#letting numerou genotype call jobs detect&create this directory runs into race condition.
 		callOutputDir = "call"
 		callOutputDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=callOutputDir, namespace=namespace, version=version)
 		gatkDir = "gatk"
@@ -1194,6 +1266,7 @@ class AlignmentToCallPipeline(object):
 				BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 				mv=mv, CallVariantBySamtools=CallVariantBySamtools,\
 				bgzip_tabix=bgzip_tabix, vcf_convert=vcf_convert, vcf_isec=vcf_isec, vcf_concat=vcf_concat, \
+				concatGATK=concatGATK, concatSamtools=concatSamtools,\
 				genotypeCallByCoverage=genotypeCallByCoverage, refFastaF=refFastaF, bamListF=None, \
 				callOutputDirJob =callOutputDirJob, gatkDirJob=gatkDirJob, samtoolsDirJob=samtoolsDirJob, unionDirJob=unionDirJob, intersectionDirJob=intersectionDirJob,\
 				namespace=namespace, version=version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
@@ -1243,7 +1316,7 @@ class AlignmentToCallPipeline(object):
 			
 			mergeGenotypeMatrix_job.uses(callJobOutput, transfer=False, register=True, link=Link.INPUT)
 			inputFnameLs.append(callJobOutput.name)
-			workflow.addDependency(parent=callJob, child=mergeGenotypeMatrix_job)
+			workflow.depends(parent=callJob, child=mergeGenotypeMatrix_job)
 		
 			mergeGenotypeMatrix_job.addArguments(callJobOutput)
 		"""
