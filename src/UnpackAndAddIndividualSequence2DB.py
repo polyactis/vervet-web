@@ -202,7 +202,8 @@ echo %s
 			self.dataDir = db_vervet.data_dir
 		
 		# Create a abstract dag
-		workflow = ADAG("UnpackAndAddIndividualSequence2DB")
+		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
+		workflow = ADAG(workflowName)
 		site_handler = self.site_handler
 		
 		# Add executables to the DAX-level replica catalog
@@ -285,7 +286,7 @@ echo %s
 			# GLOBUS 5.04 's RSL says it should be max_wall_time
 			
 			workflow.addJob(convertBamToFastqAndGzip_job)
-			workflow.addDependency(parent=mkCallDirJob, child=convertBamToFastqAndGzip_job)
+			workflow.depends(parent=mkCallDirJob, child=convertBamToFastqAndGzip_job)
 			
 			"""
 			
