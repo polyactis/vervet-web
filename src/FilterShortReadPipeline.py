@@ -89,7 +89,8 @@ class FilterShortReadPipeline(object):
 			self.dataDir = db_vervet.data_dir
 		
 		# Create a abstract dag
-		workflow = ADAG("FilterShortRead")
+		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
+		workflow = ADAG(workflowName)
 		vervetSrcPath = self.vervetSrcPath
 		site_handler = self.site_handler
 		
@@ -174,7 +175,7 @@ class FilterShortReadPipeline(object):
 						workflow.addJob(filterShortRead_job)
 						filterShortRead_job_ls.append(filterShortRead_job)
 						addFilteredSequences2DB_job.addArguments(outputFile)
-						workflow.addDependency(parent=filterShortRead_job, child=addFilteredSequences2DB_job)
+						workflow.depends(parent=filterShortRead_job, child=addFilteredSequences2DB_job)
 				
 			
 		# Write the DAX to stdout
