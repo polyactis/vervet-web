@@ -45,6 +45,10 @@ class SelectAndSplitFastaRecords(object):
 	def splitMultiRecordFastaFileIntoSingleRecordFastaFiles(cls, inputFname, outputDir, refNameSet=None,
 														chunkSize=70):
 		"""
+		2011-10-18
+			this function gets a speed-up.
+				writing the sequences in fixed-chunk through a for-loop is the cause of slow-speed.
+				stop using Bio.SeqIO and write the input line out immediately.
 		2011-7-7
 			use Bio.SeqIO and add argument fastaRecordFilterHandler
 		2010-12-3
@@ -55,32 +59,34 @@ class SelectAndSplitFastaRecords(object):
 		"""
 		import os,sys
 		sys.stderr.write("Outputting each sequence in %s into single file ...\n"%(inputFname))
-		from Bio import SeqIO
 		inf = open(inputFname, 'rU')
 		outf = None
 		counter = 0
 		real_counter = 0
-		for record in SeqIO.parse(inf, "fasta"):
-			counter += 1
-			title = record.id.split()[0]
-			if title not in refNameSet:
-				continue
-			real_counter += 1
-			# close old file and open new one
-			if outf is not None:
-				outf.close()
-			output_fname = os.path.join(outputDir, '%s.fasta'%title)
-			outf = open(output_fname, 'w')
-			outf.write(">%s\n"%title)
-			if outf is not None:
-				seq = record.seq
-				while len(seq)>0:
-					outf.write("%s\n"%seq[:chunkSize])
-					seq = seq[chunkSize:]
+		for line in inf:
+			if line[0]=='>':
+				if real_counter >= len(refNameSet):	#exit if all required refs have been selected.
+					#this break has to be put here, after the last fasta block has been out.
+					break
+				counter += 1
+				title = line.strip()[1:].split()[0]
+				if title not in refNameSet:
+					outf = None
+				else:
+					if outf is not None:
+						outf.close()
+						del outf
+					output_fname = os.path.join(outputDir, '%s.fasta'%title)
+					outf = open(output_fname, 'w')
+					outf.write(">%s\n"%title)
+					real_counter += 1
+			else:
+				if outf is not None:
+					outf.write(line)
+			
 			if counter%1000==0:
 				sys.stderr.write("%s%s\t%s"%('\x08'*80, counter, real_counter))
-			if real_counter >= len(refNameSet):	#exit if all required refs have been selected.
-				break
+		del inf
 		sys.stderr.write("%s%s\t%s"%('\x08'*80, counter, real_counter))
 		sys.stderr.write("Done.\n")
 	
