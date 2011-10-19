@@ -55,8 +55,8 @@ class GenotypeCallByCoverage(object):
 						('maxNoOfReads', 1, float): [2, 'm', 1, 'maximum read depth multiplier for one base to be considered'],\
 						('minNoOfReads', 1, float): [1/4., 'O', 1, 'minimum read depth multiplier for one base to be considered'],\
 						('maxNoOfReadsMultiSampleMultiplier', 1, float): [3, 'N', 1, 'across n samples, ignore bases where read depth > n*maxNoOfReads*multiplier.'],\
-						('seqCoverageFname', 1, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
-						('defaultCoverage', 1, float): [5, 'd', 1, 'default coverage when coverage is not available for a read group'],\
+						('seqCoverageFname', 0, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
+						('defaultCoverage', 1, float): [5, 'f', 1, 'default coverage when coverage is not available for a read group'],\
 						('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
 						("run_type", 1, int): [1, 'y', 1, '1: discoverFromVCF (output of GATK), 2: discoverFromBAM'],\
 						("site_type", 1, int): [1, 's', 1, '1: all sites, 2: variants only'],\
@@ -71,7 +71,8 @@ class GenotypeCallByCoverage(object):
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
 														class_to_have_attr=self)
 		self.discoverFuncDict = {1: self.discoverFromVCF, 2: self.discoverFromBAM}
-	def get_isqID2coverage(self, seqCoverageFname,):
+	
+	def get_isqID2coverage(self, seqCoverageFname, defaultCoverage=None):
 		"""
 		2011-9-2
 		"""
@@ -467,15 +468,18 @@ class GenotypeCallByCoverage(object):
 					if read_group not in read_group2col_index:
 						read_group2col_index[read_group] = len(read_group2col_index)
 						#2011-9-2
-						try:
-							isqID = read_group.split('_')[1]
-							isqID = int(isqID)
-							coverage = isqID2coverage[isqID]
-						except:
-							sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-							import traceback
-							traceback.print_exc()
-							sys.stderr.write("Coverage for %s not available. use default=%s.\n"%(read_group, defaultCoverage))
+						if isqID2coverage:
+							try:
+								isqID = read_group.split('_')[1]
+								isqID = int(isqID)
+								coverage = isqID2coverage.get(isqID, defaultCoverage)
+							except:
+								sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+								import traceback
+								traceback.print_exc()
+								sys.stderr.write("Coverage for %s not available. use default=%s.\n"%(read_group, defaultCoverage))
+								coverage = defaultCoverage
+						else:
 							coverage = defaultCoverage
 						read_group2coverage[read_group] = coverage
 					
@@ -592,7 +596,10 @@ class GenotypeCallByCoverage(object):
 		if outputDir and not os.path.isdir(outputDir):
 			os.makedirs(outputDir)
 		
-		isqID2coverage = self.get_isqID2coverage(self.seqCoverageFname)
+		if self.seqCoverageFname:
+			isqID2coverage = self.get_isqID2coverage(self.seqCoverageFname)
+		else:
+			isqID2coverage = {}
 		from vervet.src.misc import VariantDiscovery
 		maxNoOfReadsForAllSamples = self.numberOfReadGroups*self.maxNoOfReads*self.defaultCoverage*self.maxNoOfReadsMultiSampleMultiplier
 		if self.run_type in self.discoverFuncDict:
