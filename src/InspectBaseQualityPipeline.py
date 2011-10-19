@@ -82,7 +82,8 @@ class InspectBaseQualityPipeline(object):
 		
 		
 		# Create a abstract dag
-		workflow = ADAG("InspectBaseQualityPipeline")
+		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
+		workflow = ADAG(workflowName)
 		vervetSrcPath = self.vervetSrcPath
 		site_handler = self.site_handler
 		
@@ -130,7 +131,7 @@ class InspectBaseQualityPipeline(object):
 						#write this as OUTPUT, otherwise it'll be deleted and next program won't know 
 						#samtools_index_job.uses(bai_output, transfer=False, register=True, link=Link.OUTPUT)
 						workflow.addJob(inspectBaseQuality_job)
-						#workflow.addDependency(parent=picard_job, child=samtools_index_job)
+						#workflow.depends(parent=picard_job, child=samtools_index_job)
 				
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
