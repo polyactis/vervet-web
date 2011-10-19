@@ -236,6 +236,8 @@ class GeographicIntegrity(Entity):
 
 class Individual(Entity, TableClass):
 	"""
+	2011-10-7
+		add microchip ID
 	2011-9-8
 		add column comment
 	2011-5-4
@@ -268,6 +270,7 @@ class Individual(Entity, TableClass):
 	user_ls = ManyToMany('User',tablename='individual2user', local_colname='individual_id', remote_colname='user_id')	#2011-3-1
 	vrc_founder = Field(Boolean)
 	comment = Field(String(4096))
+	microchip_id = Field(String(4096))
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -945,8 +948,11 @@ class VervetDB(ElixirDB):
 	
 	def getIndividual(self, code=None, sex=None, age=None, age_cas=None, latitude=None, longitude=None, \
 					altitude=None, ucla_id=None, site=None, collection_date=None, collector=None, \
-					approx_age_group_at_collection=None, tax_id=None, birthdate=None, vrc_founder=None, comment=None):
+					approx_age_group_at_collection=None, tax_id=None, birthdate=None, vrc_founder=None, comment=None,\
+					microchip_id=None):
 		"""
+		2011-10-18
+			add argument microchip_id
 		2011-9-8
 			add argument comment
 		2011-5-6
@@ -973,7 +979,7 @@ class VervetDB(ElixirDB):
 						longitude=longitude, altitude=altitude, ucla_id=ucla_id, site=site, \
 						collection_date=collection_date, collector=collector,\
 						approx_age_group_at_collection=approx_age_group_at_collection, tax_id=tax_id, birthdate=birthdate,\
-						vrc_founder=vrc_founder, comment=comment)
+						vrc_founder=vrc_founder, comment=comment, microchip_id=microchip_id)
 			self.session.add(db_entry)
 			self.session.flush()
 		return db_entry
