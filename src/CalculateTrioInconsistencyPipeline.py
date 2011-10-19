@@ -261,7 +261,7 @@ class CalculateTrioInconsistencyPipeline(object):
 			homoOnlyDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=homoOnlyDir, namespace=namespace, version=version)
 			workflow.depends(parent=trioDirJob, child=homoOnlyDirJob)
 			
-			allSitesDir = os.path.join(trioDir, "allSites")
+			allSitesDir = os.path.join(trioDir, "homoHet")
 			allSitesDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=allSitesDir, namespace=namespace, version=version)
 			workflow.depends(parent=trioDirJob, child=allSitesDirJob)
 			
@@ -272,7 +272,7 @@ class CalculateTrioInconsistencyPipeline(object):
 						outputFname=summaryHomoOnlyOutputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
 			
-			summaryAllSitesOutputFname = '%s_inconsistency_summary_hist_all_sites.png'%(trioDir)
+			summaryAllSitesOutputFname = '%s_inconsistency_summary_hist_homo_het.png'%(trioDir)
 			summaryAllSitesPlotJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencySummaryHist, \
 						outputFname=summaryAllSitesOutputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
@@ -282,7 +282,7 @@ class CalculateTrioInconsistencyPipeline(object):
 						outputFname=outputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
 			
-			outputFname = '%s_inconsistency_over_position_all_sites.png'%(trioDir)
+			outputFname = '%s_inconsistency_over_position_homo_het.png'%(trioDir)
 			inconsistencyOverPositionAllSitesJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyOverPosition, \
 						outputFname=outputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
@@ -292,7 +292,7 @@ class CalculateTrioInconsistencyPipeline(object):
 						outputFname=outputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
 			
-			outputFname = '%s_inconsistency_over_frequency_all_sites.png'%(trioDir)
+			outputFname = '%s_inconsistency_over_frequency_homo_het.png'%(trioDir)
 			inconsistencyOverFrequencyAllSitesJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyOverFrequency, \
 						outputFname=outputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
@@ -310,7 +310,7 @@ class CalculateTrioInconsistencyPipeline(object):
 							parentJob=homoOnlyDirJob, additionalArgumentLs=calculateTrioInconsistencyCommonArgumentLs + ['-m'], \
 							windowSize=windowSize)	#homoOnly
 				
-				outputFnamePrefix  = os.path.join(allSitesDir, '%s.inconsistency.allSites'%(os.path.basename(inputF.name)))
+				outputFnamePrefix  = os.path.join(allSitesDir, '%s.inconsistency.homoHet'%(os.path.basename(inputF.name)))
 				trioInconsistencyCaculationAllSitesJob = self.addTrioInconsistencyCalculationJob(workflow, \
 							executable=CalculateTrioInconsistency, \
 							inputF=inputF, outputFnamePrefix=outputFnamePrefix, \
