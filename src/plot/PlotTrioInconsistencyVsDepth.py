@@ -134,7 +134,9 @@ class PlotTrioInconsistencyVsDepth(PlotTrioInconsistencyOverFrequency):
 		colorBarLabelForInconsistency = 'inconsistent rate'
 		colorBarLabelForLociCount = 'log10(no. of loci)'
 		
-		gridsize = math.sqrt(len(self.fa_depth_ls))/10	#if uniformly distributed over 2D, each hexagon has 10 points.
+		#if uniformly distributed over 2D, each hexagon has ~50 points.
+		# the maximum gridsize is 30.
+		gridsize = min(30, int(math.sqrt(len(loci_count_ls)/50.0)))
 		
 		fa_mo_depth_Fname = '%s_fa_mo_depth.png'%(outputFnamePrefix)
 		yh_matplotlib.drawHexbin(self.fa_depth_ls, self.mo_depth_ls, self.inconsistent_ls, \
