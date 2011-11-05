@@ -130,6 +130,10 @@ class CalculateTrioInconsistencyPipeline(object):
 		job.uses(frequencyOutputF, transfer=True, register=True, link=Link.OUTPUT)
 		job.frequencyOutputF = frequencyOutputF
 		
+		depthOutputF = File("%s.vs.depth.tsv"%(outputFnamePrefix))
+		job.uses(depthOutputF, transfer=True, register=True, link=Link.OUTPUT)
+		job.depthOutputF = depthOutputF
+				
 		for argument in additionalArgumentLs:
 			job.addArguments(argument)
 		workflow.addJob(job)
@@ -137,15 +141,19 @@ class CalculateTrioInconsistencyPipeline(object):
 			workflow.depends(parent=parentJob, child=job)
 		return job
 	
-	def addPlotJob(self, workflow, PlotExecutable=None, outputFname=None, namespace=None, version=None,\
+	def addPlotJob(self, workflow, PlotExecutable=None, outputFname=None, outputFnameLs=[], namespace=None, version=None,\
 						parentJob=None, title=None):
 		"""
+		2011-10-20
+			outputFname is the argument passed to plotJob.
+			outputFnameLs contains a list of all output from this job that need to be registered and transferred.
 		2011-9-29
 		"""
 		plotJob = Job(namespace=namespace, name=PlotExecutable.name, version=version)
-		outputF = File(outputFname)
-		plotJob.addArguments("-o", outputF, "-t", title)
-		plotJob.uses(outputF, transfer=True, register=True, link=Link.OUTPUT)
+		plotJob.addArguments("-o", outputFname, "-t", title)
+		for outputFname in outputFnameLs:
+			outputF = File(outputFname)
+			plotJob.uses(outputF, transfer=True, register=True, link=Link.OUTPUT)
 		workflow.addJob(plotJob)
 		if parentJob:
 			workflow.depends(parent=parentJob, child=plotJob)
@@ -178,7 +186,21 @@ class CalculateTrioInconsistencyPipeline(object):
 			inputFLs.append(inputF)
 		sys.stderr.write("%s files.\n"%(len(inputFLs)))
 		return inputFLs
-		
+	
+	@classmethod
+	def getContigIDFromFname(cls, filename):
+		"""
+		2011-10-20
+		"""
+		import re
+		contig_id_pattern = re.compile(r'Contig(\d+).*')
+		contig_id_pattern_sr = contig_id_pattern.search(filename)
+		if contig_id_pattern_sr:
+			contig_id = contig_id_pattern_sr.group(1)
+		else:
+			contig_id = os.path.splitext(os.path.split(filename)[1])[0]
+		return contig_id
+	
 	def run(self):
 		"""
 		2011-9-28
@@ -250,6 +272,12 @@ class CalculateTrioInconsistencyPipeline(object):
 		#PlotTrioInconsistencyOverFrequency.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(PlotTrioInconsistencyOverFrequency)
 		
+		PlotTrioInconsistencyVsDepth = Executable(namespace=namespace, name="PlotTrioInconsistencyVsDepth", version=version, \
+										os=operatingSystem, arch=architecture, installed=True)
+		PlotTrioInconsistencyVsDepth.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "plot/PlotTrioInconsistencyVsDepth.py"), site_handler))
+		#PlotTrioInconsistencyVsDepth.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(PlotTrioInconsistencyVsDepth)
+		
 		inputFLs = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler)
 		
 		for trio in trioLs:
@@ -265,40 +293,79 @@ class CalculateTrioInconsistencyPipeline(object):
 			allSitesDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=allSitesDir, namespace=namespace, version=version)
 			workflow.depends(parent=trioDirJob, child=allSitesDirJob)
 			
+			depthOutputDir = os.path.join(trioDir, "depth")
+			depthOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=depthOutputDir, namespace=namespace, version=version)
+			
+			positionOutputDir = os.path.join(trioDir, "position")
+			positionOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=positionOutputDir, namespace=namespace, version=version)
+			
 			# no space in a single argument
 			title = "trio-%s-%s-contigs"%(trio, len(inputFLs))
-			summaryHomoOnlyOutputFname = '%s_inconsistency_summary_hist_homo_only.png'%(trioDir)
+			outputFname = '%s_inconsistency_summary_hist_homo_only.png'%(trioDir)
 			summaryHomoOnlyPlotJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencySummaryHist, \
-						outputFname=summaryHomoOnlyOutputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
+						outputFname=outputFname, outputFnameLs=[outputFname], \
+						namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
 			
-			summaryAllSitesOutputFname = '%s_inconsistency_summary_hist_homo_het.png'%(trioDir)
+			outputFname = '%s_inconsistency_summary_hist_homo_het.png'%(trioDir)
 			summaryAllSitesPlotJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencySummaryHist, \
-						outputFname=summaryAllSitesOutputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
+						outputFname=outputFname, outputFnameLs=[outputFname], \
+						namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
 			
 			outputFname = '%s_inconsistency_over_position_homo_only.png'%(trioDir)
 			inconsistencyOverPositionHomoOnlyJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyOverPosition, \
-						outputFname=outputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
+						outputFname=outputFname, outputFnameLs=[outputFname], \
+						namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
 			
 			outputFname = '%s_inconsistency_over_position_homo_het.png'%(trioDir)
 			inconsistencyOverPositionAllSitesJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyOverPosition, \
-						outputFname=outputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
+						outputFname=outputFname, outputFnameLs=[outputFname], \
+						namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
 			
 			outputFname = '%s_inconsistency_over_frequency_homo_only.png'%(trioDir)
 			inconsistencyOverFrequencyHomoOnlyJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyOverFrequency, \
-						outputFname=outputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
+						outputFname=outputFname, outputFnameLs=[outputFname], \
+						namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
 			
 			outputFname = '%s_inconsistency_over_frequency_homo_het.png'%(trioDir)
 			inconsistencyOverFrequencyAllSitesJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyOverFrequency, \
-						outputFname=outputFname, namespace=namespace, version=version, parentJob=trioDirJob,\
+						outputFname=outputFname, outputFnameLs=[outputFname], \
+						namespace=namespace, version=version, parentJob=trioDirJob,\
 						title=title)
 			
+			outputFnamePrefix = '%s_homo_only_inconsistency_over'%(trioDir)
+			fa_mo_depth_Fname = '%s_fa_mo_depth.png'%(outputFnamePrefix)
+			fa_mo_depth_loci_count_Fname = '%s_fa_mo_depth_loci_count.png'%(outputFnamePrefix)
+			fa_child_depth_Fname = '%s_fa_child_depth.png'%(outputFnamePrefix)
+			fa_child_depth_loci_count_Fname = '%s_fa_child_depth_loci_count.png'%(outputFnamePrefix)
+			mo_child_depth_Fname = '%s_mo_child_depth.png'%(outputFnamePrefix)
+			mo_child_depth_loci_count_Fname = '%s_mo_child_depth_loci_count.png'%(outputFnamePrefix)
+
+			inconsistencyOverDepthHomoOnlyJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyVsDepth, \
+						outputFname=outputFnamePrefix, outputFnameLs=[fa_mo_depth_Fname, fa_child_depth_Fname, mo_child_depth_Fname,\
+								fa_mo_depth_loci_count_Fname, fa_child_depth_loci_count_Fname, mo_child_depth_loci_count_Fname], \
+						namespace=namespace, version=version, parentJob=trioDirJob,\
+						title=title)
+			
+			outputFnamePrefix = '%s_homo_het_inconsistency_over'%(trioDir)
+			fa_mo_depth_Fname = '%s_fa_mo_depth.png'%(outputFnamePrefix)
+			fa_mo_depth_loci_count_Fname = '%s_fa_mo_depth_loci_count.png'%(outputFnamePrefix)
+			fa_child_depth_Fname = '%s_fa_child_depth.png'%(outputFnamePrefix)
+			fa_child_depth_loci_count_Fname = '%s_fa_child_depth_loci_count.png'%(outputFnamePrefix)
+			mo_child_depth_Fname = '%s_mo_child_depth.png'%(outputFnamePrefix)
+			mo_child_depth_loci_count_Fname = '%s_mo_child_depth_loci_count.png'%(outputFnamePrefix)
+			inconsistencyOverDepthAllSitesJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyVsDepth, \
+						outputFname=outputFnamePrefix, outputFnameLs=[fa_mo_depth_Fname, fa_child_depth_Fname, mo_child_depth_Fname,\
+								fa_mo_depth_loci_count_Fname, fa_child_depth_loci_count_Fname, mo_child_depth_loci_count_Fname], \
+						namespace=namespace, version=version, parentJob=trioDirJob,\
+						title=title)
 			
 			for inputF in inputFLs:
+				contig_id = self.getContigIDFromFname(inputF.name)
 				windowSize = 200000
 				calculateTrioInconsistencyCommonArgumentLs = ["-t", trio, "-w", repr(windowSize)]
 				
@@ -327,6 +394,9 @@ class CalculateTrioInconsistencyPipeline(object):
 				self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationHomoOnlyJob, \
 								parentOutputF=trioInconsistencyCaculationHomoOnlyJob.frequencyOutputF, \
 								plotJob=inconsistencyOverFrequencyHomoOnlyJob)
+				self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationHomoOnlyJob, \
+								parentOutputF=trioInconsistencyCaculationHomoOnlyJob.depthOutputF, \
+								plotJob=inconsistencyOverDepthHomoOnlyJob)
 				
 				self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationAllSitesJob, \
 								parentOutputF=trioInconsistencyCaculationAllSitesJob.summaryOutputF, \
@@ -337,7 +407,60 @@ class CalculateTrioInconsistencyPipeline(object):
 				self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationAllSitesJob, \
 								parentOutputF=trioInconsistencyCaculationAllSitesJob.frequencyOutputF, \
 								plotJob=inconsistencyOverFrequencyAllSitesJob)
-		
+				self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationAllSitesJob, \
+								parentOutputF=trioInconsistencyCaculationAllSitesJob.depthOutputF, \
+								plotJob=inconsistencyOverDepthAllSitesJob)
+				
+				newTitle = "trio-%s-contig-%s"%(trio, contig_id)
+				outputFname = os.path.join(positionOutputDir, '%s_contig_%s_inconsistency_over_position_homo_only.png'%(trioDir, contig_id))
+				contigInconsistencyOverPositionHomoOnlyJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyOverPosition, \
+							outputFname=outputFname, outputFnameLs=[outputFname], \
+							namespace=namespace, version=version, parentJob=positionOutputDirJob,\
+							title=newTitle)
+				self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationHomoOnlyJob, \
+								parentOutputF=trioInconsistencyCaculationHomoOnlyJob.windowOutputF, \
+								plotJob=contigInconsistencyOverPositionHomoOnlyJob)
+				
+				outputFname = os.path.join(positionOutputDir, '%s_contig_%s_inconsistency_over_position_homo_het.png'%(trioDir, contig_id))
+				contigInconsistencyOverPositionAllSitesJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyOverPosition, \
+							outputFname=outputFname, outputFnameLs=[outputFname], \
+							namespace=namespace, version=version, parentJob=positionOutputDirJob,\
+							title=newTitle)
+				self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationAllSitesJob, \
+								parentOutputF=trioInconsistencyCaculationAllSitesJob.windowOutputF, \
+								plotJob=contigInconsistencyOverPositionAllSitesJob)
+				
+				outputFnamePrefix = os.path.join(depthOutputDir, '%s_contig_%s_homo_only_inconsistency_over'%(trioDir, contig_id))
+				fa_mo_depth_Fname = '%s_fa_mo_depth.png'%(outputFnamePrefix)
+				fa_child_depth_Fname = '%s_fa_child_depth.png'%(outputFnamePrefix)
+				mo_child_depth_Fname = '%s_mo_child_depth.png'%(outputFnamePrefix)
+				fa_mo_depth_loci_count_Fname = '%s_fa_mo_depth_loci_count.png'%(outputFnamePrefix)
+				fa_child_depth_loci_count_Fname = '%s_fa_child_depth_loci_count.png'%(outputFnamePrefix)
+				mo_child_depth_loci_count_Fname = '%s_mo_child_depth_loci_count.png'%(outputFnamePrefix)
+				contigInconsistencyOverDepthHomoOnlyJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyVsDepth, \
+							outputFname=outputFnamePrefix, outputFnameLs=[fa_mo_depth_Fname, fa_child_depth_Fname, mo_child_depth_Fname,\
+								fa_mo_depth_loci_count_Fname, fa_child_depth_loci_count_Fname, mo_child_depth_loci_count_Fname], \
+							namespace=namespace, version=version, parentJob=depthOutputDirJob,\
+							title=newTitle)
+				self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationHomoOnlyJob, \
+								parentOutputF=trioInconsistencyCaculationHomoOnlyJob.depthOutputF, \
+								plotJob=contigInconsistencyOverDepthHomoOnlyJob)
+				
+				outputFnamePrefix = os.path.join(depthOutputDir, '%s_contig_%s_homo_het_inconsistency_over'%(trioDir, contig_id))
+				fa_mo_depth_Fname = '%s_fa_mo_depth.png'%(outputFnamePrefix)
+				fa_child_depth_Fname = '%s_fa_child_depth.png'%(outputFnamePrefix)
+				mo_child_depth_Fname = '%s_mo_child_depth.png'%(outputFnamePrefix)
+				fa_mo_depth_loci_count_Fname = '%s_fa_mo_depth_loci_count.png'%(outputFnamePrefix)
+				fa_child_depth_loci_count_Fname = '%s_fa_child_depth_loci_count.png'%(outputFnamePrefix)
+				mo_child_depth_loci_count_Fname = '%s_mo_child_depth_loci_count.png'%(outputFnamePrefix)
+				contigInconsistencyOverDepthAllSitesJob = self.addPlotJob(workflow, PlotExecutable=PlotTrioInconsistencyVsDepth, \
+							outputFname=outputFnamePrefix, outputFnameLs=[fa_mo_depth_Fname, fa_child_depth_Fname, mo_child_depth_Fname,
+									fa_mo_depth_loci_count_Fname, fa_child_depth_loci_count_Fname, mo_child_depth_loci_count_Fname], \
+							namespace=namespace, version=version, parentJob=depthOutputDirJob,\
+							title=newTitle)
+				self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationAllSitesJob, \
+								parentOutputF=trioInconsistencyCaculationAllSitesJob.depthOutputF, \
+								plotJob=contigInconsistencyOverDepthAllSitesJob)
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
@@ -345,7 +468,6 @@ class CalculateTrioInconsistencyPipeline(object):
 		
 
 
-	
 if __name__ == '__main__':
 	main_class = CalculateTrioInconsistencyPipeline
 	po = ProcessOptions(sys.argv, main_class.option_default_dict, error_doc=main_class.__doc__)
