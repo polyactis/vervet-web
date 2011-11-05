@@ -56,11 +56,11 @@ else
 	bcftoolsArguments="-bvcg"
 fi
 
-$samtoolsPath mpileup -S -D -q 30 -Q 20 -ug -r $interval -f $refFastaFname $bamFiles | $bcftoolsPath view $bcftoolsArguments - > $outputVCF.bcf
-
 #2011-11-04 from Vasily. lower threshold for sixth column (QUAL) in VCF.
 low_quality_thresh=50.0
 
+
+$samtoolsPath mpileup -S -D -q 30 -Q 20 -ug -r $interval -f $refFastaFname $bamFiles | $bcftoolsPath view $bcftoolsArguments - > $outputVCF.bcf
 exitCodeAll="${PIPESTATUS[0]} ${PIPESTATUS[1]}"
 exitCode=`echo $exitCodeAll|awk -F ' ' '{print $1}'`
 exitCode2=`echo $exitCodeAll|awk -F ' ' '{print $2}'`
@@ -78,8 +78,7 @@ then
 	then
 		#split into INDEL and SNP-only VCF
 		egrep "^#" $indelSNPVCF 1>$outputVCF
-		egrep -v "^#" $indelSNPVCF | egrep -v INDEL |awk '{if ($6>=$low_quality_thresh) print}'>>$outputVCF
-		
+		egrep -v "^#" $indelSNPVCF | egrep -v INDEL |awk "{if (\$6>=$low_quality_thresh) print}">>$outputVCF
 		exitCodeAll="${PIPESTATUS[0]} ${PIPESTATUS[1]} ${PIPESTATUS[2]}"
 		exitCode=`echo $exitCodeAll|awk -F ' ' '{print $1}'`
 		exitCode2=`echo $exitCodeAll|awk -F ' ' '{print $2}'`
