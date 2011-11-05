@@ -147,6 +147,10 @@ class CalculateTrioInconsistency(object):
 		windowOutputFname = "%s.window.%s.tsv"%(self.outputFnamePrefix, self.windowSize)
 		frequencyOutputFname = "%s.frequency.tsv"%(self.outputFnamePrefix)
 		summaryOutputFname = "%s.summary.tsv"%(self.outputFnamePrefix)
+		depthOutputFname = "%s.vs.depth.tsv"%(self.outputFnamePrefix)
+		
+		depthOutputWriter = csv.writer(open(depthOutputFname, 'w'), delimiter='\t')
+		depthOutputWriter.writerow(['depthOfFather','depthOfMother', 'depthOfChild', 'isInconsistent'])
 		
 		
 		summaryOutputWriter = csv.writer(open(summaryOutputFname, 'w'), delimiter='\t')
@@ -156,14 +160,16 @@ class CalculateTrioInconsistency(object):
 		
 		windowKey2data = {}	#(chr,window No.) as key, [no_of_inconsistent, no_of_total, ratio] as value
 		frequencyKey2data = {}	#(chr, frequency) as key, [no_of_inconsistent, no_of_total, ratio] as value
+		depth2data = {}	#depth is key, [no_of_inconsistent, no_of_total, ratio] as value
 		#for summary statistic
 		no_of_inconsistent = 0.
 		no_of_total = 0.
 		chr_set = set()
 		minStart = None
-		for i in xrange(len(vcfFile.locus_id_ls)):
-			locus = vcfFile.locus_id_ls[i]
-			chr, pos = locus.split("_")[:2]
+		for vcfRecord in vcfFile.parseIter():
+			locus = vcfRecord.locus
+			chr = vcfRecord.chr
+			pos = vcfRecord.pos
 			pos = int(pos)
 			if pos>self.refSize:
 				self.refSize = pos
@@ -172,45 +178,56 @@ class CalculateTrioInconsistency(object):
 			
 			chr_set.add(chr)
 			
-			fa_genotype = vcfFile.genotype_call_matrix[i][father_index]
-			mo_genotype = vcfFile.genotype_call_matrix[i][mother_index]
-			child_genotype = vcfFile.genotype_call_matrix[i][child_index]
-			if fa_genotype=='NA' or mo_genotype=='NA' or child_index=='NA':
-				continue
-			if self.homoOnly and ( (len(fa_genotype)>1 and fa_genotype[0]!=fa_genotype[1]) or \
-					(len(mo_genotype)>1 and mo_genotype[0]!=mo_genotype[1]) or \
-					(len(child_genotype)>1 and child_genotype[0]!=child_genotype[1]) ):
-				#2011-9-28 ignore loci with het call in one of the trio
-				continue
-			potential_child_genotype_set = set()
-			for fg in fa_genotype:
-				for mg in mo_genotype:
-					potential_child_genotype_set.add('%s%s'%(fg,mg))
-			
-			windowNo = int(pos/self.windowSize)
-			windowKey = (chr, windowNo)
-			if windowKey not in windowKey2data:
-				windowKey2data[windowKey] = [0., 0., 0.] #[no_of_inconsistent, no_of_total, ratio]
-			windowKey2data[windowKey][1] += 1
-			
-			frequency = vcfFile.locus_id2data[locus].get("AF", vcfFile.locus_id2data[locus].get("AF1", None))
-			if frequency is not None:
-				frequency = float(frequency)
-			else:
-				frequency = -0.1
-			frequencyRounded = int(frequency*10)/10.0	#round it by 0.1 interval
-			frequencyKey = (chr, frequencyRounded)
-			if frequencyKey not in frequencyKey2data:
-				frequencyKey2data[frequencyKey] = [0., 0., 0.] #[no_of_inconsistent, no_of_total, ratio]
-			frequencyKey2data[frequencyKey][1] += 1
-			
-			no_of_total += 1
-			reverse_child_genotype = '%s%s'%(child_genotype[1], child_genotype[0])	#reversing nucleotide is still same call. no phasing
-			if child_genotype not in potential_child_genotype_set and reverse_child_genotype not in potential_child_genotype_set:
-				no_of_inconsistent += 1
-				windowKey2data[windowKey][0] += 1
-				frequencyKey2data[frequencyKey][0] += 1
-			
+			fa_genotypeData = vcfRecord.data_row[father_index]
+			mo_genotypeData = vcfRecord.data_row[mother_index]
+			child_genotypeData = vcfRecord.data_row[child_index]
+			if fa_genotypeData and mo_genotypeData and child_genotypeData:
+				fa_genotype = fa_genotypeData['GT']
+				fa_depth = fa_genotypeData['DP']
+				mo_genotype = mo_genotypeData['GT']
+				mo_depth = mo_genotypeData['DP']
+				child_genotype = child_genotypeData['GT']
+				child_depth = child_genotypeData['DP']
+				
+				if self.homoOnly and ( (len(fa_genotype)>1 and fa_genotype[0]!=fa_genotype[1]) or \
+						(len(mo_genotype)>1 and mo_genotype[0]!=mo_genotype[1]) or \
+						(len(child_genotype)>1 and child_genotype[0]!=child_genotype[1]) ):
+					#2011-9-28 ignore loci with het call in one of the trio
+					continue
+				potential_child_genotype_set = set()
+				for fg in fa_genotype:
+					for mg in mo_genotype:
+						potential_child_genotype_set.add('%s%s'%(fg,mg))
+				
+				windowNo = int(pos/self.windowSize)
+				windowKey = (chr, windowNo)
+				if windowKey not in windowKey2data:
+					windowKey2data[windowKey] = [0., 0., 0.] #[no_of_inconsistent, no_of_total, ratio]
+				windowKey2data[windowKey][1] += 1
+				
+				frequency = vcfRecord.info_tag2value.get("AF", vcfRecord.info_tag2value.get("AF1", None))
+				if frequency is not None:
+					frequency = float(frequency)
+				else:
+					frequency = -0.1
+				frequencyRounded = int(frequency*10)/10.0	#round it by 0.1 interval
+				frequencyKey = (chr, frequencyRounded)
+				if frequencyKey not in frequencyKey2data:
+					frequencyKey2data[frequencyKey] = [0., 0., 0.] #[no_of_inconsistent, no_of_total, ratio]
+				frequencyKey2data[frequencyKey][1] += 1
+				
+				no_of_total += 1
+				reverse_child_genotype = '%s%s'%(child_genotype[1], child_genotype[0])	#reversing nucleotide is still same call. no phasing
+				isInconsistent = 0
+				if child_genotype not in potential_child_genotype_set and reverse_child_genotype not in potential_child_genotype_set:
+					no_of_inconsistent += 1
+					windowKey2data[windowKey][0] += 1
+					frequencyKey2data[frequencyKey][0] += 1
+					isInconsistent = 1
+				depthOutputWriter.writerow([fa_depth, mo_depth, child_depth, isInconsistent])
+		
+		del depthOutputWriter
+		
 		inconsistency = no_of_inconsistent/no_of_total
 		sys.stderr.write("inconsistent rate: %s/%s=%s \n"%(no_of_inconsistent, no_of_total, inconsistency))
 		chr_ls = list(chr_set)
