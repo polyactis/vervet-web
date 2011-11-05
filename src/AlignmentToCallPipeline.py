@@ -11,14 +11,14 @@ Examples:
 	%s -o workflow_8GenomeVsTop156Contigs.xml -u yh  -a 128 -i 1-8 -N 156 -y2 -s2
 	
 	# 2011-7-21 use GATK + coverage filter, top 2 contigs
-	~/script/vervet/src/AlignmentToCallPipeline.py -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 -i 1-8 -N 2 -y1  -s2
+	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 -i 1-8 -N 2 -y1  -s2
 	
 	# 2011-7-21 use GATK + coverage filter on hoffman2 and site_handler, top 5 contigs
-	~/script/vervet/src/AlignmentToCallPipeline.py -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 -i 1-8
+	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 -i 1-8
 		-N 5 -y1 -l hoffman2 -e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db  -s2
 	
 	#2011-8-31 work 10 VWP and one VRC ref monkeys, variants only
-	~/script/vervet/src/AlignmentToCallPipeline.py -a 9 -I 495,498-507 -u yh  
+	%s -a 9 -I 495,498-507 -u yh  
 		-l condorpool -y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC.xml -s2 -q /tmp/all_isq_coverage.tsv
 	
 	%s -a 120 -I 34,38 -u yh -l hoffman2
@@ -30,6 +30,10 @@ Examples:
 		-z 10.8.0.10 -o ./AlignmentToCallPipeline_559_656_vs_524_top_25Contigs_uschpc.xml
 		-D ~/mnt/hpc-cmb_home/NetworkData/vervet/db/ -N25
 	
+	# 2011-11-4 run GATK/samtools on single-sample at a time, for 4 high-coverage VRC monkeys, top 804 contigs
+	%s -a 524 -i 15-18 -u yh -l condorpool -j condorpool -s 2 -N 804
+		-o AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top804Contigs_single_sample_condor.xml -z uclaOffice -n 2
+	
 Description:
 	2011-7-12
 		a program which generates a pegasus workflow dag (xml file) to call genotypes on all chosen alignments.
@@ -39,7 +43,8 @@ Description:
 		If on, the reference fasta file will be staged in and affiliated index/dict files will be created by a job.
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0],\
+				sys.argv[0], sys.argv[0], sys.argv[0])
 
 from sqlalchemy.types import LargeBinary
 
@@ -53,7 +58,7 @@ else:   #32bit
 
 import subprocess, cStringIO
 import VervetDB
-from pymodule import ProcessOptions, getListOutOfStr, PassingData
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
 
 
@@ -88,6 +93,7 @@ class AlignmentToCallPipeline(object):
 						("needFastaIndexJob", 0, int): [0, '', 0, 'need to add a reference index job by samtools?'],\
 						("needFastaDictJob", 0, int): [0, '', 0, 'need to add a reference dict job by picard CreateSequenceDictionary.jar?'],\
 						("site_type", 1, int): [2, 's', 1, '1: all genome sites, 2: variants only'],\
+						("run_type", 1, int): [1, 'n', 1, '1: cross-sample calling, 2: single-sample one by one'],\
 						('outputFname', 1, ): [None, 'o', 1, 'xml workflow output file'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
@@ -661,6 +667,34 @@ class AlignmentToCallPipeline(object):
 		if fastaIndexJob or fastaDictJob:
 			job.uses(refFastaF, transfer=True, register=True, link=Link.INPUT)
 	
+	def addVCFFormatConvertJob(self, workflow, vcf_convert=None, parentJob=None, inputF=None, outputF=None, \
+							namespace=None, version=None, transferOutput=False):
+		"""
+		2011-11-4
+		"""
+		vcf_convert_job = Job(namespace=namespace, name=vcf_convert.name, version=version)
+		vcf_convert_job.addArguments(inputF, outputF)
+		vcf_convert_job.uses(inputF, transfer=False, register=True, link=Link.INPUT)
+		vcf_convert_job.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		workflow.addJob(vcf_convert_job)
+		workflow.depends(parent=parentJob, child=vcf_convert_job)
+		return vcf_convert_job
+	
+	def addBGZIP_tabix_Job(self, workflow, bgzip_tabix=None, parentJob=None, inputF=None, outputF=None, \
+							namespace=None, version=None, transferOutput=False):
+		"""
+		2011-11-4
+		"""
+		bgzip_tabix_job = Job(namespace=namespace, name=bgzip_tabix.name, version=version)
+		tbi_F = File("%s.tbi"%outputF.name)
+		bgzip_tabix_job.addArguments(inputF, outputF)
+		bgzip_tabix_job.uses(inputF, transfer=False, register=True, link=Link.INPUT)
+		bgzip_tabix_job.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		bgzip_tabix_job.uses(tbi_F, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		workflow.addJob(bgzip_tabix_job)
+		workflow.depends(parent=parentJob, child=bgzip_tabix_job)
+		return bgzip_tabix_job
+	
 	def addGenotypeCallJobs(self, workflow, alignmentLs, refName2size, samtools=None, \
 				genotyperJava=None,  genomeAnalysisTKJar=None, \
 				addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
@@ -721,7 +755,7 @@ class AlignmentToCallPipeline(object):
 					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					mv=mv, namespace=namespace, version=version, dataDir=dataDir)
 		alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
-				
+		
 		# add merge jobs for every reference
 		refName2mergedBamCallJob = {}
 		for refName, refSize in refName2size.iteritems():
@@ -827,33 +861,44 @@ class AlignmentToCallPipeline(object):
 				samtools_job = Job(namespace=namespace, name=CallVariantBySamtools.name, version=version)
 				samtoolsOutputFname = os.path.join(samtoolsDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
 				samtoolsOutputF = File(samtoolsOutputFname)
+				indelVCFOutputFname = "%s.indel.vcf"%(samtoolsOutputFname)
+				indelVCFOutputF = File(indelVCFOutputFname)
+				
 				samtools_job.addArguments(refFastaF, interval, samtoolsOutputF, repr(site_type))
 				#samtools_job.uses(bamListF, transfer=True, register=True, link=Link.INPUT)
 				samtools_job.uses(samtoolsOutputF, transfer=False, register=True, link=Link.OUTPUT)
+				samtools_job.uses(indelVCFOutputF, transfer=False, register=True, link=Link.OUTPUT)
 				
 				samtools_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%vcf_job_max_memory))
 				samtools_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%vcf_job_max_memory))
 				workflow.addJob(samtools_job)
 				workflow.depends(parent=samtoolsDirJob, child=samtools_job)
 				
-				vcf_convert_samtoolsOutputF_job = Job(namespace=namespace, name=vcf_convert.name, version=version)
+				#deal with samtools's indel VCF
+				samtoolsIndelVCF4Fname = os.path.join(samtoolsDirJob.folder, '%s.indel.vcf'%vcfBaseFname)
+				samtoolsIndelVCF4F = File(samtoolsIndelVCF4Fname)
+				samtoolsIndelVCF4F_job = self.addVCFFormatConvertJob(workflow, vcf_convert=vcf_convert, \
+							parentJob=samtools_job, inputF=indelVCFOutputF, outputF=samtoolsIndelVCF4F, \
+							namespace=namespace, version=version, transferOutput=False)
+				
+				samtoolsIndelGzipOutputF = File("%s.gz"%samtoolsIndelVCF4Fname)
+				samtoolsIndelGzipOutput_tbi_F = File("%s.gz.tbi"%samtoolsIndelVCF4Fname)
+				samtoolsIndelGzipOutputF_job = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=bgzip_tabix, \
+						parentJob=samtoolsIndelVCF4F_job, inputF=samtoolsIndelVCF4F, outputF=samtoolsIndelGzipOutputF, \
+						namespace=namespace, version=version, transferOutput=True)
+				
+				#deal with samtools's snp VCF
 				vcf4_samtoolsOutputFname = os.path.join(samtoolsDirJob.folder, '%s.vcf'%vcfBaseFname)
 				vcf4_samtoolsOutputF = File(vcf4_samtoolsOutputFname)
-				vcf_convert_samtoolsOutputF_job.addArguments(samtoolsOutputF, vcf4_samtoolsOutputF)
-				vcf_convert_samtoolsOutputF_job.uses(samtoolsOutputF, transfer=False, register=True, link=Link.INPUT)
-				vcf_convert_samtoolsOutputF_job.uses(vcf4_samtoolsOutputF, transfer=False, register=True, link=Link.OUTPUT)
-				workflow.addJob(vcf_convert_samtoolsOutputF_job)
-				workflow.depends(parent=samtools_job, child=vcf_convert_samtoolsOutputF_job)
+				vcf_convert_samtoolsOutputF_job = self.addVCFFormatConvertJob(workflow, vcf_convert=vcf_convert, \
+							parentJob=samtools_job, inputF=samtoolsOutputF, outputF=vcf4_samtoolsOutputF, \
+							namespace=namespace, version=version, transferOutput=False)
 				
-				bgzip_tabix_samtoolsOutputF_job = Job(namespace=namespace, name=bgzip_tabix.name, version=version)
 				samtoolsGzipOutputF = File("%s.gz"%vcf4_samtoolsOutputFname)
 				samtoolsGzipOutput_tbi_F = File("%s.gz.tbi"%vcf4_samtoolsOutputFname)
-				bgzip_tabix_samtoolsOutputF_job.addArguments(vcf4_samtoolsOutputF, samtoolsGzipOutputF)
-				bgzip_tabix_samtoolsOutputF_job.uses(vcf4_samtoolsOutputF, transfer=False, register=True, link=Link.INPUT)
-				bgzip_tabix_samtoolsOutputF_job.uses(samtoolsGzipOutputF, transfer=False, register=True, link=Link.OUTPUT)
-				bgzip_tabix_samtoolsOutputF_job.uses(samtoolsGzipOutput_tbi_F, transfer=False, register=True, link=Link.OUTPUT)
-				workflow.addJob(bgzip_tabix_samtoolsOutputF_job)
-				workflow.depends(parent=vcf_convert_samtoolsOutputF_job, child=bgzip_tabix_samtoolsOutputF_job)
+				bgzip_tabix_samtoolsOutputF_job = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=bgzip_tabix, \
+						parentJob=vcf_convert_samtoolsOutputF_job, inputF=vcf4_samtoolsOutputF, outputF=samtoolsGzipOutputF, \
+						namespace=namespace, version=version, transferOutput=False)
 				
 				#add this output to a samtools union job
 				samtoolsUnionJob.addArguments(samtoolsGzipOutputF)
@@ -878,6 +923,7 @@ class AlignmentToCallPipeline(object):
 				isectJob.uses(intersectionOutputF, transfer=False, register=True, link=Link.OUTPUT)
 				isectJob.uses(intersectionOutput_tbi_F, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(isectJob)
+				workflow.depends(parent=intersectionDirJob, child=isectJob)
 				workflow.depends(parent=bgzip_tabix_gatkOutputF_job, child=isectJob)
 				workflow.depends(parent=bgzip_tabix_samtoolsOutputF_job, child=isectJob)
 				
@@ -1010,13 +1056,16 @@ class AlignmentToCallPipeline(object):
 		"""
 		2011-9-14
 		"""
+		return yh_pegasus.addMkDirJob(workflow, mkdir=mkdir, outputDir=outputDir, namespace=namespace, version=version)
+		"""
 		# Add a mkdir job for any directory.
 		mkDirJob = Job(namespace=namespace, name=mkdir.name, version=version)
 		mkDirJob.addArguments(outputDir)
 		mkDirJob.folder = outputDir	#custom attribute
 		workflow.addJob(mkDirJob)
 		return mkDirJob
-	
+		"""
+		
 	def run(self):
 		"""
 		2011-7-11
@@ -1201,6 +1250,7 @@ class AlignmentToCallPipeline(object):
 		bgzip_tabix = Executable(namespace=namespace, name="bgzip_tabix", version=version, \
 										os=operatingSystem, arch=architecture, installed=True)
 		bgzip_tabix.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "bgzip_tabix.sh"), site_handler))
+		bgzip_tabix.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(bgzip_tabix)
 		
 		vcf_convert = Executable(namespace=namespace, name="vcf_convert", version=version, \
@@ -1238,42 +1288,81 @@ class AlignmentToCallPipeline(object):
 		calcula.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "CalculatePairwiseDistanceOutOfSNPXStrainMatrix.py"), site_handler))
 		workflow.addExecutable(calcula)
 		
-		
-		# Add a mkdir job for the call directory.
-		callOutputDir = "call"
-		callOutputDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=callOutputDir, namespace=namespace, version=version)
-		gatkDir = "gatk"
-		gatkDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=gatkDir, namespace=namespace, version=version)
-		samtoolsDir = "samtools"
-		samtoolsDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=samtoolsDir, namespace=namespace, version=version)
-		unionDir = "gatk_samtools_union"
-		unionDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=unionDir, namespace=namespace, version=version)
-		intersectionDir = "gatk_samtools_intersection"
-		intersectionDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=intersectionDir, namespace=namespace, version=version)
-		
-		if self.site_handler=='condorpool':
-			bamListF_site_handler = 'condorpool'
-		else:	#every other site requires transfer from local
-			bamListF_site_handler = 'local'
-		#bamListF = self.outputListOfBam(alignmentLs, self.dataDir, self.bamListFname, workflow=workflow, site_handler=bamListF_site_handler)
-		
-		
-		self.addGenotypeCallJobs(workflow, alignmentLs, refName2size, samtools=samtools, \
-				genotyperJava=genotyperJava, genomeAnalysisTKJar=genomeAnalysisTKJar, \
-				addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
-				createSequenceDictionaryJava=createSequenceDictionaryJava, createSequenceDictionaryJar=createSequenceDictionaryJar, \
-				mergeSamFilesJar=mergeSamFilesJar, \
-				BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
-				mv=mv, CallVariantBySamtools=CallVariantBySamtools,\
-				bgzip_tabix=bgzip_tabix, vcf_convert=vcf_convert, vcf_isec=vcf_isec, vcf_concat=vcf_concat, \
-				concatGATK=concatGATK, concatSamtools=concatSamtools,\
-				genotypeCallByCoverage=genotypeCallByCoverage, refFastaF=refFastaF, bamListF=None, \
-				callOutputDirJob =callOutputDirJob, gatkDirJob=gatkDirJob, samtoolsDirJob=samtoolsDirJob, unionDirJob=unionDirJob, intersectionDirJob=intersectionDirJob,\
-				namespace=namespace, version=version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
-				seqCoverageF=None, \
-				needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-				chunkSize=2000000, site_type=self.site_type, dataDir=self.dataDir)
-		
+		#2011-11-4 for single-alignment-calling pipeline, adjust the folder name so that they are unique from each other
+		if self.run_type==1:
+			dirPrefix = ""
+			# Add a mkdir job for the call directory.
+			callOutputDir = "%scall"%(dirPrefix)
+			callOutputDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=callOutputDir, namespace=namespace, version=version)
+			gatkDir = "%sgatk"%(dirPrefix)
+			gatkDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=gatkDir, namespace=namespace, version=version)
+			samtoolsDir = "%ssamtools"%(dirPrefix)
+			samtoolsDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=samtoolsDir, namespace=namespace, version=version)
+			unionDir = "%sgatk_samtools_union"%(dirPrefix)
+			unionDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=unionDir, namespace=namespace, version=version)
+			intersectionDir = "%sgatk_samtools_intersection"%(dirPrefix)
+			intersectionDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=intersectionDir, namespace=namespace, version=version)
+			
+			if self.site_handler=='condorpool':
+				bamListF_site_handler = 'condorpool'
+			else:	#every other site requires transfer from local
+				bamListF_site_handler = 'local'
+			#bamListF = self.outputListOfBam(alignmentLs, self.dataDir, self.bamListFname, workflow=workflow, site_handler=bamListF_site_handler)
+			
+			
+			self.addGenotypeCallJobs(workflow, alignmentLs, refName2size, samtools=samtools, \
+					genotyperJava=genotyperJava, genomeAnalysisTKJar=genomeAnalysisTKJar, \
+					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
+					createSequenceDictionaryJava=createSequenceDictionaryJava, createSequenceDictionaryJar=createSequenceDictionaryJar, \
+					mergeSamFilesJar=mergeSamFilesJar, \
+					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+					mv=mv, CallVariantBySamtools=CallVariantBySamtools,\
+					bgzip_tabix=bgzip_tabix, vcf_convert=vcf_convert, vcf_isec=vcf_isec, vcf_concat=vcf_concat, \
+					concatGATK=concatGATK, concatSamtools=concatSamtools,\
+					genotypeCallByCoverage=genotypeCallByCoverage, refFastaF=refFastaF, bamListF=None, \
+					callOutputDirJob =callOutputDirJob, gatkDirJob=gatkDirJob, samtoolsDirJob=samtoolsDirJob, unionDirJob=unionDirJob, intersectionDirJob=intersectionDirJob,\
+					namespace=namespace, version=version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
+					seqCoverageF=None, \
+					needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
+					chunkSize=2000000, site_type=self.site_type, dataDir=self.dataDir)
+		elif self.run_type==2:
+			for alignment in alignmentLs:
+				dirPrefix = "%s"%(alignment.id)
+				# Add a mkdir job for the call directory.
+				callOutputDir = "%s_call"%(dirPrefix)
+				callOutputDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=callOutputDir, namespace=namespace, version=version)
+				gatkDir = "%s_gatk"%(dirPrefix)
+				gatkDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=gatkDir, namespace=namespace, version=version)
+				samtoolsDir = "%s_samtools"%(dirPrefix)
+				samtoolsDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=samtoolsDir, namespace=namespace, version=version)
+				unionDir = "%s_gatk_samtools_union"%(dirPrefix)
+				unionDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=unionDir, namespace=namespace, version=version)
+				intersectionDir = "%s_gatk_samtools_intersection"%(dirPrefix)
+				intersectionDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=intersectionDir, namespace=namespace, version=version)
+				
+				if self.site_handler=='condorpool':
+					bamListF_site_handler = 'condorpool'
+				else:	#every other site requires transfer from local
+					bamListF_site_handler = 'local'
+				#bamListF = self.outputListOfBam(alignmentLs, self.dataDir, self.bamListFname, workflow=workflow, site_handler=bamListF_site_handler)
+				
+				
+				self.addGenotypeCallJobs(workflow, [alignment], refName2size, samtools=samtools, \
+						genotyperJava=genotyperJava, genomeAnalysisTKJar=genomeAnalysisTKJar, \
+						addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
+						createSequenceDictionaryJava=createSequenceDictionaryJava, createSequenceDictionaryJar=createSequenceDictionaryJar, \
+						mergeSamFilesJar=mergeSamFilesJar, \
+						BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+						mv=mv, CallVariantBySamtools=CallVariantBySamtools,\
+						bgzip_tabix=bgzip_tabix, vcf_convert=vcf_convert, vcf_isec=vcf_isec, vcf_concat=vcf_concat, \
+						concatGATK=concatGATK, concatSamtools=concatSamtools,\
+						genotypeCallByCoverage=genotypeCallByCoverage, refFastaF=refFastaF, bamListF=None, \
+						callOutputDirJob =callOutputDirJob, gatkDirJob=gatkDirJob, samtoolsDirJob=samtoolsDirJob, unionDirJob=unionDirJob, intersectionDirJob=intersectionDirJob,\
+						namespace=namespace, version=version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
+						seqCoverageF=None, \
+						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
+						chunkSize=2000000, site_type=self.site_type, dataDir=self.dataDir)
+				
 		
 		"""
 		addSelectAndSplitBamReturnData = self.addSelectAndSplitBamJobs(db_vervet, workflow, alignmentLs, site_handler, \
