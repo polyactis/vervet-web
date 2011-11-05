@@ -70,7 +70,7 @@ class AlignmentToCallPipeline(object):
 						('ind_aln_id_ls', 0, ): ['', 'I', 1, 'a comma/dash-separated list of IndividualAlignment.id. This overrides ind_seq_id_ls.', ],\
 						("samtools_path", 1, ): ["%s/bin/samtools", '', 1, 'samtools binary'],\
 						("picard_path", 1, ): ["%s/script/picard/dist", '', 1, 'picard folder containing its jar binaries'],\
-						("gatk_path", 1, ): ["%s/script/vervet/bin/GenomeAnalysisTK", '', 1, 'GATK folder containing its jar binaries'],\
+						("gatk_path", 1, ): ["%s/script/gatk/dist", '', 1, 'GATK folder containing its jar binaries'],\
 						("vervetSrcPath", 1, ): ["%s/script/vervet/src", '', 1, 'vervet source code folder'],\
 						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
 						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
@@ -582,6 +582,7 @@ class AlignmentToCallPipeline(object):
 				sequencer = alignment.ind_sequence.sequencer
 				read_group = '%s_%s_%s_%s_vs_%s'%(alignment.id, alignment.ind_seq_id, alignment.ind_sequence.individual.code, \
 										sequencer, alignment.ref_ind_seq_id)
+				read_group = alignment.getReadGroup()	##2011-11-02
 				if sequencer=='454':
 					platform_id = 'LS454'
 				elif sequencer=='GA':
@@ -784,7 +785,7 @@ class AlignmentToCallPipeline(object):
 				gatkIDXOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf.idx'%(vcfBaseFname))
 				gatkIDXOutput = File(gatkIDXOutputFname)
 				gatk_job.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "UnifiedGenotyper",\
-					"-L", interval, "-R", refFastaF, "--out", gatkOutputF,\
+					"-L", interval, "-mbq 20", "-mmq 30", "-R", refFastaF, "--out", gatkOutputF,\
 					'-U', '-S SILENT', "-nt %s"%no_of_gatk_threads)
 				if site_type==1:
 					gatk_job.addArguments('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
@@ -826,7 +827,7 @@ class AlignmentToCallPipeline(object):
 				samtools_job = Job(namespace=namespace, name=CallVariantBySamtools.name, version=version)
 				samtoolsOutputFname = os.path.join(samtoolsDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
 				samtoolsOutputF = File(samtoolsOutputFname)
-				samtools_job.addArguments(refFastaF, interval, samtoolsOutputF)
+				samtools_job.addArguments(refFastaF, interval, samtoolsOutputF, repr(site_type))
 				#samtools_job.uses(bamListF, transfer=True, register=True, link=Link.INPUT)
 				samtools_job.uses(samtoolsOutputF, transfer=False, register=True, link=Link.OUTPUT)
 				
@@ -843,7 +844,6 @@ class AlignmentToCallPipeline(object):
 				vcf_convert_samtoolsOutputF_job.uses(vcf4_samtoolsOutputF, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(vcf_convert_samtoolsOutputF_job)
 				workflow.depends(parent=samtools_job, child=vcf_convert_samtoolsOutputF_job)
-				
 				
 				bgzip_tabix_samtoolsOutputF_job = Job(namespace=namespace, name=bgzip_tabix.name, version=version)
 				samtoolsGzipOutputF = File("%s.gz"%vcf4_samtoolsOutputFname)
