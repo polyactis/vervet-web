@@ -384,6 +384,16 @@ class IndividualAlignment(Entity, TableClass):
 	using_options(tablename='individual_alignment', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('ind_seq_id', 'ref_ind_seq_id', 'aln_method_id'))
+	
+	def getReadGroup(self):
+		"""
+		2011-11-02
+			read group is this alignment's unique identifier in a sam/bam file.
+		"""
+		sequencer = self.ind_sequence.sequencer
+		read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, self.ind_sequence.individual.code, \
+								sequencer, self.ref_ind_seq_id)
+		return read_group
 
 class IndividualSequence(Entity, TableClass):
 	"""
@@ -413,6 +423,7 @@ class IndividualSequence(Entity, TableClass):
 	# Illumina1.8+ (after 2011-02) is Standard.
 	parent_individual_sequence = ManyToOne('IndividualSequence', colname='parent_individual_sequence_id', ondelete='SET NULL', onupdate='CASCADE')
 	filtered = Field(Integer, default=0)	#0 means not. 1 means yes.
+	individual_sequence_file_ls = OneToMany("IndividualSequenceFile")
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -421,6 +432,30 @@ class IndividualSequence(Entity, TableClass):
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('individual_id', 'sequencer', 'sequence_type', 'tissue_id',\
 		'filtered', "chromosome"))
+
+class IndividualSequenceFile(Entity, TableClass):
+	"""
+	2011-10-31
+		a table recording a number of files (split fastq mostly) affiliated with one IndividualSequence entry
+	"""
+	individual_sequence = ManyToOne('IndividualSequence', colname='individual_sequence_id', ondelete='CASCADE', onupdate='CASCADE')
+	library = Field(Text)	#id for the preparation library
+	order_number = Field(Integer)	# the number that designates the order of this split fastq file within the large file
+	mate_id = Field(Integer)	# id of the mate pair. 1 = 1st end. 2 = 2nd end. null = single-end.
+	base_count = Field(BigInteger)	#2011-8-2
+	path = Field(Text)	#storage folder path
+	format = Field(String(512))	#fasta, fastq
+	original_path = Field(Text)	#the path to the original file
+	quality_score_format = Field(String(512))
+		#Standard=Phred+33 (=Sanger), Illumina=Phred+64 (roughly, check pymodule/utils for exact formula)
+		# Illumina1.8+ (after 2011-02) is Standard.
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='individual_sequence_file', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+	using_table_options(UniqueConstraint('individual_sequence_id', 'library', 'order_number', 'mate_id'))
 
 class Tissue(Entity, TableClass):
 	"""
