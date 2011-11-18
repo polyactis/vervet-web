@@ -8,13 +8,7 @@ Examples:
 	
 Description:
 	2011-7-12
-		this program doesn't check whether multiple input genotype files contain same SNPs or not.
-		
-		The output format is VariantDiscovery.discoverHetsFromBAM() from vervet/src/misc.py.
-			locus_id        locus_id        Barbados_GA_vs_top156Contigs    sabaeus_GA_vs_top156Contigs     VRC_ref_GA_vs_top156Contigs
-			0_37    0_37    GG      CC      CC
-			0_279   0_279   AA      AA      AC
-			0_327   0_327   GG      GG      AG
+		This program merges any file with a header into one with one header.
 
 """
 import sys, os, math
@@ -54,12 +48,26 @@ class MergeGenotypeMatrix(object):
 		header = None
 		outf = open(self.outputFname, 'w')
 		for inputFname in self.inputFnameLs:
+			if not os.path.isfile(inputFname):
+				continue
 			inf = open(inputFname)
 			if header is None:
-				header = inf.readline()
-				outf.write(header)
+				try:
+					header = inf.readline()
+					outf.write(header)
+				except:	#in case something wrong (i.e. file is empty)
+					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+					import traceback
+					traceback.print_exc()
+					print sys.exc_info()
 			else:	#skip the header for other input files
-				inf.readline()
+				try:
+					inf.readline()
+				except:	#in case something wrong (i.e. file is empty)
+					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+					import traceback
+					traceback.print_exc()
+					print sys.exc_info()
 			for line in inf:
 				outf.write(line)
 		
