@@ -59,9 +59,8 @@ USC_CLUSTER_HOME="/home/cmb-03/mn/yuhuang"
 USC_CLUSTER_WORK_DIR=$USC_CLUSTER_HOME"/pg_work"
 USC_CLUSTER_PEGASUS_HOME=$USC_CLUSTER_HOME"/bin/pegasus"
 USC_CLUSTER_GLOBUS_LOCATION="/usr/usc/globus/default/"
+#USC_CLUSTER_GLOBUS_LOCATION="/usr/local/globus/default"
 
-#~/script/vervet/src/AlignmentToCallPipeline.py -o workflow.xml -u yh  -a 9 -i 2-4
-#~/script/vervet/src/AlignmentToCallPipeline.py -o workflow.xml -u yh  -a 120 -i 1-8
 
 # create the site catalog
 cat >sites.xml <<EOF
@@ -157,7 +156,7 @@ cat >sites.xml <<EOF
 		<profile namespace="env" key="PEGASUS_HOME" >$USC_CLUSTER_PEGASUS_HOME</profile>
 		<profile namespace="env" key="GLOBUS_LOCATION" >$USC_CLUSTER_GLOBUS_LOCATION</profile>
 		<profile namespace="globus" key="queue" >cmb</profile>
-		<profile namespace="globus" key="maxwalltime">700</profile>
+		<profile namespace="globus" key="maxwalltime">4800</profile>
 		<profile namespace="env" key="BOWTIE_INDEXES">$USC_CLUSTER_HOME/bin/bowtieIndexes</profile>
 		<profile namespace="env" key="HOME">$USC_CLUSTER_HOME</profile>
 		<profile namespace="env" key="PERL5LIB">$USC_CLUSTER_HOME/$VCF_PERL5LIB/</profile>
@@ -180,5 +179,8 @@ pegasus-plan \
 	--output local \
 	--cluster horizontal \
 	--submit
+# add the option below for debugging
+#	-vvvvv \
 #	--nocleanup \
+
 # 3.0	-D pegasus.user.properties=pegasusrc \

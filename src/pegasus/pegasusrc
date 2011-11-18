@@ -8,5 +8,9 @@ pegasus.dir.useTimestamp=true
 pegasus.dir.storage.deep=false
 pegasus.transfer.links=true
 
-cluster.size=20
+#clusters.size=3
 dagman.retry=3
+
+#pegasus.dir.submit.logs=/var/pegasus_tmp/
+pegasus.condor.logs.symlink=false
+
