@@ -59,6 +59,7 @@ class CalculateDistanceMatrixFromVCFPipe(object):
 						('defaultCoverage', 1, float): [9, 'f', 1, 'default coverage when coverage is not available for a read group'],\
 						('seqCoverageFname', 0, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
 						("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
+						('hetHalfMatchDistance', 1, float): [0.5, 'H', 1, 'distance between two half-matched genotypes. AG vs A or AG vs AC', ],\
 						("site_type", 1, int): [2, 's', 1, '1: all genome sites, 2: variants only'],\
 						('outputFname', 1, ): [None, 'o', 1, 'xml workflow output file'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
@@ -208,7 +209,8 @@ class CalculateDistanceMatrixFromVCFPipe(object):
 								self.convertHetero2NA, self.min_MAF, self.max_NA_rate))
 			calculaOutput = File(calculaOutputFname)
 			calcula_job.addArguments("-i", genotypeCallOutput, "-n", str(self.min_MAF), \
-						"-o", calculaOutput, '-m', repr(self.max_NA_rate), '-c', str(self.convertHetero2NA))
+						"-o", calculaOutput, '-m', repr(self.max_NA_rate), '-c', str(self.convertHetero2NA),\
+						'-H', repr(self.hetHalfMatchDistance))
 			calcula_job.uses(genotypeCallOutput, transfer=False, register=False, link=Link.INPUT)
 			calcula_job.uses(calculaOutput, transfer=True, register=False, link=Link.OUTPUT)
 			
