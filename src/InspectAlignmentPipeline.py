@@ -3,14 +3,24 @@
 Examples:
 	
 	#2011-11-4 run on condorpool
-	%s -a 524 -j condorpool -l condorpool -u yh -z uclaOffice -o InspectAlnRefSeq524Alignments.xml -I 552-661
+	%s -a 524 -j condorpool -l condorpool -u yh -z uclaOffice -o InspectTop804ContigsAlnRefSeq524Alignments.xml -I 552-661 -N 804
 	
+	#2011-11-5 run it on hoffman2
+	%s -a 524 -j hoffman2 -l hoffman2 -u yh -z uclaOffice -o MarkDupAlnID552_661Pipeline_hoffman2.xml 
+		-I 552-661 -e /u/home/eeskin/polyacti/ -m /u/home/eeskin/polyacti/NetworkData/ 
+		-J /u/local/apps/java/jre1.6.0_23/bin/java -t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /Network/Data/vervet/db/
+	
+	#2011-11-5 run on uschpc (input data is on uschpc)
+	%s -a 524 -j uschpc -l uschpc -u yh -z uclaOffice -o MarkDupAlnID552_661Pipeline_uschpc.xml
+		-I 552-661 -e /home/cmb-03/mn/yuhuang/ -m /home/cmb-03/mn/yuhuang/tmp/
+		-J /usr/usc/jdk/default/bin/java -t /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/ -D /Network/Data/vervet/db/
+		
 Description:
 	2011-11-4
 		a pegasus workflow that inspects no-of-reads-aligned, inferred insert size and etc.
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0])	# sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0]
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])	# sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0]
 
 from sqlalchemy.types import LargeBinary
 
@@ -44,6 +54,8 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 						("gatk_path", 1, ): ["%s/script/gatk/dist", '', 1, 'GATK folder containing its jar binaries'],\
 						("vervetSrcPath", 1, ): ["%s/script/vervet/src", '', 1, 'vervet source code folder'],\
 						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
+						("javaPath", 1, ): ["/usr/bin/java", 'J', 1, 'java interpreter binary'],\
+						("tmpDir", 1, ): ["/tmp/", 'm', 1, 'for MarkDuplicates.jar, default is /tmp/ but sometimes too small'],\
 						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
 									If not given, use the default stored in db.'],\
 						("localDataDir", 0, ): ["", 'D', 1, 'localDataDir should contain same files as dataDir but accessible locally.\
@@ -83,9 +95,12 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				createSequenceDictionaryJava=None, createSequenceDictionaryJar=None, \
 				addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
 				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
+				MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir="/Network/Data/vervet/vervetPipeline/tmp/",\
 				mkdirWrap=None, mv=None, \
+				
 				reduceDepthOfCoverage=None, reduceVariousReadCount=None,\
 				refFastaF=None, \
+				
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				needFastaIndexJob=False, needFastaDictJob=False, \
 				dataDir=None):
@@ -125,18 +140,34 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 			refFastaIndexF = None
 		
 		
-		
 		returnData = self.addAddRG2BamJobsAsNeeded(workflow, alignmentLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
 					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					mv=mv, namespace=namespace, version=version, dataDir=dataDir)
 		alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
-		
 		for alignment in alignmentLs:
-			if alignment.id in alignmentId2RGJobDataLs:
+			#if alignment.id in alignmentId2RGJobDataLs:
+				index_sam_job, bamF, bai_output = alignmentId2RGJobDataLs[alignment.id]
+				
+				
 				statOutputDir = '%s'%(alignment.id)
 				statOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=statOutputDir, namespace=namespace, \
 														version=version)
+				#
+				DOCOutputFnamePrefix = os.path.join(statOutputDir, '%s_DOC'%(alignment.id))
+				DOCJob = Job(namespace=namespace, name=DOCWalkerJava.name, version=version)
+				DOCJob.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "DepthOfCoverage",\
+					'-R', refFastaF, '-o', DOCOutputFnamePrefix, "-pt sample", "--omitDepthOutputAtEachBase",\
+					"-mmq 30", "-mbq 20")
+				DOCJob.addArguments("-I", bamF)
+				#it's either symlink or stage-in
+				DOCJob.uses(bamF, transfer=True, register=True, link=Link.INPUT)
+				DOCJob.uses(bai_output, transfer=True, register=True, link=Link.INPUT)
+				DOCJob.uses(File('%s.sample_summary'%(DOCOutputFnamePrefix)), transfer=True, register=True, link=Link.OUTPUT)
+				DOCJob.uses(File('%s.sample_interval_summary'%(DOCOutputFnamePrefix)), transfer=True, register=True, link=Link.OUTPUT)
+				workflow.addJob(DOCJob)
+				workflow.depends(parent=statOutputDirJob, child=DOCJob)
+				
 				finalVariousReadCountOutputF = File("%s_VariousReadCount.tsv"%(alignment.getReadGroup()))
 				reduceVariousReadCountJob = Job(namespace=namespace, name=reduceVariousReadCount.name, version=version)
 				reduceVariousReadCountJob.addArguments("-o", finalVariousReadCountOutputF)
@@ -150,8 +181,6 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				workflow.addJob(reduceDepthOfCoverageJob)
 				
 				for refName, refSize in refName2size.iteritems():
-				
-					index_sam_job, bamF, bai_output = alignmentId2RGJobDataLs[alignment.id]
 					DOCOutputFnamePrefix = os.path.join(statOutputDir, '%s_%s_DOC'%(alignment.id, refName))
 					DOCOutputF = File('%s.sample_interval_summary'%(DOCOutputFnamePrefix))
 					DOCJob = Job(namespace=namespace, name=DOCWalkerJava.name, version=version)
@@ -159,7 +188,17 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 						'-R', refFastaF, '-o', DOCOutputFnamePrefix, "-pt sample", "--omitDepthOutputAtEachBase",\
 						"-L", refName, "-mmq 30")
 					DOCJob.addArguments("-I", bamF)
+					#it's either symlink or stage-in
+					DOCJob.uses(bamF, transfer=True, register=True, link=Link.INPUT)
+					DOCJob.uses(bai_output, transfer=True, register=True, link=Link.INPUT)
+					DOCJob.uses(DOCOutputF, transfer=False, register=True, link=Link.OUTPUT)
 					workflow.addJob(DOCJob)
+					workflow.depends(parent=statOutputDirJob, child=DOCJob)
+					
+					reduceDepthOfCoverageJob.addArguments(DOCOutputF)
+					reduceDepthOfCoverageJob.uses(DOCOutputF, transfer=False, register=True, link=Link.INPUT)
+					workflow.depends(parent=DOCJob, child=reduceDepthOfCoverageJob)
+					
 					
 					readCountOutputF = File(os.path.join(statOutputDir, '%s_%s_variousReadCount.tsv'%(alignment.id, refName)))
 					readCountJob = Job(namespace=namespace, name=VariousReadCountJava.name, version=version)
@@ -167,25 +206,16 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 						'-R', refFastaF, '-o', readCountOutputF, \
 						"-L", refName, "-mmq 30")
 					readCountJob.addArguments("-I", bamF)
-					workflow.addJob(readCountJob)
-					
-					#it's either symlink or stage-in
-					DOCJob.uses(bamF, transfer=True, register=True, link=Link.INPUT)
-					DOCJob.uses(bai_output, transfer=True, register=True, link=Link.INPUT)
-					DOCJob.uses(DOCOutputF, transfer=False, register=True, link=Link.OUTPUT)
-					reduceDepthOfCoverageJob.addArguments(DOCOutputF)
-					reduceDepthOfCoverageJob.uses(DOCOutputF, transfer=False, register=True, link=Link.INPUT)
-					
 					readCountJob.uses(bamF, transfer=True, register=True, link=Link.INPUT)
 					readCountJob.uses(bai_output, transfer=True, register=True, link=Link.INPUT)
 					readCountJob.uses(readCountOutputF, transfer=False, register=True, link=Link.OUTPUT)
+					workflow.addJob(readCountJob)
+					workflow.depends(parent=statOutputDirJob, child=readCountJob)
+					
 					reduceVariousReadCountJob.addArguments(readCountOutputF)
 					reduceVariousReadCountJob.uses(readCountOutputF, transfer=False, register=True, link=Link.INPUT)
-					
-					workflow.depends(parent=statOutputDirJob, child=DOCJob)
-					workflow.depends(parent=DOCJob, child=reduceDepthOfCoverageJob)
-					workflow.depends(parent=statOutputDirJob, child=readCountJob)
 					workflow.depends(parent=readCountJob, child=reduceVariousReadCountJob)
+					
 					if index_sam_job is not None:
 						workflow.depends(parent=index_sam_job, child=DOCJob)
 						workflow.depends(parent=index_sam_job, child=readCountJob)
@@ -211,6 +241,12 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		if not self.localDataDir:
 			self.localDataDir = db_vervet.data_dir
 		
+		# Create a abstract dag
+		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
+		workflow = ADAG(workflowName)
+		vervetSrcPath = self.vervetSrcPath
+		site_handler = self.site_handler
+		
 		refName2size = self.getTopNumberOfContigs(self.topNumberOfContigs)
 		#refName2size = set(['Contig149'])	#temporary when testing Contig149
 		#refName2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
@@ -232,11 +268,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		else:
 			refFastaF = File(refFastaFname)
 		
-		# Create a abstract dag
-		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = ADAG(workflowName)
-		vervetSrcPath = self.vervetSrcPath
-		site_handler = self.site_handler
+		
 		
 		abs_path = os.path.join(self.gatk_path, 'GenomeAnalysisTK.jar')
 		genomeAnalysisTKJar = File(abs_path)
@@ -264,6 +296,11 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		addOrReplaceReadGroupsJar.addPFN(PFN("file://" + abs_path, \
 											site_handler))
 		workflow.addFile(addOrReplaceReadGroupsJar)
+		
+		abs_path = os.path.join(self.picard_path, 'MarkDuplicates.jar')
+		MarkDuplicatesJar = File(abs_path)
+		MarkDuplicatesJar.addPFN(PFN("file://" + abs_path, site_handler))
+		workflow.addFile(MarkDuplicatesJar)
 		
 		"""
 		#2011-9-2
@@ -311,46 +348,53 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		workflow.addExecutable(samtools)
 		
 		java = Executable(namespace=namespace, name="java", version=version, os=operatingSystem, arch=architecture, installed=True)
-		java.addPFN(PFN("file://" + "/usr/bin/java", site_handler))
+		java.addPFN(PFN("file://" + self.javaPath, site_handler))
 		workflow.addExecutable(java)
 		
 		createSequenceDictionaryJava = Executable(namespace=namespace, name="createSequenceDictionaryJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
-		createSequenceDictionaryJava.addPFN(PFN("file://" + "/usr/bin/java", site_handler))
+		createSequenceDictionaryJava.addPFN(PFN("file://" + self.javaPath, site_handler))
 		workflow.addExecutable(createSequenceDictionaryJava)
 		
 		
 		DOCWalkerJava = Executable(namespace=namespace, name="DepthOfCoverageWalker", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
-		DOCWalkerJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		DOCWalkerJava.addPFN(PFN("file://" + "/usr/bin/java", site_handler))
+		#DOCWalkerJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		DOCWalkerJava.addPFN(PFN("file://" + self.javaPath, site_handler))
 		workflow.addExecutable(DOCWalkerJava)
 		
 		VariousReadCountJava = Executable(namespace=namespace, name="VariousReadCountJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
-		VariousReadCountJava.addPFN(PFN("file://" + "/usr/bin/java", site_handler))
+		VariousReadCountJava.addPFN(PFN("file://" + self.javaPath, site_handler))
 		VariousReadCountJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(VariousReadCountJava)
 		
 		addOrReplaceReadGroupsJava = Executable(namespace=namespace, name="addOrReplaceReadGroupsJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
-		addOrReplaceReadGroupsJava.addPFN(PFN("file://" + "/usr/bin/java", site_handler))
+		addOrReplaceReadGroupsJava.addPFN(PFN("file://" + self.javaPath, site_handler))
 		workflow.addExecutable(addOrReplaceReadGroupsJava)
 		
 		BuildBamIndexFilesJava = Executable(namespace=namespace, name="BuildBamIndexFilesJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
-		BuildBamIndexFilesJava.addPFN(PFN("file://" + "/usr/bin/java", site_handler))
+		BuildBamIndexFilesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
 		workflow.addExecutable(BuildBamIndexFilesJava)
+		
+		MarkDuplicatesJava = Executable(namespace=namespace, name="MarkDuplicatesJava", version=version, os=operatingSystem,\
+											arch=architecture, installed=True)
+		MarkDuplicatesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
+		workflow.addExecutable(MarkDuplicatesJava)
 		
 		reduceDepthOfCoverage = Executable(namespace=namespace, name="ReduceDepthOfCoverage", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
 		reduceDepthOfCoverage.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reduce/ReduceDepthOfCoverage.py"), site_handler))
+		#clustering is buggy for programs with long arguments.
 		#reduceDepthOfCoverage.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(reduceDepthOfCoverage)
 		
 		reduceVariousReadCount = Executable(namespace=namespace, name="ReduceVariousReadCount", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
 		reduceVariousReadCount.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reduce/ReduceVariousReadCount.py"), site_handler))
+		#clustering is buggy for programs with long arguments.
 		#reduceVariousReadCount.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(reduceVariousReadCount)
 		
@@ -366,6 +410,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				createSequenceDictionaryJava=createSequenceDictionaryJava, createSequenceDictionaryJar=createSequenceDictionaryJar, \
 				addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
 				BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar,\
+				MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=self.tmpDir,\
 				mkdirWrap=mkdirWrap, mv=mv, \
 				reduceDepthOfCoverage=reduceDepthOfCoverage, reduceVariousReadCount=reduceVariousReadCount,\
 				refFastaF=refFastaF, \
