@@ -335,24 +335,29 @@ class VariantDiscovery(object):
 	
 	
 	@classmethod
-	def moveFinishedBamIntoTargetFolder(cls, inputDirLs=None, outputDir=None, targetFolderSizeThreshold=1000000000):
+	def moveFinishedBamIntoTargetFolder(cls, inputDirLs=None, outputDir=None, targetFolderSizeThresholdInMB=1000000,\
+									timeGapInMinutes=20):
 		"""
 		2011-9-12
-			targetFolderSizeThreshold is in KB
+			targetFolderSizeThreshold is in MB
+			As far as the size of outputDir is below targetFolderSizeThreshold, the move will continue. 
 		"""
 		from pymodule.utils import runLocalCommand
+		targetFolderSizeThreshold = targetFolderSizeThresholdInMB*1000
 		commandline = "du -s %s |awk '{print $1}'"%(outputDir)
 		return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 		folderSizeInKB = int(return_data.stdout_content.strip())
 		
 		from datetime import datetime, timedelta
 		import os, sys
-		timeGap = timedelta(minutes=5)
+		timeGap = timedelta(minutes=timeGapInMinutes)
 		
 		no_of_files = 0
 		counter = 0
-		
+		sleepInSnds=5
+		inputFnameLs = []
 		while folderSizeInKB<targetFolderSizeThreshold:
+			timeToBreak = False
 			for inputDir in inputDirLs:
 				fnameLs = os.listdir(inputDir)
 				for fname in fnameLs:
@@ -362,33 +367,50 @@ class VariantDiscovery(object):
 						bam_abs_path = os.path.join(inputDir, fname)
 						bai_fname = '%s.bai'%(fname)
 						bai_fname_abs_path = os.path.join(inputDir, bai_fname)
-						if os.path.isfile(bai_fname_abs_path):
-							current_time = datetime.now()
-							statinfo = os.stat(bai_fname_abs_path)	#stat is same as lstat except it does follow sym link
-							bai_mtime = datetime.fromtimestamp(statinfo.st_mtime)
-							
-							if (current_time-bai_mtime)>timeGap:
-								no_of_files += 1
-								#move both files
-								commandline = 'mv %s %s'%(bam_abs_path, outputDir)
-								runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-								
-								commandline = 'mv %s %s'%(bai_fname_abs_path, outputDir)
-								runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-			import os
-			os.system("sleep 120")
+						
+						inputFnameLs.append((bam_abs_path, bai_fname_abs_path))
+			sys.stderr.write("%s pairs of potential bam/bai files.\n"%(len(inputFnameLs)))
 			
-			commandline = "du -s %s |awk '{print $1}'"%(outputDir)
-			return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-			folderSizeInKB = int(return_data.stdout_content.strip())
-		
+			for bam_abs_path, bai_fname_abs_path in inputFnameLs:
+				if folderSizeInKB<targetFolderSizeThreshold:
+					if os.path.isfile(bai_fname_abs_path):
+						current_time = datetime.now()
+						statinfo = os.stat(bai_fname_abs_path)	#stat is same as lstat except it does follow sym link
+						bai_mtime = datetime.fromtimestamp(statinfo.st_mtime)
+						
+						if (current_time-bai_mtime)>timeGap:
+							no_of_files += 1
+							#move both files
+							commandline = 'mv %s %s'%(bam_abs_path, outputDir)
+							runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+							
+							commandline = 'mv %s %s'%(bai_fname_abs_path, outputDir)
+							runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+							
+							sys.stderr.write("Sleeping %s seconds..."%sleepInSnds)
+							os.system("sleep %s"%sleepInSnds)
+							sys.stderr.write("Wakeup.\n")
+							#update folderSizeInKB
+							commandline = "du -s %s |awk '{print $1}'"%(outputDir)
+							return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+							folderSizeInKB = int(return_data.stdout_content.strip())
+				else:	#folderSizeInKB exceeded threshold set. break
+					timeToBreak = True
+					break	#only break out of the forloop
+			if timeToBreak:
+				break	#break the while loop
 		
 		sys.stderr.write("%s/%s files moved. current folder size %s KB.\n"%(no_of_files, counter, folderSizeInKB))
 		
 	"""
 		#2011-9-12
+		inputDirLs = [os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110913T192749-0700/"),]
 		
-		VariantDiscovery.moveFinishedBamIntoTargetFolder(inputDirLs=None, outputDir=None, targetFolderSizeThreshold=1000000000)
+		#os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110910T002453-0700/"),
+		#os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110910T105558-0700/")
+		outputDir = os.path.expanduser("~/NetworkData/vervet/db/individual_alignment/")
+		VariantDiscovery.moveFinishedBamIntoTargetFolder(inputDirLs=inputDirLs, outputDir=outputDir, \
+														targetFolderSizeThresholdInMB=2000000)
 		sys.exit(0)
 	"""
 	@classmethod
@@ -884,6 +906,7 @@ class VariantDiscovery(object):
 			"""
 			self.real_counter = 0
 			self.readId2ScoreLs = {}	#2011-3-23
+			self.exitAfterNumberOfReads = keywords.get("exitAfterNumberOfReads", None)
 			
 			for keyword, value in keywords.iteritems():
 				setattr(self, keyword, value)
@@ -926,11 +949,16 @@ class VariantDiscovery(object):
 					self.C_ls.append(1)
 				elif self.plotType==3:
 					self.C_ls.append(no_of_bases)	#read.rlen is different from read.alen
+			if self.exitAfterNumberOfReads and param_obj.counter>=self.exitAfterNumberOfReads:
+				return 1	#a non-zero or non-None return code will stop traverseBamByRead()
 	
 	
 	@classmethod
-	def drawHistogramOfPairEndBWAOutputScore(cls, inputFname, outputFnamePrefix, scoreType=1, plotType=2):
+	def drawHistogramOfPairEndBWAOutputScore(cls, inputFname, outputFnamePrefix, scoreType=1, plotType=2,
+								exitAfterNumberOfReads=None):
 		"""
+		2011-11-3
+			add argument exitAfterNumberOfReads
 		2011-3-23
 			2D histogram of mapq of mate1 vs mapq of mate2
 			
@@ -938,10 +966,8 @@ class VariantDiscovery(object):
 				1. mapping quality
 				2. alignment score per aligned read length
 				3. alignment score per read length
-			plotType
-				1: 1D histogram
-				2: 2D histogram (scoreType has to be =2, color according to how many reads)
-				3: 2D histogram (color according to median read length)
+			plotType is useless here. it's always a 2D histogram.
+				2D histogram (each hexagon is colored according to how many reads)
 		"""
 		import os,sys
 		import pysam
@@ -952,7 +978,8 @@ class VariantDiscovery(object):
 		score_ls = []
 		C_ls = []
 		processor = cls.PairEndBWAOutputScoreTraverser(scoreType=scoreType, \
-									plotType=plotType, mapq_ls=mapq_ls, C_ls=C_ls, score_ls=score_ls)
+					plotType=plotType, mapq_ls=mapq_ls, C_ls=C_ls, score_ls=score_ls, \
+					exitAfterNumberOfReads=exitAfterNumberOfReads)
 		samfile = pysam.Samfile(inputFname, "rb" )
 		cls.traverseBamByRead(samfile, processor=processor)
 		
@@ -968,14 +995,16 @@ class VariantDiscovery(object):
 			elif len(score_ls)==2:
 				score_ls.sort()
 				small_mapq_ls.append(score_ls[0])
+				small_mapq_ls.append(score_ls[1])
 				big_mapq_ls.append(score_ls[1])
+				big_mapq_ls.append(score_ls[0])
 			else:
 				no_of_multi_mapped_reads += 1
 		
 		sys.stderr.write("%s singletons, %s multi-mapped, %s total PE pairs. Done.\n"%\
 						(len(singleton_mapq_ls), no_of_multi_mapped_reads, counter))
 		if scoreType==1:
-			xlabel_1D = "read map quality of mate1"
+			xlabel_1D = "read map quality of mate2"
 		elif scoreType==2:
 			xlabel_1D = 'alignment score per aligned read base'
 		elif scoreType==3:
@@ -1007,7 +1036,7 @@ class VariantDiscovery(object):
 		pylab.clf()
 		pylab.hist(singleton_mapq_ls, 20, log=True)
 		pylab.title(title)
-		pylab.xlabel(xlabel_1D)
+		pylab.xlabel("mapq of singleton reads")
 		pylab.savefig('%s_singleton_mapq_hist.png'%outputFnamePrefix, dpi=200)
 	
 	"""
@@ -2769,8 +2798,66 @@ class VariantDiscovery(object):
 				xlabel=xlabel, ylabel=ylabel, dpi=200)
 		sys.exit(0)
 	"""
-
+	@classmethod
+	def countHomoHetCallsForEachSampleFromVCF(cls, inputFname, outputFnamePrefix):
+		"""
+		2011-11-2
+			given a VCF file, count the number of homo-ref, homo-alt, het calls
+			
+		"""
+		sys.stderr.write("Count the number of homozygous-ref/alt & het from %s .\n"%(inputFname))
+		from pymodule.VCFFile import VCFFile
+		vcfFile = VCFFile(inputFname=inputFname)
 		
+		sampleID2data = {}	#key is sampleID, value is a list of 3 numbers. 'NoOfHomoRef', 'NoOfHomoAlt', 'NoOfHet'
+		
+		no_of_total = 0.
+		minStart = None
+		for vcfRecord in vcfFile.parseIter():
+			locus = vcfRecord.locus
+			chr = vcfRecord.chr
+			pos = vcfRecord.pos
+			pos = int(pos)
+			refBase = vcfRecord.data_row[0].get("GT")[0]
+			
+			for sample_id, sample_index in vcfFile.sample_id2index.iteritems():
+				if sample_id=='ref':	#ignore the reference
+					continue
+				if sample_id not in sampleID2data:
+					sampleID2data[sample_id] = [0, 0, 0]
+				if not vcfRecord.data_row[sample_index]:	#None for this sample
+					continue
+				callForThisSample = vcfRecord.data_row[sample_index].get('GT')
+				if not callForThisSample or callForThisSample=='NA':
+					continue
+				if callForThisSample[0]==refBase and callForThisSample[1]==refBase:
+					#homozygous reference allele
+					sampleID2data[sample_id][0]+=1
+				elif callForThisSample[0]==callForThisSample[1] and callForThisSample[0]!=refBase:
+					#homozygous alternative allele
+					sampleID2data[sample_id][1]+=1
+				elif callForThisSample[0]!=callForThisSample[1]:
+					sampleID2data[sample_id][2]+=1
+			
+		outputFname = "%s.homoHetCountPerSample.tsv"%(outputFnamePrefix)
+		import csv
+		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		writer.writerow(['sampleID','NoOfHomoRef', 'NoOfHomoAlt', 'NoOfHet'])
+		sampleIDLs = sampleID2data.keys()
+		sampleIDLs.sort()
+		for sampleID in sampleIDLs:
+			count_data = sampleID2data.get(sampleID)
+			writer.writerow([sampleID] + count_data)
+		del writer
+		sys.stderr.write("Done.\n")
+	"""
+		#2011-11-2
+		workflowName = 'AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top156Contigs_condor_20111101T2316'
+		inputFname = '/Network/Data/vervet/vervetPipeline/%s/call/Contig0.vcf.gz'%(workflowName)
+		outputFnamePrefix = '/tmp/%s_Contig0'%(workflowName)
+		VariantDiscovery.countHomoHetCallsForEachSampleFromVCF(inputFname, outputFnamePrefix)
+		sys.exit(0)
+	"""
 
 # 2011-4-29 a handy function to strip blanks around strings
 strip_func = lambda x: x.strip()
@@ -4738,7 +4825,32 @@ class VervetGenome(object):
 				outputFname=outputFname, topNumber=topNumber)
 		sys.exit(3)
 		
+	"""
+	
+	@classmethod
+	def outputContigIDSizeInBED(cls, contigAGPFname, outputFname=None, minSize=2000):
+		"""
+		2011-11-3
+		"""
+		contig_id2size = cls.getContigID2SizeFromAGPFile(contigAGPFname)
+		size_contig_id_ls = []
+		for contig_id, contig_size in contig_id2size.iteritems():
+			size_contig_id_ls.append((contig_size, contig_id))
+		size_contig_id_ls.sort()
+		size_contig_id_ls.reverse()	#big ones come up first
+		import csv
+		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		for contig_size, contig_id in size_contig_id_ls:
+			if contig_size>=minSize:
+				writer.writerow([contig_id, 0, contig_size])
+		del writer
 		
+	"""
+		#2011-11-3
+		contigAGPFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.agp")
+		outputFname = os.path.expanduser("/tmp/ContigIDSize.bed")
+		VervetGenome.outputContigIDSizeInBED(contigAGPFname, outputFname)
+		sys.exit(0)
 		
 	"""
 	
@@ -4847,6 +4959,166 @@ class VervetGenome(object):
 		
 	"""
 	
+	@classmethod
+	def outputVervetMSSequenceHumanChr(cls, db_genome, vervetMSTemplateFname, vervetMSHg19CoordinatesFname, outputFname):
+		"""
+		2011-10-24
+			vervetMSHg19CoordinatesFname was a custom track (microsatellites) downloaded from ucsc vervet browser (link from mcgill site).
+				Its start is 0-based.
+				Its end is 1-based.
+		"""
+		import csv, sys, os, gzip
+		from pymodule.utils import figureOutDelimiter, getColName2IndexFromHeader
+		sys.stderr.write("Getting human genome coordinates of vervet MS sequences from %s ...\n"%(vervetMSHg19CoordinatesFname))
+		inf = gzip.open(vervetMSHg19CoordinatesFname, 'r')
+		reader = csv.reader(inf, delimiter='\t')
+		ms_id2hg19_coords = {}
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		ms_id_index = col_name2index.get('name')
+		hg19_chr_index = col_name2index.get('#chrom')
+		hg19_start_index = col_name2index.get('chromStart')
+		hg19_end_index = col_name2index.get('chromEnd')
+		for row in reader:
+			ms_id = row[ms_id_index]
+			if ms_id[-2]==".":	#get rid of version in D7S1820.0
+				ms_id = ms_id[:-2]
+			hg19_chr = row[hg19_chr_index][3:]	#3: is to get rid of "chr"
+			hg19_start = int(row[hg19_start_index])+1	# 0-based start
+			hg19_end = int(row[hg19_end_index])	#1-based end
+			if ms_id in ms_id2hg19_coords:
+				sys.stderr.write("error: %s already in ms_id2hg19_coords.\n"%(ms_id))
+				sys.exit(3)
+			ms_id2hg19_coords[ms_id] = [hg19_chr, hg19_start, hg19_end]
+		del reader
+		sys.stderr.write("%s microsatellites. Done.\n"%(len(ms_id2hg19_coords)))
+		
+		
+		sys.stderr.write("Outputting vervet microsatellite sequences and human chromosomes to %s ...\n"%outputFname)
+		
+		delimiter = figureOutDelimiter(vervetMSTemplateFname)
+		reader = csv.reader(open(vervetMSTemplateFname, 'r'), delimiter=delimiter)
+		header =reader.next()
+		header.append('hg19_start')
+		header.append('hg19_stop')
+		writer = csv.writer(open(outputFname, 'w'), delimiter=delimiter)
+		writer.writerow(header)
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		ms_id_index = col_name2index.get('Marker')
+		Vchrom_index = col_name2index.get("Vchrom")
+		Hchromosome_index = col_name2index.get("Hchromosome")
+		mapKoscM_index = col_name2index.get("mapKoscM")
+		Mapped1000to1_index = col_name2index.get("Mapped1000to1")
+		human_sequence_index = col_name2index.get("human sequence")
+		hg19_start_index = col_name2index.get('hg19_start')
+		hg19_end_index = col_name2index.get('hg19_stop')
+		for row in reader:
+			ms_id = row[ms_id_index]
+			Vchrom = row[Vchrom_index]
+			mapKoscM = row[mapKoscM_index]
+			
+			new_row = ['']*len(header)
+			new_row[ms_id_index] = ms_id
+			new_row[Vchrom_index] = Vchrom
+			new_row[mapKoscM_index] = mapKoscM
+			new_row[Mapped1000to1_index] = row[Mapped1000to1_index] 
+			chr_start_stop = ms_id2hg19_coords.get(ms_id)
+			if chr_start_stop is None:
+				sys.stderr.write("Warning: %s not in %s. Output as it is.\n"%(ms_id, vervetMSHg19CoordinatesFname))
+			else:
+				chr, start, stop = chr_start_stop[:3]
+				seq = db_genome.getSequenceSegment(tax_id=9606, chromosome=chr, start=start, stop=stop)
+				new_row[Hchromosome_index] = chr
+				new_row[human_sequence_index] = seq
+				new_row[hg19_start_index] = start
+				new_row[hg19_end_index] = stop
+			writer.writerow(new_row)
+		del reader, writer
+		sys.stderr.write("Done.\n")
+	"""
+		#2011-10-25
+		vervetMSTemplateFname = '/Network/Data/vervet/microsatellites/vervet microsatellite info.csv'
+		vervetMSHg19CoordinatesFname = '/Network/Data/vervet/microsatellites/vervetMicrosatellitesOnHg19.gz'
+		outputFname = '/Network/Data/vervet/microsatellites/vervetMicrosatelliteInfo.csv'
+		
+		from pymodule import GenomeDB
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
+						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
+		db_genome.setup(create_tables=False)
+		vervetMSTemplateFname = '/Network/Data/vervet/microsatellites/vervet microsatellite info.csv'
+		vervetMSTemplateFname = '/Network/Data/vervet/microsatellites/vervetstrmap.csv'
+		vervetMSHg19CoordinatesFname = '/Network/Data/vervet/microsatellites/vervetMicrosatellitesOnHg19.gz'
+		outputFname = '/Network/Data/vervet/microsatellites/vervetStrMap.hsSeq.csv'
+		VervetGenome.outputVervetMSSequenceHumanChr(db_genome, vervetMSTemplateFname, vervetMSHg19CoordinatesFname, outputFname)
+		sys.exit(0)
+	"""
+	
+	@classmethod
+	def addMoreContigsAsChromosomeRecordsInGenomeDB(cls, db_genome, contigAGPFname, tax_id=60711,
+												sequence_type_name='Scaffold', minSize=500, **keywords):
+		"""
+		2011-11-6
+			only the name, start, stop are saved. no raw sequence inserted into db.
+			This is just for programs that rely on this AnnotAssembly table to fetch information about these contigs.
+		"""
+		
+		contig_id2size = cls.getContigID2SizeFromAGPFile(contigAGPFname)
+		size_contig_id_ls = []
+		for contig_id, contig_size in contig_id2size.iteritems():
+			size_contig_id_ls.append((contig_size, contig_id))
+		size_contig_id_ls.sort()
+		size_contig_id_ls.reverse()	#big ones come up first
+		
+		sys.stderr.write("Adding contigs as chromosome records (no sequence) into genome db (minSize=%s) ...\n"%(minSize))
+		counter = 0
+		real_counter = 0
+		from pymodule import GenomeDB
+		
+		db_genome.session.begin()
+		sequence_type = GenomeDB.SequenceType.query.filter_by(type=sequence_type_name).first()
+		for contig_size, contig_id in size_contig_id_ls:
+			if contig_size>=minSize:
+				counter += 1
+				aa_attr_instance = GenomeDB.AnnotAssembly.query.filter_by(chromosome=contig_id).filter_by(tax_id=tax_id).\
+					filter_by(start=1).filter_by(stop=contig_size).\
+					filter_by(sequence_type_id=sequence_type.id).first()
+				if not aa_attr_instance:
+					real_counter += 1
+					aa_attr_instance = GenomeDB.AnnotAssembly()
+					aa_attr_instance.gi = None
+					aa_attr_instance.acc_ver = None
+					aa_attr_instance.tax_id = tax_id
+					aa_attr_instance.chromosome = contig_id
+					aa_attr_instance.start = 1
+					aa_attr_instance.sequence_type_id = sequence_type.id
+					aa_attr_instance.stop = contig_size
+					db_genome.session.add(aa_attr_instance)
+					db_genome.session.flush()
+		db_genome.session.commit()
+		sys.stderr.write("%s/%s contigs saved.\n"%(real_counter, counter))
+		"""
+		#2011-11-6 add more contig records into db
+		from pymodule import GenomeDB
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
+						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
+		db_genome.setup(create_tables=False)
+		contigAGPFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.agp")
+		VervetGenome.addMoreContigsAsChromosomeRecordsInGenomeDB(db_genome, contigAGPFname, maxRank=1001, tax_id=60711,
+												sequence_type_name='Scaffold', minSize=500)
+		sys.exit(0)
+		
+				#2011-11-6 add more contig records into db
+		from pymodule import GenomeDB
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
+						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
+		db_genome.setup(create_tables=False)
+		contigAGPFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.agp")
+		VervetGenome.addMoreContigsAsChromosomeRecordsInGenomeDB(db_genome, contigAGPFname, maxRank=1001, tax_id=60711,
+												sequence_type_name='Scaffold', minSize=1000)
+		sys.exit(0)
+		
+		"""
+	
 class Main(object):
 	__doc__ = __doc__
 	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
@@ -4886,6 +5158,30 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
+		#2011-11-6
+		inputDirLs = [os.path.expanduser("~/NetworkData/vervet/db/individual_alignment/"),]
+		outputDir = os.path.expanduser("~/panfs/NetworkData/vervet/db/individual_alignment/")
+		VariantDiscovery.moveFinishedBamIntoTargetFolder(inputDirLs=inputDirLs, outputDir=outputDir, \
+														targetFolderSizeThresholdInMB=1300000, timeGapInMinutes=2400)
+		sys.exit(0)
+		
+		#2011-3-24
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/db/individual_alignment/577_37_vs_524_by_2")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType = 1
+		plotType = 1
+		outputFnamePrefix = os.path.expanduser("/tmp/%s.score%s.plot%s"%(os.path.basename(inputPrefix), scoreType, plotType))
+		VariantDiscovery.drawHistogramOfPairEndBWAOutputScore(inputFname, outputFnamePrefix, scoreType=scoreType, \
+						plotType=plotType, exitAfterNumberOfReads=500000)
+		sys.exit(0)
+		
+		#2011-11-2
+		workflowName = 'AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top156Contigs_condor_20111101T2316'
+		inputFname = '/Network/Data/vervet/vervetPipeline/%s/call/Contig0.vcf.gz'%(workflowName)
+		outputFnamePrefix = '/tmp/%s_Contig0'%(workflowName)
+		VariantDiscovery.countHomoHetCallsForEachSampleFromVCF(inputFname, outputFnamePrefix)
+		sys.exit(0)
+		
 		workflowName= '8GenomeVsTop156Contigs_GATK_all_bases_maxNA0_minMAF0_het2NA_20111014T0043'
 		#workflowName = '8GenomeVsTop156Contigs_GATK_all_bases_maxNA0.8_minMAF0_het2NA_20111014T0059'
 		inputDir= "/Network/Data/vervet/vervetPipeline/%s/pairwiseDistMatrix/"%(workflowName)
@@ -4923,16 +5219,6 @@ class Main(object):
 		DBVervet.pokeBamReadGroupPresence(db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), dataDir=dataDir, commit=True)
 		sys.exit(0)
 		
-		
-		#2011-9-12
-		inputDirLs = [os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110913T192749-0700/"),]
-		
-		#os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110910T002453-0700/"),
-		#os.path.expanduser("~/pg_work/crocea/pegasus/ShortRead2AlignmentPipeline/20110910T105558-0700/")
-		outputDir = os.path.expanduser("~/NetworkData/vervet/db/individual_alignment/")
-		VariantDiscovery.moveFinishedBamIntoTargetFolder(inputDirLs=inputDirLs, outputDir=outputDir, \
-														targetFolderSizeThreshold=2000000000)
-		sys.exit(0)
 		
 		#2011-8-26
 		
