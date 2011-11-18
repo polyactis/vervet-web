@@ -35,6 +35,8 @@ class PlotTrioInconsistencyOverFrequency(object):
 	option_default_dict = {('outputFname', 1, ): [None, 'o', 1, 'output file for the figure.'],\
 						('minNoOfTotal', 1, int): [100, '', 1, 'minimum no of total variants (denominator of inconsistent rate)'],\
 						('title', 1, ): [None, 't', 1, 'title for the figure.'],\
+						('figureDPI', 1, int): [200, '', 1, 'dpi for the output figures (png)'],\
+						('formatString', 1, ): ['-', '', 1, 'formatString passed to matplotlib plot'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 
@@ -78,11 +80,11 @@ class PlotTrioInconsistencyOverFrequency(object):
 			processFunc(x_ls, inconsistent_rate_ls)
 		del reader
 	
-	def plotXY(self, x_ls, y_ls):
+	def plotXY(self, x_ls, y_ls, ):
 		"""
 		2011-9-30
 		"""
-		pylab.plot(x_ls, y_ls)
+		pylab.plot(x_ls, y_ls, self.formatString)
 		
 	
 	def run(self):
@@ -106,7 +108,7 @@ class PlotTrioInconsistencyOverFrequency(object):
 		pylab.xlabel("frequency")
 		pylab.ylabel("inconsistent rate")
 		
-		pylab.savefig(self.outputFname, dpi=200)
+		pylab.savefig(self.outputFname, dpi=self.figureDPI)
 		sys.stderr.write("Done.\n")
 
 

@@ -141,29 +141,29 @@ class PlotTrioInconsistencyVsDepth(PlotTrioInconsistencyOverFrequency):
 		fa_mo_depth_Fname = '%s_fa_mo_depth.png'%(outputFnamePrefix)
 		yh_matplotlib.drawHexbin(self.fa_depth_ls, self.mo_depth_ls, self.inconsistent_ls, \
 								fig_fname=fa_mo_depth_Fname, gridsize=gridsize, title=title, xlabel='father depth', ylabel='mother depth',\
-								colorBarLabel=colorBarLabelForInconsistency, reduce_C_function=numpy.mean, dpi=300)
+								colorBarLabel=colorBarLabelForInconsistency, reduce_C_function=numpy.mean, dpi=self.figureDPI)
 		fa_mo_depth_Fname = '%s_fa_mo_depth_loci_count.png'%(outputFnamePrefix)
 		yh_matplotlib.drawHexbin(self.fa_depth_ls, self.mo_depth_ls, loci_count_ls, \
 								fig_fname=fa_mo_depth_Fname, gridsize=gridsize, title=title, xlabel='father depth', ylabel='mother depth',\
-								colorBarLabel=colorBarLabelForLociCount, reduce_C_function=yh_matplotlib.logSum, dpi=300)
+								colorBarLabel=colorBarLabelForLociCount, reduce_C_function=yh_matplotlib.logSum, dpi=self.figureDPI)
 		
 		fa_child_depth_Fname = '%s_fa_child_depth.png'%(outputFnamePrefix)
 		yh_matplotlib.drawHexbin(self.fa_depth_ls, self.child_depth_ls, self.inconsistent_ls, \
 								fig_fname=fa_child_depth_Fname, gridsize=gridsize, title=title, xlabel='father depth', ylabel='child depth',\
-								colorBarLabel=colorBarLabelForInconsistency, reduce_C_function=numpy.mean, dpi=300)
+								colorBarLabel=colorBarLabelForInconsistency, reduce_C_function=numpy.mean, dpi=self.figureDPI)
 		fa_child_depth_Fname = '%s_fa_child_depth_loci_count.png'%(outputFnamePrefix)
 		yh_matplotlib.drawHexbin(self.fa_depth_ls, self.child_depth_ls, loci_count_ls, \
 								fig_fname=fa_child_depth_Fname, gridsize=gridsize, title=title, xlabel='father depth', ylabel='child depth',\
-								colorBarLabel=colorBarLabelForLociCount, reduce_C_function=yh_matplotlib.logSum, dpi=300)
+								colorBarLabel=colorBarLabelForLociCount, reduce_C_function=yh_matplotlib.logSum, dpi=self.figureDPI)
 		
 		mo_child_depth_Fname = '%s_mo_child_depth.png'%(outputFnamePrefix)
 		yh_matplotlib.drawHexbin(self.mo_depth_ls, self.child_depth_ls, self.inconsistent_ls, \
 								fig_fname=mo_child_depth_Fname, gridsize=gridsize, title=title, xlabel='mother depth', ylabel='child depth',\
-								colorBarLabel=colorBarLabelForInconsistency, reduce_C_function=numpy.mean, dpi=300)
+								colorBarLabel=colorBarLabelForInconsistency, reduce_C_function=numpy.mean, dpi=self.figureDPI)
 		mo_child_depth_Fname = '%s_mo_child_depth_loci_count.png'%(outputFnamePrefix)
 		yh_matplotlib.drawHexbin(self.mo_depth_ls, self.child_depth_ls, loci_count_ls, \
 								fig_fname=mo_child_depth_Fname, gridsize=gridsize, title=title, xlabel='mother depth', ylabel='child depth',\
-								colorBarLabel=colorBarLabelForLociCount, reduce_C_function=yh_matplotlib.logSum, dpi=300)
+								colorBarLabel=colorBarLabelForLociCount, reduce_C_function=yh_matplotlib.logSum, dpi=self.figureDPI)
 		
 if __name__ == '__main__':
 	main_class = PlotTrioInconsistencyVsDepth

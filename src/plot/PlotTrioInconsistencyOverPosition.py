@@ -53,6 +53,10 @@ class PlotTrioInconsistencyOverPosition(PlotTrioInconsistencyOverFrequency):
 		import pylab
 		pylab.clf()
 		
+		if len(self.inputFnameLs)>1:	#multiple input file (multiple contigs). use lines.
+			self.formatString = '-'
+		else:	#only one input file (one contig). use dot.
+			self.formatString = '.'
 		for inputFname in self.inputFnameLs:
 			self.trioInconsistentRateFileWalker(inputFname, processFunc=self.plotXY, minNoOfTotal=self.minNoOfTotal,\
 											run_type=2)
@@ -66,7 +70,7 @@ class PlotTrioInconsistencyOverPosition(PlotTrioInconsistencyOverFrequency):
 		pylab.xlabel("position")
 		pylab.ylabel("inconsistent rate")
 		
-		pylab.savefig(self.outputFname, dpi=200)
+		pylab.savefig(self.outputFname, dpi=self.figureDPI)
 		sys.stderr.write("Done.\n")
 		
 		
