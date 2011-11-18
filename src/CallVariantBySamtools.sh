@@ -48,6 +48,8 @@ bamFiles=$*
 #-v in "-vcg":	Output variant sites only (force -c)
 #-g in "-vcg":	Call per-sample genotypes at variant sites (force -c)
 #-D100: maximum depth=100
+#-w 10:	SNP within 10 bp around a gap to be filtered.
+#-d 3:	minimum read depth is 3.
 
 if test "$siteType" = "1"
 then
@@ -57,7 +59,7 @@ else
 fi
 
 #2011-11-04 from Vasily. lower threshold for sixth column (QUAL) in VCF.
-low_quality_thresh=50.0
+low_quality_thresh=5
 
 
 $samtoolsPath mpileup -S -D -q 30 -Q 20 -ug -r $interval -f $refFastaFname $bamFiles | $bcftoolsPath view $bcftoolsArguments - > $outputVCF.bcf
@@ -84,14 +86,24 @@ then
 		exitCode2=`echo $exitCodeAll|awk -F ' ' '{print $2}'`
 		exitCode3=`echo $exitCodeAll|awk -F ' ' '{print $3}'`
 		echo exit code: $exitCodeAll
-		if test "$exitCode" != "0" || test "$exitCode2" != "0" || test "$exitCode3" != "0"
-		then
-			#non-zero exit if any non-zero exit happens along the pipe
-			exit 3;
-		fi
+		#if test "$exitCode" != "0" || test "$exitCode2" != "0" || test "$exitCode3" != "0"
+		#then
+		#	#non-zero exit if any non-zero exit happens along the pipe
+		#	#sometimes, the $indelSNPVCF is empty (only vcf headers) and egrep would exit non-zero because no line matched the pattern.	#so don't do this for now
+		#	exit 3;
+		#fi
 		
 		egrep "^#" $indelSNPVCF 1>$indelVCF
 		egrep -v "^#" $indelSNPVCF | egrep INDEL  1>>$indelVCF
+		exitCodeAll="${PIPESTATUS[0]} ${PIPESTATUS[1]}"
+		exitCode=`echo $exitCodeAll|awk -F ' ' '{print $1}'`
+		exitCode2=`echo $exitCodeAll|awk -F ' ' '{print $2}'`
+		echo exit code: $exitCodeAll
+		#if test "$exitCode" != "0" || test "$exitCode2" != "0"
+		#then
+		#	#non-zero exit if any non-zero exit happens along the pipe
+		#	exit 0;	#should be non-zero, but not care about indels right now
+		#fi
 		
 		rm $indelSNPVCF
 	else
