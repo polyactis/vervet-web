@@ -42,6 +42,7 @@ class CalculatePairwiseDistanceOutOfSNPXStrainMatrix(object):
 							('min_MAF', 1, float): [0.0, 'n', 1, 'minimum MAF for SNP filter', ],\
 							('max_NA_rate', 1, float): [0.4, 'm', 1, 'maximum NA rate for SNP filter', ],\
 							('convertHetero2NA', 1, int):[0, 'c', 1, 'toggle convertHetero2NA mode'],\
+							('hetHalfMatchDistance', 1, float): [0.5, 'H', 1, 'distance between two half-matched genotypes. AG vs A or AG vs AC', ],\
 							('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 							('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 	
@@ -56,8 +57,10 @@ class CalculatePairwiseDistanceOutOfSNPXStrainMatrix(object):
 	@classmethod
 	def calculatePairwiseDistanceOutOfSNPXStrainMatrix(cls, inputFname, outputFname, snpFnameToDoFiltering=None, \
 											convertHetero2NA=False,
-											max_NA_rate=0.4, min_MAF=0.2):
+											max_NA_rate=0.4, min_MAF=0.2, hetHalfMatchDistance=0.5):
 		"""
+		2011-10-20
+			add argument hetHalfMatchDistance
 		2011-4-7 output the pairwise distance as matrix
 		2011-3-30
 			add argument convertHetero2NA, max_NA_rate, min_MAF
@@ -100,7 +103,8 @@ class CalculatePairwiseDistanceOutOfSNPXStrainMatrix(object):
 				snpData = snpData.removeColsByMAF(snpData, min_MAF=min_MAF)
 		
 		# add outputFname to function below to output the row pairwise distance
-		row_id2pairwise_dist_ls = snpData.calRowPairwiseDist(assumeBiAllelic=True, outputFname=outputFname)
+		row_id2pairwise_dist_ls = snpData.calRowPairwiseDist(assumeBiAllelic=True, outputFname=outputFname, \
+														hetHalfMatchDistance=hetHalfMatchDistance)
 		cls.outputRow_id2pairwise_dist_lsInMatrix(row_id2pairwise_dist_ls, outputFname)
 	
 	"""
@@ -181,8 +185,10 @@ class CalculatePairwiseDistanceOutOfSNPXStrainMatrix(object):
 		outputFname ='%s.pairwiseDist.convertHetero2NA%s.minMAF%s.maxNA%s.tsv'%(os.path.splitext(self.inputFname)[0], \
 												convertHetero2NA, min_MAF, max_NA_rate)
 		"""
-		self.calculatePairwiseDistanceOutOfSNPXStrainMatrix(self.inputFname, self.outputFname, snpFnameToDoFiltering=snpFnameToDoFiltering,\
-							convertHetero2NA=self.convertHetero2NA, min_MAF=self.min_MAF, max_NA_rate=self.max_NA_rate)
+		self.calculatePairwiseDistanceOutOfSNPXStrainMatrix(self.inputFname, self.outputFname, \
+							snpFnameToDoFiltering=snpFnameToDoFiltering,\
+							convertHetero2NA=self.convertHetero2NA, min_MAF=self.min_MAF, max_NA_rate=self.max_NA_rate,\
+							hetHalfMatchDistance=self.hetHalfMatchDistance)
 		sys.exit(0)
 		
 	
