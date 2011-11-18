@@ -19,10 +19,14 @@ tabixPath=~/bin/tabix
 #export PERL5LIB="~/script/vcftools/lib/"
 vcfConverPath=~/bin/vcftools/vcf-convert
 
+referenceFasta=/Network/Data/vervet/db/individual_sequence/524_superContigsMinSize2000.fasta
 inputVCF=$1
 outputVCF=$2
-cat $inputVCF | $vcfConverPath > $outputVCF
 
+#   -r, --refseq <file>              The reference sequence in samtools faindexed fasta file. (Not required with SNPs only.)
+#-r $referenceFasta
+
+cat $inputVCF | $vcfConverPath  > $outputVCF
 exitCodeAll="${PIPESTATUS[0]} ${PIPESTATUS[1]}"
 exitCode=`echo $exitCodeAll|awk -F ' ' '{print $1}'`
 exitCode2=`echo $exitCodeAll|awk -F ' ' '{print $2}'`
