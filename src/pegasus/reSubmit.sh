@@ -1,1 +1,1 @@
-/u/home/eeskin/polyacti/script/GWASModules/pymodule/pegasus/reSubmit.sh
+../../../GWASModules/pymodule/pegasus/reSubmit.sh
