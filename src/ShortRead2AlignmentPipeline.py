@@ -89,9 +89,10 @@ import subprocess, cStringIO
 import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, yh_pegasus
 from Pegasus.DAX3 import *
+from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
 
 
-class ShortRead2AlignmentPipeline(object):
+class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 	__doc__ = __doc__
 	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
 						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
@@ -726,23 +727,16 @@ class ShortRead2AlignmentPipeline(object):
 			merge_sam_job.addArguments(alignmentOutput, outputBamFile)
 			workflow.depends(parent=alignmentJob, child=merge_sam_job)
 			merge_sam_job.uses(alignmentOutput, transfer=False, register=False, link=Link.INPUT)
-			merge_sam_job.uses(outputBamFile, transfer=stageOutFinalOutput, register=False, link=Link.OUTPUT)
+			merge_sam_job.uses(outputBamFile, transfer=False, register=False, link=Link.OUTPUT)
 			workflow.addJob(merge_sam_job)
 		
-		# add the index job on the merged bam file
-		index_sam_job = Job(namespace=namespace, name=BuildBamIndexFilesJava.name, version=version)
-		bai_output = File('%s.bai'%outputBamFile.name)
-		index_sam_job.bai_output = bai_output	#to be used by child jobs
-		index_sam_job.addArguments("-Xms128m", "-Xmx%sm"%(javaMaxMemory), "-jar", BuildBamIndexFilesJar, "VALIDATION_STRINGENCY=LENIENT", \
-								"INPUT=", outputBamFile, \
-								"OUTPUT=", bai_output)
-		yh_pegasus.setJobProperRequirement(index_sam_job, job_max_memory=javaMaxMemory)
-		index_sam_job.uses(outputBamFile, transfer=False, register=False, link=Link.INPUT)
-		index_sam_job.uses(bai_output, transfer=stageOutFinalOutput, register=False, link=Link.OUTPUT)
-		workflow.addJob(index_sam_job)
-		workflow.depends(parent=merge_sam_job, child=index_sam_job)
-		return index_sam_job	#this is fake as an alignment merge job
 		
+		# add the index job on the merged bam file
+		return self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+					inputBamF=outputBamFile,\
+					parentJob=merge_sam_job, namespace=namespace, version=version,\
+					stageOutFinalOutput=stageOutFinalOutput, javaMaxMemory=javaMaxMemory)
+	
 	def addMarkDupJob(self, workflow, parentJob=None, inputBamF=None, outputBamFile=None,\
 					MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir="/Network/Data/vervet/vervetPipeline/tmp/",\
 					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
@@ -759,7 +753,7 @@ class ShortRead2AlignmentPipeline(object):
 			"VALIDATION_STRINGENCY=LENIENT", "ASSUME_SORTED=true", "INPUT=", inputBamF, \
 			'OUTPUT=', MarkDupOutputF, "M=", MarkDupOutputMetricF, "MAX_RECORDS_IN_RAM=500000",\
 			"TMP_DIR=%s"%tmpDir)
-		MarkDupJob.uses(parentJob.bai_output, transfer=False, register=True, link=Link.INPUT)
+		MarkDupJob.uses(parentJob.baiFile, transfer=False, register=True, link=Link.INPUT)
 		MarkDupJob.uses(inputBamF, transfer=False, register=True, link=Link.INPUT)
 		if stageOutFinalOutput:
 			MarkDupJob.uses(MarkDupOutputF, transfer=True, register=True, link=Link.OUTPUT)
@@ -767,24 +761,88 @@ class ShortRead2AlignmentPipeline(object):
 		else:
 			pass	#don't register the files so leave them there
 		workflow.addJob(MarkDupJob)
-		yh_pegasus.setJobProperRequirement(MarkDupJob, job_max_memory=MarkDupJobMaxMemory)
+		yh_pegasus.setJobProperRequirement(MarkDupJob, job_max_memory=MarkDupJobMaxMemory, no_of_cpus=2)
 		workflow.depends(parent=parentJob, child=MarkDupJob)
 		
-		# add the index job on the merged bam file
-		index_sam_job = Job(namespace=namespace, name=BuildBamIndexFilesJava.name, version=version)
-		bai_output = File('%s.bai'%MarkDupOutputF.name)
-		index_sam_job.addArguments("-Xms128m", "-Xmx2500m", "-jar", BuildBamIndexFilesJar, "VALIDATION_STRINGENCY=LENIENT", \
-						"INPUT=", MarkDupOutputF, "OUTPUT=", bai_output)
-		yh_pegasus.setJobProperRequirement(index_sam_job, job_max_memory=2500)
+		
+		# add the index job on the bam file
+		return self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+					inputBamF=MarkDupOutputF,\
+					parentJob=MarkDupJob, namespace=namespace, version=version,\
+					stageOutFinalOutput=stageOutFinalOutput)
+		
+	@classmethod
+	def addSAMtoolsCalmdJob(cls, workflow, samtoolsCalmd=None, inputBamF=None, \
+					refFastaFList=None, outputBamF=None, \
+					parentJob=None, \
+					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
+					namespace='workflow', version='1.0', stageOutFinalOutput=True,\
+					**keywords):
+		"""
+		2011-11-20
+			run "samtools calmd" on the input bam and index the output bam
+		"""
+		job = Job(namespace=namespace, name=BuildBamIndexFilesJava.name, version=version)
+		job.addArguments(inputBamF, refFastaFList[0], outputBamF)
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=1000)
+		job.uses(inputBamF, transfer=True, register=True, link=Link.INPUT)
+		for refFastaFile in refFastaFList:
+			job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
 		if stageOutFinalOutput:
-			index_sam_job.uses(MarkDupOutputF, transfer=True, register=True, link=Link.INPUT)
-			index_sam_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
+			job.uses(outputBamF, transfer=True, register=True, link=Link.OUTPUT)
 		else:
 			pass	#don't register the files so leave them there
-		workflow.addJob(index_sam_job)
-		workflow.depends(parent=MarkDupJob, child=index_sam_job)
-		return index_sam_job
+		workflow.addJob(job)
+		if parentJob:
+			workflow.depends(parent=parentJob, child=job)
+			
+		# add the index job on the bam
+		return self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+					inputBamF=outputBamF,\
+					parentJob=job, namespace=namespace, version=version,\
+					stageOutFinalOutput=stageOutFinalOutput)
 	
+	@classmethod
+	def addBaseQualRecalibrationJob(cls, workflow, samtoolsCalmd=None, inputBamF=None, \
+					refFastaFList=None, outputBamF=None, \
+					parentJob=None, \
+					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
+					namespace='workflow', version='1.0', stageOutFinalOutput=True,\
+					**keywords):
+		"""
+		2011-11-20
+			create a sub-workflow
+			
+			for each 2million bp interval
+				split a small bam out of input bam (add 1kb on both ends of interval)
+				index the small bam
+				run RealignerTargetCreator
+				run IndelRealigner
+				(extract the exact interval out of bam if 1kb is added to both ends of input interval)
+			merge all intervals back into one bam
+			index the merged bam
+		"""
+	
+	@classmethod
+	def addLocalRealignmentJob(cls, workflow, samtoolsCalmd=None, inputBamF=None, \
+					refFastaFList=None, outputBamF=None, \
+					parentJob=None, \
+					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
+					namespace='workflow', version='1.0', stageOutFinalOutput=True,\
+					**keywords):
+		"""
+		2011-11-20
+			create a sub-workflow to do local re-alignment for one inputBAM
+			for each 2million bp interval
+				split a small bam out of input bam (add 1kb on both ends of interval)
+				index the small bam
+				run RealignerTargetCreator
+				run IndelRealigner
+				(extract the exact interval out of bam if 1kb is added to both ends of input interval)
+			merge all intervals back into one bam
+			index the merged bam
+			
+		"""
 	
 	def run(self):
 		"""
