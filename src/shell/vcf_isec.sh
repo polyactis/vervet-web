@@ -31,14 +31,14 @@ exitCode=`echo $exitCodeAll|awk -F ' ' '{print $1}'`
 exitCode2=`echo $exitCodeAll|awk -F ' ' '{print $2}'`
 
 echo exit code: $exitCode, $exitCode2
-#exitCode=255 of vcf-isec is a warning
+#exitCode=255 or 2 of vcf-isec is a warning
 #Warning: Read 0 lines from samtools/Contig687_1_1258568.vcf.gz, the tabix index may be broken.
 #at /home/crocea/bin/vcftools/vcf-isec line 21
 #main::error('Warning: Read 0 lines from samtools/Contig687_1_1258568.vcf.g...') called at /home/crocea/bin/vcftools/vcf-isec line 87
 #main::__ANON__('Warning: Read 0 lines from samtools/Contig687_1_1258568.vcf.g...') called at /home/crocea/bin/vcftools/vcf-isec line 272
 #main::vcf_isec('HASH(0x2339900)') called at /home/crocea/bin/vcftools/vcf-isec line 12
 
-if ( test "$exitCode" = "0" || test "$exitCode" = "255" ) && test "$exitCode2" = "0"
+if ( test "$exitCode" = "0" || test "$exitCode" = "255"  || test "$exitCode" = "2" ) && test "$exitCode2" = "0"
 then
 	$tabixPath -p vcf $outputVCF
 else

@@ -14,13 +14,13 @@ then
 	echo "	$0 120_480K_supercontigs.fasta Contig0:1-2000000 Contig0_1_2000000.vcf 1 1_vs_120.bam 2_vs_120.bam"
 exit
 fi
+source $HOME/.bash_profile
+bwaPath=$HOME/bin/bwa
+samtoolsPath=$HOME/bin/samtools
+bcftoolsPath=$HOME/bin/bcftools
+vcfutilsPath=$HOME/bin/vcfutils.pl
 
-bwaPath=~/bin/bwa
-samtoolsPath=~/bin/samtools
-bcftoolsPath=~/bin/bcftools
-vcfutilsPath=~/bin/vcfutils.pl
-
-picardPath=~/script/picard/dist/
+picardPath=$HOME/script/picard/dist/
 
 refFastaFname=$1
 interval=$2
@@ -47,9 +47,11 @@ bamFiles=$*
 #-c in "-vcg":	Call variants using Bayesian inference. This option automatically invokes option -e.
 #-v in "-vcg":	Output variant sites only (force -c)
 #-g in "-vcg":	Call per-sample genotypes at variant sites (force -c)
+###### aruments for $vcfutilsPath
 #-D100: maximum depth=100
 #-w 10:	SNP within 10 bp around a gap to be filtered.
 #-d 3:	minimum read depth is 3.
+#-e 0:	min P-value for HWE (plus F<0). setting it to zero removes this filter.
 
 if test "$siteType" = "1"
 then
@@ -73,7 +75,7 @@ indelVCF=$outputVCF.indel.vcf
 
 if test "$exitCode" = "0" && test "$exitCode2" = "0"
 then
-	$bcftoolsPath view $outputVCF.bcf | $vcfutilsPath varFilter -w 10 -d 3 -D5000 > $indelSNPVCF
+	$bcftoolsPath view $outputVCF.bcf | $vcfutilsPath varFilter -w 10 -d 3 -D5000 -e 0 -1 0 -2 0 > $indelSNPVCF
 	exitCode=$?
 	rm $outputVCF.bcf
 	if test "$exitCode" = "0"
