@@ -40,9 +40,9 @@ import subprocess, cStringIO
 import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
 from Pegasus.DAX3 import *
+from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
 
-
-class CalculateVCFStatPipeline(object):
+class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 	__doc__ = __doc__
 	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
 						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
@@ -51,7 +51,7 @@ class CalculateVCFStatPipeline(object):
 						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
 						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
 						('ref_ind_seq_id', 1, int): [120, 'a', 1, 'IndividualSequence.id. Choose trios from alignments with this sequence as reference', ],\
-						('windowSize', 1, int): [1000000, 'w', 1, 'window size for TiTv and pi calculation', ],\
+						('windowSize', 1, int): [1000000, 'w', 1, 'window size for TiTv, pi, snpDensity calculation by vcftools', ],\
 						('vcf1Dir', 0, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						("gatk_path", 1, ): ["%s/script/gatk/dist", '', 1, 'GATK folder containing its jar binaries'],\
 						("vervetSrcPath", 1, ): ["%s/script/vervet/src", '', 1, 'vervet source code folder'],\
@@ -80,34 +80,6 @@ class CalculateVCFStatPipeline(object):
 		self.gatk_path = self.gatk_path%self.home_path
 		self.vcf1Dir = os.path.abspath(self.vcf1Dir)
 		self.vervetSrcPath = self.vervetSrcPath%self.home_path
-	
-	def addStatMergeJob(self, workflow, statMergeProgram=None, outputF=None, \
-							parentJobLs=[], \
-							namespace=None, version=None, extraDependentInputLs=[], transferOutput=True, extraArguments=None):
-		"""
-		2011-11-17
-			add argument extraArguments
-		"""
-		statMergeJob = Job(namespace=namespace, name=statMergeProgram.name, version=version)
-		statMergeJob.addArguments('-o', outputF)
-		if extraArguments:
-			statMergeJob.addArguments(extraArguments)
-		statMergeJob.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		statMergeJob.output = outputF
-		workflow.addJob(statMergeJob)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=statMergeJob)
-		for input in extraDependentInputLs:
-			statMergeJob.uses(input, transfer=True, register=True, link=Link.INPUT)
-		return statMergeJob
-	
-	def addInputToStatMergeJob(self, workflow, statMergeJob=None, inputF=None, \
-							parentJobLs=[], \
-							namespace=None, version=None, extraDependentInputLs=[]):
-		statMergeJob.addArguments(inputF)
-		statMergeJob.uses(inputF, transfer=False, register=True, link=Link.INPUT)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=statMergeJob)
 	
 	def addChrLengthAppendingJob(self, workflow, AddChromosomeLengthToTSVFile=None, inputF=None, outputF=None, \
 							divideByLength=True, chrLength=1000, divideStartingColumn=2, parentJobLs=[], \
@@ -293,6 +265,10 @@ class CalculateVCFStatPipeline(object):
 		AACTallyReduceJob = self.addStatMergeJob(workflow, statMergeProgram=ReduceMatrixByChosenColumn, \
 							outputF=AACTallyReduceOutputF, namespace=namespace, version=version)
 		
+		TiTvReduceOutputF = File('TiTv.summary.tsv')
+		TiTvReduceJob = self.addStatMergeJob(workflow, statMergeProgram=ReduceMatrixByChosenColumn, \
+						outputF=TiTvReduceOutputF, namespace=namespace, version=version, extraArguments='-k 0 -v 1')
+		
 		counter = 0
 		no_of_vcf_files = 0
 		no_of_vcf_non_empty_files = 0
@@ -300,7 +276,7 @@ class CalculateVCFStatPipeline(object):
 			vcfAbsPath = os.path.join(os.path.abspath(self.vcf1Dir), inputFname)
 			no_of_vcf_files += 1
 			if NextGenSeq.isFileNameVCF(inputFname, includeIndelVCF=self.includeIndelVCF) and \
-					not NextGenSeq.isVCFFileEmpty(vcfAbsPath, checkContent=True):
+					not NextGenSeq.isVCFFileEmpty(vcfAbsPath):
 				no_of_vcf_non_empty_files += 1
 				commonPrefix = inputFname.split('.')[0]
 				chr = chr_pattern.search(inputFname).group(1)
@@ -334,7 +310,9 @@ class CalculateVCFStatPipeline(object):
 				outputFnamePrefix = os.path.join(statOutputDir, "%s.vcftools"%(commonPrefix))
 				piFile = File('%s.windowed.pi'%(outputFnamePrefix))
 				TsTvFile = File('%s.TsTv'%(outputFnamePrefix))
+				TsTvSummaryFile = File('%s.TsTv.summary'%(outputFnamePrefix))
 				snpDensityFile = File('%s.snpden'%(outputFnamePrefix))
+				vcftoolsLogFile = File('%s.log'%(outputFnamePrefix))
 				vcftoolsJob.addArguments(vcftoolsPath)
 				if vcf1.name[-2:]=='gz':
 					vcftoolsJob.addArguments('--gzvcf', vcf1)
@@ -344,7 +322,8 @@ class CalculateVCFStatPipeline(object):
 								" --TsTv %s --window-pi %s --SNPdensity %s"%(self.windowSize, self.windowSize, self.windowSize))
 				#"--freq --counts --freq2 --counts2 --hardy",
 				vcftoolsJob.uses(vcf1, transfer=True, register=True, link=Link.INPUT)
-				for outputFile in [piFile, TsTvFile, snpDensityFile]:
+				vcftoolsJob.uses(vcftoolsLogFile, transfer=True, register=True, link=Link.OUTPUT)	#transfer out the log file
+				for outputFile in [piFile, TsTvFile, snpDensityFile, TsTvSummaryFile]:	#no transfer for these
 					vcftoolsJob.uses(outputFile, transfer=False, register=True, link=Link.OUTPUT)
 				yh_pegasus.setJobProperRequirement(vcftoolsJob, job_max_memory=500)
 				workflow.addJob(vcftoolsJob)
@@ -370,6 +349,9 @@ class CalculateVCFStatPipeline(object):
 				self.addInputToStatMergeJob(workflow, statMergeJob=snpDensityMergeJob, inputF=addChrLengthToSNPDensityFileJob.output, \
 							parentJobLs=[addChrLengthToSNPDensityFileJob])
 				
+				self.addInputToStatMergeJob(workflow, statMergeJob=TiTvReduceJob, inputF=TsTvSummaryFile, \
+							parentJobLs=[vcftoolsJob])
+				
 				### TallyAACFromVCF
 				outputF = File(os.path.join(statOutputDir, "%s_AAC_tally.tsv"%(commonPrefix)))
 				TallyAACFromVCFJob = self.addTallyAACFromVCFJob(workflow, TallyAACFromVCF=TallyAACFromVCF, \
@@ -381,7 +363,7 @@ class CalculateVCFStatPipeline(object):
 				self.addInputToStatMergeJob(workflow, statMergeJob=AACTallyReduceJob, inputF=TallyAACFromVCFJob.output, \
 							parentJobLs=[TallyAACFromVCFJob])
 				counter += 6
-		sys.stderr.write("%s jobs from %s/%s non-empty vcf files.\n"%(counter+1, no_of_vcf_non_empty_files, no_of_vcf_files))
+		sys.stderr.write("%s jobs from %s non-empty vcf files (%s total files).\n"%(counter+1, no_of_vcf_non_empty_files, no_of_vcf_files))
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
