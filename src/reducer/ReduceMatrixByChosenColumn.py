@@ -8,7 +8,7 @@ Examples:
 	
 Description:
 	2011-11-12
-
+		This program sums individual columns from all input files based on keys from the keyColumn.
 """
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0])
@@ -52,7 +52,7 @@ class ReduceMatrixByChosenColumn(object):
 			pdb.set_trace()
 			
 		newHeader = None
-		key2dataLs = {}
+		key2dataLs = {}	#key is the keyColumn, dataLs corresponds to the sum of each column from valueColumnLs 
 		delimiter = None
 		for inputFname in self.inputFnameLs:
 			if not os.path.isfile(inputFname):
