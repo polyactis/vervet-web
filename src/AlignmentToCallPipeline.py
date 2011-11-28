@@ -16,6 +16,7 @@ Examples:
 	# 2011-7-21 use GATK + coverage filter on hoffman2 and site_handler, top 5 contigs
 	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 -i 1-8
 		-N 5 -y1 -l hoffman2 -e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db  -s2
+		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
 	
 	#2011-8-31 work 10 VWP and one VRC ref monkeys, variants only
 	%s -a 9 -I 495,498-507 -u yh  
@@ -59,35 +60,17 @@ else:   #32bit
 import subprocess, cStringIO
 import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
+from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
 from Pegasus.DAX3 import *
 
 
-class AlignmentToCallPipeline(object):
+class AlignmentToCallPipeline(AbstractNGSWorkflow):
 	__doc__ = __doc__
-	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-						('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
-						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-						('aln_ref_ind_seq_id', 1, int): [120, 'a', 1, 'IndividualSequence.id. To pick alignments with this sequence as reference', ],\
+	option_default_dict = AbstractNGSWorkflow.option_default_dict
+	
+	option_default_dict.update({
 						('ind_seq_id_ls', 0, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. alignments come from these', ],\
 						('ind_aln_id_ls', 0, ): ['', 'I', 1, 'a comma/dash-separated list of IndividualAlignment.id. This overrides ind_seq_id_ls.', ],\
-						("samtools_path", 1, ): ["%s/bin/samtools", '', 1, 'samtools binary'],\
-						("picard_path", 1, ): ["%s/script/picard/dist", '', 1, 'picard folder containing its jar binaries'],\
-						("gatk_path", 1, ): ["%s/script/gatk/dist", '', 1, 'GATK folder containing its jar binaries'],\
-						("vervetSrcPath", 1, ): ["%s/script/vervet/src", '', 1, 'vervet source code folder'],\
-						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
-						("javaPath", 1, ): ["/usr/bin/java", 'J', 1, 'java interpreter binary'],\
-						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
-									If not given, use the default stored in db.'],\
-						("localDataDir", 0, ): ["", 'D', 1, 'localDataDir should contain same files as dataDir but accessible locally.\
-									If not given, use the default stored in db. This argument is used to find all input files available.'],\
-						
-						("site_handler", 1, ): ["condorpool", 'l', 1, 'which site to run the jobs: condorpool, hoffman2'],\
-						("input_site_handler", 1, ): ["local", 'j', 1, 'which site has all the input files: local, condorpool, hoffman2. \
-							If site_handler is condorpool, this must be condorpool and files will be symlinked. \
-							If site_handler is hoffman2, input_site_handler=local induces file transfer and input_site_handler=hoffman2 induces symlink.'],\
 						('seqCoverageFname', 0, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
 						("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
 						("contigMinRankBySize", 1, int): [1, 'M', 1, 'min rank (by size) of contigs'],\
@@ -95,28 +78,23 @@ class AlignmentToCallPipeline(object):
 						("needFastaIndexJob", 0, int): [0, '', 0, 'need to add a reference index job by samtools?'],\
 						("needFastaDictJob", 0, int): [0, '', 0, 'need to add a reference dict job by picard CreateSequenceDictionary.jar?'],\
 						("site_type", 1, int): [2, 's', 1, '1: all genome sites, 2: variants only'],\
-						("run_type", 1, int): [1, 'n', 1, '1: cross-sample calling, 2: single-sample one by one'],\
-						('outputFname', 1, ): [None, 'o', 1, 'xml workflow output file'],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						("noOfCallingJobsPerNode", 1, int): [1, 'O', 1, 'this parameter controls how many genotype calling jobs should be clustered together to run on one node. \
+									Increase it to above 1 only when your average genotyping job is short and the number of input bam files are short.'],\
+						("run_type", 1, int): [1, 'n', 1, '1: multi-sample calling, 2: single-sample one by one'],\
+						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
 	def __init__(self,  **keywords):
 		"""
 		2011-7-11
 		"""
-		from pymodule import ProcessOptions
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
+		AbstractNGSWorkflow.__init__(self, **keywords)
+		
 		if self.ind_seq_id_ls:
 			self.ind_seq_id_ls = getListOutOfStr(self.ind_seq_id_ls, data_type=int)
 		if self.ind_aln_id_ls:
 			self.ind_aln_id_ls = getListOutOfStr(self.ind_aln_id_ls, data_type=int)
 		
-		self.samtools_path = self.samtools_path%self.home_path
-		self.picard_path = self.picard_path%self.home_path
-		self.gatk_path = self.gatk_path%self.home_path
-		self.vervetSrcPath = self.vervetSrcPath%self.home_path
 	
 	def getTopNumberOfContigs(self, contigMaxRankBySize=100, contigMinRankBySize=1, tax_id=60711, sequence_type_id=9):
 		"""
@@ -149,8 +127,11 @@ class AlignmentToCallPipeline(object):
 		sys.stderr.write("%s contigs. Done.\n"%(len(refName2size)))
 		return refName2size
 	
-	def getAlignments(self, aln_ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], aln_method_id=2, dataDir=None):
+	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], aln_method_id=2, \
+					dataDir=None, sequence_type=None):
 		"""
+		2011-11-27
+			add argument sequence_type
 		2011-9-16
 			order each alignment by id. It is important because this is the order that gatk&samtools take input bams.
 			#Read group in each bam is beginned by alignment.id. GATK would arrange bams in the order of read groups.
@@ -167,24 +148,45 @@ class AlignmentToCallPipeline(object):
 		if ind_aln_id_ls:
 			sys.stderr.write("Getting %s alignments ..."%(len(ind_aln_id_ls)) )
 			query = TableClass.query.filter(TableClass.id.in_(ind_aln_id_ls))
-		elif ind_seq_id_ls:
-			sys.stderr.write("Getting all alignments for %s sequences with %s as reference ..."%(len(ind_seq_id_ls), aln_ref_ind_seq_id))
-			query = TableClass.query.filter_by(ref_ind_seq_id=aln_ref_ind_seq_id).filter(TableClass.ind_seq_id.in_(ind_seq_id_ls))\
+		elif ind_seq_id_ls and ref_ind_seq_id:
+			sys.stderr.write("Getting all alignments for %s sequences with %s as reference ..."%(len(ind_seq_id_ls), ref_ind_seq_id))
+			query = TableClass.query.filter_by(ref_ind_seq_id=ref_ind_seq_id).filter(TableClass.ind_seq_id.in_(ind_seq_id_ls))\
 				.filter_by(aln_method_id=aln_method_id)
+		elif ref_ind_seq_id:
+			sys.stderr.write("Getting all alignments with %s as reference ..."%(ref_ind_seq_id))
+			query = TableClass.query.filter_by(ref_ind_seq_id=ref_ind_seq_id).filter_by(aln_method_id=aln_method_id)
 		else:
-			sys.stderr.write("Both ind_seq_id_ls and ind_aln_id_ls are empty. no alignment to be fetched.\n")
+			sys.stderr.write("Both ind_seq_id_ls and ind_aln_id_ls are empty and ref_ind_seq_id is None. no alignment to be fetched.\n")
 			sys.exit(3)
 		#order by TableClass.id is important because this is the order that gatk&samtools take input bams.
 		#Read group in each bam is beginned by alignment.id. GATK would arrange bams in the order of read groups.
 		# while samtools doesn't do that and vcf-isect could combine two vcfs with columns in different order.
 		query = query.order_by(TableClass.id)
 		for row in query:
+			if sequence_type is not None and row.sequence_type!=sequence_type:
+				continue
 			if row.path:	#it's not None
 				abs_path = os.path.join(dataDir, row.path)
 				if os.path.isfile(abs_path):
 					alignmentLs.append(row)
 		sys.stderr.write("%s alignments Done.\n"%(len(alignmentLs)))
 		return alignmentLs
+	
+	def filterAlignments(self, alignmentLs, max_coverage=None, individual_site_id=447, ):
+		"""
+		2011-11-22
+			447 in "individual_site_id=447" is VRC.
+		"""
+		sys.stderr.write("Filter %s alignments to select individual_sequence.coverage <=%s ..."%(len(alignmentLs), max_coverage))
+		newAlignmentLs = []
+		for alignment in alignmentLs:
+			if max_coverage is not None and alignment.ind_sequence.coverage>max_coverage:
+				continue
+			if individual_site_id is not None and alignment.ind_sequence.individual.site_id!=individual_site_id:
+				continue
+			newAlignmentLs.append(alignment)
+		sys.stderr.write(" kept %s alignments. Done.\n"%(len(newAlignmentLs)))
+		return newAlignmentLs
 	
 	def addRefFastaFileSplitJobs(self, workflow, refFastaF, selectAndSplitFasta, refNameLs, mkdir=None, samtools=None,
 								java=None, createSequenceDictionaryJar=None,\
@@ -498,8 +500,7 @@ class AlignmentToCallPipeline(object):
 				
 				
 				gatk_job_max_memory = 1500	#in MB
-				gatk_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%gatk_job_max_memory))
-				gatk_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%gatk_job_max_memory))
+				yh_pegasus.setJobProperRequirement(gatk_job, job_max_memory=gatk_job_max_memory)
 				
 				workflow.addJob(gatk_job)
 				workflow.depends(parent=samtools_index_job, child=gatk_job)
@@ -533,8 +534,7 @@ class AlignmentToCallPipeline(object):
 				job_max_memory = 5000	#in MB
 			else:	#variants only, less memory
 				job_max_memory=1000	#in MB. 
-			genotypeCallByCoverage_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
-			genotypeCallByCoverage_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
+			yh_pegasus.setJobProperRequirement(genotypeCallByCoverage_job, job_max_memory=job_max_memory)
 			workflow.addJob(genotypeCallByCoverage_job)
 			workflow.depends(parent=coverageFilterParentJob, child=genotypeCallByCoverage_job)
 			
@@ -576,6 +576,7 @@ class AlignmentToCallPipeline(object):
 		sys.stderr.write("Adding add RG 2 BAM jobs for %s alignments ..."%(len(alignmentLs)))
 		job_max_memory = 3500	#in MB
 		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
+		indexJobMaxMem=2500
 		no_of_rg_jobs = 0
 		alignmentId2RGJobDataLs = {}
 		for alignment in alignmentLs:
@@ -621,8 +622,7 @@ class AlignmentToCallPipeline(object):
 									#(adding the SORT_ORDER doesn't do sorting but it marks the header as sorted so that BuildBamIndexFilesJar won't fail.)
 				addRGJob.uses(input, transfer=True, register=True, link=Link.INPUT)	#input is in absolute path. so don't register here
 				workflow.addJob(addRGJob)
-				addRGJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
-				addRGJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
+				yh_pegasus.setJobProperRequirement(addRGJob, job_max_memory=job_max_memory)
 				
 				# add the index job to the input (needs to be re-indexed??)
 				index_sam_job = Job(namespace=namespace, name=BuildBamIndexFilesJava.name, version=version)
@@ -642,7 +642,7 @@ class AlignmentToCallPipeline(object):
 					bai_output = File('%s.bai'%outputRGSAMFname)
 					index_sam_job.uses(bai_output, transfer=True, register=False, link=Link.OUTPUT)
 				
-				index_sam_job.addArguments(javaMemRequirement, "-jar", BuildBamIndexFilesJar, "VALIDATION_STRINGENCY=LENIENT", \
+				index_sam_job.addArguments("-Xms128m -Xmx%sm"%indexJobMaxMem, "-jar", BuildBamIndexFilesJar, "VALIDATION_STRINGENCY=LENIENT", \
 								"INPUT=", input, \
 								"OUTPUT=", bai_output)
 				# input is in relative path, either symlink to inputFname (same site) or outputRGSAM (different site)
@@ -653,9 +653,7 @@ class AlignmentToCallPipeline(object):
 					bai_output = File('%s.bai'%alignment.path)
 					bai_output.addPFN(PFN("file://" + '%s.bai'%inputFname, input_site_handler))
 					workflow.addFile(bai_output)
-				
-				index_sam_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
-				index_sam_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
+				yh_pegasus.setJobProperRequirement(index_sam_job, job_max_memory=indexJobMaxMem)
 				
 				workflow.addJob(index_sam_job)
 				workflow.depends(parent=mvJob, child=index_sam_job)
@@ -718,9 +716,7 @@ class AlignmentToCallPipeline(object):
 		vcfConcatJob.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		tbi_F = File("%s.tbi"%outputF.name)
 		vcfConcatJob.uses(tbi_F, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		
-		vcfConcatJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%vcf_job_max_memory))
-		vcfConcatJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%vcf_job_max_memory))
+		yh_pegasus.setJobProperRequirement(vcfConcatJob, job_max_memory=vcf_job_max_memory)
 		workflow.addJob(vcfConcatJob)
 		workflow.depends(parent=parentDirJob, child=vcfConcatJob)
 		return vcfConcatJob
@@ -734,12 +730,12 @@ class AlignmentToCallPipeline(object):
 				mv=None, CallVariantBySamtools=None,\
 				bgzip_tabix=None, vcf_convert=None, vcf_isec=None, vcf_concat=None, \
 				concatGATK=None, concatSamtools=None,\
-				genotypeCallByCoverage=None, refFastaF=None, bamListF=None, \
+				genotypeCallByCoverage=None, refFastaFList=None, bamListF=None, \
 				callOutputDirJob =None, gatkDirJob=None, samtoolsDirJob=None, unionDirJob=None, intersectionDirJob=None,\
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				seqCoverageF=None, \
 				needFastaIndexJob=False, needFastaDictJob=False, \
-				chunkSize=2000000, site_type=1, dataDir=None):
+				chunkSize=2000000, site_type=1, dataDir=None, no_of_gatk_threads = 3):
 		"""
 		2011-9-22
 			add argument concatGATK, concatSamtools.
@@ -748,11 +744,12 @@ class AlignmentToCallPipeline(object):
 		2011-9-14
 			argument chunkSize determines how many sites gatk/samtools works on at a time
 		"""
-		sys.stderr.write("Adding genotype call jobs for %s references ..."%(len(refName2size)))
+		sys.stderr.write("Adding genotype call jobs for %s chromosomes/contigs ..."%(len(refName2size)))
 		job_max_memory = 2000	#in MB
 		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
-		no_of_gatk_threads = 3
 		vcf_job_max_memory = 1000
+		refFastaF = refFastaFList[0]
+		
 		if needFastaDictJob:	# the .dict file is required for GATK
 			refFastaDictFname = '%s.dict'%(os.path.splitext(refFastaF.name)[0])
 			refFastaDictF = File(refFastaDictFname)
@@ -760,8 +757,8 @@ class AlignmentToCallPipeline(object):
 			fastaDictJob = Job(namespace=namespace, name=createSequenceDictionaryJava.name, version=version)
 			fastaDictJob.addArguments('-jar', createSequenceDictionaryJar, \
 					'REFERENCE=', refFastaF, 'OUTPUT=', refFastaDictF)
-			fastaDictJob.uses(refFastaF, register=False, link=Link.INPUT)
-			fastaDictJob.uses(refFastaDictF, transfer=True, register=False, link=Link.OUTPUT)
+			fastaDictJob.uses(refFastaF,  transfer=True,  register=True, link=Link.INPUT)
+			fastaDictJob.uses(refFastaDictF, transfer=True, register=True, link=Link.OUTPUT)
 			workflow.addJob(fastaDictJob)
 		else:
 			fastaDictJob = None
@@ -773,8 +770,8 @@ class AlignmentToCallPipeline(object):
 			#not os.path.isfile(refFastaIndexFname)
 			fastaIndexJob = Job(namespace=namespace, name=samtools.name, version=version)
 			fastaIndexJob.addArguments("faidx", refFastaF)
-			fastaIndexJob.uses(refFastaF, register=False, link=Link.INPUT)
-			fastaIndexJob.uses(refFastaIndexFname, transfer=True, register=False, link=Link.OUTPUT)
+			fastaIndexJob.uses(refFastaF, transfer=True,  register=True, link=Link.INPUT)
+			fastaIndexJob.uses(refFastaIndexFname, transfer=True, register=True, link=Link.OUTPUT)
 			workflow.addJob(fastaIndexJob)
 		else:
 			fastaIndexJob = None
@@ -841,16 +838,16 @@ class AlignmentToCallPipeline(object):
 				gatkIDXOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf.idx'%(vcfBaseFname))
 				gatkIDXOutput = File(gatkIDXOutputFname)
 				gatk_job.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "UnifiedGenotyper",\
-					"-L", interval, "-mbq 20", "-mmq 30", "-R", refFastaF, "--out", gatkOutputF,\
-					'-U', '-S SILENT', "-nt %s"%no_of_gatk_threads)
+					"-L", interval, "-mbq 20", "-R", refFastaF, "--out", gatkOutputF,\
+					'-U', '-S SILENT', "-nt %s"%no_of_gatk_threads, "--baq CALCULATE_AS_NECESSARY")
+				# 2011-11-22 "-mmq 30",  is no longer included
 				if site_type==1:
 					gatk_job.addArguments('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
-				
+				for refFastaFile in refFastaFList:
+					gatk_job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
 				gatk_job.uses(gatkOutputF, transfer=False, register=True, link=Link.OUTPUT)
 				gatk_job.uses(gatkIDXOutput, transfer=False, register=True, link=Link.OUTPUT)
-				
-				gatk_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
-				gatk_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
+				yh_pegasus.setJobProperRequirement(gatk_job, job_max_memory=job_max_memory, no_of_cpus=no_of_gatk_threads)
 				workflow.addJob(gatk_job)
 				workflow.depends(parent=gatkDirJob, child=gatk_job)
 				
@@ -880,12 +877,13 @@ class AlignmentToCallPipeline(object):
 				indelVCFOutputF = File(indelVCFOutputFname)
 				
 				samtools_job.addArguments(refFastaF, interval, samtoolsOutputF, repr(site_type))
+				for refFastaFile in refFastaFList:
+					samtools_job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
 				#samtools_job.uses(bamListF, transfer=True, register=True, link=Link.INPUT)
 				samtools_job.uses(samtoolsOutputF, transfer=False, register=True, link=Link.OUTPUT)
 				samtools_job.uses(indelVCFOutputF, transfer=False, register=True, link=Link.OUTPUT)
 				
-				samtools_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%vcf_job_max_memory))
-				samtools_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%vcf_job_max_memory))
+				yh_pegasus.setJobProperRequirement(samtools_job, job_max_memory=vcf_job_max_memory)
 				workflow.addJob(samtools_job)
 				workflow.depends(parent=samtoolsDirJob, child=samtools_job)
 				
@@ -951,8 +949,7 @@ class AlignmentToCallPipeline(object):
 				workflow.depends(parent=bgzip_tabix_gatkOutputF_job, child=isectJob)
 				workflow.depends(parent=bgzip_tabix_samtoolsOutputF_job, child=isectJob)
 				
-				isectJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%vcf_job_max_memory))
-				isectJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%vcf_job_max_memory))
+				yh_pegasus.setJobProperRequirement(isectJob, job_max_memory=vcf_job_max_memory)
 				#union of intersected-intervals from one contig
 				wholeRefUnionOfIntersectionJob.addArguments(intersectionOutputF)
 				wholeRefUnionOfIntersectionJob.uses(intersectionOutputF, transfer=False, register=True, link=Link.INPUT)
@@ -1089,7 +1086,8 @@ class AlignmentToCallPipeline(object):
 		workflow.addJob(mkDirJob)
 		return mkDirJob
 		"""
-		
+	
+	
 	def run(self):
 		"""
 		2011-7-11
@@ -1115,61 +1113,22 @@ class AlignmentToCallPipeline(object):
 		#refName2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
 		refNameLs = refName2size.keys()
 		
-		alignmentLs = self.getAlignments(self.aln_ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
+		alignmentLs = self.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
 										aln_method_id=2, dataDir=self.localDataDir)
 		
-		refSequence = VervetDB.IndividualSequence.get(self.aln_ref_ind_seq_id)
-		
-		refFastaFname = os.path.join(self.dataDir, refSequence.path)
-		if self.needFastaDictJob and self.needFastaIndexJob:
-			refFastaF = File(os.path.basename(refFastaFname))	#use relative path, otherwise, it'll go to absolute path
-			# Add it into replica only when needed.
-			refFastaF.addPFN(PFN("file://" + refFastaFname, self.input_site_handler))
-			workflow.addFile(refFastaF)
-			# If it's not needed, assume the index is done and all relevant files are in absolute path.
-			# and no replica transfer
-		else:
-			refFastaF = File(refFastaFname)
-		
-		# Create a abstract dag
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = ADAG(workflowName)
+		workflow = self.initiateWorkflow(workflowName)
+		
+		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
+		refFastaFname = os.path.join(self.dataDir, refSequence.path)
+		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+							input_site_handler=self.input_site_handler,\
+							checkAffiliateFileExistence=True)
+		refFastaF = refFastaFList[0]
+		
 		vervetSrcPath = self.vervetSrcPath
-		site_handler = self.site_handler
 		
-		#add the MergeSamFiles.jar file into workflow
-		abs_path = os.path.join(self.picard_path, 'MergeSamFiles.jar')
-		mergeSamFilesJar = File(abs_path)	#using abs_path avoids add this jar to every job as Link.INPUT
-		mergeSamFilesJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(mergeSamFilesJar)
-		
-		abs_path = os.path.join(self.picard_path, 'BuildBamIndex.jar')
-		BuildBamIndexFilesJar = File(abs_path)
-		BuildBamIndexFilesJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(BuildBamIndexFilesJar)
-		
-		abs_path = os.path.join(self.gatk_path, 'GenomeAnalysisTK.jar')
-		genomeAnalysisTKJar = File(abs_path)
-		genomeAnalysisTKJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(genomeAnalysisTKJar)
-		
-		abs_path = os.path.join(self.picard_path, 'CreateSequenceDictionary.jar')
-		createSequenceDictionaryJar = File(abs_path)
-		createSequenceDictionaryJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(createSequenceDictionaryJar)
-		
-		abs_path = os.path.join(self.picard_path, 'AddOrReplaceReadGroupsAndCleanSQHeader.jar')
-		addOrReplaceReadGroupsAndCleanSQHeaderJar = File(abs_path)
-		addOrReplaceReadGroupsAndCleanSQHeaderJar.addPFN(PFN("file://" + abs_path, \
-												site_handler))
-		workflow.addFile(addOrReplaceReadGroupsAndCleanSQHeaderJar)
-		
-		abs_path = os.path.join(self.picard_path, 'AddOrReplaceReadGroups.jar')
-		addOrReplaceReadGroupsJar = File(abs_path)
-		addOrReplaceReadGroupsJar.addPFN(PFN("file://" + abs_path, \
-											site_handler))
-		workflow.addFile(addOrReplaceReadGroupsJar)
-		
+		self.registerJars(workflow)
 		
 		"""
 		#2011-9-2
@@ -1180,215 +1139,79 @@ class AlignmentToCallPipeline(object):
 		workflow.addFile(seqCoverageF)
 		"""
 		
-		# Add executables to the DAX-level replica catalog
-		# In this case the binary is keg, which is shipped with Pegasus, so we use
-		# the remote PEGASUS_HOME to build the path.
-		architecture = "x86_64"
-		operatingSystem = "linux"
-		namespace = "workflow"
-		version="1.0"
-		#clusters_size controls how many jobs will be aggregated as a single job.
-		clusters_size = 20
-		noOfGenotypesJobsPerNode = 10
+		self.registerCommonExecutables(workflow)
 		
-		#mkdirWrap is better than mkdir that it doesn't report error when the directory is already there.
-		mkdirWrap = Executable(namespace=namespace, name="mkdirWrap", version=version, os=operatingSystem, \
-							arch=architecture, installed=True)
-		mkdirWrap.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mkdirWrap.sh"), site_handler))
-		mkdirWrap.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(mkdirWrap)
+		if self.noOfCallingJobsPerNode>1:
+			workflow.genotyperJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
+										value="%s"%self.noOfCallingJobsPerNode))
+			workflow.samtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
+										value="%s"%self.noOfCallingJobsPerNode))
+			workflow.CallVariantBySamtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
+										value="%s"%self.noOfCallingJobsPerNode))
 		
-		#mv to rename files and move them
-		mv = Executable(namespace=namespace, name="mv", version=version, os=operatingSystem, arch=architecture, installed=True)
-		mv.addPFN(PFN("file://" + "/bin/mv", site_handler))
-		mv.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(mv)
-		
-		selectAndSplit = Executable(namespace=namespace, name="SelectAndSplitAlignment", version=version, \
-								os=operatingSystem, arch=architecture, installed=True)
-		selectAndSplit.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "SelectAndSplitAlignment.py"), site_handler))
-		workflow.addExecutable(selectAndSplit)
-		
-		"""
-		# 2011-9-1 not used anymore. too slow. replace with addOrReplaceReadGroupsAndCleanSQHeaderJar.
-		addRGAndCleanSQHeaderAlignment = Executable(namespace=namespace, name="AddRGAndCleanSQHeaderAlignment", version=version, \
-												os=operatingSystem, arch=architecture, installed=True)
-		addRGAndCleanSQHeaderAlignment.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "AddRGAndCleanSQHeaderAlignment.py"), site_handler))
-		workflow.addExecutable(addRGAndCleanSQHeaderAlignment)
-		"""
-		# 2011-9-1 used
-		addRGToBAM = Executable(namespace=namespace, name="addRGToBAM", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		addRGToBAM.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "addRGToBAM.sh"), site_handler))
-		workflow.addExecutable(addRGToBAM)
-		
-		
-		selectAndSplitFasta = Executable(namespace=namespace, name="SelectAndSplitFastaRecords", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		selectAndSplitFasta.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "SelectAndSplitFastaRecords.py"), site_handler))
-		workflow.addExecutable(selectAndSplitFasta)
-		
-		samtools = Executable(namespace=namespace, name="samtools", version=version, os=operatingSystem, arch=architecture, installed=True)
-		samtools.addPFN(PFN("file://" + self.samtools_path, site_handler))
-		if noOfGenotypesJobsPerNode>1:
-			samtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%noOfGenotypesJobsPerNode))
-		workflow.addExecutable(samtools)
-		
-		java = Executable(namespace=namespace, name="java", version=version, os=operatingSystem, arch=architecture, installed=True)
-		java.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(java)
-		
-		addOrReplaceReadGroupsJava = Executable(namespace=namespace, name="addOrReplaceReadGroupsJava", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		addOrReplaceReadGroupsJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(addOrReplaceReadGroupsJava)
-		
-		genotyperJava = Executable(namespace=namespace, name="genotyperJava", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		genotyperJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		if noOfGenotypesJobsPerNode>1:
-			genotyperJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%noOfGenotypesJobsPerNode))
-		workflow.addExecutable(genotyperJava)
-		
-		BuildBamIndexFilesJava = Executable(namespace=namespace, name="BuildBamIndexFilesJava", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		BuildBamIndexFilesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(BuildBamIndexFilesJava)
-		
-		createSequenceDictionaryJava = Executable(namespace=namespace, name="createSequenceDictionaryJava", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		createSequenceDictionaryJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(createSequenceDictionaryJava)
-		
-		
-		CallVariantBySamtools = Executable(namespace=namespace, name="CallVariantBySamtools", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		CallVariantBySamtools.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "CallVariantBySamtools.sh"), site_handler))
-		workflow.addExecutable(CallVariantBySamtools)
-		
-		genotypeCallByCoverage = Executable(namespace=namespace, name="GenotypeCallByCoverage", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		genotypeCallByCoverage.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "GenotypeCallByCoverage.py"), site_handler))
-		workflow.addExecutable(genotypeCallByCoverage)
-		
-		mergeGenotypeMatrix = Executable(namespace=namespace, name="MergeGenotypeMatrix", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		mergeGenotypeMatrix.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "MergeGenotypeMatrix.py"), site_handler))
-		workflow.addExecutable(mergeGenotypeMatrix)
-		
-		bgzip_tabix = Executable(namespace=namespace, name="bgzip_tabix", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		bgzip_tabix.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "bgzip_tabix.sh"), site_handler))
-		bgzip_tabix.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(bgzip_tabix)
-		
-		vcf_convert = Executable(namespace=namespace, name="vcf_convert", version=version, \
-								os=operatingSystem, arch=architecture, installed=True)
-		vcf_convert.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "vcf_convert.sh"), site_handler))
-		vcf_convert.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(vcf_convert)
-		
-		vcf_isec = Executable(namespace=namespace, name="vcf_isec", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		vcf_isec.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "vcf_isec.sh"), site_handler))
-		vcf_isec.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(vcf_isec)
-		
-		vcf_concat = Executable(namespace=namespace, name="vcf_concat", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		vcf_concat.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "vcf_concat.sh"), site_handler))
-		#vcf_concat might involve a very long argument, which would be converted to *.arg and then pegasus bug
-		#vcf_concat.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(vcf_concat)
-		
-		concatGATK = Executable(namespace=namespace, name="concatGATK", version=version, \
-							os=operatingSystem, arch=architecture, installed=True)
-		concatGATK.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "vcf_concat.sh"), site_handler))
-		concatGATK.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(concatGATK)
-		
-		concatSamtools = Executable(namespace=namespace, name="concatSamtools", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		concatSamtools.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "vcf_concat.sh"), site_handler))
-		concatSamtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(concatSamtools)
-		
-		calcula = Executable(namespace=namespace, name="CalculatePairwiseDistanceOutOfSNPXStrainMatrix", \
-							version=version, os=operatingSystem, arch=architecture, installed=True)
-		calcula.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "CalculatePairwiseDistanceOutOfSNPXStrainMatrix.py"), site_handler))
-		workflow.addExecutable(calcula)
-		
-		#2011-11-4 for single-alignment-calling pipeline, adjust the folder name so that they are unique from each other
-		if self.run_type==1:
+		if self.run_type==1:	#multi-sample calling
 			dirPrefix = ""
 			# Add a mkdir job for the call directory.
 			callOutputDir = "%scall"%(dirPrefix)
-			callOutputDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=callOutputDir, namespace=namespace, version=version)
+			callOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=callOutputDir, \
+											namespace=workflow.namespace, version=workflow.version)
 			gatkDir = "%sgatk"%(dirPrefix)
-			gatkDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=gatkDir, namespace=namespace, version=version)
+			gatkDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=gatkDir, \
+										namespace=workflow.namespace, version=workflow.version)
 			samtoolsDir = "%ssamtools"%(dirPrefix)
-			samtoolsDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=samtoolsDir, namespace=namespace, version=version)
+			samtoolsDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=samtoolsDir, \
+											namespace=workflow.namespace, version=workflow.version)
 			unionDir = "%sgatk_samtools_union"%(dirPrefix)
-			unionDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=unionDir, namespace=namespace, version=version)
+			unionDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=unionDir, \
+									namespace=workflow.namespace, version=workflow.version)
 			intersectionDir = "%sgatk_samtools_intersection"%(dirPrefix)
-			intersectionDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=intersectionDir, namespace=namespace, version=version)
-			
-			if self.site_handler=='condorpool':
-				bamListF_site_handler = 'condorpool'
-			else:	#every other site requires transfer from local
-				bamListF_site_handler = 'local'
-			#bamListF = self.outputListOfBam(alignmentLs, self.dataDir, self.bamListFname, workflow=workflow, site_handler=bamListF_site_handler)
+			intersectionDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=intersectionDir, \
+												namespace=workflow.namespace, version=workflow.version)
 			
 			
-			self.addGenotypeCallJobs(workflow, alignmentLs, refName2size, samtools=samtools, \
-					genotyperJava=genotyperJava, genomeAnalysisTKJar=genomeAnalysisTKJar, \
-					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
-					createSequenceDictionaryJava=createSequenceDictionaryJava, createSequenceDictionaryJar=createSequenceDictionaryJar, \
-					mergeSamFilesJar=mergeSamFilesJar, \
-					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
-					mv=mv, CallVariantBySamtools=CallVariantBySamtools,\
-					bgzip_tabix=bgzip_tabix, vcf_convert=vcf_convert, vcf_isec=vcf_isec, vcf_concat=vcf_concat, \
-					concatGATK=concatGATK, concatSamtools=concatSamtools,\
-					genotypeCallByCoverage=genotypeCallByCoverage, refFastaF=refFastaF, bamListF=None, \
+			self.addGenotypeCallJobs(workflow, alignmentLs, refName2size, samtools=workflow.samtools, \
+					genotyperJava=workflow.genotyperJava, genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar, \
+					createSequenceDictionaryJava=workflow.createSequenceDictionaryJava, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, \
+					mergeSamFilesJar=workflow.mergeSamFilesJar, \
+					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+					mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
+					bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
+					concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
+					genotypeCallByCoverage=workflow.genotypeCallByCoverage, refFastaFList=refFastaFList, bamListF=None, \
 					callOutputDirJob =callOutputDirJob, gatkDirJob=gatkDirJob, samtoolsDirJob=samtoolsDirJob, unionDirJob=unionDirJob, intersectionDirJob=intersectionDirJob,\
-					namespace=namespace, version=version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
+					namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 					seqCoverageF=None, \
 					needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 					chunkSize=2000000, site_type=self.site_type, dataDir=self.dataDir)
 		elif self.run_type==2:
+			#2011-11-4 for single-alignment-calling pipeline, adjust the folder name so that they are unique from each other
 			for alignment in alignmentLs:
 				dirPrefix = "%s"%(alignment.id)
 				# Add a mkdir job for the call directory.
 				callOutputDir = "%s_call"%(dirPrefix)
-				callOutputDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=callOutputDir, namespace=namespace, version=version)
+				callOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=callOutputDir, namespace=workflow.namespace, version=workflow.version)
 				gatkDir = "%s_gatk"%(dirPrefix)
-				gatkDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=gatkDir, namespace=namespace, version=version)
+				gatkDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=gatkDir, namespace=workflow.namespace, version=workflow.version)
 				samtoolsDir = "%s_samtools"%(dirPrefix)
-				samtoolsDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=samtoolsDir, namespace=namespace, version=version)
+				samtoolsDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=samtoolsDir, namespace=workflow.namespace, version=workflow.version)
 				unionDir = "%s_gatk_samtools_union"%(dirPrefix)
-				unionDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=unionDir, namespace=namespace, version=version)
+				unionDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=unionDir, namespace=workflow.namespace, version=workflow.version)
 				intersectionDir = "%s_gatk_samtools_intersection"%(dirPrefix)
-				intersectionDirJob = self.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=intersectionDir, namespace=namespace, version=version)
+				intersectionDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=intersectionDir, namespace=workflow.namespace, version=workflow.version)
 				
-				if self.site_handler=='condorpool':
-					bamListF_site_handler = 'condorpool'
-				else:	#every other site requires transfer from local
-					bamListF_site_handler = 'local'
-				#bamListF = self.outputListOfBam(alignmentLs, self.dataDir, self.bamListFname, workflow=workflow, site_handler=bamListF_site_handler)
-				
-				
-				self.addGenotypeCallJobs(workflow, [alignment], refName2size, samtools=samtools, \
-						genotyperJava=genotyperJava, genomeAnalysisTKJar=genomeAnalysisTKJar, \
-						addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
-						createSequenceDictionaryJava=createSequenceDictionaryJava, createSequenceDictionaryJar=createSequenceDictionaryJar, \
-						mergeSamFilesJar=mergeSamFilesJar, \
-						BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
-						mv=mv, CallVariantBySamtools=CallVariantBySamtools,\
-						bgzip_tabix=bgzip_tabix, vcf_convert=vcf_convert, vcf_isec=vcf_isec, vcf_concat=vcf_concat, \
-						concatGATK=concatGATK, concatSamtools=concatSamtools,\
-						genotypeCallByCoverage=genotypeCallByCoverage, refFastaF=refFastaF, bamListF=None, \
+				self.addGenotypeCallJobs(workflow, [alignment], refName2size, samtools=workflow.samtools, \
+						genotyperJava=workflow.genotyperJava, genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar, \
+						createSequenceDictionaryJava=workflow.createSequenceDictionaryJava, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, \
+						mergeSamFilesJar=workflow.mergeSamFilesJar, \
+						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
+						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
+						concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
+						genotypeCallByCoverage=workflow.genotypeCallByCoverage, refFastaFList=refFastaFList, bamListF=None, \
 						callOutputDirJob =callOutputDirJob, gatkDirJob=gatkDirJob, samtoolsDirJob=samtoolsDirJob, unionDirJob=unionDirJob, intersectionDirJob=intersectionDirJob,\
-						namespace=namespace, version=version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
+						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						seqCoverageF=None, \
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 						chunkSize=2000000, site_type=self.site_type, dataDir=self.dataDir)
@@ -1397,24 +1220,24 @@ class AlignmentToCallPipeline(object):
 		"""
 		addSelectAndSplitBamReturnData = self.addSelectAndSplitBamJobs(db_vervet, workflow, alignmentLs, site_handler, \
 							self.topNumberOfContigs, refNameLs, samtools=samtools, \
-							java=java, addOrReplaceReadGroupsAndCleanSQHeaderJar=addOrReplaceReadGroupsAndCleanSQHeaderJar, \
-							BuildBamIndexFilesJar=BuildBamIndexFilesJar,\
-							mkdir=mkdirWrap, namespace=namespace, \
-							version=version, mkCallDirJob=callOutputDirJob,\
-							addRGExecutable=addRGToBAM, dataDir=self.dataDir)
+							java=java, addOrReplaceReadGroupsAndCleanSQHeaderJar=workflow.addOrReplaceReadGroupsAndCleanSQHeaderJar, \
+							BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar,\
+							mkdir=workflow.mkdirWrap, namespace=workflow.namespace, \
+							version=workflow.version, mkCallDirJob=callOutputDirJob,\
+							addRGExecutable=workflow.addRGToBAM, dataDir=self.dataDir)
 		refName2jobDataLs = addSelectAndSplitBamReturnData.refName2jobDataLs
 		
-		returnData3 = self.addRefFastaFileSplitJobs(workflow, refFastaF, selectAndSplitFasta, refNameLs, mkdir=mkdirWrap, samtools=samtools,
-								java=java, createSequenceDictionaryJar=createSequenceDictionaryJar,\
-								site_handler=site_handler, namespace=namespace, version=version)
+		returnData3 = self.addRefFastaFileSplitJobs(workflow, refFastaF, selectAndSplitFasta, refNameLs, mkdir=workflow.mkdirWrap, samtools=workflow.samtools,
+								java=workflow.java, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar,\
+								site_handler=workflow.site_handler, namespace=workflow.namespace, version=workflow.version)
 		refName2splitFastaJobDataLs = returnData3.refName2jobDataLs
 		
 		returnData2 = self.addMergeAlignmentAndGenotypeCallJobs(workflow, refName2jobDataLs, refNameLs, samtools, \
-							java, createSequenceDictionaryJar=createSequenceDictionaryJar, genotypeCallByCoverage=genotypeCallByCoverage, \
+							java, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, genotypeCallByCoverage=workflow.genotypeCallByCoverage, \
 							refFastaF=refFastaF, \
-							namespace=namespace, version=version, callOutputDir = callOutputDir, \
+							namespace=workflow.namespace, version=workflow.version, callOutputDir = callOutputDir, \
 							genotypeCallerType=self.genotypeCallerType, \
-							mergeSamFilesJar=mergeSamFilesJar, genomeAnalysisTKJar=genomeAnalysisTKJar, calcula=calcula, \
+							mergeSamFilesJar=workflow.mergeSamFilesJar, genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, calcula=workflow.calcula, \
 							refName2splitFastaJobDataLs=refName2splitFastaJobDataLs, seqCoverageF=seqCoverageF, \
 							needFastaIndexJob=self.needFastaIndexJob, \
 							needFastaDictJob=self.needFastaDictJob, site_type=self.site_type)
@@ -1422,7 +1245,7 @@ class AlignmentToCallPipeline(object):
 		refName2mergedBamCallJob =returnData2.refName2mergedBamCallJob
 		
 		#merge all genotype call files
-		mergeGenotypeMatrix_job = Job(namespace=namespace, name=mergeGenotypeMatrix.name, version=version)
+		mergeGenotypeMatrix_job = Job(namespace=workflow.namespace, name=workflow.mergeGenotypeMatrix.name, version=workflow.version)
 		finalCallOutputFname = '%s_genomes_vs_top%sReferences_call.tsv'%(len(alignmentLs), len(refNameLs))
 		finalCallOutput = File(finalCallOutputFname)
 		mergeGenotypeMatrix_job.addArguments("-o", finalCallOutput)
