@@ -135,11 +135,16 @@ class FilterVCFPipeline(AlignmentToCallPipeline):
 		yh_pegasus.setJobProperRequirement(filterByDepthJob, job_max_memory=job_max_memory)
 		return filterByDepthJob
 	
-	def addFilterJobByvcftools(self, workflow, vcftools=None, inputVCFF=None, outputFnamePrefix=None, \
+	def addFilterJobByvcftools(self, workflow, vcftoolsWrapper=None, inputVCFF=None, outputFnamePrefix=None, \
 							parentJobLs=None, snpMisMatchStatFile=None, minMAC=2, minMAF=None, maxSNPMissingRate=0.9,\
 							namespace=None, version=None, extraDependentInputLs=[], transferOutput=False):
+		"""
+		2011-11-21
+			argument vcftools is replaced with a wrapper, which takes vcftools path as 1st argument
+		"""
 		# Add a mkdir job for any directory.
-		vcftoolsJob = Job(namespace=namespace, name=vcftools.name, version=version)
+		vcftoolsJob = Job(namespace=namespace, name=vcftoolsWrapper.name, version=version)
+		vcftoolsJob.addArguments(vcftoolsWrapper.vcftoolsPath)	#2011-11-21
 		if inputVCFF.name[-2:]=='gz':
 			vcftoolsJob.addArguments("--gzvcf", inputVCFF)
 		else:
@@ -229,12 +234,22 @@ class FilterVCFPipeline(AlignmentToCallPipeline):
 		mkdirWrap.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(mkdirWrap)
 		
-		
+		"""
 		vcftools = Executable(namespace=namespace, name="vcftools", version=version, \
 										os=operatingSystem, arch=architecture, installed=True)
 		vcftools.addPFN(PFN("file://" + os.path.join(self.home_path, 'bin/vcftools/vcftools'), site_handler))
 		vcftools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(vcftools)
+		"""
+		
+		vcftoolsPath = os.path.join(self.home_path, "bin/vcftools/vcftools")
+		vcftoolsWrapper = Executable(namespace=namespace, name="vcftoolsWrapper", version=version, \
+										os=operatingSystem, arch=architecture, installed=True)
+		vcftoolsWrapper.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "shell/vcftoolsWrapper.sh"), site_handler))
+		vcftoolsWrapper.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		vcftoolsWrapper.vcftoolsPath = vcftoolsPath
+		workflow.addExecutable(vcftoolsWrapper)
+		
 		
 		SelectVariantsJava = Executable(namespace=namespace, name="SelectVariantsJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
