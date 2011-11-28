@@ -2859,6 +2859,200 @@ class VariantDiscovery(object):
 		sys.exit(0)
 	"""
 
+	class TallyFilteredSNPs(object):
+		"""
+		2011-11-21
+			class to count how many genotypes are masked as missing, how many loci get filtered at particular steps.
+		"""
+		def __init__(self):
+			pass
+		
+		@classmethod
+		def findSitesFilteredOrMaskedByFilterVCFByDepth(cls, \
+			FilterVCFByDepthStdoutFnamePattern="FilterVCF_4HighCovVRC_isq_15_18_vs_524_top7559Contigs_multi_sample_gatk_inter_minMAC2_condor.2011.11.17T1309/merge_workflow-FilterVCFByDepth-1.0_PID2_ID*out.000", \
+			grepPattern="call\/Contig", sampleSize=4):
+			"""
+			2011-11-21
+				get the stats from the pegasus workflow stdout files
+			"""
+			
+			from pymodule import runLocalCommand
+			commandline = "grep -l %s %s"%(grepPattern, FilterVCFByDepthStdoutFnamePattern)
+			#-l is to let grep to output filenames only
+			return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=False)
+			stdout_content = return_data.stdout_content
+			import cStringIO
+			import re
+			noOfProcessedLociPattern = re.compile(r'FilterVCFByDepth - (\d+) loci processed.')
+			noOfRetainedLociPattern = re.compile(r'FilterVCFByDepth - (\d+) loci retained.')
+			noOfTotalGenotypesPattern = re.compile(r'FilterVCFByDepth - Number of total genotypes: (\d+)')
+			noOfOutputGenotypesPattern = re.compile(r'FilterVCFByDepth - Number of outputted genotypes: (\d+)')
+			noOfProcessedLoci = 0
+			noOfRetainedLoci = 0
+			noOfTotalGenotypes = 0
+			noOfOutputGenotypes = 0
+			infWithFilenames = cStringIO.StringIO(stdout_content)
+			counter = 0
+			for line in infWithFilenames:
+				counter += 1
+				inputFname = line.strip()
+				sys.stderr.write("File %s: %s"%(counter, inputFname))
+				inf = open(inputFname)
+				for line in inf:
+					noOfProcessedLociSearchResult = noOfProcessedLociPattern.search(line)
+					noOfRetainedLociSearchResult = noOfRetainedLociPattern.search(line)
+					noOfTotalGenotypesSR = noOfTotalGenotypesPattern.search(line)
+					noOfOutputGenotypesSR = noOfOutputGenotypesPattern.search(line)
+					
+					if noOfProcessedLociSearchResult:
+						noOfProcessedLoci += int(noOfProcessedLociSearchResult.group(1))
+					if noOfRetainedLociSearchResult:
+						noOfRetainedLoci += int(noOfRetainedLociSearchResult.group(1))
+					if noOfTotalGenotypesSR:
+						noOfTotalGenotypes += int(noOfTotalGenotypesSR.group(1))
+					if noOfOutputGenotypesSR:
+						noOfOutputGenotypes += int(noOfOutputGenotypesSR.group(1))
+				del inf
+				sys.stderr.write(" .\n")
+			import csv
+			writer = csv.writer(sys.stdout, delimiter='\t')
+			writer.writerow(["noOfProcessedLoci", noOfProcessedLoci])
+			writer.writerow(["noOfRetainedLoci", noOfRetainedLoci])
+			writer.writerow(["noOfTotalGenotypes", noOfTotalGenotypes])
+			writer.writerow(["noOfGenotypesPassingFilter", noOfOutputGenotypes])
+			no_of_masked_genotypes_in_output = noOfTotalGenotypes - noOfOutputGenotypes - (noOfProcessedLoci-noOfRetainedLoci)*sampleSize
+			#no_of_masked_genotypes_in_output = noOfRetainedLoci*sampleSize - noOfOutputGenotypes	#same output
+			writer.writerow(["no_of_masked_genotypes_in_output", no_of_masked_genotypes_in_output])
+			writer.writerow(["no_of_non_missing_genotypes_in_output", noOfRetainedLoci*sampleSize-no_of_masked_genotypes_in_output])
+			
+		"""
+		#2011-11-21
+		
+		inputDir='/Network/Data/vervet/vervetPipeline/work/'
+		FilterVCFByDepthStdoutFnamePattern="FilterVCF_4HighCovVRC_isq_15_18_vs_524_top7559Contigs_multi_sample_gatk_inter_minMAC2_condor.2011.11.17T1309/merge_workflow-FilterVCFByDepth-1.0_PID2_ID*out.000"
+		FilterVCFByDepthStdoutFnamePattern = os.path.join(inputDir, FilterVCFByDepthStdoutFnamePattern)
+		VariantDiscovery.TallyFilteredSNPs.findSitesFilteredOrMaskedByFilterVCFByDepth(FilterVCFByDepthStdoutFnamePattern=FilterVCFByDepthStdoutFnamePattern, \
+			sampleSize=4)
+		sys.exit(0)
+		"""
+	
+		@classmethod
+		def countNoOfGATKSAMtoolsPerfectMatchSites(cls, inputDir, ):
+			"""
+			2011-11-21
+				go into the folder which contains output left by CalculateSNPMismatchRateOfTwoVCF.py
+					count the lines for each file
+				and add them up
+			"""
+			from pymodule import runLocalCommand
+			counter = 0
+			no_of_PM_sites = 0
+			for filename in os.listdir(inputDir):
+				counter += 1
+				sys.stderr.write("%s %s "%(counter, filename))
+				inputFname = os.path.join(inputDir, filename)
+				commandline = "wc -l %s|awk -F ' ' '{print $1-1}'"%inputFname
+				return_data = runLocalCommand(commandline, report_stderr=False, report_stdout=False)
+				stdout_content = return_data.stdout_content
+				no_of_PM_sites += int(stdout_content.strip())-1
+				sys.stderr.write(" .\n")
+			print "no_of_PM_sites\t%s"%no_of_PM_sites
+			
+		"""
+		#2011-11-21
+		inputDir='/Network/Data/vervet/vervetPipeline/'
+		subFolder = 'FilterVCF_4HighCovVRC_isq_15_18_vs_524_top7559Contigs_multi_sample_gatk_inter_minMAC2_condor.2011.11.17T1309/SNPMismatchStat/'
+		inputDir = os.path.join(inputDir, subFolder)
+		VariantDiscovery.TallyFilteredSNPs.countNoOfGATKSAMtoolsPerfectMatchSites(inputDir)
+		sys.exit(0)
+		"""
+		
+		@classmethod
+		def countTotalNoOfSitesFilteredByVCFtools(cls, inputDir):
+			"""
+			2011-11-21
+				get the stats from the pegasus workflow stdout files
+			"""
+			
+			import re
+			searchPattern = re.compile(r'After filtering, kept (\d+) out of a possible (\d+) Sites')
+			noOfProcessedLoci = 0
+			noOfRetainedLoci = 0
+			counter = 0
+			for filename in os.listdir(inputDir):
+				counter += 1
+				if filename[-3:]!='log':
+					continue
+				sys.stderr.write("%s %s "%(counter, filename))
+				inputFname = os.path.join(inputDir, filename)
+				inf = open(inputFname)
+				for line in inf:
+					searchResult = searchPattern.search(line)
+					
+					if searchResult:
+						noOfProcessedLoci += int(searchResult.group(2))
+						noOfRetainedLoci += int(searchResult.group(1))
+				del inf
+				sys.stderr.write(" .\n")
+			import csv
+			writer = csv.writer(sys.stdout, delimiter='\t')
+			writer.writerow(["noOfProcessedLoci", noOfProcessedLoci])
+			writer.writerow(["noOfRetainedLoci", noOfRetainedLoci])
+			
+		"""
+		#2011-11-21
+		
+		inputDir='/Network/Data/vervet/vervetPipeline/work/outputs'
+		subFolder="FilterVCF_4HighCovVRC_isq_15_18_vs_524_top7559Contigs_multi_sample_gatk_inter_minMAC2_condor.2011.11.17T1309/call_vcftoolsFilter"
+		inputDir = os.path.join(inputDir, subFolder)
+		VariantDiscovery.TallyFilteredSNPs.countTotalNoOfSitesFilteredByVCFtools(inputDir=inputDir)
+		sys.exit(0)
+		
+		"""
+		
+	@classmethod
+	def drawAACHistogram(cls, AAC_ls = [], count_2D_ls =[], outputFnamePrefix=None, color_ls=['r', 'g', 'b', 'y','c', 'k'], **kwargs):
+		"""
+		2011-11-22
+			count_2D_ls is a list of list. Each included list is the number of variants at that particular AAC.
+			
+		"""
+		sys.stderr.write("Drawing barChart of %s bars, %s data series to %s..."%(len(AAC_ls), len(count_2D_ls), outputFnamePrefix))
+		import pylab
+		pylab.clf()
+		rects_ls = []
+		width = 0.75/len(count_2D_ls)
+		for i in xrange(len(count_2D_ls)):
+			c = color_ls[i%len(color_ls)]
+			ind = numpy.array(AAC_ls) + width * i
+			rects = pylab.bar(ind, count_2D_ls[i], width=width, bottom=0, color=c, log=False, **kwargs)
+			rects_ls.append(rects)
+		
+		pylab.legend( (rects_ls[0][0], rects_ls[1][0]), ('version 0', 'version 1') )
+		
+		"""
+		pylab.title(title)
+		if xlabel_1D is not None:
+			pylab.xlabel(xlabel_1D)
+		if xticks:
+			pylab.xticks(x_ls, xticks)
+		"""
+		pylab.savefig('%s.png'%outputFnamePrefix, dpi=200)
+		pylab.savefig('%s.svg'%outputFnamePrefix, dpi=200)
+		
+		sys.stderr.write("Done.\n")
+		
+	"""
+		#2011-11-22
+		AAC_ls = range(1,9)
+		# data from the 4 HC monkeys
+		count_2D_ls = [[2499739, 1969155, 1567859, 1270833, 933173, 738506, 524289, 433315], [0, 1245574, 949732, 718876, 546747, 430943, 0, 0]]
+		outputFname = '/tmp/AAC_distribution_of_4HCMonkeys'
+		
+		VariantDiscovery.drawAACHistogram(AAC_ls = AAC_ls, count_2D_ls =count_2D_ls, outputFname=outputFname, \
+				color_ls=['r', 'g', 'b', 'y','c', 'k'])
+		sys.exit(0)
+	"""
 # 2011-4-29 a handy function to strip blanks around strings
 strip_func = lambda x: x.strip()
 
@@ -5157,6 +5351,17 @@ class Main(object):
 		#import MySQLdb
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
+		
+		#2011-11-22
+		AAC_ls = range(1,9)
+		# data from the 4 HC monkeys
+		count_2D_ls = [[2499739, 1969155, 1567859, 1270833, 933173, 738506, 524289, 433315], \
+					[0, 1245574, 949732, 718876, 546747, 430943, 0, 0]]
+		outputFnamePrefix = '/tmp/AAC_distribution_of_4HCMonkeys'
+		VariantDiscovery.drawAACHistogram(AAC_ls = AAC_ls, count_2D_ls =count_2D_ls, outputFnamePrefix=outputFnamePrefix, \
+				color_ls=['r', 'g', 'b', 'y','c', 'k'])
+		sys.exit(0)
+		
 		
 		#2011-11-6
 		inputDirLs = [os.path.expanduser("~/NetworkData/vervet/db/individual_alignment/"),]
