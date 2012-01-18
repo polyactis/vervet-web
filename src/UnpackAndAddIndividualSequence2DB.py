@@ -58,49 +58,29 @@ else:   #32bit
 
 import subprocess, re, csv
 import VervetDB
-from pymodule import ProcessOptions, getListOutOfStr, PassingData
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from pymodule.utils import runLocalCommand, getColName2IndexFromHeader
 from Pegasus.DAX3 import *
+from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
 
-class UnpackAndAddIndividualSequence2DB(object):
+class UnpackAndAddIndividualSequence2DB(AbstractNGSWorkflow):
 	__doc__ = __doc__
-	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-						('dbname', 1, ): ['vervetdb', 'd', 1, 'stock_250k database name', ],\
-						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-						('port', 0, ):[None, '', 1, 'database port number. must be non-empty if need ssh tunnel'],\
+	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
+	option_default_dict.update({
 						('input', 1, ): ['', 'i', 1, 'if it is a directory, take every *.bam file in it. If it is a file, every line should be a path to actual bam file. ', ],\
 						('bamFname2MonkeyIDMapFname', 1, ): ['', 'm', 1, 'a tsv version of WUSTL xls file detailing what monkey is in which bam file.', ],\
-						("samtools_path", 1, ): ["%s/bin/samtools", '', 1, 'samtools binary'],\
-						("picard_path", 1, ): ["%s/script/picard/dist", '', 1, 'picard folder containing its jar binaries'],\
-						("gatk_path", 1, ): ["%s/script/vervet/bin/GenomeAnalysisTK", '', 1, 'GATK folder containing its jar binaries'],\
-						("vervetSrcPath", 1, ): ["%s/script/vervet/src", '', 1, 'vervet source code folder'],\
-						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
-						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. If not given, use the default stored in db.'],\
 						("sequencer", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger'],\
 						("sequence_type", 1, ): ["PE", '', 1, 'choices: BAC, genome, scaffold, PE, SR, ...'],\
 						("sequence_format", 1, ): ["fastq", '', 1, 'fasta, fastq, etc.'],\
-						('outputFname', 1, ): [None, 'o', 1, 'xml workflow output file'],\
-						("site_handler", 1, ): ["condorpool", 'l', 1, 'which site to run the jobs: condorpool, hoffman2'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_sequence.path and individual_sequence records if inexistent)'],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						})
 	#('jobFileDir', 0, ): ['', 'j', 1, 'folder to contain qsub scripts', ],\
-
+	
 	def __init__(self,  **keywords):
 		"""
 		2011-8-3
 		"""
-		from pymodule import ProcessOptions
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
-		
-		self.samtools_path = self.samtools_path%self.home_path
-		self.picard_path = self.picard_path%self.home_path
-		self.gatk_path = self.gatk_path%self.home_path
-		self.vervetSrcPath = self.vervetSrcPath%self.home_path
+		AbstractNGSWorkflow.__init__(self, **keywords)
 	
 	def getBamBaseFname2MonkeyID(self, bamFname2MonkeyIDMapFname, ):
 		"""
@@ -182,6 +162,62 @@ echo %s
 %s"""%(outputDir, commandline, commandline))
 		jobF.close()
 	
+	def registerCustomExecutables(self, workflow):
+		"""
+		2012.1.3
+		"""
+		namespace = workflow.namespace
+		version = workflow.version
+		operatingSystem = workflow.operatingSystem
+		architecture = workflow.architecture
+		clusters_size = workflow.clusters_size
+		site_handler = workflow.site_handler
+		vervetSrcPath = self.vervetSrcPath
+		
+		convertBamToFastqAndGzip = Executable(namespace=namespace, name="convertBamToFastqAndGzip", version=version, os=operatingSystem, \
+									arch=architecture, installed=True)
+		convertBamToFastqAndGzip.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'convertBamToFastqAndGzip.sh'), site_handler))
+		#convertBamToFastqAndGzip.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(convertBamToFastqAndGzip)
+		workflow.convertBamToFastqAndGzip = convertBamToFastqAndGzip
+		
+		splitReadFileJava = Executable(namespace=namespace, name="SplitReadFileJava", version=version, os=operatingSystem, \
+									arch=architecture, installed=True)
+		splitReadFileJava.addPFN(PFN("file://" + self.javaPath, site_handler))
+		#splitReadFileJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(splitReadFileJava)
+		workflow.splitReadFileJava = splitReadFileJava
+		
+	def addConvertBamToFastqAndGzipJob(self, workflow, executable=None, \
+							inputF=None, outputFnamePrefix=None, \
+							parentJobLs=[], job_max_memory=2000, job_max_walltime = 800, extraDependentInputLs=[], \
+							transferOutput=False, **keywords):
+		"""
+		2012.1.3
+			job_max_walltime is in minutes (max time allowed on hoffman2 is 24 hours).
+			The executable should be convertBamToFastqAndGzip.
+			
+		"""
+		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
+		job.addArguments(inputF, outputFnamePrefix)
+		job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
+		output1 = "%s_1.fastq.gz"%(outputFnamePrefix)
+		output2 = "%s_2.fastq.gz"%(outputFnamePrefix)
+		
+		job.uses(output1, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		job.uses(output2, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		
+		job.output1 = output1
+		job.output2 = output2
+		
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime)
+		workflow.addJob(job)
+		for input in extraDependentInputLs:
+			job.uses(input, transfer=True, register=True, link=Link.INPUT)
+		for parentJob in parentJobLs:
+			workflow.depends(parent=parentJob, child=job)
+		return job
+	
 	def run(self):
 		"""
 		2011-8-3
@@ -201,35 +237,15 @@ echo %s
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir
 		
-		# Create a abstract dag
+		if not self.localDataDir:
+			self.localDataDir = db_vervet.data_dir
+		
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = ADAG(workflowName)
-		site_handler = self.site_handler
+		workflow = self.initiateWorkflow(workflowName)
 		
-		# Add executables to the DAX-level replica catalog
-		# In this case the binary is keg, which is shipped with Pegasus, so we use
-		# the remote PEGASUS_HOME to build the path.
-		architecture = "x86_64"
-		operatingSystem = "linux"
-		namespace = "workflow"
-		version="1.0"
-		
-		#add the MergeSamFiles.jar file into workflow
-		convertBamToFastqAndGzip = Executable(namespace=namespace, name="convertBamToFastqAndGzip", version=version, os=operatingSystem, \
-									arch=architecture, installed=True)
-		convertBamToFastqAndGzip.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, 'convertBamToFastqAndGzip.sh'), site_handler))
-		workflow.addExecutable(convertBamToFastqAndGzip)
-		
-		#mkdirWrap is better than mkdir that it doesn't report error when the directory is already there.
-		mkdirWrap = Executable(namespace=namespace, name="mkdirWrap", version=version, os=operatingSystem, arch=architecture, \
-							installed=True)
-		mkdirWrap.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mkdirWrap.sh"), site_handler))
-		workflow.addExecutable(mkdirWrap)
-		
-		samtools = Executable(namespace=namespace, name="samtools", version=version, os=operatingSystem, arch=architecture, \
-							installed=True)
-		samtools.addPFN(PFN("file://" + self.samtools_path, site_handler))
-		workflow.addExecutable(samtools)
+		self.registerJars(workflow)
+		self.registerExecutables(workflow)
+		self.registerCustomExecutables(workflow)
 		
 		
 		bamBaseFname2MonkeyID = self.getBamBaseFname2MonkeyID(self.bamFname2MonkeyIDMapFname)
@@ -246,6 +262,9 @@ echo %s
 			sys.exit(4)
 			
 		sys.stderr.write("%s total bam files.\n"%(len(bamFnameLs)))
+		
+		sam2fastqOutputDir = 'sam2fastq'
+		sam2fastqOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sam2fastqOutputDir)
 		
 		for bamFname in bamFnameLs:
 			bamBaseFname = os.path.split(bamFname)[1]
@@ -265,28 +284,19 @@ echo %s
 				session.flush()
 			
 			outputDir = os.path.join(self.dataDir, individual_sequence.path)
+			mkCallDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=outputDir)
 			
-			# Add a mkdir job for the individual_sequence.path directory.
-			mkCallDirJob = Job(namespace=namespace, name=mkdirWrap.name, version=version)
-			mkCallDirJob.addArguments(outputDir)
-			workflow.addJob(mkCallDirJob)
+			
+			bamInputF = yh_pegasus.registerFile(workflow, bamFname)
 			
 			bamBaseFname = os.path.split(bamFname)[1]
 			bamBaseFnamePrefix = os.path.splitext(bamBaseFname)[0]
-			outputFnamePrefix = os.path.join(outputDir, bamBaseFnamePrefix)
+			outputFnamePrefix = os.path.join(sam2fastqOutputDir, bamBaseFnamePrefix)
 			
-			convertBamToFastqAndGzip_job = Job(namespace=namespace, name=convertBamToFastqAndGzip.name, version=version)
-			convertBamToFastqAndGzip_job.addArguments(bamFname, outputFnamePrefix)
-			job_max_memory = 2000	#in MB
-			convertBamToFastqAndGzip_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))	#same as max_memory
-			# GLOBUS 5.04 's RSL says it should be max_memory.
-			convertBamToFastqAndGzip_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
-			job_max_walltime = 1380	#23 hours in minutes (max time allowed on hoffman2 is 24 hours)
-			convertBamToFastqAndGzip_job.addProfile(Profile(Namespace.GLOBUS, key="maxwalltime", value="%s"%job_max_walltime))
-			# GLOBUS 5.04 's RSL says it should be max_wall_time
-			
-			workflow.addJob(convertBamToFastqAndGzip_job)
-			workflow.depends(parent=mkCallDirJob, child=convertBamToFastqAndGzip_job)
+			convertBamToFastqAndGzip_job = self.addConvertBamToFastqAndGzipJob(workflow, executable=workflow.convertBamToFastqAndGzip, \
+							inputF=bamInputF, outputFnamePrefix=outputFnamePrefix, \
+							parentJobLs=[sam2fastqOutputDirJob], job_max_memory=2000, job_max_walltime = 800, extraDependentInputLs=[], \
+							transferOutput=False)
 			
 			"""
 			

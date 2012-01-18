@@ -46,7 +46,7 @@ from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
 
 class InspectAlignmentPipeline(AlignmentToCallPipeline):
 	__doc__ = __doc__
-	option_default_dict = AbstractNGSWorkflow.option_default_dict
+	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
 	option_default_dict.update({
 						('ind_seq_id_ls', 0, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. alignments come from these', ],\
 						('ind_aln_id_ls', 0, ): ['', 'I', 1, 'a comma/dash-separated list of IndividualAlignment.id. This overrides ind_seq_id_ls.', ],\
@@ -58,22 +58,17 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 						("needFastaDictJob", 0, int): [0, '', 0, 'toggle to add a reference dict job by picard CreateSequenceDictionary.jar'],\
 						})
 
-	def __init__(self,  **keywords):
+	def __init__(self, **keywords):
 		"""
 		2011-11-4
 		"""
-		from pymodule import ProcessOptions
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
+		AbstractNGSWorkflow.__init__(self, **keywords)
+		#AlignmentToCallPipeline.__init__(self, **keywords)
 		if self.ind_seq_id_ls:
 			self.ind_seq_id_ls = getListOutOfStr(self.ind_seq_id_ls, data_type=int)
 		if self.ind_aln_id_ls:
 			self.ind_aln_id_ls = getListOutOfStr(self.ind_aln_id_ls, data_type=int)
 		
-		self.samtools_path = self.samtools_path%self.home_path
-		self.picard_path = self.picard_path%self.home_path
-		self.gatk_path = self.gatk_path%self.home_path
-		self.vervetSrcPath = self.vervetSrcPath%self.home_path
 	
 	def addDepthOfCoverageJob(self, workflow, DOCWalkerJava=None, genomeAnalysisTKJar=None,\
 							refFastaFList=None, bamF=None, baiFile=None, DOCOutputFnamePrefix=None,\

@@ -56,15 +56,20 @@ class PlotTrioInconsistencySummaryHist(object):
 		
 		inconsistent_rate_ls = []
 		for inputFname in self.inputFnameLs:
-			reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
-			header = reader.next()
-			col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
-			inconsistent_rate_index = col_name2index.get("inconsistency")
-			for row in reader:
-				inconsistency = float(row[inconsistent_rate_index])
-				inconsistent_rate_ls.append(inconsistency)
-			del reader
-		
+			if os.path.isfile(inputFname):
+				try:
+					reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+					header = reader.next()
+					col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+					inconsistent_rate_index = col_name2index.get("inconsistency")
+					for row in reader:
+						inconsistency = float(row[inconsistent_rate_index])
+						inconsistent_rate_ls.append(inconsistency)
+					del reader
+				except:
+					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+					import traceback
+					traceback.print_exc()
 		
 		if self.title is None:
 			title = "histogram of inconsistent rate from %s refs"%(len(inconsistent_rate_ls))

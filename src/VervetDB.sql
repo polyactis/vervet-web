@@ -6,3 +6,11 @@ create or replace view view_individual as select i.id, i.code, i.name, i.ucla_id
 	i.longitude, s.short_name as site_name,
 	s.city, s.stateprovince as province, c.name as country from individual i, site s, country c,
 	acl_user u where i.site_id=s.id and s.country_id=c.id and i.collector_id=u.id;
+	
+drop view view_alignment;
+create or replace view view_alignment as select i.id, i.code, i.ucla_id, i.tax_id, i.sex, i.age, 
+	i.collection_date, i.latitude, i.longitude, isq.id as isq_id, isq.sequencer, isq.sequence_type, isq.base_count, 
+	isq.coverage as raw_coverage, ia.id as alignment_id, ia.ref_ind_seq_id, ia.aln_method_id,
+	ia.median_depth, ia.mean_depth, ia.mode_depth
+	from individual i, individual_alignment ia, individual_sequence isq where isq.individual_id=i.id and isq.id=ind_seq_id
+	order by id, isq.sequencer, isq.sequence_type, ref_ind_seq_id;

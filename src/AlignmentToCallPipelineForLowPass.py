@@ -31,14 +31,14 @@ Examples:
 	# 2011-11-22 prepare a workflow to run on condorpool
 	%s -a 524 -u yh -j condorpool -l condorpool -N 3 -z uclaOffice -o AlignmentToCallLowPass_top3Contigs.xml
 	
-	#2011-11-22 prepare a workflow to run on hoffman2's condorpool
-	%s -a 524 -u yh -j hcondor -l condor -N 7559 -z localhost -o AlignmentToCallLowPass_top7559Contigs.xml
+	#2011-11-22 prepare a low-coverage (coverage<=15) workflow to run on hoffman2's condorpool
+	%s -a 524 -u yh -j hcondor -l hcondor -N 7559 -z localhost -o AlignmentToCallLowPass_top7559Contigs.xml
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-J ~/bin/jdk/bin/java
+		-J ~/bin/jdk/bin/java -w 15 -S 447 -C 30 -O 10
 	
 Description:
 	2011-11-22
-		a derivative of AlignmentToCallPipeline.py for low-pass monkeys only (given a coverage threshold).
+		a derivative of AlignmentToCallPipeline.py for monkeys given a max-coverage and site-id filter.
 """
 import sys, os, math
 from AlignmentToCallPipeline import AlignmentToCallPipeline
@@ -62,9 +62,10 @@ from Pegasus.DAX3 import *
 
 class AlignmentToCallPipelineForLowPass(AlignmentToCallPipeline):
 	__doc__ = __doc__
-	option_default_dict = AlignmentToCallPipeline.option_default_dict
+	option_default_dict = AlignmentToCallPipeline.option_default_dict.copy()
 	option_default_dict.update({
-			("max_coverage", 1, int): [15, '', 1, 'maximum coverage (individual_sequence.coverage) for an sequence run to be considered as low-pass'],\
+			("max_coverage", 1, int): [15, 'w', 1, 'maximum coverage (individual_sequence.coverage) for an sequence run to be considered as low-pass'],\
+			("site_id", 1, int): [447, 'S', 1, 'individuals must come from this site.'],\
 			})
 	def __init__(self,  **keywords):
 		"""
@@ -101,7 +102,7 @@ class AlignmentToCallPipelineForLowPass(AlignmentToCallPipeline):
 										aln_method_id=2, dataDir=self.localDataDir)
 		
 		#site id 447 is the VRC site
-		alignmentLs = self.filterAlignments(alignmentLs, max_coverage=self.max_coverage, individual_site_id=447)
+		alignmentLs = self.filterAlignments(alignmentLs, max_coverage=self.max_coverage, individual_site_id=self.site_id)
 		
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
 		workflow = self.initiateWorkflow(workflowName)
@@ -116,14 +117,8 @@ class AlignmentToCallPipelineForLowPass(AlignmentToCallPipeline):
 		self.registerJars(workflow)
 		
 		self.registerCommonExecutables(workflow)
+		self.registerCustomExecutables(workflow)
 		
-		if self.noOfCallingJobsPerNode>1:
-			workflow.genotyperJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
-										value="%s"%self.noOfCallingJobsPerNode))
-			workflow.samtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
-										value="%s"%self.noOfCallingJobsPerNode))
-			workflow.CallVariantBySamtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
-										value="%s"%self.noOfCallingJobsPerNode))
 		
 		if self.run_type==1:	#multi-sample calling
 			dirPrefix = ""

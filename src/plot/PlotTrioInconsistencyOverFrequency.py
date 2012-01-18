@@ -55,30 +55,35 @@ class PlotTrioInconsistencyOverFrequency(object):
 		"""
 		2011-9-30
 		"""
-		reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
-		header = reader.next()
-		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
-		inconsistent_rate_index = col_name2index.get("inconsistency")
-		if run_type==1:
-			index_of_x_data = col_name2index.get("stopFrequency")
-		elif run_type==2:
-			index_of_x_data = col_name2index.get("stop")
-		else:
-			sys.stderr.write("Unsupported run_type %s in trioInconsistentRateFileWalker().\n"%(run_type))
-			sys.exit(3)
-		index_of_no_of_total = col_name2index.get("no_of_total")
-		inconsistent_rate_ls = []
-		x_ls = []
-		for row in reader:
-			no_of_total = int(float(row[index_of_no_of_total]))
-			if no_of_total<=minNoOfTotal:
-				continue
-			inconsistency = float(row[inconsistent_rate_index])
-			inconsistent_rate_ls.append(inconsistency)
-			x_data = float(row[index_of_x_data])
-			x_ls.append(x_data)
+		try:
+			reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+			header = reader.next()
+			col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+			inconsistent_rate_index = col_name2index.get("inconsistency")
+			if run_type==1:
+				index_of_x_data = col_name2index.get("stopFrequency")
+			elif run_type==2:
+				index_of_x_data = col_name2index.get("stop")
+			else:
+				sys.stderr.write("Unsupported run_type %s in trioInconsistentRateFileWalker().\n"%(run_type))
+				sys.exit(3)
+			index_of_no_of_total = col_name2index.get("no_of_total")
+			inconsistent_rate_ls = []
+			x_ls = []
+			for row in reader:
+				no_of_total = int(float(row[index_of_no_of_total]))
+				if no_of_total<=minNoOfTotal:
+					continue
+				inconsistency = float(row[inconsistent_rate_index])
+				inconsistent_rate_ls.append(inconsistency)
+				x_data = float(row[index_of_x_data])
+				x_ls.append(x_data)
 			processFunc(x_ls, inconsistent_rate_ls)
-		del reader
+			del reader
+		except:
+			sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+			import traceback
+			traceback.print_exc()
 	
 	def plotXY(self, x_ls, y_ls, ):
 		"""
@@ -96,7 +101,8 @@ class PlotTrioInconsistencyOverFrequency(object):
 		pylab.clf()
 		
 		for inputFname in self.inputFnameLs:
-			self.trioInconsistentRateFileWalker(inputFname, processFunc=self.plotXY, minNoOfTotal=self.minNoOfTotal,\
+			if os.path.isfile(inputFname):
+				self.trioInconsistentRateFileWalker(inputFname, processFunc=self.plotXY, minNoOfTotal=self.minNoOfTotal,\
 											run_type=1)
 		
 		if self.title is None:

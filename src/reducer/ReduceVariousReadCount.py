@@ -54,7 +54,7 @@ class ReduceVariousReadCount(object):
 		
 		
 		writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
-		writer.writerow(['sampleID', 'chromosome', 'length', 'noOfReadsAlignedByLength', 'noOfSingletonsByLength', \
+		writer.writerow(['#sampleID', 'chromosome', 'length', 'noOfReadsAlignedByLength', 'noOfSingletonsByLength', \
 						'noOfPairsOnSameContigByLength',\
 						'meanInferInsertSize', 'noOfPairsOnDifferentContigsByLength'])
 		for inputFname in self.inputFnameLs:

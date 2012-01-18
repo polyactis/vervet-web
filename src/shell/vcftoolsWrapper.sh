@@ -19,49 +19,10 @@ fi
 vcftoolsPath=$1
 shift
 #after shift, all arguments left are for vcftools
-vcftoolsArguments=$*
+arguments=$*
 
-findValueGivenAnOptionName () {
-	if [ -z "$1" ]
-	then
-		echo "Option Name is not provided."
-		echo ;
-	else
-		optionNamePosition=`echo $vcftoolsArguments|awk -F ' ' '{i=1; while (i<=NF){if ($i=="'$1'") {print i}; ++i}}'`
-		#echo $1 position: $optionNamePosition
-		if [ -z "$optionNamePosition" ]
-		then
-			echo;
-		else
-			optionValuePosition=`echo $optionNamePosition+1|bc`
-			#echo optionValuePosition $optionValuePosition
-			optionValue=`echo $vcftoolsArguments|awk -F ' ' '{ if ('$optionValuePosition'<=NF) {print $'$optionValuePosition'} else print }'`
-			echo $optionValue
-		fi
-	fi
-}
-
-checkVCFFileIfEmpty () {
-	fname=$1
-	if test -r $fname
-	then
-		suffix=`echo $fname|awk -F '.' '{print $NF}'`
-		if test "$suffix" = "gz"
-		then
-			numberOfLoci=`gunzip -c $fname|grep -v "^#"|wc -l|awk -F ' ' '{print $1}'`
-		else
-			numberOfLoci=`grep -v "^#" $fname|wc -l|awk -F ' ' '{print $1}'`
-		fi
-		if test $numberOfLoci -gt 0
-		then
-			echo 0;
-		else
-			echo 1;
-		fi
-	else
-		echo 1;
-	fi
-}
+shellDir=`dirname $0`
+source $shellDir/commonWrapper.sh
 
 vcfInputFname=`findValueGivenAnOptionName --vcf`
 echo vcfInputFname: $vcfInputFname
@@ -83,18 +44,33 @@ snpDensityWindowSize=`findValueGivenAnOptionName --SNPdensity`
 echo snpDensityWindowSize: $snpDensityWindowSize
 outputNamePrefix=`findValueGivenAnOptionName --out`
 echo outputNamePrefix: $outputNamePrefix
+outputVCFFname=$outputNamePrefix.recode.vcf
 
-recodeStringPosition=`echo $vcftoolsArguments|awk -F ' ' '{i=1; while (i<=NF){if ($i=="--recode") {print i}; ++i}}'`
+recodeStringPosition=`echo $arguments|awk -F ' ' '{i=1; while (i<=NF){if ($i=="--recode") {print i}; ++i}}'`
 echo recodeStringPosition: $recodeStringPosition
+
 
 if test $isVCFEmpty -eq 0
 then
-	$vcftoolsPath $vcftoolsArguments
+	$vcftoolsPath $arguments
+	
+	if test -n "$recodeStringPosition" && test -n "$outputNamePrefix"
+	then
+		recodeVCF=$outputNamePrefix.recode.vcf
+		if test -r $recodeVCF
+		then
+			echo "recode vcf output is available"
+		else
+			outputEmptyVCFWithInputHeader
+		fi
+	fi
 else
-	echo "vcftools is not run due to empty/inexistent VCF but touch some files.";
+	echo "vcftools is not run due to empty/inexistent VCF. need to touch some files so downstream jobs wouldn't die.";
+	touch $outputNamePrefix.log
 	if test -n "$TsTvWindowSize" && test -n "$outputNamePrefix"
 	then
 		touch $outputNamePrefix.TsTv
+		touch $outputNamePrefix.TsTv.summary
 	fi
 	if test -n "$PiWindowSize" && test -n "$outputNamePrefix"
 	then
@@ -102,7 +78,7 @@ else
 	fi
 	if test -n "$recodeStringPosition" && test -n "$outputNamePrefix"
 	then
-		touch $outputNamePrefix.recode.vcf
+		outputEmptyVCFWithInputHeader
 	fi
 	if test -n "$snpDensityWindowSize" && test -n "$outputNamePrefix"
 	then
