@@ -2814,7 +2814,6 @@ class VariantDiscovery(object):
 		no_of_total = 0.
 		minStart = None
 		for vcfRecord in vcfFile.parseIter():
-			locus = vcfRecord.locus
 			chr = vcfRecord.chr
 			pos = vcfRecord.pos
 			pos = int(pos)
@@ -2870,12 +2869,14 @@ class VariantDiscovery(object):
 		@classmethod
 		def findSitesFilteredOrMaskedByFilterVCFByDepth(cls, \
 			FilterVCFByDepthStdoutFnamePattern="FilterVCF_4HighCovVRC_isq_15_18_vs_524_top7559Contigs_multi_sample_gatk_inter_minMAC2_condor.2011.11.17T1309/merge_workflow-FilterVCFByDepth-1.0_PID2_ID*out.000", \
-			grepPattern="call\/Contig", sampleSize=4):
+			grepPattern="call\/Contig", sampleSize=4, reportPeriod=50):
 			"""
 			2011-11-21
 				get the stats from the pegasus workflow stdout files
+				
+				the "call" before "\/Contig" is important to differentiate between two VCF input folders in FilterVCFPipeline.py
 			"""
-			
+			#first get all files that match FilterVCFByDepthStdoutFnamePattern and contains the grepPattern
 			from pymodule import runLocalCommand
 			commandline = "grep -l %s %s"%(grepPattern, FilterVCFByDepthStdoutFnamePattern)
 			#-l is to let grep to output filenames only
@@ -2887,37 +2888,39 @@ class VariantDiscovery(object):
 			noOfRetainedLociPattern = re.compile(r'FilterVCFByDepth - (\d+) loci retained.')
 			noOfTotalGenotypesPattern = re.compile(r'FilterVCFByDepth - Number of total genotypes: (\d+)')
 			noOfOutputGenotypesPattern = re.compile(r'FilterVCFByDepth - Number of outputted genotypes: (\d+)')
+			noOfNonBiAllelicLociPattern = re.compile(r'Number of non-bi-allelic loci after GQ and Depth filter: (\d+)')
 			noOfProcessedLoci = 0
 			noOfRetainedLoci = 0
 			noOfTotalGenotypes = 0
 			noOfOutputGenotypes = 0
+			noOfNonBiAllelicLoci = 0
 			infWithFilenames = cStringIO.StringIO(stdout_content)
 			counter = 0
 			for line in infWithFilenames:
 				counter += 1
 				inputFname = line.strip()
-				sys.stderr.write("File %s: %s"%(counter, inputFname))
+				if counter%reportPeriod==0:
+					sys.stderr.write("File %s: %s"%(counter, inputFname))
 				inf = open(inputFname)
 				for line in inf:
-					noOfProcessedLociSearchResult = noOfProcessedLociPattern.search(line)
-					noOfRetainedLociSearchResult = noOfRetainedLociPattern.search(line)
-					noOfTotalGenotypesSR = noOfTotalGenotypesPattern.search(line)
-					noOfOutputGenotypesSR = noOfOutputGenotypesPattern.search(line)
-					
-					if noOfProcessedLociSearchResult:
-						noOfProcessedLoci += int(noOfProcessedLociSearchResult.group(1))
-					if noOfRetainedLociSearchResult:
-						noOfRetainedLoci += int(noOfRetainedLociSearchResult.group(1))
-					if noOfTotalGenotypesSR:
-						noOfTotalGenotypes += int(noOfTotalGenotypesSR.group(1))
-					if noOfOutputGenotypesSR:
-						noOfOutputGenotypes += int(noOfOutputGenotypesSR.group(1))
+					noOfProcessedLoci = cls.handleNoOfSitesRemovedPattern(line, noOfProcessedLociPattern, \
+															no_of_sites_removed_already=noOfProcessedLoci)
+					noOfRetainedLoci = cls.handleNoOfSitesRemovedPattern(line, noOfRetainedLociPattern, \
+															no_of_sites_removed_already=noOfRetainedLoci)
+					noOfTotalGenotypes = cls.handleNoOfSitesRemovedPattern(line, noOfTotalGenotypesPattern, \
+															no_of_sites_removed_already=noOfTotalGenotypes)
+					noOfOutputGenotypes = cls.handleNoOfSitesRemovedPattern(line, noOfOutputGenotypesPattern, \
+															no_of_sites_removed_already=noOfOutputGenotypes)
+					noOfNonBiAllelicLoci = cls.handleNoOfSitesRemovedPattern(line, noOfNonBiAllelicLociPattern, \
+															no_of_sites_removed_already=noOfNonBiAllelicLoci)
 				del inf
-				sys.stderr.write(" .\n")
+				if counter%reportPeriod==0:
+					sys.stderr.write(" .\n")
 			import csv
 			writer = csv.writer(sys.stdout, delimiter='\t')
 			writer.writerow(["noOfProcessedLoci", noOfProcessedLoci])
 			writer.writerow(["noOfRetainedLoci", noOfRetainedLoci])
+			writer.writerow(["noOfNonBiAllelicLociAfterGQ&DepthFilter", noOfNonBiAllelicLoci])
 			writer.writerow(["noOfTotalGenotypes", noOfTotalGenotypes])
 			writer.writerow(["noOfGenotypesPassingFilter", noOfOutputGenotypes])
 			no_of_masked_genotypes_in_output = noOfTotalGenotypes - noOfOutputGenotypes - (noOfProcessedLoci-noOfRetainedLoci)*sampleSize
@@ -2933,6 +2936,15 @@ class VariantDiscovery(object):
 		FilterVCFByDepthStdoutFnamePattern = os.path.join(inputDir, FilterVCFByDepthStdoutFnamePattern)
 		VariantDiscovery.TallyFilteredSNPs.findSitesFilteredOrMaskedByFilterVCFByDepth(FilterVCFByDepthStdoutFnamePattern=FilterVCFByDepthStdoutFnamePattern, \
 			sampleSize=4)
+		sys.exit(0)
+		
+		#2011.12.9
+		inputDir='/Network/Data/vervet/vervetPipeline/work/'
+		workflowName = 'FilterVCF_LowPass_top7559Contigs_no12eVarFilter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25_2011.12.1T1155'
+		FilterVCFByDepthStdoutFnamePattern="%s/merge_workflow-FilterVCFByDepth*out.000"%(workflowName)
+		FilterVCFByDepthStdoutFnamePattern = os.path.join(inputDir, FilterVCFByDepthStdoutFnamePattern)
+		VariantDiscovery.TallyFilteredSNPs.findSitesFilteredOrMaskedByFilterVCFByDepth(FilterVCFByDepthStdoutFnamePattern=FilterVCFByDepthStdoutFnamePattern, \
+			sampleSize=101, grepPattern='call\/Contig')
 		sys.exit(0)
 		"""
 	
@@ -2968,36 +2980,63 @@ class VariantDiscovery(object):
 		"""
 		
 		@classmethod
-		def countTotalNoOfSitesFilteredByVCFtools(cls, inputDir):
+		def handleNoOfSitesRemovedPattern(cls, line, pattern, no_of_sites_removed_already=0):
+			"""
+			2011.12.9
+			"""
+			searchResult = pattern.search(line)
+			if searchResult:
+				no_of_sites_removed_already += int(searchResult.group(1))
+			return no_of_sites_removed_already
+		
+		@classmethod
+		def countTotalNoOfSitesFilteredByVCFtools(cls, inputDir, reportPeriod=50, fileSuffix='filter_by_vcftools.log'):
 			"""
 			2011-11-21
 				get the stats from the pegasus workflow stdout files
 			"""
-			
+			sys.stderr.write("Counting sites filtered by vcftools from log files in %s ..."%(inputDir))
 			import re
 			searchPattern = re.compile(r'After filtering, kept (\d+) out of a possible (\d+) Sites')
+			noOfSitesRemovedByGivenPositionsPattern = re.compile(r'Filtering sites by Positions file... (\d+) sites removed.')
+			noOfSitesRemovedByAFAndCallRatePattern = re.compile(r'Filtering sites by allele frequency and call rate... (\d+) sites removed.')
+			noOfSitesRemovedByACAndMissCountPattern = re.compile(r'Filtering sites by allele count and missing data... (\d+) sites removed.')
 			noOfProcessedLoci = 0
 			noOfRetainedLoci = 0
+			noOfSitesRemovedByGivenPositions = 0
+			noOfSitesRemovedByAFAndCallRate = 0
+			noOfSitesRemovedByACAndMissCount = 0
 			counter = 0
 			for filename in os.listdir(inputDir):
 				counter += 1
-				if filename[-3:]!='log':
+				if filename.find(fileSuffix)==-1:
 					continue
-				sys.stderr.write("%s %s "%(counter, filename))
+				if counter%reportPeriod==0:
+					sys.stderr.write("%s %s "%(counter, filename))
 				inputFname = os.path.join(inputDir, filename)
 				inf = open(inputFname)
 				for line in inf:
 					searchResult = searchPattern.search(line)
 					
 					if searchResult:
-						noOfProcessedLoci += int(searchResult.group(2))
 						noOfRetainedLoci += int(searchResult.group(1))
+						noOfProcessedLoci += int(searchResult.group(2))
+					noOfSitesRemovedByGivenPositions = cls.handleNoOfSitesRemovedPattern(line, noOfSitesRemovedByGivenPositionsPattern, \
+															no_of_sites_removed_already=noOfSitesRemovedByGivenPositions)
+					noOfSitesRemovedByAFAndCallRate = cls.handleNoOfSitesRemovedPattern(line, noOfSitesRemovedByAFAndCallRatePattern, \
+															no_of_sites_removed_already=noOfSitesRemovedByAFAndCallRate)
+					noOfSitesRemovedByACAndMissCount = cls.handleNoOfSitesRemovedPattern(line, noOfSitesRemovedByACAndMissCountPattern, \
+															no_of_sites_removed_already=noOfSitesRemovedByACAndMissCount)
 				del inf
-				sys.stderr.write(" .\n")
+				if counter%reportPeriod==0:
+					sys.stderr.write(" .\n")
 			import csv
 			writer = csv.writer(sys.stdout, delimiter='\t')
 			writer.writerow(["noOfProcessedLoci", noOfProcessedLoci])
 			writer.writerow(["noOfRetainedLoci", noOfRetainedLoci])
+			writer.writerow(["noOfSitesRemovedByGivenPositions", noOfSitesRemovedByGivenPositions])
+			writer.writerow(["noOfSitesRemovedByAFAndCallRate", noOfSitesRemovedByAFAndCallRate])
+			writer.writerow(["noOfSitesRemovedByACAndMissCount", noOfSitesRemovedByACAndMissCount])
 			
 		"""
 		#2011-11-21
@@ -3008,6 +3047,13 @@ class VariantDiscovery(object):
 		VariantDiscovery.TallyFilteredSNPs.countTotalNoOfSitesFilteredByVCFtools(inputDir=inputDir)
 		sys.exit(0)
 		
+		#2011.12.9
+		inputDir='/Network/Data/vervet/vervetPipeline/scratch'
+		workflowName = 'FilterVCF_LowPass_top7559Contigs_no12eVarFilter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25_2011.12.1T1155'
+		subFolder="%s/call_vcftoolsFilter"%(workflowName)
+		inputDir = os.path.join(inputDir, subFolder)
+		VariantDiscovery.TallyFilteredSNPs.countTotalNoOfSitesFilteredByVCFtools(inputDir=inputDir)
+		sys.exit(0)
 		"""
 		
 	@classmethod
@@ -3028,7 +3074,8 @@ class VariantDiscovery(object):
 			rects = pylab.bar(ind, count_2D_ls[i], width=width, bottom=0, color=c, log=False, **kwargs)
 			rects_ls.append(rects)
 		
-		pylab.legend( (rects_ls[0][0], rects_ls[1][0]), ('version 0', 'version 1') )
+		if len(rects_ls)==2:
+			pylab.legend( (rects_ls[0][0], rects_ls[1][0]), ('version 0', 'version 1') )
 		
 		"""
 		pylab.title(title)
@@ -3046,13 +3093,53 @@ class VariantDiscovery(object):
 		#2011-11-22
 		AAC_ls = range(1,9)
 		# data from the 4 HC monkeys
-		count_2D_ls = [[2499739, 1969155, 1567859, 1270833, 933173, 738506, 524289, 433315], [0, 1245574, 949732, 718876, 546747, 430943, 0, 0]]
-		outputFname = '/tmp/AAC_distribution_of_4HCMonkeys'
-		
-		VariantDiscovery.drawAACHistogram(AAC_ls = AAC_ls, count_2D_ls =count_2D_ls, outputFname=outputFname, \
+		count_2D_ls = [[2499739, 1969155, 1567859, 1270833, 933173, 738506, 524289, 433315], \
+					[0, 1245574, 949732, 718876, 546747, 430943, 0, 0]]
+		outputFnamePrefix = '/tmp/AAC_distribution_of_4HCMonkeys'
+		VariantDiscovery.drawAACHistogram(AAC_ls = AAC_ls, count_2D_ls =count_2D_ls, outputFnamePrefix=outputFnamePrefix, \
 				color_ls=['r', 'g', 'b', 'y','c', 'k'])
 		sys.exit(0)
 	"""
+	
+	@classmethod
+	def drawAACHistogramFromAACFile(cls, inputFname=None, outputFnamePrefix=None, color_ls=['r', 'g', 'b', 'y','c', 'k'], **kwargs):
+		"""
+		2011-12-7
+			read data from inputFname (AAC_tally.tsv from CalculateVCFStatPipeline.py)
+			and then call drawAACHistogram()
+		"""
+		import csv
+		reader = csv.reader(open(inputFname), delimiter='\t')
+		AAC2NoOfLoci = {}
+		header = reader.next()
+		for row in reader:
+			AAC = int(row[0])
+			noOfLoci = int(float(row[1]))
+			if AAC not in AAC2NoOfLoci:
+				AAC2NoOfLoci[AAC]= 0
+			AAC2NoOfLoci[AAC] += noOfLoci
+		sys.stderr.write("Found %s different AAC counts.\n"%(len(AAC2NoOfLoci)))
+		
+		AAC_NoOfLoci_ls = AAC2NoOfLoci.items()
+		AAC_NoOfLoci_ls.sort()
+		AAC_ls = [row[0] for row in AAC_NoOfLoci_ls]
+		noOfLoci_ls = [row[1] for row in AAC_NoOfLoci_ls]
+		
+		VariantDiscovery.drawAACHistogram(AAC_ls = AAC_ls, count_2D_ls =[noOfLoci_ls], outputFnamePrefix=outputFnamePrefix, \
+				color_ls=['r', 'g', 'b', 'y','c', 'k'])
+		
+	"""
+		#2011-12.7
+		workflowName = 'VCFStat_LowPass_top7559Contigs_no12eVarFilter_inter_100kbwindow_2011.12.6T2342'
+		workflowName = 'VCFStat_FilterVCF_LowPass_top7559Contigs_no12eVarFilter_inter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25_100kbwindow.2011.12.6T2345'
+		inputFname='/Network/Data/vervet/vervetPipeline/%s/AAC_tally.tsv'%(workflowName)
+		outputFnamePrefix = '//Network/Data/vervet/vervetPipeline/AAC_distribution_of_101LCMonkeys-version1'
+		VariantDiscovery.drawAACHistogramFromAACFile(inputFname=inputFname, outputFnamePrefix=outputFnamePrefix, \
+				color_ls=['r', 'g', 'b', 'y','c', 'k'])
+		sys.exit(0)
+		
+	"""
+
 # 2011-4-29 a handy function to strip blanks around strings
 strip_func = lambda x: x.strip()
 
@@ -4773,7 +4860,55 @@ class DBVervet(object):
 		sys.exit(0)
 		
 	"""
-
+	@classmethod
+	def putDOCWalkerResultsIntoDB(cls, db_vervet, inputFname, commit=True):
+		"""
+		2011-11-28
+			inputFname is output of InspectAlignmentPipeline.py.
+			
+			this function updates IndividualAlignment.pass_qc_read_base_count and median_depth, mean_depth
+		"""
+		import VervetDB
+		import csv
+		from pymodule import PassingData
+		db_vervet.session.begin()
+		reader = csv.reader(open(inputFname,), delimiter='\t')
+		
+		sys.stderr.write("\t putting coverage data from %s into db ..."%(inputFname))
+		header = reader.next()
+		from pymodule.utils import getColName2IndexFromHeader
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		sample_id_index = col_name2index.get("sample_id")
+		total_base_count_index = col_name2index.get('total')
+		mean_depth_index = col_name2index.get("mean")
+		median_depth_index = col_name2index.get("granular_median")
+		counter = 0
+		for row in reader:
+			sample_id = row[sample_id_index]
+			if sample_id=='Total':	#ignore rows with this as sample id
+				continue
+			alignment_id = int(sample_id.split("_")[0])
+			total_base_count = int(row[total_base_count_index])
+			mean_depth = float(row[mean_depth_index])
+			median_depth = float(row[median_depth_index])
+			individual_alignment = VervetDB.IndividualAlignment.get(alignment_id)
+			individual_alignment.pass_qc_read_base_count = total_base_count
+			individual_alignment.mean_depth = mean_depth
+			individual_alignment.median_depth = median_depth
+			db_vervet.session.add(individual_alignment)
+			db_vervet.session.flush()
+			counter += 1
+		if commit:
+			db_vervet.session.commit()
+		sys.stderr.write("%s alignments updated. Done.\n"%(counter))
+	
+	"""
+		#2011-11-28
+		inputFname = '/Network/Data/vervet/vervetPipeline/InspectRefSeq524WholeAlignment_2011.11.25T2311/DepthOfCoverage.tsv'
+		DBVervet.putDOCWalkerResultsIntoDB(db_vervet, inputFname)
+		sys.exit(0)
+	"""
+	
 class VervetGenome(object):
 	"""
 	2011-6-27
@@ -5352,15 +5487,32 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2011-11-22
-		AAC_ls = range(1,9)
-		# data from the 4 HC monkeys
-		count_2D_ls = [[2499739, 1969155, 1567859, 1270833, 933173, 738506, 524289, 433315], \
-					[0, 1245574, 949732, 718876, 546747, 430943, 0, 0]]
-		outputFnamePrefix = '/tmp/AAC_distribution_of_4HCMonkeys'
-		VariantDiscovery.drawAACHistogram(AAC_ls = AAC_ls, count_2D_ls =count_2D_ls, outputFnamePrefix=outputFnamePrefix, \
-				color_ls=['r', 'g', 'b', 'y','c', 'k'])
+		#2011.12.9
+		inputDir='/Network/Data/vervet/vervetPipeline/work/'
+		workflowName = 'FilterVCF_LowPass_top7559Contigs_no12eVarFilter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25_2011.12.1T1155'
+		workflowName = ''
+		workflowName = 'Filter_Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25.2011.12.9T0643'
+		FilterVCFByDepthStdoutFnamePattern="%s/merge_workflow-FilterVCFByDepth*out.000"%(workflowName)
+		FilterVCFByDepthStdoutFnamePattern = os.path.join(inputDir, FilterVCFByDepthStdoutFnamePattern)
+		grepPattern='call_vcftoolsFilter\/Contig'
+		#grepPattern='call_vcftoolsFilter_vcftoolsFilter\/Contig'
+		VariantDiscovery.TallyFilteredSNPs.findSitesFilteredOrMaskedByFilterVCFByDepth(FilterVCFByDepthStdoutFnamePattern=FilterVCFByDepthStdoutFnamePattern, \
+			sampleSize=101, grepPattern=grepPattern)
 		sys.exit(0)
+		
+		#2011.12.9
+		inputDir='/Network/Data/vervet/vervetPipeline/scratch/'
+		workflowName = 'FilterVCF_LowPass_top7559Contigs_no12eVarFilter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25_2011.12.1T1155'
+		workflowName = 'Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4.2011.12.9T0505'
+		workflowName = 'Filter_Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25.2011.12.9T0643'
+		subFolder="%s/call_vcftoolsFilter"%(workflowName)
+		subFolder="%s/call_vcftoolsFilter_vcftoolsFilter"%(workflowName)
+		inputDir = os.path.join(inputDir, subFolder)
+		fileSuffix='filter_by_vcftools.log'
+		#fileSuffix='keepGivenSNP.log'
+		VariantDiscovery.TallyFilteredSNPs.countTotalNoOfSitesFilteredByVCFtools(inputDir=inputDir, fileSuffix=fileSuffix)
+		sys.exit(0)
+		
 		
 		
 		#2011-11-6

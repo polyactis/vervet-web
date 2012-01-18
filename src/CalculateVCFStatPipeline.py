@@ -44,47 +44,25 @@ from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
 
 class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 	__doc__ = __doc__
-	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-						('dbname', 1, ): ['vervetdb', 'd', 1, 'stock_250k database name', ],\
-						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-						('ref_ind_seq_id', 1, int): [120, 'a', 1, 'IndividualSequence.id. Choose trios from alignments with this sequence as reference', ],\
+	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
+	option_default_dict.update({
 						('windowSize', 1, int): [1000000, 'w', 1, 'window size for TiTv, pi, snpDensity calculation by vcftools', ],\
 						('vcf1Dir', 0, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
-						("gatk_path", 1, ): ["%s/script/gatk/dist", '', 1, 'GATK folder containing its jar binaries'],\
-						("vervetSrcPath", 1, ): ["%s/script/vervet/src", '', 1, 'vervet source code folder'],\
-						("javaPath", 1, ): ["/usr/bin/java", 'J', 1, 'java interpreter binary'],\
-						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
-						("site_handler", 1, ): ["condorpool", 'l', 1, 'which site to run the jobs: condorpool, hoffman2'],\
-						("input_site_handler", 1, ): ["local", 'j', 1, 'which site has all the input files: local, condorpool, hoffman2. \
-							If site_handler is condorpool, this must be condorpool and files will be symlinked. \
-							If site_handler is hoffman2, input_site_handler=local induces file transfer and input_site_handler=hoffman2 induces symlink.'],\
-						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
-									If not given, use the default stored in db.'],\
 						('includeIndelVCF', 1, int): [0, '', 1, 'toggle this to include indel VCF, filename with "indel"'],\
-						('outputFname', 1, ): [None, 'o', 1, 'xml workflow output file'],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
-						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
+						})
 
 	def __init__(self,  **keywords):
 		"""
 		2011-7-11
 		"""
-		from pymodule import ProcessOptions
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
+		AbstractNGSWorkflow.__init__(self, **keywords)
 		
-		self.gatk_path = self.gatk_path%self.home_path
 		self.vcf1Dir = os.path.abspath(self.vcf1Dir)
-		self.vervetSrcPath = self.vervetSrcPath%self.home_path
 	
 	def addChrLengthAppendingJob(self, workflow, AddChromosomeLengthToTSVFile=None, inputF=None, outputF=None, \
 							divideByLength=True, chrLength=1000, divideStartingColumn=2, parentJobLs=[], \
-							namespace=None, version=None, extraDependentInputLs=[], transferOutput=False):
-		job = Job(namespace=namespace, name=AddChromosomeLengthToTSVFile.name, version=version)
+							extraDependentInputLs=[], transferOutput=False, **keywords):
+		job = Job(namespace=workflow.namespace, name=AddChromosomeLengthToTSVFile.name, version=workflow.version)
 		job.addArguments('-i', inputF,'-o', outputF, "-l %s"%chrLength, "-s %s"%divideStartingColumn)
 		if divideByLength:
 			job.addArguments("-v")
@@ -101,10 +79,10 @@ class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 	
 	def addTallyAACFromVCFJob(self, workflow, TallyAACFromVCF=None, genomeAnalysisTKJar=None, \
 							refFastaFList=None, inputVCFF=None, outputF=None, parentJob=None, \
-							namespace=None, version=None, job_max_memory=1000, extraDependentInputLs=[],\
-							input_site_handler=None, transferOutput=False):
+							job_max_memory=1000, extraDependentInputLs=[],\
+							input_site_handler=None, transferOutput=False, **keywords):
 		# Add a mkdir job for any directory.
-		TallyAACFromVCFJob = Job(namespace=namespace, name=TallyAACFromVCF.name, version=version)
+		TallyAACFromVCFJob = Job(namespace=workflow.namespace, name=TallyAACFromVCF.name, version=workflow.version)
 		refFastaF = refFastaFList[0]
 		TallyAACFromVCFJob.addArguments("-Xmx%sm"%(job_max_memory), "-jar", genomeAnalysisTKJar, "-R", refFastaF, 
 						"-T TallyAACFromVCF", "--variant", inputVCFF, "-o", outputF)
@@ -127,6 +105,71 @@ class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 		yh_pegasus.setJobProperRequirement(TallyAACFromVCFJob, job_max_memory=job_max_memory)
 		return TallyAACFromVCFJob
 	
+		
+	def addVCFToolsJob(self, workflow, executable=None, \
+							refFastaFList=None, inputVCFF=None, outputF=None, parentJob=None, \
+							job_max_memory=1000, extraDependentInputLs=[],\
+							input_site_handler=None, transferOutput=False, **keywords):
+		"""
+		2011.11.28
+			not finished yet
+		"""
+		vcftoolsJob = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
+		outputFnamePrefix = os.path.join(statOutputDir, "%s.vcftools"%(commonPrefix))
+		piFile = File('%s.windowed.pi'%(outputFnamePrefix))
+		TsTvFile = File('%s.TsTv'%(outputFnamePrefix))
+		TsTvSummaryFile = File('%s.TsTv.summary'%(outputFnamePrefix))
+		snpDensityFile = File('%s.snpden'%(outputFnamePrefix))
+		vcftoolsLogFile = File('%s.log'%(outputFnamePrefix))
+		vcftoolsJob.addArguments(workflow.vcftoolsPath)
+		if vcf1.name[-2:]=='gz':
+			vcftoolsJob.addArguments('--gzvcf', vcf1)
+		else:
+			vcftoolsJob.addArguments('--vcf', vcf1)
+		vcftoolsJob.addArguments('--out', outputFnamePrefix, "--depth --het ", \
+						" --TsTv %s --window-pi %s --SNPdensity %s"%(self.windowSize, self.windowSize, self.windowSize))
+		#"--freq --counts --freq2 --counts2 --hardy",
+		vcftoolsJob.uses(vcf1, transfer=True, register=True, link=Link.INPUT)
+		vcftoolsJob.uses(vcftoolsLogFile, transfer=True, register=True, link=Link.OUTPUT)	#transfer out the log file
+		for outputFile in [piFile, TsTvFile, snpDensityFile, TsTvSummaryFile]:	#no transfer for these
+			vcftoolsJob.uses(outputFile, transfer=False, register=True, link=Link.OUTPUT)
+		yh_pegasus.setJobProperRequirement(vcftoolsJob, job_max_memory=500)
+		workflow.addJob(vcftoolsJob)
+		workflow.depends(parent=statOutputDirJob, child=vcftoolsJob)
+		return vcftoolsJob
+	
+	def registerCustomExecutables(self, workflow):
+		"""
+		2011-11-28
+		"""
+		namespace = workflow.namespace
+		version = workflow.version
+		operatingSystem = workflow.operatingSystem
+		architecture = workflow.architecture
+		clusters_size = workflow.clusters_size
+		site_handler = workflow.site_handler
+		vervetSrcPath = self.vervetSrcPath
+		
+		countHomoHetInOneVCF = Executable(namespace=namespace, name="CountHomoHetInOneVCF", version=version, \
+										os=operatingSystem, arch=architecture, installed=True)
+		countHomoHetInOneVCF.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/CountHomoHetInOneVCF.py"), site_handler))
+		countHomoHetInOneVCF.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(countHomoHetInOneVCF)
+		workflow.countHomoHetInOneVCF = countHomoHetInOneVCF
+		
+		AddChromosomeLengthToTSVFile = Executable(namespace=namespace, name="AddChromosomeLengthToTSVFile", version=version, \
+										os=operatingSystem, arch=architecture, installed=True)
+		AddChromosomeLengthToTSVFile.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mapper/AddChromosomeLengthToTSVFile.py"), site_handler))
+		AddChromosomeLengthToTSVFile.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(AddChromosomeLengthToTSVFile)
+		workflow.AddChromosomeLengthToTSVFile = AddChromosomeLengthToTSVFile
+		
+		TallyAACFromVCF = Executable(namespace=namespace, name="TallyAACFromVCF", version=version, os=operatingSystem, arch=architecture, installed=True)
+		TallyAACFromVCF.addPFN(PFN("file://" + self.javaPath, site_handler))
+		TallyAACFromVCF.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(TallyAACFromVCF)
+		workflow.TallyAACFromVCF = TallyAACFromVCF
+	
 	def run(self):
 		"""
 		2011-9-28
@@ -146,83 +189,17 @@ class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 		
 		# Create a abstract dag
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = ADAG(workflowName)
-		vervetSrcPath = self.vervetSrcPath
-		site_handler = self.site_handler
+		workflow = self.initiateWorkflow(workflowName)
 		
+		self.registerJars(workflow)
+		self.registerCommonExecutables(workflow)
+		self.registerCustomExecutables(workflow)
 		
-		# Add executables to the DAX-level replica catalog
-		# In this case the binary is keg, which is shipped with Pegasus, so we use
-		# the remote PEGASUS_HOME to build the path.
-		architecture = "x86_64"
-		operatingSystem = "linux"
-		namespace = "workflow"
-		version="1.0"
-		#clusters_size controls how many jobs will be aggregated as a single job.
-		clusters_size = 40
-		
-		abs_path = os.path.join(self.gatk_path, 'GenomeAnalysisTK.jar')
-		genomeAnalysisTKJar = File(abs_path)
-		genomeAnalysisTKJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(genomeAnalysisTKJar)
-		
-		#mkdirWrap is better than mkdir that it doesn't report error when the directory is already there.
-		mkdirWrap = Executable(namespace=namespace, name="mkdirWrap", version=version, os=operatingSystem, \
-							arch=architecture, installed=True)
-		mkdirWrap.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mkdirWrap.sh"), site_handler))
-		mkdirWrap.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(mkdirWrap)
-		
-		#mv to rename files and move them
-		mv = Executable(namespace=namespace, name="mv", version=version, os=operatingSystem, arch=architecture, installed=True)
-		mv.addPFN(PFN("file://" + "/bin/mv", site_handler))
-		mv.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(mv)
-		
-		countHomoHetInOneVCF = Executable(namespace=namespace, name="CountHomoHetInOneVCF", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		countHomoHetInOneVCF.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/CountHomoHetInOneVCF.py"), site_handler))
-		countHomoHetInOneVCF.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(countHomoHetInOneVCF)
-		
-		vcftoolsPath = os.path.join(self.home_path, "bin/vcftools/vcftools")
-		vcftoolsWrapper = Executable(namespace=namespace, name="vcftoolsWrapper", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		vcftoolsWrapper.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "shell/vcftoolsWrapper.sh"), site_handler))
-		vcftoolsWrapper.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(vcftoolsWrapper)
-		
-		AddChromosomeLengthToTSVFile = Executable(namespace=namespace, name="AddChromosomeLengthToTSVFile", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		AddChromosomeLengthToTSVFile.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mapper/AddChromosomeLengthToTSVFile.py"), site_handler))
-		AddChromosomeLengthToTSVFile.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(AddChromosomeLengthToTSVFile)
-		
-		ReduceMatrixByChosenColumn = Executable(namespace=namespace, name="ReduceMatrixByChosenColumn", \
-							version=version, os=operatingSystem, arch=architecture, installed=True)
-		ReduceMatrixByChosenColumn.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "reducer/ReduceMatrixByChosenColumn.py"), site_handler))
-		#long arguments will happen, so no clustering
-		workflow.addExecutable(ReduceMatrixByChosenColumn)
-		
-		mergeSameHeaderTablesIntoOne = Executable(namespace=namespace, name="MergeSameHeaderTablesIntoOne", \
-							version=version, os=operatingSystem, arch=architecture, installed=True)
-		mergeSameHeaderTablesIntoOne.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "reducer/MergeSameHeaderTablesIntoOne.py"), site_handler))
-		#long arguments will happen, so no clustering
-		#mergeSameHeaderTablesIntoOne.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(mergeSameHeaderTablesIntoOne)
-		
-		TallyAACFromVCF = Executable(namespace=namespace, name="TallyAACFromVCF", version=version, os=operatingSystem, arch=architecture, installed=True)
-		TallyAACFromVCF.addPFN(PFN("file://" + self.javaPath, site_handler))
-		TallyAACFromVCF.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(TallyAACFromVCF)
-		
-		#name to distinguish between vcf1Dir, and vcf2Dir
-		vcf1Name = os.path.basename(os.path.dirname(self.vcf1Dir))	#dirname is used because it removes the trailing "/" which makes basename return ""
-		if not vcf1Name:
-			vcf1Name = "vcf1"
+		vcf1Name = self.findProperVCFDirIdentifier(self.vcf1Dir)
 		
 		statOutputDir = "statDir"
-		statOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=statOutputDir, namespace=namespace, version=version)
+		statOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=statOutputDir, \
+												namespace=workflow.namespace, version=workflow.version)
 		
 		import re
 		chr_pattern = re.compile(r'(\w+\d+).*')
@@ -242,32 +219,32 @@ class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 		refFastaF = refFastaFList[0]
 		
 		homoHetCountFinalOutputF = File('homoHetCountPerSamplePerContig.tsv')
-		homoHetCountMergeJob = self.addStatMergeJob(workflow, statMergeProgram=mergeSameHeaderTablesIntoOne, \
-							outputF=homoHetCountFinalOutputF, namespace=namespace, version=version)
+		homoHetCountMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=homoHetCountFinalOutputF)
 		
 		homoHetCountReduceOutputF = File('homoHetCountPerSample.tsv')
-		homoHetCountReduceJob = self.addStatMergeJob(workflow, statMergeProgram=ReduceMatrixByChosenColumn, \
-							outputF=homoHetCountReduceOutputF, namespace=namespace, version=version, \
+		homoHetCountReduceJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
+							outputF=homoHetCountReduceOutputF, \
 							extraArguments='-k 0 -v 2-5,7')	#reduce by sampleId and aggregate only certain columns
 		
 		TiTvFinalOutputF = File('TiTvWindowSize%s.tsv'%(self.windowSize))
-		TiTvMergeJob = self.addStatMergeJob(workflow, statMergeProgram=mergeSameHeaderTablesIntoOne, \
-							outputF=TiTvFinalOutputF, namespace=namespace, version=version)
+		TiTvMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=TiTvFinalOutputF)
 		windowedPiFinalOutputF = File('PiWindowSize%s.tsv'%(self.windowSize))
-		windowedPiMergeJob = self.addStatMergeJob(workflow, statMergeProgram=mergeSameHeaderTablesIntoOne, \
-							outputF=windowedPiFinalOutputF, namespace=namespace, version=version)
+		windowedPiMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=windowedPiFinalOutputF)
 		
 		snpDensityOutputF = File('SNPDensityByWindowSize%s.tsv'%(self.windowSize))
-		snpDensityMergeJob = self.addStatMergeJob(workflow, statMergeProgram=mergeSameHeaderTablesIntoOne, \
-							outputF=snpDensityOutputF, namespace=namespace, version=version)
+		snpDensityMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=snpDensityOutputF)
 		
 		AACTallyReduceOutputF = File('AAC_tally.tsv')
-		AACTallyReduceJob = self.addStatMergeJob(workflow, statMergeProgram=ReduceMatrixByChosenColumn, \
-							outputF=AACTallyReduceOutputF, namespace=namespace, version=version)
+		AACTallyReduceJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
+							outputF=AACTallyReduceOutputF)
 		
 		TiTvReduceOutputF = File('TiTv.summary.tsv')
-		TiTvReduceJob = self.addStatMergeJob(workflow, statMergeProgram=ReduceMatrixByChosenColumn, \
-						outputF=TiTvReduceOutputF, namespace=namespace, version=version, extraArguments='-k 0 -v 1')
+		TiTvReduceJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
+						outputF=TiTvReduceOutputF, extraArguments='-k 0 -v 1')
 		
 		counter = 0
 		no_of_vcf_files = 0
@@ -276,7 +253,7 @@ class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 			vcfAbsPath = os.path.join(os.path.abspath(self.vcf1Dir), inputFname)
 			no_of_vcf_files += 1
 			if NextGenSeq.isFileNameVCF(inputFname, includeIndelVCF=self.includeIndelVCF) and \
-					not NextGenSeq.isVCFFileEmpty(vcfAbsPath):
+					not NextGenSeq.isVCFFileEmpty(vcfAbsPath, checkContent=self.checkEmptyVCFByReading):
 				no_of_vcf_non_empty_files += 1
 				commonPrefix = inputFname.split('.')[0]
 				chr = chr_pattern.search(inputFname).group(1)
@@ -290,7 +267,7 @@ class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 				vcf1.absPath = vcfAbsPath
 				workflow.addFile(vcf1)
 				
-				countHomoHetInOneVCFJob = Job(namespace=namespace, name=countHomoHetInOneVCF.name, version=version)
+				countHomoHetInOneVCFJob = Job(namespace=workflow.namespace, name=workflow.countHomoHetInOneVCF.name, version=workflow.version)
 				outputF = File(os.path.join(statOutputDir, "%s.homoHetCountPerSample.tsv"%(os.path.splitext(inputFname)[0])))
 				countHomoHetInOneVCFJob.addArguments("-i", vcf1, "-c", chr, "-l %s"%(chr_size), '-o', outputF)
 				countHomoHetInOneVCFJob.uses(vcf1, transfer=True, register=True, link=Link.INPUT)
@@ -306,14 +283,14 @@ class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 							parentJobLs=[countHomoHetInOneVCFJob])
 				
 				### vcftools job
-				vcftoolsJob = Job(namespace=namespace, name=vcftoolsWrapper.name, version=version)
+				vcftoolsJob = Job(namespace=workflow.namespace, name=workflow.vcftoolsWrapper.name, version=workflow.version)
 				outputFnamePrefix = os.path.join(statOutputDir, "%s.vcftools"%(commonPrefix))
 				piFile = File('%s.windowed.pi'%(outputFnamePrefix))
 				TsTvFile = File('%s.TsTv'%(outputFnamePrefix))
 				TsTvSummaryFile = File('%s.TsTv.summary'%(outputFnamePrefix))
 				snpDensityFile = File('%s.snpden'%(outputFnamePrefix))
 				vcftoolsLogFile = File('%s.log'%(outputFnamePrefix))
-				vcftoolsJob.addArguments(vcftoolsPath)
+				vcftoolsJob.addArguments(workflow.vcftoolsPath)
 				if vcf1.name[-2:]=='gz':
 					vcftoolsJob.addArguments('--gzvcf', vcf1)
 				else:
@@ -329,18 +306,15 @@ class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 				workflow.addJob(vcftoolsJob)
 				workflow.depends(parent=statOutputDirJob, child=vcftoolsJob)
 				
-				addChrLengthToTsTvFileJob = self.addChrLengthAppendingJob(workflow, AddChromosomeLengthToTSVFile=AddChromosomeLengthToTSVFile, \
+				addChrLengthToTsTvFileJob = self.addChrLengthAppendingJob(workflow, AddChromosomeLengthToTSVFile=workflow.AddChromosomeLengthToTSVFile, \
 								inputF=TsTvFile, outputF=File('%s.divByLength'%(TsTvFile.name)), divideByLength=True, \
-								chrLength=chr_size, divideStartingColumn=2, parentJobLs=[vcftoolsJob], \
-								namespace=namespace, version=version)
-				addChrLengthToPiFileJob = self.addChrLengthAppendingJob(workflow, AddChromosomeLengthToTSVFile=AddChromosomeLengthToTSVFile, \
+								chrLength=chr_size, divideStartingColumn=2, parentJobLs=[vcftoolsJob])
+				addChrLengthToPiFileJob = self.addChrLengthAppendingJob(workflow, AddChromosomeLengthToTSVFile=workflow.AddChromosomeLengthToTSVFile, \
 								inputF=piFile, outputF=File('%s.divByLength'%(piFile.name)), divideByLength=True, \
-								chrLength=chr_size, divideStartingColumn=2, parentJobLs=[vcftoolsJob], \
-								namespace=namespace, version=version)
-				addChrLengthToSNPDensityFileJob = self.addChrLengthAppendingJob(workflow, AddChromosomeLengthToTSVFile=AddChromosomeLengthToTSVFile, \
+								chrLength=chr_size, divideStartingColumn=2, parentJobLs=[vcftoolsJob])
+				addChrLengthToSNPDensityFileJob = self.addChrLengthAppendingJob(workflow, AddChromosomeLengthToTSVFile=workflow.AddChromosomeLengthToTSVFile, \
 								inputF=snpDensityFile, outputF=File('%s.divByLength'%(snpDensityFile.name)), divideByLength=True, \
-								chrLength=chr_size, divideStartingColumn=2, parentJobLs=[vcftoolsJob], \
-								namespace=namespace, version=version)
+								chrLength=chr_size, divideStartingColumn=2, parentJobLs=[vcftoolsJob])
 				
 				self.addInputToStatMergeJob(workflow, statMergeJob=TiTvMergeJob, inputF=addChrLengthToTsTvFileJob.output, \
 							parentJobLs=[addChrLengthToTsTvFileJob])
@@ -354,16 +328,17 @@ class CalculateVCFStatPipeline(AbstractNGSWorkflow):
 				
 				### TallyAACFromVCF
 				outputF = File(os.path.join(statOutputDir, "%s_AAC_tally.tsv"%(commonPrefix)))
-				TallyAACFromVCFJob = self.addTallyAACFromVCFJob(workflow, TallyAACFromVCF=TallyAACFromVCF, \
-							genomeAnalysisTKJar=genomeAnalysisTKJar, \
+				TallyAACFromVCFJob = self.addTallyAACFromVCFJob(workflow, TallyAACFromVCF=workflow.TallyAACFromVCF, \
+							genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
 							refFastaFList=refFastaFList, inputVCFF=vcf1, outputF=outputF, parentJob=statOutputDirJob, \
-							namespace=namespace, version=version, job_max_memory=500, extraDependentInputLs=[],\
-							input_site_handler=input_site_handler, transferOutput=True)
+							job_max_memory=500, extraDependentInputLs=[],\
+							input_site_handler=input_site_handler, transferOutput=False)
 				
 				self.addInputToStatMergeJob(workflow, statMergeJob=AACTallyReduceJob, inputF=TallyAACFromVCFJob.output, \
 							parentJobLs=[TallyAACFromVCFJob])
 				counter += 6
-		sys.stderr.write("%s jobs from %s non-empty vcf files (%s total files).\n"%(counter+1, no_of_vcf_non_empty_files, no_of_vcf_files))
+		sys.stderr.write("%s jobs from %s non-empty vcf files (%s total files).\n"%(counter+1, \
+																	no_of_vcf_non_empty_files, no_of_vcf_files))
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')

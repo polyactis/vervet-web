@@ -78,7 +78,7 @@ class PlotVCFAAF_vs_Position(object):
 		yData_ls = []
 		
 		for vcfRecord in vcfFile.parseIter():
-			locus = vcfRecord.locus
+			locus_id = vcfRecord.locus_id
 			chr = vcfRecord.chr
 			pos = vcfRecord.pos
 			pos = int(pos)
@@ -87,7 +87,7 @@ class PlotVCFAAF_vs_Position(object):
 			
 			if AF1:
 				AF1 = float(AF1)
-				locus_ls.append(locus)
+				locus_ls.append(locus_id)
 				xData_ls.append(pos)
 				yData_ls.append(AF1)
 		

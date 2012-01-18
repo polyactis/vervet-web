@@ -72,7 +72,7 @@ class PlotVCFDepthVsPosition(PlotVCFAAF_vs_Position):
 		yData_ls = []
 		
 		for vcfRecord in vcfFile.parseIter():
-			locus = vcfRecord.locus
+			locus_id = vcfRecord.locus_id
 			chr = vcfRecord.chr
 			pos = vcfRecord.pos
 			pos = int(pos)
@@ -81,7 +81,7 @@ class PlotVCFDepthVsPosition(PlotVCFAAF_vs_Position):
 			
 			if yData:
 				yData = float(yData)
-				locus_ls.append(locus)
+				locus_ls.append(locus_id)
 				xData_ls.append(pos)
 				yData_ls.append(yData)
 		

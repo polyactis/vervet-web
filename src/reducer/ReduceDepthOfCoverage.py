@@ -53,7 +53,7 @@ class ReduceDepthOfCoverage(object):
 		
 		
 		writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
-		writer.writerow(['sampleID', 'chromosome', 'meanDepth', 'medianDepth'])
+		writer.writerow(['#sampleID', 'chromosome', 'meanDepth', 'medianDepth'])
 		for inputFname in self.inputFnameLs:
 			reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
 			header = reader.next()

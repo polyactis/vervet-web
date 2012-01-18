@@ -58,7 +58,8 @@ class PlotTrioInconsistencyOverPosition(PlotTrioInconsistencyOverFrequency):
 		else:	#only one input file (one contig). use dot.
 			self.formatString = '.'
 		for inputFname in self.inputFnameLs:
-			self.trioInconsistentRateFileWalker(inputFname, processFunc=self.plotXY, minNoOfTotal=self.minNoOfTotal,\
+			if os.path.isfile(inputFname):
+				self.trioInconsistentRateFileWalker(inputFname, processFunc=self.plotXY, minNoOfTotal=self.minNoOfTotal,\
 											run_type=2)
 		
 		if self.title is None:

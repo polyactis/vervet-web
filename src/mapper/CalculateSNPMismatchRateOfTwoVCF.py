@@ -61,7 +61,7 @@ class CalculateSNPMismatchRateOfTwoVCF(object):
 		vcfFile2.parseFile()
 		
 		writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
-		header = ['chromosome', 'position']
+		header = ['#chromosome', 'position', 'mismatchRate']
 		
 		
 		no_of_sites_of_input1 = len(vcfFile1.locus_id_ls)
@@ -72,12 +72,15 @@ class CalculateSNPMismatchRateOfTwoVCF(object):
 		
 		no_of_samples = len(vcfFile1.sample_id2index)
 		no_of_samples_in_vcf2 = len(vcfFile2.sample_id2index)
+		overlapping_sample_id_set = set(vcfFile1.sample_id2index.keys()) & set(vcfFile2.sample_id2index.keys())
+		overlapping_sample_id_list = list(overlapping_sample_id_set)
+		overlapping_sample_id_list.sort()
+		
 		if no_of_samples!=no_of_samples_in_vcf2:
 			sys.stderr.write("Warning: sample size in %s is %s, in %s is %s. not matching.\n"%\
 							(self.inputFname, no_of_samples, self.jnputFname, no_of_samples_in_vcf2))
 		
-		no_of_samples_to_compare = min(no_of_samples, no_of_samples_in_vcf2)
-		
+		no_of_samples_to_compare = len(overlapping_sample_id_set)
 		writer.writerow(header)
 		
 		locus_id2mismatchData = {}
@@ -86,9 +89,12 @@ class CalculateSNPMismatchRateOfTwoVCF(object):
 			row_index2 = vcfFile2.locus_id2row_index[locus_id]
 			no_of_mismatches = 0
 			no_of_non_NA_pairs = 0.0
-			for j in xrange(no_of_samples_to_compare):
-				call1 = vcfFile1.genotype_call_matrix[row_index1][j]
-				call2 = vcfFile2.genotype_call_matrix[row_index2][j]
+			for j in xrange(len(overlapping_sample_id_list)):
+				sample_id = overlapping_sample_id_list[j]
+				col_index1 = vcfFile1.sample_id2index.get(sample_id)
+				col_index2 = vcfFile2.sample_id2index.get(sample_id)
+				call1 = vcfFile1.genotype_call_matrix[row_index1][col_index1]
+				call2 = vcfFile2.genotype_call_matrix[row_index2][col_index2]
 				if call1!='NA' and call2!='NA':
 					no_of_non_NA_pairs += 1
 					if call1!=call2:

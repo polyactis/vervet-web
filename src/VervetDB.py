@@ -38,7 +38,7 @@ from sqlalchemy import and_, or_, not_
 from datetime import datetime
 
 from pymodule.db import ElixirDB, TableClass
-from pymodule import ProcessOptions, utils, NextGenSeq
+from pymodule import ProcessOptions, utils, NextGenSeq, PassingData
 import os
 import hashlib
 
@@ -315,7 +315,17 @@ class Individual(Entity, TableClass):
 		if [group in self.group_ls for group in user.group_ls]: 
 			return True
 		return False
-
+	
+	def codeSexInNumber(self):
+		"""
+		2011.12.4
+			represent male as 1. represent female as 2.
+		"""
+		if self.sex[0]=='M':
+			return 1
+		else:
+			return 2
+	
 class Ind2Ind(Entity, TableClass):
 	"""
 	2011-5-5
@@ -361,6 +371,8 @@ class AlignmentMethod(Entity, TableClass):
 
 class IndividualAlignment(Entity, TableClass):
 	"""
+	2011-11-28
+		add pass_qc_read_base_count which counts the number of bases in all pass-QC reads (base quality>=20, read mapping quality >=30).
 	2011-9-19
 		add mean_depth, read_group_added
 	2011-8-3
@@ -376,6 +388,7 @@ class IndividualAlignment(Entity, TableClass):
 	median_depth = Field(Float)	#2011-8-2
 	mode_depth = Field(Float)	#2011-8-2
 	mean_depth = Field(Float)	#2011-9-12
+	pass_qc_read_base_count = Field(BigInteger)	#2011-11-28	QC = (base quality>=20, read mapping quality >=30). 
 	read_group_added = Field(Integer, default=0)	# 2011-9-15 0=No, 1=Yes
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
@@ -1352,6 +1365,73 @@ class VervetDB(ElixirDB):
 			return None
 		else:
 			return dataDirEntry.description
+	
+	def constructPedgreeGraphOutOfAlignments(self, alignmentLs):
+		"""
+		2011-12-15
+			copied from AlignmentToTrioCallPipeline.py
+			
+			construct a directed graph (edge: from parent to child) of which nodes are all from alignmentLs.
+		"""
+		sys.stderr.write("Construct pedigree out of %s alignments... "%(len(alignmentLs)))
+		import networkx as nx
+		DG=nx.DiGraph()
+		
+		individual_id2alignmentLs = {}
+		for alignment in alignmentLs:
+			individual_id = alignment.ind_sequence.individual_id
+			if individual_id not in individual_id2alignmentLs:
+				individual_id2alignmentLs[individual_id] = []
+			else:
+				sys.stderr.write("Warning: individual_id %s appears >1 alignments.\n"%(individual_id))
+			individual_id2alignmentLs[individual_id].append(alignment)
+			DG.add_node(individual_id)
+		
+		
+		for row in Ind2Ind.query:
+			if row.individual1_id in individual_id2alignmentLs and row.individual2_id in individual_id2alignmentLs:
+				DG.add_edge(row.individual1_id, row.individual2_id)
+		sys.stderr.write("%s edges, %s nodes.\n"%(DG.number_of_edges(), DG.number_of_nodes()))
+		return PassingData(DG=DG, individual_id2alignmentLs=individual_id2alignmentLs)
+	
+	def findFamilyFromPedigreeGivenSize(self, DG, familySize=3, removeFamilyFromGraph=True):
+		"""
+		2011.12.15
+			copied from AlignmentToTrioCallPipeline.py
+		2011-12.4
+			DG is a directed graph.
+			It views the graph from the offspring point of view because it's designed to find max number of trios (for trioCaller).
+			Nuclear families (size>3) could not be handled by trioCaller and not considered in this algorithm.
+			
+			1. sort all nodes by their out degree ascendingly
+				nodes with higher out degree would be checked later in the process to minimize the disruption of dependent trios.
+				(if this offspring happens to be parent in other trios).
+			2. if a node's incoming degree is same as familySize-1, then a family of given size is found.
+		"""
+		sys.stderr.write("Finding families of size %s .."%(familySize))
+		familyLs = []	#each element of this list is either [singleton] or [parent, child] or [father, mother, child]
+		allNodes = DG.nodes()
+		out_degree_node_ls = []
+		for node in allNodes:
+			out_degree_node_ls.append([DG.out_degree(node), node])
+		out_degree_node_ls.sort()	#nodes with low out degree would be considered first.
+		
+		for out_degree, node in out_degree_node_ls:
+			if DG.has_node(node):	#it could have been removed as trios/duos were found
+				#edges = DG.in_edges(node)
+				noOfIncomingEdges = DG.in_degree(node)
+				#noOfIncomingEdges = len(edges)
+				if noOfIncomingEdges==familySize-1:	# a trio is found
+					parents = DG.predecessors(node)
+					family = parents + [node]
+					familyLs.append(family)
+					if removeFamilyFromGraph:
+						DG.remove_nodes_from(family)
+				elif noOfIncomingEdges>familySize-1:
+					sys.stderr.write("Warning: noOfIncomingEdges for node %s is %s (family size =%s).\n"%(node, \
+																noOfIncomingEdges, noOfIncomingEdges+1))
+		sys.stderr.write(" found %s.\n"%(len(familyLs)))
+		return familyLs
 	
 if __name__ == '__main__':
 	main_class = VervetDB

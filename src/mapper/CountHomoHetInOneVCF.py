@@ -24,28 +24,19 @@ else:   #32bit
 import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
 from pymodule.VCFFile import VCFFile
+from AbstractVCFMapper import AbstractVCFMapper
 
-
-class CountHomoHetInOneVCF(object):
+class CountHomoHetInOneVCF(AbstractVCFMapper):
 	__doc__ = __doc__
-	option_default_dict = {('inputFname', 1, ): ['', 'i', 1, 'VCF input file. either plain vcf or gzipped is ok. could be unsorted.', ],\
-						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
-						("chromosome", 1, ): [None, 'c', 1, 'chromosome name for these two VCF.'],\
-						("chrLength", 0, int): [0, 'l', 1, 'length of the reference used for the input VCF file.'],\
-						('outputFname', 1, ): [None, 'o', 1, 'output file'],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
-						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
+	option_default_dict = AbstractVCFMapper.option_default_dict.copy()
 
 	def __init__(self,  **keywords):
 		"""
 		"""
-		from pymodule import ProcessOptions
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
+		AbstractVCFMapper.__init__(self, **keywords)
 	
 	
-	def countHomoHetCallsForEachSampleFromVCF(self, inputFname, outputFname, chromosome=None, chrLength=None):
+	def countHomoHetCallsForEachSampleFromVCF(self, inputFname, outputFname, chromosome=None, chrLength=None, minDepth=1):
 		"""
 		2011-11-2
 			given a VCF file, count the number of homo-ref, homo-alt, het calls
@@ -53,14 +44,13 @@ class CountHomoHetInOneVCF(object):
 		"""
 		sys.stderr.write("Count the number of homozygous-ref/alt & het from %s .\n"%(inputFname))
 		from pymodule.VCFFile import VCFFile
-		vcfFile = VCFFile(inputFname=inputFname)
+		vcfFile = VCFFile(inputFname=inputFname, minDepth=minDepth)
 		
 		sampleID2data = {}	#key is sampleID, value is a list of 3 numbers. 'NoOfHomoRef', 'NoOfHomoAlt', 'NoOfHet'
 		
 		no_of_total = 0.
 		minStart = None
 		for vcfRecord in vcfFile.parseIter():
-			locus = vcfRecord.locus
 			chr = vcfRecord.chr
 			pos = vcfRecord.pos
 			pos = int(pos)
@@ -87,7 +77,7 @@ class CountHomoHetInOneVCF(object):
 			
 		import csv
 		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
-		writer.writerow(['sampleID', 'chromosome', 'length', "NoOfTotal", 'NoOfHomoRef', 'NoOfHomoAlt', "FractionOfHomoAlt", 'NoOfHet', "FractionOfHet"])
+		writer.writerow(['#sampleID', 'chromosome', 'length', "NoOfTotal", 'NoOfHomoRef', 'NoOfHomoAlt', "FractionOfHomoAlt", 'NoOfHet', "FractionOfHet"])
 		sampleIDLs = sampleID2data.keys()
 		sampleIDLs.sort()
 		for sampleID in sampleIDLs:
@@ -100,7 +90,7 @@ class CountHomoHetInOneVCF(object):
 			else:
 				fractionOfHomoAlt = -1
 				fractionOfHet = -1
-			writer.writerow([sampleID, self.chromosome, self.chrLength, int(no_of_calls), noOfHomoRef, noOfHomoAlt, \
+			writer.writerow([sampleID, chromosome, chrLength, int(no_of_calls), noOfHomoRef, noOfHomoAlt, \
 							fractionOfHomoAlt, noOfHet, fractionOfHet])
 		del writer
 		sys.stderr.write("Done.\n")
@@ -115,7 +105,8 @@ class CountHomoHetInOneVCF(object):
 		
 		
 		#outputFname = "%s.homoHetCountPerSample.tsv"%(outputFnamePrefix)
-		self.countHomoHetCallsForEachSampleFromVCF(self.inputFname, self.outputFname)
+		self.countHomoHetCallsForEachSampleFromVCF(self.inputFname, self.outputFname, chromosome=self.chromosome, \
+												chrLength=self.chrLength, minDepth=self.minDepth)
 
 if __name__ == '__main__':
 	main_class = CountHomoHetInOneVCF

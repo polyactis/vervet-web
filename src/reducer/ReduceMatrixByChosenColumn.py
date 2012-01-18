@@ -14,49 +14,71 @@ import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0])
 
 
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+#bit_number = math.log(sys.maxint)/math.log(2)
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-from pymodule import ProcessOptions, figureOutDelimiter, utils
+from pymodule import ProcessOptions, figureOutDelimiter, utils, PassingData
 import csv
 
-class ReduceMatrixByChosenColumn(object):
+from ReduceMatrixByMergeColumnsWithSameKey import ReduceMatrixByMergeColumnsWithSameKey
+class ReduceMatrixByChosenColumn(ReduceMatrixByMergeColumnsWithSameKey):
 	__doc__ = __doc__
-	option_default_dict = {('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
-						("keyColumn", 1, int): [0, 'k', 1, 'data is keyed by this column'],\
+	option_default_dict = ReduceMatrixByMergeColumnsWithSameKey.option_default_dict.copy()
+	option_default_dict.update({
 						('valueColumnLs', 1, ):["1", 'v', 1, 'comma/tab-separated list, specifying columns from which to aggregate total value by key'],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						})
 
 	def __init__(self, inputFnameLs, **keywords):
 		"""
 		2011-7-12
 		"""
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
-		self.inputFnameLs = inputFnameLs
+		ReduceMatrixByMergeColumnsWithSameKey.__init__(self, inputFnameLs, **keywords)
+		
 		if self.valueColumnLs:
 			self.valueColumnLs = utils.getListOutOfStr(self.valueColumnLs, data_type=int)
 		else:
 			self.valueColumnLs = []
+	
+	def handleNewHeader(self, oldHeader, newHeader, keyColumnLs, valueColumnLs, keyColumnSet=None):
+		"""
+		2012.1.9
+		"""
+		originalHeaderLength = len(oldHeader)
+		if len(newHeader)==0:
+			self.appendSelectedCellIntoGivenList(newHeader, oldHeader, keyColumnLs)
+			self.appendSelectedCellIntoGivenList(newHeader, oldHeader, valueColumnLs)
+		return newHeader
+	
+	def handleValueColumns(self, row, key2dataLs=None, keyColumnLs=[], valueColumnLs=[], **keywords):
+		"""
+		2012.1.17
+			initiate key2dataLs[key]=[] and extend it by request
+		2012.1.9
+		"""
+		key = self.generateKey(row, keyColumnLs)
+		if key not in key2dataLs:
+			key2dataLs[key] = []	#0]*len(valueColumnLs)
+		for i in xrange(len(valueColumnLs)):
+			columnIndex = valueColumnLs[i]
+			if columnIndex<len(row):
+				if len(key2dataLs[key])<=i:	#2012.1.17 extend it upon request.
+					key2dataLs[key] += [0]*(i+1-len(key2dataLs[key]))
+				value = float(row[columnIndex])
+				key2dataLs[key][i] = key2dataLs[key][i] + value
 		
-	def run(self):
-		
-		if self.debug:
-			import pdb
-			pdb.set_trace()
-			
-		newHeader = None
+
+	def traverse(self):
+		"""
+		2012.1.9
+		"""
+		newHeader = []
 		key2dataLs = {}	#key is the keyColumn, dataLs corresponds to the sum of each column from valueColumnLs 
 		delimiter = None
 		for inputFname in self.inputFnameLs:
 			if not os.path.isfile(inputFname):
 				continue
+			reader = None
 			try:
 				delimiter = figureOutDelimiter(inputFname)
 				if not delimiter:
@@ -69,45 +91,36 @@ class ReduceMatrixByChosenColumn(object):
 			
 			try:
 				header = reader.next()
-				originalHeaderLength = len(header)
-				if newHeader is None:
-					newHeader = []
-					newHeader.append(header[self.keyColumn])
-					for columnIndex in self.valueColumnLs:
-						if columnIndex<len(header):
-							newHeader.append(header[columnIndex])
+				self.handleNewHeader(header, newHeader, self.keyColumnLs, self.valueColumnLs, keyColumnSet=self.keyColumnSet)
+			
 			except:	#in case something wrong (i.e. file is empty)
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 				import traceback
 				traceback.print_exc()
 			
-			for row in reader:
-				try:
-					key = row[self.keyColumn]
-					if key not in key2dataLs:
-						key2dataLs[key] = [0]*(len(newHeader)-1)	#should not be longer than the newHeader
-					for i in xrange(len(self.valueColumnLs)):
-						columnIndex = self.valueColumnLs[i]
-						if columnIndex<len(row):
-							value = float(row[columnIndex])
-							key2dataLs[key][i] = key2dataLs[key][i] + value
-				except:	#in case something wrong (i.e. file is empty)
-					sys.stderr.write('Ignore this row: %s.\n'%repr(row))
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
-			del reader
-			
+			if reader is not None:
+				for row in reader:
+					try:
+						self.handleValueColumns(row, key2dataLs=key2dataLs, keyColumnLs=self.keyColumnLs, valueColumnLs=self.valueColumnLs)
+					except:	#in case something wrong (i.e. file is empty)
+						sys.stderr.write('Ignore this row: %s.\n'%repr(row))
+						sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+						import traceback
+						traceback.print_exc()
+				del reader
 		
-		if key2dataLs and delimiter and newHeader:
-			writer = csv.writer(open(self.outputFname, 'w'), delimiter=delimiter)
-			writer.writerow(newHeader)
-			keyLs = key2dataLs.keys()
-			keyLs.sort()
-			for key in keyLs:
-				dataLs = key2dataLs.get(key)
-				writer.writerow([key] + dataLs)
-			del writer
+		returnData = PassingData(key2dataLs=key2dataLs, delimiter=delimiter, header=newHeader)
+		return returnData
+	
+	def run(self):
+		
+		if self.debug:
+			import pdb
+			pdb.set_trace()
+		
+		returnData = self.traverse()
+		
+		self.outputFinalData(self.outputFname, returnData.key2dataLs, returnData.delimiter, header=returnData.header)
 
 if __name__ == '__main__':
 	main_class = ReduceMatrixByChosenColumn

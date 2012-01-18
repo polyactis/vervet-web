@@ -115,7 +115,8 @@ class PlotTrioInconsistencyVsDepth(PlotTrioInconsistencyOverFrequency):
 		
 		sys.stderr.write("Reading in data ...")
 		for inputFname in self.inputFnameLs:
-			self.trioInconsistentRateFileWalker(inputFname, processFunc=None)
+			if os.path.isfile(inputFname):
+				self.trioInconsistentRateFileWalker(inputFname, processFunc=None)
 		sys.stderr.write("Done.\n")
 		
 		medianFaDepth = numpy.median(self.fa_depth_ls)
