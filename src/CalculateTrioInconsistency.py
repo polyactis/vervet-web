@@ -3,11 +3,11 @@
 Examples:
 	# all sites
 	%s -i AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/gatk/Contig119.vcf.gz
-		-o /tmp/Contig119.trio.75_17_86.het.homo.inconsistency -t 75,17,86
+		-o /tmp/Contig119.trio.75_17_86.het.homo.inconsistency -t 552_75,554_17,555_86
 	
 	# homo ony
 	%s -i AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/gatk/Contig119.vcf.gz
-		-o /tmp/Contig119.trio.75_17_86.homo.only.inconsistency -t 75,17,86 -m
+		-o /tmp/Contig119.trio.75_17_86.homo.only.inconsistency -t 552_75,554,555_86 -m
 	
 
 Description:
@@ -34,7 +34,9 @@ from pymodule.VCFFile import VCFFile
 class CalculateTrioInconsistency(object):
 	__doc__ = __doc__
 	option_default_dict = {('inputFname', 1, ): ['', 'i', 1, 'VCF input file. either plain vcf or gzipped is ok. could be unsorted.', ],\
-						('trio_isq_id_ls', 1, ): ['', 't', 1, 'a comma-separated list of fa_isq_id,mo_isq_id,child_isq_id. use 0 for missing parent.', ],\
+						('trio_id', 1, ): ['', 't', 1, 'a comma-separated list of fa_id,mo_id,child_id. Each id is in the format of check IndividualAlignment.getCompositeID().\
+							Only the first digit, alignment.id, is required. \
+							Use 0 for missing parent.', ],\
 						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
 						("refSize", 0, int): [0, '', 1, 'size of the reference used for the input VCF file. NOT used now.'],\
 						("windowSize", 1, int): [200000, 'w', 1, 'calculate inconsistency within each window'],\
@@ -54,35 +56,42 @@ class CalculateTrioInconsistency(object):
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
 														class_to_have_attr=self)
 		#record it as string
-		self.trio_set_str = self.trio_isq_id_ls
-		if self.trio_isq_id_ls:
-			self.trio_isq_id_ls = getListOutOfStr(self.trio_isq_id_ls, data_type=int)
+		self.trio_set_str = self.trio_id
+		if self.trio_id:
+			self.trio_id = getListOutOfStr(self.trio_id, data_type=str)
 		
 
-	def findTrioIndex(self, sample_id2index, trio_isq_id_ls, ):
+	def findTrioIndex(self, sample_id2index, trio_id):
 		"""
+		2012.1.25
+			trio_id is a coma-separated list of IndividualAlignment.getCompositeID().
+			Use alignment.id as primary member identifier.
 		2011-9-27
-			sample_id looks like 556_16_1985088_GA_vs_524 (aln-id_isq.id_ind.code_platform_vs_ref-isq-id)
+			sample_id in sample_id2index is something like 556_16_1985088_GA_vs_524 (aln.id_isq.id_ind.code_platform_vs_ref-isq.id)
+				Its format is determined by IndividualAlignment.getReadGroup().
+			
 		"""
 		#default to -1 (non-existent)
 		father_index = -1
 		mother_index = -1
 		child_index = -1
 		
-		isq_id2list_index = {}
-		for isq_id in trio_isq_id_ls:
-			isq_id2list_index[isq_id] = len(isq_id2list_index)
+		aln_id2list_index = {}
+		for member_id in trio_id:
+			aln_id = member_id.split('_')[0]
+			aln_id = int(aln_id)
+			aln_id2list_index[aln_id] = len(aln_id2list_index)
 		
 		for sample_id, col_index in sample_id2index.iteritems():
 			multi_id_ls = sample_id.split('_')
-			if len(multi_id_ls)>=2:
-				isq_id = int(multi_id_ls[1])
-				isq_list_index = isq_id2list_index.get(isq_id)
-				if isq_list_index==0:
+			if len(multi_id_ls)>=1:
+				aln_id = int(multi_id_ls[0])
+				trio_member_index = aln_id2list_index.get(aln_id)
+				if trio_member_index==0:
 					father_index = col_index
-				elif isq_list_index==1:
+				elif trio_member_index==1:
 					mother_index = col_index
-				elif isq_list_index==2:
+				elif trio_member_index==2:
 					child_index = col_index
 		return PassingData(father_index=father_index, mother_index=mother_index, child_index=child_index)
 		
@@ -167,7 +176,7 @@ class CalculateTrioInconsistency(object):
 		"""
 		2011-12.15
 		"""
-		trio_col_index_data = self.findTrioIndex(vcfFile.sample_id2index, self.trio_isq_id_ls)
+		trio_col_index_data = self.findTrioIndex(vcfFile.sample_id2index, self.trio_id)
 		father_index = trio_col_index_data.father_index
 		mother_index = trio_col_index_data.mother_index
 		child_index = trio_col_index_data.child_index
@@ -262,7 +271,7 @@ class CalculateTrioInconsistency(object):
 		2011.12.15
 			from run()
 		"""
-		trio_col_index_data = self.findTrioIndex(vcfFile.sample_id2index, self.trio_isq_id_ls)
+		trio_col_index_data = self.findTrioIndex(vcfFile.sample_id2index, self.trio_id)
 		father_index = trio_col_index_data.father_index
 		mother_index = trio_col_index_data.mother_index
 		child_index = trio_col_index_data.child_index
@@ -365,7 +374,7 @@ class CalculateTrioInconsistency(object):
 		
 		try:	#inputFname could be missing, zero size, no loci even if it has a header
 			vcfFile = VCFFile(inputFname=self.inputFname, minDepth=self.minDepth)
-			trio_col_index_data = self.findTrioIndex(vcfFile.sample_id2index, self.trio_isq_id_ls)
+			trio_col_index_data = self.findTrioIndex(vcfFile.sample_id2index, self.trio_id)
 			father_index = trio_col_index_data.father_index
 			mother_index = trio_col_index_data.mother_index
 			child_index = trio_col_index_data.child_index

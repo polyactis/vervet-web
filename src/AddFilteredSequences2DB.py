@@ -24,35 +24,28 @@ else:   #32bit
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import random
-import VervetDB
 from pymodule import PassingData, ProcessOptions, utils, yh_matplotlib
+from pymodule.AbstractDBInteractingClass import AbstractDBInteractingClass
+from mapper.RegisterAndMoveSplitSequenceFiles import RegisterAndMoveSplitSequenceFiles
+from vervet.src import VervetDB	#have to import it from vervet.src, not directly cuz that's how it's imported in RegisterAndMoveSplitSequenceFiles
 
-class AddFilteredSequences2DB(object):
+
+class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 	__doc__ = __doc__
-	option_default_dict = {
-						('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-						('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
-						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-						('port', 0, ):[None, 'o', 1, 'database port number. must be non-empty if need ssh tunnel'],\
-						('sshTunnelCredential', 0, ): ['', 's', 1, 'a ssh credential to allow machine to access db server. \
-										polyacti@login3, yuhuang@hpc-login2. if empty or port is empty, no tunnel', ],\
-						('parent_individual_sequence_id', 1, int): [None, 'n', 1, 'The individual_sequence id of pre-filter sequences.', ],\
-						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. If not given, use the default stored in db.'],\
-						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_sequence.path) and qsub jobs'],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+	option_default_dict = AbstractDBInteractingClass.option_default_dict.copy()
+	option_default_dict.update({
+						('inputFname', 1, ): ['', 'i', 1, 'the filtered fastq files', ],\
+						('individual_sequence_id', 1, int): [None, 'n', 1, 'The individual_sequence id of the input sequence file.', ],\
+						('parent_individual_sequence_file_id', 1, int): [None, 'e', 1, 'ID of the parent of this filtered individual_sequence_file' ],\
+						('outputDir', 1, ): ['', 'o', 1, 'output folder to which split files from inputDir will be moved', ],\
+						('logFilename', 0, ): [None, 'g', 1, 'file to contain logs. use it only if this program is at the end of pegasus workflow'],\
+						})
 
-	def __init__(self, inputFnameLs, **keywords):
+	def __init__(self, **keywords):
 		"""
 		2011-7-11
 		"""
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
-		
-		self.inputFnameLs = inputFnameLs
+		AbstractDBInteractingClass.__init__(self, **keywords)
 	
 	
 	def run(self):
@@ -82,29 +75,32 @@ class AddFilteredSequences2DB(object):
 		session = db_vervet.session
 		session.begin()	#no transaction for input node as there is no data insertion
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		individual_sequence = VervetDB.IndividualSequence.get(self.individual_sequence_id)
 		
-		parent_individual_sequence = VervetDB.IndividualSequence.get(self.parent_individual_sequence_id)
+		if not os.path.isdir(self.outputDir):
+			os.makedirs(self.outputDir)
 		
-		if not parent_individual_sequence:
-			sys.stderr.write("parent individual sequence %s doesn't exist in db.\n")
+		parent_individual_sequence_file = VervetDB.IndividualSequenceFile.get(self.parent_individual_sequence_file_id)
+		if not parent_individual_sequence_file:
+			sys.stderr.write("parent individual_sequence_file %s doesn't exist in db.\n"%(self.parent_individual_sequence_file_id))
 			sys.exit(4)
 		
-		individual_sequence = db_vervet.copyParentIndividualSequence(parent_individual_sequence=parent_individual_sequence)
+		db_entry = db_vervet.copyParentIndividualSequenceFile(parent_individual_sequence_file=parent_individual_sequence_file,\
+									individual_sequence_id=self.individual_sequence_id, quality_score_format='Standard', filtered=1)
+		if db_entry:
+			#move the file
+			inputDir, filename = os.path.split(self.inputFname)
+			self.moveNewISQFileIntoDBStorage(session, individual_sequence_file=db_entry, filename=filename, inputDir=inputDir, \
+										outputDir=self.outputDir, relativeOutputDir=individual_sequence.path)
+		else:
+			sys.stderr.write("Error: IndividualSequenceFile db entry is None.\n")
+			sys.exit(3)
 		
-		outputDir = os.path.join(self.dataDir, individual_sequence.path)
-		if not os.path.isdir(outputDir):
-			os.makedirs(outputDir)
+		if self.logFilename:
+			outf = open(self.logFilename, 'w')
+			outf.write("file %s was added into db.\n"%(self.inputFname))
+			outf.close()
 		
-		for inputFname in self.inputFnameLs:
-			commandline = 'mv %s %s/'%(inputFname, outputDir)
-			if self.commit:	#qsub only when db transaction will be committed.
-				return_data = utils.runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-				if return_data.stderr_content:
-					sys.stderr.write("Error in moving file. Exit now.\n")
-					sys.exit(3)
-				
 		if self.commit:
 			session.commit()
 		else:
@@ -115,5 +111,5 @@ class AddFilteredSequences2DB(object):
 if __name__ == '__main__':
 	main_class = AddFilteredSequences2DB
 	po = ProcessOptions(sys.argv, main_class.option_default_dict, error_doc=main_class.__doc__)
-	instance = main_class(po.arguments, **po.long_option2value)
+	instance = main_class(**po.long_option2value)
 	instance.run()

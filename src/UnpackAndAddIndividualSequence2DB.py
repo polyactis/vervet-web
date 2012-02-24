@@ -20,7 +20,7 @@ Examples:
 	~/script/vervet/src/UnpackAndAddIndividualSequence2DB.py -i /Network/Data/vervet/raw_sequence/xfer.genome.wustl.edu/gxfer3/
 		-u yh
 		-m ~/mnt/hoffman2/u/home/eeskintmp/polyacti/NetworkData/vervet/raw_sequence/xfer.genome.wustl.edu/gxfer3/46019922623327/Vervet_12_4X_README.tsv
-		-z dl324b-1.cmb.usc.edu -l condorpool -o unpackAndAdd12_2007Monkeys2DB_condor.xml
+		-z dl324b-1.cmb.usc.edu -j condorpool -l condorpool -o unpackAndAdd12_2007Monkeys2DB_condor.xml
 	
 Description:
 	2011-8-2
@@ -42,6 +42,10 @@ Description:
 	Example ("Library" and "Bam Path" are required):
 		FlowCell	Lane	Index Sequence	Library	Common Name	Bam Path	MD5
 		64J6AAAXX	1		VCAC-2007002-1-lib1	African Green Monkey	gerald_64J6AAAXX_1.bam	gerald_64J6AAAXX_1.bam.md5
+	
+	1. Be careful with the db connection setting as it'll be passed to the db-registration job.
+		Make sure all computing nodes have access to the db.
+	2. The workflow has to be run on nodes where they have direct db and db-affiliated file-storage access.
 """
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0])
@@ -69,9 +73,10 @@ class UnpackAndAddIndividualSequence2DB(AbstractNGSWorkflow):
 	option_default_dict.update({
 						('input', 1, ): ['', 'i', 1, 'if it is a directory, take every *.bam file in it. If it is a file, every line should be a path to actual bam file. ', ],\
 						('bamFname2MonkeyIDMapFname', 1, ): ['', 'm', 1, 'a tsv version of WUSTL xls file detailing what monkey is in which bam file.', ],\
+						('minNoOfReads', 1, int): [5000000, '', 1, 'minimum number of reads in each split fastq file. The upper limit in each split file is 2*minNoOfReads.', ],\
 						("sequencer", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger'],\
 						("sequence_type", 1, ): ["PE", '', 1, 'choices: BAC, genome, scaffold, PE, SR, ...'],\
-						("sequence_format", 1, ): ["fastq", '', 1, 'fasta, fastq, etc.'],\
+						("sequence_format", 1, ): ["fastq", 'f', 1, 'fasta, fastq, etc.'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_sequence.path and individual_sequence records if inexistent)'],\
 						})
 	#('jobFileDir', 0, ): ['', 'j', 1, 'folder to contain qsub scripts', ],\
@@ -94,6 +99,8 @@ class UnpackAndAddIndividualSequence2DB(AbstractNGSWorkflow):
 		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
 		monkeyIDIndex = col_name2index.get("Library")
 		bamFnameIndex = col_name2index.get("Bam Path")
+		if bamFnameIndex is None:	#2012.2.9
+			bamFnameIndex = col_name2index.get("BAM Path")
 		monkeyIDPattern = re.compile(r'\w+-(\w+)-\d+-\w+')	# i.e. VCAC-2007002-1-lib1
 		for row in reader:
 			monkeyID = row[monkeyIDIndex]
@@ -176,17 +183,24 @@ echo %s
 		
 		convertBamToFastqAndGzip = Executable(namespace=namespace, name="convertBamToFastqAndGzip", version=version, os=operatingSystem, \
 									arch=architecture, installed=True)
-		convertBamToFastqAndGzip.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'convertBamToFastqAndGzip.sh'), site_handler))
+		convertBamToFastqAndGzip.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'shell/convertBamToFastqAndGzip.sh'), site_handler))
 		#convertBamToFastqAndGzip.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(convertBamToFastqAndGzip)
 		workflow.convertBamToFastqAndGzip = convertBamToFastqAndGzip
 		
-		splitReadFileJava = Executable(namespace=namespace, name="SplitReadFileJava", version=version, os=operatingSystem, \
-									arch=architecture, installed=True)
-		splitReadFileJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		#splitReadFileJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(splitReadFileJava)
-		workflow.splitReadFileJava = splitReadFileJava
+		splitReadFile = Executable(namespace=namespace, name="splitReadFile", version=version, os=operatingSystem, \
+								arch=architecture, installed=True)
+		splitReadFile.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'shell/SplitReadFileWrapper.sh'), site_handler))
+		#splitReadFile.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(splitReadFile)
+		workflow.splitReadFile = splitReadFile
+		
+		registerAndMoveSplitSequenceFiles  = Executable(namespace=namespace, name="registerAndMoveSplitSequenceFiles", version=version, os=operatingSystem, \
+								arch=architecture, installed=True)
+		registerAndMoveSplitSequenceFiles.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'mapper/RegisterAndMoveSplitSequenceFiles.py'), site_handler))
+		#registerAndMoveSplitSequenceFiles.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(registerAndMoveSplitSequenceFiles)
+		workflow.registerAndMoveSplitSequenceFiles = registerAndMoveSplitSequenceFiles
 		
 	def addConvertBamToFastqAndGzipJob(self, workflow, executable=None, \
 							inputF=None, outputFnamePrefix=None, \
@@ -204,11 +218,86 @@ echo %s
 		output1 = "%s_1.fastq.gz"%(outputFnamePrefix)
 		output2 = "%s_2.fastq.gz"%(outputFnamePrefix)
 		
-		job.uses(output1, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		job.uses(output2, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		job.uses(output1, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
+		job.uses(output2, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
 		
 		job.output1 = output1
 		job.output2 = output2
+		
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime)
+		workflow.addJob(job)
+		for input in extraDependentInputLs:
+			job.uses(input, transfer=True, register=True, link=Link.INPUT)
+		for parentJob in parentJobLs:
+			workflow.depends(parent=parentJob, child=job)
+		return job
+	
+	def addSplitReadFileJob(self, workflow, executable=None, \
+							inputF=None, outputFnamePrefix=None, outputFnamePrefixTail="",\
+							minNoOfReads=5000000, logFile=None, parentJobLs=[], job_max_memory=2000, job_max_walltime = 800, \
+							extraDependentInputLs=[], \
+							transferOutput=False, **keywords):
+		"""
+		2012.2.9
+			argument outputFnamePrefixTail is now useless.
+		2012.1.24
+			executable is shell/SplitReadFileWrapper.sh
+			
+			which calls "wc -l" to count the number of reads beforehand to derive a proper minNoOfReads (to avoid files with too few reads).
+			
+			run SplitReadFile and generate the output directly into the db-affiliated folders
+			
+			a log file is generated and registered for transfer (so that pegasus won't skip it)
+		
+			job_max_walltime is in minutes (max time allowed on hoffman2 is 24 hours).
+			
+		"""
+		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
+		job.addArguments(self.javaPath, repr(job_max_memory), workflow.SplitReadFileJar, inputF, outputFnamePrefix, \
+						repr(minNoOfReads))
+		
+		job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
+		if logFile:
+			job.addArguments(logFile)
+			job.uses(logFile, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
+			job.output = logFile
+		
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime)
+		workflow.addJob(job)
+		for input in extraDependentInputLs:
+			job.uses(input, transfer=True, register=True, link=Link.INPUT)
+		for parentJob in parentJobLs:
+			workflow.depends(parent=parentJob, child=job)
+		return job
+	
+	def addRegisterAndMoveSplitFileJob(self, workflow, executable=None, \
+							inputDir=None, outputDir=None, relativeOutputDir=None, logFile=None,\
+							individual_sequence_id=None, bamFile=None, library=None, mate_id=None, \
+							parentJobLs=[], job_max_memory=100, job_max_walltime = 60, \
+							commit=0, sequence_format='fastq',\
+							extraDependentInputLs=[], \
+							transferOutput=False, **keywords):
+		"""
+		2012.1.24
+			job_max_walltime is in minutes (max time allowed on hoffman2 is 24 hours).
+			
+		"""
+		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
+		job.addArguments('-v', self.drivername, '-z', self.hostname, '-d', self.dbname,\
+						'-k', self.schema, '-u', self.db_user, '-p', self.db_passwd, \
+						'-i', inputDir, '-o', outputDir, '-t', relativeOutputDir,'-l', library, '-n %s'%individual_sequence_id, \
+						'-f', sequence_format)
+		if commit:
+			job.addArguments("-c")
+		if mate_id:
+			job.addArguments('-m', repr(mate_id)) 
+		if bamFile:
+			job.addArguments('-a', bamFile)
+			job.uses(bamFile, transfer=True, register=True, link=Link.INPUT)
+		if logFile:
+			job.addArguments('-g', logFile)
+			job.uses(logFile, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
+			job.output = logFile
 		
 		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime)
 		workflow.addJob(job)
@@ -265,7 +354,7 @@ echo %s
 		
 		sam2fastqOutputDir = 'sam2fastq'
 		sam2fastqOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sam2fastqOutputDir)
-		
+		no_of_jobs = 1
 		for bamFname in bamFnameLs:
 			bamBaseFname = os.path.split(bamFname)[1]
 			if bamBaseFname not in bamBaseFname2MonkeyID:
@@ -273,31 +362,78 @@ echo %s
 				continue
 			monkeyID = bamBaseFname2MonkeyID.get(bamBaseFname)
 			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer=self.sequencer, sequence_type=self.sequence_type, \
-										sequence_format=self.sequence_format, path_to_original_sequence=bamFname)
-			if individual_sequence.path is None:
-				individual = individual_sequence.individual
-				individual_sequence.path = db_vervet.constructRelativePathForIndividualSequence(individual_id=individual.id, \
-								individual_sequence_id=individual_sequence.id, individual_code=individual.code,\
-								sequencer=self.sequencer, tissue=None)
-				individual_sequence.original_path = bamFname
+										sequence_format=self.sequence_format)
+			#2012.2.10 stop passing path_to_original_sequence=bamFname to self.addMonkeySequence()
+			
+			"""
+			#2012.2.10 temporary, during transition from old records to new ones.
+			newISQPath = individual_sequence.constructRelativePathForIndividualSequence()
+			newISQPath = '%s_split'%(newISQPath)
+			if individual_sequence.path is None or individual_sequence.path !=newISQPath:
+				individual_sequence.path = newISQPath
 				session.add(individual_sequence)
 				session.flush()
+			"""
 			
-			outputDir = os.path.join(self.dataDir, individual_sequence.path)
-			mkCallDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=outputDir)
-			
+			sequenceOutputDir = os.path.join(self.dataDir, individual_sequence.path)
+			sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
 			
 			bamInputF = yh_pegasus.registerFile(workflow, bamFname)
 			
 			bamBaseFname = os.path.split(bamFname)[1]
 			bamBaseFnamePrefix = os.path.splitext(bamBaseFname)[0]
-			outputFnamePrefix = os.path.join(sam2fastqOutputDir, bamBaseFnamePrefix)
+			library = bamBaseFnamePrefix
+			
+			outputFnamePrefix = os.path.join(sam2fastqOutputDir, '%s_%s'%(individual_sequence.id, library))
 			
 			convertBamToFastqAndGzip_job = self.addConvertBamToFastqAndGzipJob(workflow, executable=workflow.convertBamToFastqAndGzip, \
 							inputF=bamInputF, outputFnamePrefix=outputFnamePrefix, \
-							parentJobLs=[sam2fastqOutputDirJob], job_max_memory=2000, job_max_walltime = 800, extraDependentInputLs=[], \
+							parentJobLs=[sam2fastqOutputDirJob], job_max_memory=2000, job_max_walltime = 800, \
+							extraDependentInputLs=[], \
 							transferOutput=False)
 			
+			splitOutputDir = '%s_%s'%(individual_sequence.id, library)
+			#same directory containing split files from both mates is fine as RegisterAndMoveSplitSequenceFiles could pick up.
+			splitOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=splitOutputDir)
+			
+			
+			mate_id = 1
+			splitFastQFnamePrefix = os.path.join(splitOutputDir, '%s_%s_%s'%(individual_sequence.id, library, mate_id))
+			logFile = File('%s_%s_%s.split.log'%(individual_sequence.id, library, mate_id))
+			splitReadFileJob1 = self.addSplitReadFileJob(workflow, executable=workflow.splitReadFile, \
+							inputF=convertBamToFastqAndGzip_job.output1, outputFnamePrefix=splitFastQFnamePrefix, \
+							outputFnamePrefixTail="", minNoOfReads=self.minNoOfReads, \
+							logFile=logFile, parentJobLs=[convertBamToFastqAndGzip_job, splitOutputDirJob], \
+							job_max_memory=2000, job_max_walltime = 800, \
+							extraDependentInputLs=[], transferOutput=True)
+			
+			logFile = File('%s_%s_%s.register.log'%(individual_sequence.id, library, mate_id))
+			registerJob1 = self.addRegisterAndMoveSplitFileJob(workflow, executable=workflow.registerAndMoveSplitSequenceFiles, \
+							inputDir=splitOutputDir, outputDir=sequenceOutputDir, relativeOutputDir=individual_sequence.path, logFile=logFile,\
+							individual_sequence_id=individual_sequence.id, bamFile=bamInputF, library=library, mate_id=mate_id, \
+							parentJobLs=[splitReadFileJob1, sequenceOutputDirJob], job_max_memory=100, job_max_walltime = 60, \
+							commit=self.commit, sequence_format=self.sequence_format, extraDependentInputLs=[], \
+							transferOutput=True)
+			#handle the 2nd end
+			mate_id = 2
+			splitFastQFnamePrefix = os.path.join(splitOutputDir, '%s_%s_%s'%(individual_sequence.id, library, mate_id))
+			logFile = File('%s_%s_%s.split.log'%(individual_sequence.id, library, mate_id))
+			splitReadFileJob2 = self.addSplitReadFileJob(workflow, executable=workflow.splitReadFile, \
+							inputF=convertBamToFastqAndGzip_job.output2, outputFnamePrefix=splitFastQFnamePrefix, \
+							outputFnamePrefixTail="", minNoOfReads=self.minNoOfReads, \
+							logFile=logFile, parentJobLs=[convertBamToFastqAndGzip_job, splitOutputDirJob], \
+							job_max_memory=2000, job_max_walltime = 800, \
+							extraDependentInputLs=[], transferOutput=True)
+			
+			logFile = File('%s_%s_%s.register.log'%(individual_sequence.id, library, mate_id))
+			registerJob1 = self.addRegisterAndMoveSplitFileJob(workflow, executable=workflow.registerAndMoveSplitSequenceFiles, \
+							inputDir=splitOutputDir, outputDir=sequenceOutputDir, relativeOutputDir=individual_sequence.path, logFile=logFile,\
+							individual_sequence_id=individual_sequence.id, bamFile=bamInputF, library=library, mate_id=mate_id, \
+							parentJobLs=[splitReadFileJob2, sequenceOutputDirJob], job_max_memory=100, job_max_walltime = 60, \
+							commit=self.commit, sequence_format=self.sequence_format, extraDependentInputLs=[], \
+							transferOutput=True)
+			
+			no_of_jobs += 5
 			"""
 			
 			jobFname = os.path.join(self.jobFileDir, 'job%s.bam2fastq.sh'%(monkeyID))
@@ -306,15 +442,14 @@ echo %s
 			if self.commit:	#qsub only when db transaction will be committed.
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 			"""
+		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
 		workflow.writeXML(outf)
-		
 		if self.commit:
 			session.commit()
 		else:
 			session.rollback()
-		
 		
 if __name__ == '__main__':
 	main_class = UnpackAndAddIndividualSequence2DB
