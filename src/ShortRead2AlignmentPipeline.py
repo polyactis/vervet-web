@@ -94,13 +94,8 @@ from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
 
 class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 	__doc__ = __doc__
-	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-						('dbname', 1, ): ['vervetdb', 'd', 1, 'stock_250k database name', ],\
-						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-						('port', 0, ):[None, '', 1, 'database port number. must be non-empty if need ssh tunnel'],\
+	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
+	option_default_dict.update({
 						('sshTunnelCredential', 0, ): ['', 's', 1, 'a ssh credential to allow machine to access db server. \
 										polyacti@login3, yuhuang@hpc-login2. if empty or port is empty, no tunnel', ],\
 						
@@ -109,47 +104,26 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 									non-fastq entries will be discarded.', ],\
 						('additionalArguments', 0, ): ["-q 20", '', 1, 'a string of additional arguments passed to aln, not bwasw, add double quote if space'],\
 						("bwa_path", 1, ): ["%s/bin/bwa", '', 1, 'bwa binary'],\
-						("samtools_path", 1, ): ["%s/bin/samtools", '', 1, 'samtools binary'],\
-						("picard_path", 1, ): ["%s/script/picard/dist", '', 1, 'picard folder containing its jar binaries'],\
-						("gatk_path", 1, ): ["%s/script/vervet/bin/GenomeAnalysisTK", '', 1, 'GATK folder containing its jar binaries'],\
-						("vervetSrcPath", 1, ): ["%s/script/vervet/src", '', 1, 'vervet source code folder'],\
-						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
-						("javaPath", 1, ): ["/usr/bin/java", 'J', 1, 'java interpreter binary'],\
-						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
-									If not given, use the default stored in db.'],\
-						("localDataDir", 0, ): ["", 'D', 1, 'localDataDir should contain same files as dataDir but accessible locally.\
-									If not given, use the default stored in db. This argument is used to find all input files available.'],\
+						("stampy_path", 1, ): ["%s/bin/stampy.py", '', 1, 'path to stampy.py'],\
 						("alignment_method_name", 1, ): ["bwa-short-read", '', 1, 'alignment_method.short_name from db.\
 								used only when unable to guess based on individual_sequence.sequencer and individual_sequence.sequence_type'],\
-						("site_handler", 1, ): ["condorpool", 'l', 1, 'which site to run the jobs: condorpool, hoffman2'],\
-						("input_site_handler", 1, ): ["local", 'j', 1, 'which site has all the input files: local, condorpool, hoffman2. \
-							If site_handler is condorpool, this must be condorpool and files will be symlinked. \
-							If site_handler is hoffman2, input_site_handler=local will induce file transfer and input_site_handler=hoffman2 induces symlink.'],\
 						("needRefIndexJob", 0, int): [0, 'n', 1, 'need to add a reference index job by bwa?'],\
 						('no_of_aln_threads', 1, int): [3, 'm', 1, 'number of threads during alignment'],\
-						('outputFname', 1, ): [None, 'o', 1, 'xml workflow output file'],\
 						('stageOutFinalOutput', 0, int):[0, 'O', 0, 'toggle to stage out final output (bam + bam.bai)'],\
 						("tmpDir", 1, ): ["/tmp/", '', 1, 'for MarkDuplicates.jar, default is /tmp/ but sometimes it is too small'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_alignment and/or individual_alignment.path'],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						})
 
 	def __init__(self,  **keywords):
 		"""
 		2011-7-11
 		"""
-		from pymodule import ProcessOptions
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
+		AbstractNGSWorkflow.__init__(self, **keywords)
+		
 		if self.ind_seq_id_ls:
 			self.ind_seq_id_ls = getListOutOfStr(self.ind_seq_id_ls, data_type=int)
 		
-		self.bwa_path = self.bwa_path%self.home_path
-		self.samtools_path = self.samtools_path%self.home_path
-		self.picard_path = self.picard_path%self.home_path
-		self.gatk_path = self.gatk_path%self.home_path
-		self.vervetSrcPath = self.vervetSrcPath%self.home_path
-	
+		self.bwa_path =  self.insertHomePath(self.bwa_path, self.home_path)
 	
 	def addAllAlignmentJobs(self, db_vervet, individualSequenceID2FilePairLs=None, dataDir=None, \
 					refSequence=None, refFastaFList=None, refIndexJob=None,
@@ -201,10 +175,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 							alignment_method_name=alignment_method_name, alignment_format=alignment_format,\
 							individual_sequence_filtered=individual_sequence.filtered, read_group_added=1)	#read-group addition is part of pipeline
 				if not individual_alignment.path:
-					individual_alignment.path = db_vervet.constructRelativePathForIndividualAlignment(individual_alignment_id=individual_alignment.id, \
-							individual_sequence_id=ind_seq_id, \
-							ref_individual_sequence_id=refSequence.id, alignment_method=alignment_method, \
-							alignment_format=alignment_format,)
+					individual_alignment.path = individual_alignment.constructRelativePath()
 					session.add(individual_alignment)
 					session.flush()
 				
@@ -844,6 +815,50 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			
 		"""
 	
+	def registerCustomJars(self, workflow, ):
+		"""
+		2012.1.9
+		"""
+		site_handler = self.site_handler
+		
+		abs_path = os.path.join(self.picard_path, 'SortSam.jar')
+		SortSamFilesJar = File(abs_path)
+		SortSamFilesJar.addPFN(PFN("file://" + abs_path, site_handler))
+		workflow.addFile(SortSamFilesJar)
+		workflow.SortSamFilesJar = SortSamFilesJar
+		
+		abs_path = os.path.join(self.picard_path, 'SamFormatConverter.jar')
+		SamFormatConverterJar = File(abs_path)
+		SamFormatConverterJar.addPFN(PFN("file://" + abs_path, site_handler))
+		workflow.addFile(SamFormatConverterJar)
+		workflow.SamFormatConverterJar = SamFormatConverterJar
+		
+	
+	def registerCustomExecutables(self, workflow):
+		"""
+		2012.1.3
+		"""
+		namespace = workflow.namespace
+		version = workflow.version
+		operatingSystem = workflow.operatingSystem
+		architecture = workflow.architecture
+		clusters_size = workflow.clusters_size
+		site_handler = workflow.site_handler
+		vervetSrcPath = self.vervetSrcPath
+		
+		stampy = Executable(namespace=namespace, name="stampy", version=version, os=operatingSystem, \
+						arch=architecture, installed=True)
+		stampy.addPFN(PFN("file://" + self.stampy_path, site_handler))
+		#splitReadFileJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(stampy)
+		workflow.stampy = stampy
+		
+		bwa = Executable(namespace=namespace, name="bwa", version=version, os=operatingSystem, arch=architecture, installed=True)
+		bwa.addPFN(PFN("file://" + self.bwa_path, site_handler))
+		workflow.addExecutable(bwa)
+		workflow.bwa = bwa
+		
+	
 	def run(self):
 		"""
 		2011-7-11
@@ -867,67 +882,13 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		
 		# Create a abstract dag
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = ADAG(workflowName)
-		vervetSrcPath = self.vervetSrcPath
-		site_handler = self.site_handler
+		workflow = self.initiateWorkflow(workflowName)
 		
-		# Add executables to the DAX-level replica catalog
-		# In this case the binary is keg, which is shipped with Pegasus, so we use
-		# the remote PEGASUS_HOME to build the path.
-		architecture = "x86_64"
-		operatingSystem = "linux"
-		namespace = "workflow"
-		version="1.0"
+		self.registerJars(workflow)
+		self.registerCustomJars(workflow)
+		self.registerExecutables(workflow)
+		self.registerCustomExecutables(workflow)
 		
-		#add the a bunch of picard jar files into workflow
-		abs_path = os.path.join(self.picard_path, 'MergeSamFiles.jar')
-		mergeSamFilesJar = File(abs_path)
-		mergeSamFilesJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(mergeSamFilesJar)
-		
-		abs_path = os.path.join(self.picard_path, 'SortSam.jar')
-		SortSamFilesJar = File(abs_path)
-		SortSamFilesJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(SortSamFilesJar)
-		
-		abs_path = os.path.join(self.picard_path, 'BuildBamIndex.jar')
-		BuildBamIndexFilesJar = File(abs_path)
-		BuildBamIndexFilesJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(BuildBamIndexFilesJar)
-		
-		abs_path = os.path.join(self.picard_path, 'AddOrReplaceReadGroups.jar')
-		addOrReplaceReadGroupsJar = File(abs_path)
-		addOrReplaceReadGroupsJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(addOrReplaceReadGroupsJar)
-		
-		abs_path = os.path.join(self.picard_path, 'SamFormatConverter.jar')
-		SamFormatConverterJar = File(abs_path)
-		SamFormatConverterJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(SamFormatConverterJar)
-		
-		abs_path = os.path.join(self.picard_path, 'MarkDuplicates.jar')
-		MarkDuplicatesJar = File(abs_path)
-		MarkDuplicatesJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(MarkDuplicatesJar)
-		
-		#mkdirWrap is better than mkdir that it doesn't report error when the directory is already there.
-		mkdirWrap = Executable(namespace=namespace, name="mkdirWrap", version=version, os=operatingSystem, \
-							arch=architecture, installed=True)
-		mkdirWrap.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mkdirWrap.sh"), site_handler))
-		workflow.addExecutable(mkdirWrap)
-		
-		#mv to rename files and move them
-		mv = Executable(namespace=namespace, name="mv", version=version, os=operatingSystem, arch=architecture, installed=True)
-		mv.addPFN(PFN("file://" + "/bin/mv", site_handler))
-		workflow.addExecutable(mv)
-		
-		bwa = Executable(namespace=namespace, name="bwa", version=version, os=operatingSystem, arch=architecture, installed=True)
-		bwa.addPFN(PFN("file://" + self.bwa_path, site_handler))
-		workflow.addExecutable(bwa)
-		
-		samtools = Executable(namespace=namespace, name="samtools", version=version, os=operatingSystem, arch=architecture, installed=True)
-		samtools.addPFN(PFN("file://" + self.samtools_path, site_handler))
-		workflow.addExecutable(samtools)
 		
 		
 		PEAlignmentByBWA = Executable(namespace=namespace, name="PEAlignmentByBWA.sh", version=version, os=operatingSystem, \
@@ -945,40 +906,16 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		LongSEAlignmentByBWA.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "LongSEAlignmentByBWA.sh"), site_handler))
 		workflow.addExecutable(LongSEAlignmentByBWA)
 		
-		java = Executable(namespace=namespace, name="java", version=version, os=operatingSystem, arch=architecture, installed=True)
-		java.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(java)
-		
 		mergeSamFilesJava = Executable(namespace=namespace, name="mergeSamFilesJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
 		mergeSamFilesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
 		workflow.addExecutable(mergeSamFilesJava)
-		
-		
-		addOrReplaceReadGroupsJava = Executable(namespace=namespace, name="addOrReplaceReadGroupsJava", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		addOrReplaceReadGroupsJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(addOrReplaceReadGroupsJava)
 		
 		SortSamFilesJava = Executable(namespace=namespace, name="SortSamFilesJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
 		SortSamFilesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
 		workflow.addExecutable(SortSamFilesJava)
 		
-		BuildBamIndexFilesJava = Executable(namespace=namespace, name="BuildBamIndexFilesJava", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		BuildBamIndexFilesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(BuildBamIndexFilesJava)
-		
-		MarkDuplicatesJava = Executable(namespace=namespace, name="MarkDuplicatesJava", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		MarkDuplicatesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(MarkDuplicatesJava)
-		
-		createSequenceDictionaryJava = Executable(namespace=namespace, name="createSequenceDictionaryJava", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		createSequenceDictionaryJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(createSequenceDictionaryJava)
 		
 		#must use db_vervet.data_dir.
 		# If self.dataDir differs from db_vervet.data_dir, this program (must be run on submission host) won't find files.

@@ -88,6 +88,8 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		
 	def getDuoTrioFromAlignmentLs(self, db_vervet, alignmentLs):
 		"""
+		2012.1.25
+			append alignment.id, individual.code to individual_sequence.id (the current trio member ID)
 		2012.1.9
 			split out of getDuoTrioThatExistInVCF()
 		"""
@@ -115,13 +117,13 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 				parent2Sex = 1-(parent1Sex-1)+1	#1 is father. 2 is mother.
 				#output the offspring
 				childAlignment = individual_id2alignmentLs.get(offspring_id)[0]
-				child_id = childAlignment.ind_seq_id
+				child_id = childAlignment.getCompositeID()
 				if parent1Sex==1:
-					father_id = parent1Alignment.ind_seq_id
+					father_id = parent1Alignment.getCompositeID()
 					mother_id = 0
 				else:
 					father_id = 0
-					mother_id = parent1Alignment.ind_seq_id
+					mother_id = parent1Alignment.getCompositeID()
 				trio = '%s,%s,%s'%(father_id, mother_id, child_id)
 				
 			elif familySize==3:
@@ -130,14 +132,14 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 				parent1Sex = parent1Alignment.ind_sequence.individual.codeSexInNumber()
 				parent2Alignment = individual_id2alignmentLs.get(parent2ID)[0]
 				childAlignment = individual_id2alignmentLs.get(offspring_id)[0]
-				child_id = childAlignment.ind_seq_id
+				child_id = childAlignment.getCompositeID()
 				
 				if parent1Sex==1:
-					father_id = parent1Alignment.ind_seq_id
-					mother_id = parent2Alignment.ind_seq_id
+					father_id = parent1Alignment.getCompositeID()
+					mother_id = parent2Alignment.getCompositeID()
 				else:
-					father_id = parent2Alignment.ind_seq_id
-					mother_id = parent1Alignment.ind_seq_id
+					father_id = parent2Alignment.getCompositeID()
+					mother_id = parent1Alignment.getCompositeID()
 				trio = '%s,%s,%s'%(father_id, mother_id, child_id)
 			
 			if trio:

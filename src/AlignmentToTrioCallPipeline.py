@@ -162,11 +162,14 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
 						extraArguments=None, job_max_memory=2000, **keywords):
 		"""
+		2012.1.20
+			increase the rounds from 30 to 40
+			add --burnin 20
 		2011-12-4
 		"""
 		job = Job(namespace=workflow.namespace, name=trioCallerWrapper.name, version=workflow.version)
 		job.addArguments(trioCallerPath, "--shotgun", inputVCF, "--pedfile", pedFile, \
-						"--states 50 --randomPhase --rounds 30",\
+						"--states 50 --randomPhase --rounds 40 --burnin 20",\
 						"--prefix %s"%(os.path.splitext(outputVCF.name)[0]))
 		if extraArguments:
 			job.addArguments(extraArguments)

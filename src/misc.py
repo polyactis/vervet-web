@@ -3378,10 +3378,10 @@ class DBVervet(object):
 		import csv, re
 		from datetime import datetime
 		from pymodule import PassingData
-		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr
+		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
 		import VervetDB
 		
-		reader = csv.reader(open(inputFname,), delimiter='\t')
+		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
 		header = reader.next()
 		
 		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
@@ -3394,6 +3394,7 @@ class DBVervet(object):
 		collector = db_vervet.getUser(collector_name)
 		monkey_id2sex = {}
 		monkey_id2mother_father = {}
+		no_of_new_relationship = 0
 		for row in reader:
 			monkey_id = row[monkey_id_index].strip()
 			if not monkey_id:	#skip if row doesn't have monkey_id
@@ -3432,18 +3433,32 @@ class DBVervet(object):
 				if not father:
 					sys.stderr.write("father %s not in db yet.\n"%(father_id))
 					sys.exit(3)
-				db_vervet.getInd2Ind(individual1=father, individual2=individual, relationship_type_name=relationship_type_name)
+				relationDBEntry = db_vervet.checkSpecificRelationOfIndividual2(individual2=individual, relationship_type_name=relationship_type_name)
+				if relationDBEntry:
+					if relationDBEntry.individual1_id!=father.id:
+						sys.stderr.write("Error: relationship %s has (%s, %s) in db. The new entry (%s %s, %s %s) differs.\n"%(relationship_type_name, \
+								relationDBEntry.individual1_id, relationDBEntry.individual2_id, father.id, father_id, individual.id, individual.ucla_id))
+				else:
+					db_vervet.getInd2Ind(individual1=father, individual2=individual, relationship_type_name=relationship_type_name)
+					no_of_new_relationship += 1
 			if mother_id!='0':
 				relationship_type_name = 'Mother2Child'
 				mother = VervetDB.Individual.query.filter_by(ucla_id=mother_id).filter_by(tax_id=tax_id).first()
 				if not mother:
 					sys.stderr.write("mother %s not in db yet.\n"%(mother_id))
 					sys.exit(3)
-				db_vervet.getInd2Ind(individual1=mother, individual2=individual, relationship_type_name=relationship_type_name)
+				relationDBEntry = db_vervet.checkSpecificRelationOfIndividual2(individual2=individual, relationship_type_name=relationship_type_name)
+				if relationDBEntry:
+					if relationDBEntry.individual1_id!=mother.id:
+						sys.stderr.write("Error: relationship %s has (%s, %s) in db. The new entry (%s %s, %s %s) differs.\n"%(relationship_type_name, \
+								relationDBEntry.individual1_id, relationDBEntry.individual2_id, mohter.id, mother.ucla_id, individual.id, individual.ucla_id))
+				else:
+					db_vervet.getInd2Ind(individual1=mother, individual2=individual, relationship_type_name=relationship_type_name)
+					no_of_new_relationship += 1
 		del reader
 		db_vervet.session.flush()
 		db_vervet.session.commit()
-		sys.stderr.write("Done.\n")
+		sys.stderr.write("%s new relationships. Done.\n"%(no_of_new_relationship))
 	
 	"""
 		#2011-5-6
@@ -3451,11 +3466,10 @@ class DBVervet(object):
 		DBVervet.putPedigreeIntoDB(db_vervet, inputFname, )
 		sys.exit(3)
 		
-		#2011-5-6
-		inputFname =  os.path.expanduser("~/mnt/banyan/mnt/win/vervet-analysis/Yu/VRC_pedigree1_v6 1.tsv")
-		DBVervet.putPedigreeIntoDB(db_vervet, inputFname )
+		#2012.1.23
+		inputFname = "/tmp/VRCPedigree2012FromSue - Jan2012 Ped.csv"
+		DBVervet.putPedigreeIntoDB(db_vervet, inputFname, )
 		sys.exit(3)
-		
 	"""
 	
 	
@@ -3529,11 +3543,14 @@ class DBVervet(object):
 	"""
 	
 	@classmethod
-	def putVRCFoundersIntoDB(cls, db_vervet, inputFname, monkeyIDPrefix="", \
+	def putVRCMonkeysIntoDB(cls, db_vervet, inputFname, monkeyIDPrefix="", \
 						collector_name='Nelson B. Freimer', tax_id=60711, \
 						city='VRC', country_name='United States of America', latitude=36.090, longitude=-80.270,\
-						default_collection_date = '1970'):
+						default_collection_date = '1970', isVRCFounder=False):
 		"""
+		2012.1.27
+			rename from putVRCFoundersIntoDB to putVRCMonkeysIntoDB()
+			it could now add whatever (founder or not) VRC monkeys (argument isVRCFounder)
 		2011-5-7
 			mark individuals who are founders of VRC in table Individual
 		"""
@@ -3554,6 +3571,8 @@ class DBVervet(object):
 		counter = 0
 		
 		collector = db_vervet.getUser(collector_name)
+		counter = 0
+		real_counter = 0
 		for row in reader:
 			monkey_id = row[monkey_id_index].strip()
 			if not monkey_id:	#skip if row doesn't have monkey_id
@@ -3575,23 +3594,31 @@ class DBVervet(object):
 			individual = db_vervet.getIndividual(code=monkey_id, sex=sex, age=None, latitude=None,\
 								longitude=None, altitude=None, ucla_id=monkey_id, site=site, \
 								collection_date=collection_date, collector=collector, \
-								tax_id=tax_id, birthdate=birthdate, vrc_founder=True)
-			if individual.vrc_founder!=True:
-				individual.vrc_founder = True
+								tax_id=tax_id, birthdate=birthdate, vrc_founder=isVRCFounder)
+			counter += 1
+			if individual.vrc_founder!=isVRCFounder:
+				#in db before this function is run and vrc_founder is set to value different from what we want.
+				# so add&flush it again. 
+				individual.vrc_founder = isVRCFounder
 				db_vervet.session.add(individual)
 				db_vervet.session.flush()
+				real_counter += 1
 		del reader
 		db_vervet.session.flush()
 		db_vervet.session.commit()
-		sys.stderr.write("Done.\n")
+		sys.stderr.write("%s monkeys visited; vrc_founder status of %s monkeys changed.\n"%(counter, real_counter))
 		
 	"""
 		
 		#2011-5-9
 		inputFname =  os.path.expanduser("~/mnt/banyan/mnt/win/vervet-analysis/Yu/VRC/vrc founders.csv")
-		DBVervet.putVRCFoundersIntoDB(db_vervet, inputFname)
+		DBVervet.putVRCMonkeysIntoDB(db_vervet, inputFname, isVRCFounder=True)
 		sys.exit(4)
-		
+	
+		#2012.1.27
+		inputFname =  os.path.expanduser("/tmp/723MonkeysForWGS - 162UnpedigreeMonkeys.csv")
+		DBVervet.putVRCMonkeysIntoDB(db_vervet, inputFname, isVRCFounder=False)
+		sys.exit(4)
 		
 	"""
 	
@@ -3765,6 +3792,45 @@ class DBVervet(object):
 		monkey_id = '0'*(no_of_digits_in_id-monkey_id_len) + monkey_id	#add "0" in front of it
 		monkey_id = monkeyIDPrefix + monkey_id	#add the prefix
 		return monkey_id
+	
+	@classmethod
+	def correctIndividualSequenceFilePath(cls, db_vervet, maxDBID=986):
+		"""
+		2012.2.10
+			some paths were wrong during a ConvertOldIsqRecordsPipeline-workflow run, without the id embedded in the front.
+		"""
+		
+		db_vervet.session.begin()
+		import VervetDB
+		Table = VervetDB.IndividualSequenceFile
+		query = Table.query.filter(Table.id<=maxDBID)
+		counter = 0
+		real_counter = 0
+		for row in query:
+			counter += 1
+			absPath = os.path.join(db_vervet.data_dir, row.path)
+			if not os.path.isfile(absPath):
+				folder, filename = os.path.split(row.path)
+				newfilename = '%s_%s'%(row.id, filename)
+				newPath = os.path.join(folder, newfilename)
+				row.path = newPath
+				db_vervet.session.add(row)
+				db_vervet.session.flush()
+				newAbsPath = os.path.join(db_vervet.data_dir, newPath)
+				if not os.path.isfile(newAbsPath):
+					sys.stderr.write("Warning: %s doesn't exist.\n"%(newAbsPath))
+					sys.exit(4)
+				real_counter += 1
+		db_vervet.session.commit()
+		sys.stderr.write("%s out of %s entries modified with new path.\n"%(real_counter, counter))
+		
+	"""
+		#2012.2.10
+		DBVervet.correctIndividualSequenceFilePath(db_vervet, maxDBID=986)
+		sys.exit(0)
+		
+		
+	"""
 	
 	@classmethod
 	def put2011StKittsIntoDB(cls, db_vervet, inputFname, gpsDataInputFname, monkeyIDPrefix="VWP", \
@@ -4118,24 +4184,254 @@ class DBVervet(object):
 	"""
 	
 	@classmethod
-	def drawPedigree(cls, db_vervet, outputFnamePrefix=None, baseNodeSize=40):
+	def getMonkeyID2Coverage(cls, inputFname):
 		"""
+		2012.2.10
+			inputFname is output of SequencingStrategy.assignVRCSequencePriorityBasedOnPedigree() + manual change of top ones
+		"""
+		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
+		import VervetDB
+		import csv
+		sys.stderr.write("Reading the list of ranked monkeys from %s ..."%(inputFname))
+		reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("UCLAID")
+		pre_set_coverage_index = col_name2index.get("pre-set-coverage")
+		future_coverage_index = col_name2index.get("future coverage")
+		to_sequence_monkey_id2coverage = {}
+		for row in reader:
+			monkey_id = row[monkey_id_index]
+			pre_set_coverage = row[pre_set_coverage_index]
+			if pre_set_coverage:
+				pre_set_coverage = float(pre_set_coverage)
+			else:
+				pre_set_coverage = 0
+			future_coverage = 0
+			if len(row)>=future_coverage_index+1:
+				future_coverage = float(row[future_coverage_index])
+			to_sequence_monkey_id2coverage[monkey_id] = max(future_coverage, pre_set_coverage)
+		del reader
+		sys.stderr.write(" %s monkeys are to-be-sequenced.\n"%(len(to_sequence_monkey_id2coverage)))
+		return to_sequence_monkey_id2coverage
+		
+		"""
+		#below is to read from a more simple file 
+		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
+		import VervetDB
+		import csv
+		
+		sys.stderr.write("Reading from %s ... "%(inputFname))
+		reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("UCLAID")
+		coverage_index = col_name2index.get("coverage")
+		if coverage_index is None:
+			coverage_index = col_name2index.get("targetCoverage")
+		monkey_id2preDeterminedCoverage = {}
+		for row in reader:
+			monkey_id = row[monkey_id_index]
+			coverage = float(row[coverage_index])
+			monkey_id2preDeterminedCoverage[monkey_id] = coverage
+		del reader
+		sys.stderr.write("%s monkeys.\n"%(len(monkey_id2preDeterminedCoverage)))
+		return monkey_id2preDeterminedCoverage
+		"""
+		
+	
+	@classmethod
+	def getMonkeyIDPair2Coverage(cls, inputFname):
+		"""
+		2012.2.10
+		"""
+		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
+		import VervetDB
+		import csv
+		
+		sys.stderr.write("Reading kinship from %s ... "%(inputFname))
+		reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey1_id_index = col_name2index.get("monkeyId1")
+		monkey2_id_index = col_name2index.get("monkeyId2")
+		kinship_index = col_name2index.get("kinship")
+		monkey_id_pair2kinship = {}
+		for row in reader:
+			monkey1_id = row[monkey1_id_index]
+			monkey2_id = row[monkey2_id_index]
+			kinship = float(row[kinship_index])
+			pair_in_ls = [monkey1_id, monkey2_id]
+			pair_in_ls.sort()
+			monkey_id_pair2kinship[tuple(pair_in_ls)] = kinship
+		del reader
+		sys.stderr.write("%s pairs of monkeys.\n"%(len(monkey_id_pair2kinship)))
+		return monkey_id_pair2kinship
+	
+	
+	
+	@classmethod
+	def drawKinshipHistogram(cls, outputFnamePrefix=None, kinshipFname=None, monkeyCoverageFname=None):
+		"""
+		2012.2.10
+			
+		"""
+		monkey_id_pair2kinship = cls.getMonkeyIDPair2Coverage(kinshipFname)
+		monkey_id2coverage = cls.getMonkeyID2Coverage(monkeyCoverageFname)
+		
+		import VervetDB
+		import networkx as nx
+		from pymodule import yh_matplotlib
+		
+		kinship_ls = []
+		monkey_id_ls = monkey_id2coverage.keys()
+		monkey_id_ls.sort()
+		no_of_monkeys = len(monkey_id_ls)
+		for i in xrange(no_of_monkeys):
+			for j in xrange(i+1, no_of_monkeys):
+				pair_in_ls = [monkey_id_ls[i], monkey_id_ls[j]]
+				pair_in_ls.sort()
+				pair_key = tuple(pair_in_ls)
+				kinship = monkey_id_pair2kinship.get(pair_key)
+				if kinship is not None:
+					kinship_ls.append(float(kinship))
+					
+		sys.stderr.write("Plotting histogram ....")
+		outputFname = '%s_kinshipHistogram.png'%(outputFnamePrefix)
+		yh_matplotlib.drawHist(kinship_ls, title="Histogram of %s kinship between %s monkeys"%(len(kinship_ls), no_of_monkeys), xlabel_1D="kinship", \
+							outputFname=outputFname, min_no_of_data_points=50, needLog=False, min_no_of_bins=40)
+		
+		"""
+		#2012.2.10
+		kinshipFname = "/Network/Data/vervet/Kinx2Jan2012.txt"
+		monkeyCoverageFname = 
+		outputFnamePrefix
+		DBVervet.drawKinshipHistogram(outputFnamePrefix=outputFnamePrefix, kinshipFname=kinshipFname, monkeyCoverageFname=monkeyCoverageFname)
+		sys.exit(0)
+		"""
+	
+	
+	@classmethod
+	def PCAKinship(cls, db_vervet, kinshipFname=None, outputFnamePrefix=None, monkeyType=1):
+		"""
+		2012.2.16
+			argument monkeyType to filter monkeys to be included for PCA
+				1: all in the kinship file
+				2: only the ones that have sequences
+				3: only the ones that have alignment done
+			
+			Run PCA on the vervet kinship matrix
+			
+			
+			output the data in a matrix fashion that the web MotionChartAppMCPanel app would recognize 
+		"""
+		import VervetDB
+		if monkeyType==1:
+			restrictMonkeyIDSet= None
+		elif monkeyType==2 or monkeyType==3:
+			if monkeyType==2:
+				query = VervetDB.IndividualSequence.query
+			else:
+				query = VervetDB.IndividualAlignment.query
+			restrictMonkeyIDSet = set()
+			for row in query:
+				if monkeyType==2:
+					monkey_id = row.individual.code
+				else:
+					monkey_id = row.individual_sequence.individual.code
+				restrictMonkeyIDSet.add(monkey_id)
+		
+		monkey_id_pair2kinship = cls.getMonkeyIDPair2Coverage(kinshipFname)
+		
+		
+		monkey_id2index = {}
+		
+		for pair_key, kinship in monkey_id_pair2kinship.iteritems():
+			monkey1_id, monkey2_id = pair_key[:2]
+			if restrictMonkeyIDSet is None or monkey1_id in restrictMonkeyIDSet:
+				if monkey1_id not in monkey_id2index:
+					monkey_id2index[monkey1_id] = len(monkey_id2index)
+			if restrictMonkeyIDSet is None or monkey2_id in restrictMonkeyIDSet:
+				if monkey2_id not in monkey_id2index:
+					monkey_id2index[monkey2_id] = len(monkey_id2index)
+		
+		no_of_monkeys = len(monkey_id2index)
+		sys.stderr.write("%s monkeys to be included for PCA.\n"%(no_of_monkeys))
+		
+		sys.stderr.write("Putting kinship into matrix form ...   ")
+		monkey_key_id_ls = monkey_id2index.keys()
+		monkey_id_ls = ['']*no_of_monkeys
+		kinshipMatrix = []
+		for i in xrange(no_of_monkeys):
+			kinshipMatrix.append([-1]*no_of_monkeys)
+			kinshipMatrix[i][i]=1	#diagonal is 1
+			monkey_id = monkey_key_id_ls[i]
+			monkey_index = monkey_id2index.get(monkey_id)
+			monkey_id_ls[monkey_index] = monkey_id
+		
+		for pair_key, kinship in monkey_id_pair2kinship.iteritems():
+			monkey1_id, monkey2_id = pair_key[:2]
+			if monkey1_id in monkey_id2index and monkey2_id in monkey_id2index:
+				monkey1_index = monkey_id2index.get(monkey1_id)
+				monkey2_index = monkey_id2index.get(monkey2_id)
+				kinship = float(kinship)
+				kinshipMatrix[monkey1_index][monkey2_index] = kinship
+				kinshipMatrix[monkey2_index][monkey1_index] = kinship
+		sys.stderr.write(".\n")
+		
+		
+		import numpy
+		kinshipMatrix = numpy.array(kinshipMatrix)
+		from pymodule.SNP import SNPData 
+		kinshipData = SNPData(row_id_ls = monkey_id_ls, col_id_ls=monkey_id_ls, data_matrix=kinshipMatrix)
+		
+		kinshipData = kinshipData.removeRowsSoThatMatrixHasNoMissingData(missingDataValue=-1)
+		
+		# run PCA
+		sys.stderr.write("Carrying out PCA on %s matrix ..."%(repr(kinshipData.data_matrix.shape)))
+		import csv
+		outputPCA_fname = '%s_monkeyType%s_PCA_on_Kinship.tsv'%(outputFnamePrefix, monkeyType)
+		outputPCA_writer = csv.writer(open(outputPCA_fname, 'w'), delimiter='\t')
+		
+		import pca_module
+		from pymodule.PCA import PCA
+		from datetime import datetime
+		#T, P, explained_var = pca_module.PCA_svd(phenData_trans.data_matrix, standardize=True)
+		T, P, explained_var = PCA.eig(kinshipData.data_matrix, normalize=False)	#normalize=True causes missing value in the covariance matrix
+		# get the category information for each phenotype
+		header = ['MonkeyID', 'DummyTime', 'Age', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6']
+		outputPCA_writer.writerow(header)
+		for i in xrange(len(kinshipData.row_id_ls)):
+			row_id = kinshipData.row_id_ls[i]
+			monkey = VervetDB.Individual.query.filter_by(code=row_id).first()
+			if monkey and monkey.getCurrentAge():
+				age = monkey.getCurrentAge()
+			else:
+				age = ''
+			data_row = [row_id, '2012', age] + list(T[i,0:6])
+			outputPCA_writer.writerow(data_row)
+		del outputPCA_writer
+		sys.stderr.write("Done.\n")
+		
+	"""
+		#2012.2.17
+		kinshipFname = "/Network/Data/vervet/Kinx2Jan2012.txt"
+		outputFnamePrefix = '/Network/Data/vervet/Kinx2Jan2012'
+		DBVervet.PCAKinship(db_vervet, kinshipFname=kinshipFname, outputFnamePrefix=outputFnamePrefix, monkeyType=1)
+		sys.exit(0)
+	"""
+	
+	@classmethod
+	def drawPedigree(cls, db_vervet, outputFnamePrefix=None, baseNodeSize=40, monkeyCoverageFname=None):
+		"""
+		2012.2.10
+			add argument monkeyCoverageFname to override coverage data from db
 		2011-5-6
 			
 		"""
-		sys.stderr.write("Getting pedigree from db ...")
-		import networkx as nx
-		DG=nx.DiGraph()
-		
 		import VervetDB
-		
-		for row in VervetDB.Ind2Ind.query:
-			DG.add_edge(row.individual1_id, row.individual2_id)
-		
-		
-		sys.stderr.write("%s nodes. %s edges. %s connected components. Done.\n"%(DG.number_of_nodes(), DG.number_of_edges(), \
-																	nx.number_connected_components(DG.to_undirected())))
-		
+		import networkx as nx
+		DG = db_vervet.constructPedgree()
 		from pymodule import yh_matplotlib
 		sys.stderr.write("Plotting out degree histogram ....")
 		out_degree_ls = []
@@ -4150,6 +4446,10 @@ class DBVervet(object):
 		sex2node_property_list = {}		# in node_property_list, each entry is (node, size, color)
 		#size depends on whether it's deep-sequenced (30X), 4 for 30X, 8 for the REF, 2 for all others. 
 		#color depends on it's sequenced or not
+		if monkeyCoverageFname and os.path.isfile(monkeyCoverageFname):
+			monkey_id2coverage = cls.getMonkeyID2Coverage(monkeyCoverageFname)
+		else:
+			monkey_id2coverage = {}
 		for v in DG:
 			individual = VervetDB.Individual.get(v)
 			sex = individual.sex
@@ -4159,18 +4459,23 @@ class DBVervet(object):
 				filter_by(individual_id=individual.id).first()
 			node_color = 0.8	#color for the sequenced
 			
-			
-			if individual_sequence is None:
+			coverage = monkey_id2coverage.get(individual.code)
+			if coverage is None and individual_sequence is not None:
+				coverage = individual_sequence.coverage
+			if coverage is None:
 				node_size =baseNodeSize
 				node_color = 0	#not sequenced in a different color
-			elif individual_sequence.coverage<5:
-				node_size = baseNodeSize*12
-			elif individual_sequence.coverage==30:
-				node_size = baseNodeSize*36
-			elif individual_sequence.individual_id==1:	#the reference
-				node_size = baseNodeSize*108
 			else:
-				node_size = baseNodeSize
+				if individual.id==1:	#the reference
+					node_size = baseNodeSize*108
+				elif coverage<2:
+					node_size = baseNodeSize*3
+				elif coverage<8:
+					node_size = baseNodeSize*12
+				elif coverage>=20:
+					node_size = baseNodeSize*36
+				else:
+					node_size = baseNodeSize
 			
 			if individual.vrc_founder:
 				node_color = 0.25
@@ -4231,7 +4536,7 @@ class DBVervet(object):
 		
 		drawGraphNodes(DG, pos, sex2node_property_list)
 		#nx.draw_graphviz(DG, prog=layout,with_labels=False, alpha=0.5)
-		pylab.savefig('%s_graphviz_%s_graph.png'%(outputFnamePrefix, layout), dpi=100)
+		pylab.savefig('%s_graphviz_%s_graph.png'%(outputFnamePrefix, layout), dpi=50)
 		
 		
 		
@@ -4264,10 +4569,628 @@ class DBVervet(object):
 		DBVervet.drawPedigree(db_vervet, outputFnamePrefix=outputFnamePrefix)
 		sys.exit(0)
 		
-		
+		#2012.2.10
+		outputFnamePrefix = os.path.expanduser('~/script/vervet/data/pedigree_723Highlight')
+		monkeyCoverageFname = "/tmp/723MonkeysForWGS_to_be_sequenced.tsv"
+		DBVervet.drawPedigree(db_vervet, outputFnamePrefix=outputFnamePrefix, monkeyCoverageFname=monkeyCoverageFname)
+		sys.exit(0)
 		
 	"""
 	
+	
+	class SequencingStrategy(object):
+		def __init__(self):
+			pass
+		
+		@classmethod
+		def rankMonkeysByContributionToChildrenSet(cls, db_vervet, DG,):
+			"""
+			2012.1.24
+			Input:
+				DG is a directed graph. each node is individual.id.
+			Algorithm
+				1. (Input) Construct the pedigree as a directed graph. Each node represents a monkey.
+					Each edge goes from one parent (father/mother) to a child.
+					Remove monkeys that will not be sequenced.
+				2. Initialize an empty set (AKA child-set).
+					It will store the ID of monkeys whose one parent has been already ranked.
+					No identical IDs would be stored in it.
+				3. Start with the individual that have the most children (direct-descendants) to be sequenced.
+					Assign that monkey with rank 1 and add its direct descendants into the child-set.
+				4. Select the next individual that would increase the most the size of the child set.
+					If there are ties (contribution to the child set is identical for >1 monkeys), younger monkey will have lower rank.
+					Further ties would be broken in a 2nd-run of this greedy algorithm if necessary.
+				5. Stop when there are no monkeys left to be ranked.
+			"""
+			sys.stderr.write("Ranking monkeys based on how many new children they bring into the children set ...")
+			individual_id2rank_data = {}
+			children_set = set()
+			
+			import VervetDB
+			unranked_nodes = set(DG.nodes())
+			
+			while len(unranked_nodes)>0:
+				max_increment = None
+				increment2monkey_data_ls = {}
+				for node in unranked_nodes:
+					if node not in individual_id2rank_data:
+						its_children_set = set(DG.successors(node))
+						increment = len(its_children_set-children_set)
+						if increment not in increment2monkey_data_ls:
+							increment2monkey_data_ls[increment] = []
+						if max_increment is None or increment > max_increment:
+							max_increment = increment
+						individual = VervetDB.Individual.get(node)
+						ucla_id = individual.code
+						if len(ucla_id)>4:	#monkeys born in the colony
+							birthyear = int(ucla_id[:4])
+							orderOfThatYear = int(ucla_id[4:])
+						else:	#monkeys born outside
+							birthyear = int(ucla_id)
+							orderOfThatYear = 1
+						increment2monkey_data_ls[increment].append( ((birthyear, orderOfThatYear), node, its_children_set) )
+				if max_increment is None:
+					sys.stderr.write("Error: max_increment is 0 after one round of searching.\n")
+					import pdb
+					pdb.set_trace()
+				else:
+					monkey_data_ls = increment2monkey_data_ls[max_increment]
+					monkey_data_ls.sort()	#oldest monkey will be first ranked 
+					individual_id = monkey_data_ls[0][1]
+					its_children_set = monkey_data_ls[0][2]
+					children_set = children_set | its_children_set
+					unranked_nodes.remove(individual_id)
+					individual_id2rank_data[individual_id] = [len(individual_id2rank_data)+1, max_increment, its_children_set]
+			sys.stderr.write("%s monkeys ranked.\n"%(len(individual_id2rank_data)))
+			return individual_id2rank_data
+		
+		@classmethod
+		def getToBeSequencedMonkeysFromFile(cls, inputFnameWithMonkeysToBeSequenced, monkey_id2preDeterminedCoverage=None,\
+										sequenced_monkey_id_set=None):
+			"""
+			2012.2.8
+				split out of assignVRCSequencePriorityBasedOnPedigree()
+			"""
+			from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
+			import VervetDB
+			import csv
+			sys.stderr.write("Reading the list of monkeys to be sequenced from %s ..."%(inputFnameWithMonkeysToBeSequenced))
+			reader = csv.reader(open(inputFnameWithMonkeysToBeSequenced), delimiter=figureOutDelimiter(inputFnameWithMonkeysToBeSequenced))
+			
+			header = reader.next()
+			col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+			monkey_id_index = col_name2index.get("UCLAID")
+			sequenced_already_toggle_index = col_name2index.get("sequenced")
+			no_of_monkeys_set_coverage = 0
+			to_sequence_monkey_id2status = {}	#status=0, not sequenced yet; =1, sequenced already
+			for row in reader:
+				monkey_id = row[monkey_id_index]
+				sequenced_already = int(row[sequenced_already_toggle_index])
+				if monkey_id2preDeterminedCoverage is not None and sequenced_already==1 and monkey_id not in monkey_id2preDeterminedCoverage:
+					monkey_id2preDeterminedCoverage[monkey_id] = defaultCoverageForSequenced
+					no_of_monkeys_set_coverage += 1
+				if sequenced_monkey_id_set is not None and sequenced_already==1:
+					sequenced_monkey_id_set.add(monkey_id)
+				to_sequence_monkey_id2status[monkey_id] = sequenced_already
+			del reader
+			sys.stderr.write(" %s monkeys coverage set among %s total to-be-sequenced monkeys.\n"%\
+							(no_of_monkeys_set_coverage, len(to_sequence_monkey_id2status)))
+			return to_sequence_monkey_id2status
+		
+		@classmethod
+		def assignVRCSequencePriorityBasedOnPedigree(cls, db_vervet, inputFnameWithMonkeysToBeSequenced, \
+								preDeterminedCoverageMonkeyFilename, defaultCoverageForSequenced=4, outputFname=None,\
+								ref_ind_seq_id=524, no_of_monkeys_to_be_sequenced_at_1X=301):
+			"""
+			2012.1.23
+				inputFnameWithMonkeysToBeSequenced contains two important columns:
+					UCLAID, sequenced.
+					other columns can be ignored.
+					If sequenced is 1, it is either sequenced or planned to be sequenced at 4X (or 30X).
+				
+				preDeterminedCoverageMonkeyFilename contains two columns:
+					UCLAID, coverage.
+					Some monkeys in this file might not be in inputFnameWithMonkeysToBeSequenced.
+				
+				output:
+					UCLAID, vervet db id, rank, #of direct children, known coverage, future coverage.
+					
+				For known coverage, db.alignment.median_depth (reference individual sequence id=524) overrides the entries 
+					from preDeterminedCoverageMonkeyFilename;
+					entries from preDeterminedCoverageMonkeyFilename overrides inputFnameWithMonkeysToBeSequenced.
+			"""
+			from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
+			import VervetDB
+			import csv
+			sequenced_monkey_id_set = set()	#to keep track of sequenced ones.
+			
+			sys.stderr.write("Reading from %s ... "%(preDeterminedCoverageMonkeyFilename))
+			reader = csv.reader(open(preDeterminedCoverageMonkeyFilename), delimiter=figureOutDelimiter(preDeterminedCoverageMonkeyFilename))
+			header = reader.next()
+			col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+			monkey_id_index = col_name2index.get("UCLAID")
+			coverage_index = col_name2index.get("coverage")
+			monkey_id2preDeterminedCoverage = {}
+			for row in reader:
+				monkey_id = row[monkey_id_index]
+				coverage = float(row[coverage_index])
+				monkey_id2preDeterminedCoverage[monkey_id] = coverage
+			del reader
+			sys.stderr.write("%s monkeys.\n"%(len(monkey_id2preDeterminedCoverage)))
+			
+			to_sequence_monkey_id2status= cls.getToBeSequencedMonkeysFromFile(inputFnameWithMonkeysToBeSequenced, \
+												monkey_id2preDeterminedCoverage=monkey_id2preDeterminedCoverage,\
+												sequenced_monkey_id_set=sequenced_monkey_id_set)
+			
+			sys.stderr.write("Overriding coverage based on db.individual_alignment ...")
+			query = VervetDB.IndividualAlignment.query.filter_by(ref_ind_seq_id=ref_ind_seq_id)
+			counter = 0
+			for row in query:
+				monkey_id = row.ind_sequence.individual.ucla_id
+				sequenced_monkey_id_set.add(monkey_id)
+				if monkey_id not in monkey_id2preDeterminedCoverage:
+					sys.stderr.write("\t monkey %s (%s) has been sequenced but not included for sequencing.\n"%(monkey_id, row.ind_sequence.individual.id))
+				if row.median_depth is not None:
+					monkey_id2preDeterminedCoverage[monkey_id] = row.median_depth
+					counter += 1
+				elif row.ind_sequence.coverage is not None:
+					monkey_id2preDeterminedCoverage[monkey_id] = row.ind_sequence.coverage
+					counter += 1
+			sys.stderr.write("%s monkeys set coverage.\n"%(counter))
+			
+			DG = db_vervet.constructPedgree()
+			sys.stderr.write("Removing monkeys that won't be sequenced from the pedigree graph ...")
+			import networkx as nx
+			counter = 0
+			for node in DG.nodes():
+				individual = VervetDB.Individual.get(node)
+				ucla_id = individual.code
+				if ucla_id not in to_sequence_monkey_id2status:
+					DG.remove_node(node)
+					counter += 1
+			sys.stderr.write("%s monkeys removed.\n"%(counter))
+			sys.stderr.write("%s nodes. %s edges. %s connected components.\n"%(DG.number_of_nodes(), DG.number_of_edges(), \
+																nx.number_connected_components(DG.to_undirected())))
+			
+			individual_id2rank_data = cls.rankMonkeysByContributionToChildrenSet(db_vervet, DG)
+			
+			sys.stderr.write("Convert individual_id2rank_data to a list ...")
+			out_degree_node_ls = []
+			allNodes = DG.nodes()
+			for node, rank_data in individual_id2rank_data.iteritems():
+				rank, increment, its_children_set = rank_data
+				out_degree_node_ls.append([rank, increment, len(its_children_set), node])
+			out_degree_node_ls.sort()
+			sys.stderr.write("Done.\n")
+			
+			sys.stderr.write("Ranking monkeys and add them to output data structure ...")
+			output_data_matrix = []
+			rank = 0
+			counter = 0
+			ucla_id2rank = {}
+			for rank, increment, out_degree, individual_id in out_degree_node_ls:
+				individual = VervetDB.Individual.get(individual_id)
+				ucla_id = individual.code
+				if ucla_id in to_sequence_monkey_id2status:
+					preSetCoverage = monkey_id2preDeterminedCoverage.get(ucla_id)
+					if preSetCoverage is None:
+						preSetCoverage = ''
+					if ucla_id in sequenced_monkey_id_set:
+						sequenced = 1
+					else:
+						sequenced = 0
+					row = [ucla_id, individual_id, rank, increment, out_degree, preSetCoverage, sequenced]
+					output_data_matrix.append(row)
+					ucla_id2rank[ucla_id] = rank
+					
+					counter += 1
+				else:
+					sys.stderr.write("Error: %s (%s) is ranked but not to be sequenced.\n"%(ucla_id, individual_id))
+			sys.stderr.write("%s added.\n"%(counter))
+			
+			
+			sys.stderr.write("Adding un-ranked and to-be-sequenced monkeys ...")
+			counter= 0
+			for ucla_id in to_sequence_monkey_id2status:
+				if ucla_id not in ucla_id2rank:
+					individual = VervetDB.Individual.query.filter_by(code=ucla_id).first()
+					preSetCoverage = monkey_id2preDeterminedCoverage.get(ucla_id)
+					if preSetCoverage is None:
+						preSetCoverage = ''
+					if individual:
+						individual_id = individual.id
+					else:
+						individual_id = ''
+					increment = -1
+					rank = ''
+					out_degree = -1
+					if ucla_id in sequenced_monkey_id_set:
+						sequenced = 1
+					else:
+						sequenced = 0
+					row = [ucla_id, individual_id, rank, increment, out_degree, preSetCoverage, sequenced]
+					output_data_matrix.append(row)
+					counter += 1
+			sys.stderr.write("%s monkeys added.\n"%(counter))
+			
+			sys.stderr.write("Assigning 1X and 4X...")
+			counter = 0
+			for i in xrange(len(output_data_matrix)):
+				index = -i-1	#from the bottom
+				monkey_id = output_data_matrix[index][0]
+				if monkey_id not in monkey_id2preDeterminedCoverage:
+					counter += 1
+					if counter >no_of_monkeys_to_be_sequenced_at_1X:
+						futureCoverage = 4
+					else:
+						futureCoverage = 1
+					output_data_matrix[-i-1].append(futureCoverage)
+			
+			sys.stderr.write("%s monkeys set.\n"%(counter))
+			
+			sys.stderr.write("Output data to %s ..."%(outputFname))
+			writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+			header = ['UCLAID', 'vervet db id', 'rank', 'increment', '#direct children', 'pre-set-coverage', 'sequenced', 'future coverage']
+			writer.writerow(header)
+			counter = 0
+			for row in output_data_matrix:
+				writer.writerow(row)
+				counter += 1
+			sys.stderr.write("%s monkeys outputted with rank.\n"%(counter))
+			
+			
+		
+		"""
+			#2012.1.23
+			inputFnameWithMonkeysToBeSequenced = '/tmp/723MonkeysForWGS - FromAnia.csv'
+			preDeterminedCoverageMonkeyFilename = '/tmp/723MonkeysForWGS - VervetRNADevelopment.csv'
+			outputFname = '/tmp/723MonkeysForWGS_to_be_sequenced.tsv'
+			DBVervet.SequencingStrategy.assignVRCSequencePriorityBasedOnPedigree(db_vervet, inputFnameWithMonkeysToBeSequenced, \
+								preDeterminedCoverageMonkeyFilename, defaultCoverageForSequenced=4, outputFname=outputFname,\
+								ref_ind_seq_id=524, no_of_monkeys_to_be_sequenced_at_1X=301)
+			sys.exit(0)
+		"""
+		
+		@classmethod
+		def outputParentConfDistributionOfGivenMonkeyList(cls, monkey_list, monkey_id2parentConf, parentConf2index=None, output=False):
+			"""
+			2012.2.7
+			"""
+			sys.stderr.write("Outputing parentConf for %s monkeys ...\n"%(len(monkey_list)))
+			parentConfVector = [0]*len(parentConf2index)
+			parentConf2count = {}
+			parentConf2prob = {}
+			for monkey_id in monkey_list:
+				parentConf = monkey_id2parentConf.get(monkey_id)
+				if parentConf not in parentConf2count:
+					parentConf2count[parentConf] = 0
+				parentConf2count[parentConf] += 1
+			
+			for parentConf, count in parentConf2count.iteritems():
+				prob = count/float(len(monkey_list))
+				row_index = parentConf2index.get(parentConf)
+				parentConfVector[row_index] = prob
+			
+			
+			if output:
+				parentConfLs = ['']*len(parentConf2index)
+				for parentConf, index in parentConf2index.iteritems():
+					parentConfLs[index] = parentConf
+				for i in xrange(len(parentConfVector)):
+					parentConf = parentConfLs[i]
+					prob = parentConfVector[i]
+					count = parentConf2count.get(parentConf, 0)
+					parentConf
+					sys.stderr.write("%s\t%s\t%s\n"%(repr(parentConf), count, prob))
+			sys.stderr.write(".\n")
+			return parentConfVector
+		
+		@classmethod
+		def sample1XMonkeys(cls, partitionId2size, monkey_id2parentConf=None, parentConf2interval=None, DG=None, parentConf2index=None,\
+						monkey_id2coverage=None):
+			"""
+			2012.2.7
+			"""
+			sys.stderr.write("Sampling monkeys ...")
+			import random, VervetDB
+			smaller_set= set()
+			bigger_set = set()
+			smaller_set_size_limit = partitionId2size[1]
+			bigger_set_size_limit = partitionId2size[2]
+			
+			while len(smaller_set)<smaller_set_size_limit and len(bigger_set)<bigger_set_size_limit:
+				for monkey_id, parentConf in monkey_id2parentConf.iteritems():
+					if len(smaller_set)>=smaller_set_size_limit or len(bigger_set)>=bigger_set_size_limit:
+						break
+					prob_interval = parentConf2interval.get(parentConf)
+					u = random.random()
+					if u>=prob_interval[0] and u<prob_interval[1]:
+						partitionId = 1
+						smaller_set.add(monkey_id)
+					else:
+						partitionId = 2
+						bigger_set.add(monkey_id)
+			
+			sys.stderr.write("%s monkeys in the smaller set, %s monkeys in the big set.\n"%(len(smaller_set), len(bigger_set)))
+			
+			
+			if len(smaller_set)<partitionId2size[1]:
+				set_to_add = smaller_set
+			else:
+				set_to_add = bigger_set
+			partitionId2MonkeyList={}
+			for monkey_id, parentConf in monkey_id2parentConf.iteritems():
+				if monkey_id not in smaller_set and monkey_id not in bigger_set:
+					set_to_add.add(monkey_id)
+			partitionId2MonkeyList[1] = list(smaller_set)
+			partitionId2MonkeyList[2] = list(bigger_set)
+			sys.stderr.write("%s monkeys in the smaller set, %s monkeys in the big set.\n"%(len(smaller_set), len(bigger_set)))
+			
+			#choose the extra 5 from smaller_set and send it the big set
+			sys.stderr.write("Choosing the extra 5 to overlap between two sets ...")
+			count = 0
+			for monkey_id in smaller_set:
+				individual = VervetDB.Individual.query.filter_by(code=monkey_id).first()
+				if individual.id in DG:
+					parent_id_ls = DG.predecessors(individual.id)
+					parent_coverage_ls = []
+					for parent_id in parent_id_ls:
+						parent = VervetDB.Individual.get(parent_id)
+						parent_code = parent.code
+						if parent_code in monkey_id2coverage:
+							parent_coverage = monkey_id2coverage.get(parent_code)
+						else:
+							parent_coverage = -1
+						parent_coverage_ls.append(parent_coverage)
+				else:
+					parent_coverage_ls = [-2,-2]
+				if parent_coverage_ls[0]!=1 and parent_coverage_ls[1]!=1 and  parent_coverage_ls[0]!=-2 and parent_coverage_ls[1]!=-2:
+					if count>=5:
+						break
+					partitionId2MonkeyList[2].append(monkey_id)
+					count += 1
+			sys.stderr.write("%s .\n"%count)
+			
+			parentConfVector1 = cls.outputParentConfDistributionOfGivenMonkeyList(partitionId2MonkeyList[1], monkey_id2parentConf,\
+														parentConf2index=parentConf2index)
+			parentConfVector2 = cls.outputParentConfDistributionOfGivenMonkeyList(partitionId2MonkeyList[2], monkey_id2parentConf,\
+														parentConf2index=parentConf2index)
+			import numpy
+			correlationMatrix = numpy.corrcoef(parentConfVector1, parentConfVector2, rowvar=1)
+			parentConfDist =  1-correlationMatrix[0,1]
+			return partitionId2MonkeyList, parentConfDist
+		
+		@classmethod
+		def partition1XMonkeySet(cls, db_vervet, inputFname, outputFname, partitionId2size={1:96, 2:205}, no_of_samplings=500):
+			"""
+			2012.2.7
+				algorithm to partition 301 monkeys @ 1X between McGill & WUSTL
+				
+				https://docs.google.com/document/d/1XHvtj8QJhFD2ywr-QTILpX_pTdBoQK0_og4Pw1_w_08/edit?hl=en_US#heading=h.oesjik18oj7g
+			"""
+			#read the input first
+			from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
+			import VervetDB
+			import csv
+			
+			sys.stderr.write("Reading from %s ... "%(inputFname))
+			reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+			header = reader.next()
+			col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+			monkey_id_index = col_name2index.get("UCLAID")
+			coverage_index = col_name2index.get("future coverage")
+			pre_coverage_index = col_name2index.get("pre-set-coverage")
+			monkey_id2parentConf = {}
+			monkey_id2coverage = {}
+			for row in reader:
+				monkey_id = row[monkey_id_index]
+				if len(row)<coverage_index+1:
+					coverage = None
+				else:
+					coverage = row[coverage_index]
+				if not coverage:
+					coverage = row[pre_coverage_index]
+				if not coverage:
+					sys.stderr.write("Error, monkey %s has no coverage.\n"%(monkey_id))
+				coverage = float(coverage)
+				if coverage==1.0:
+					monkey_id2parentConf[monkey_id] = []
+				monkey_id2coverage[monkey_id] = coverage
+			del reader
+			sys.stderr.write("%s monkeys.\n"%(len(monkey_id2parentConf)))
+			
+			#get the graph
+			DG = db_vervet.constructPedgree()
+			
+			#get the probability
+			sys.stderr.write("Counting parent configurations...")
+			parentConf2count = {}
+			for monkey_id in monkey_id2parentConf:
+				individual = VervetDB.Individual.query.filter_by(code=monkey_id).first()
+				if individual.id in DG:
+					parent_id_ls = DG.predecessors(individual.id)
+					parent_coverage_ls = []
+					for parent_id in parent_id_ls:
+						parent = VervetDB.Individual.get(parent_id)
+						parent_code = parent.code
+						if parent_code in monkey_id2coverage:
+							parent_coverage = monkey_id2coverage.get(parent_code)
+							if parent_coverage in [3,4,5,6]:
+								parent_coverage=4
+						else:
+							parent_coverage = -1
+						parent_coverage_ls.append(parent_coverage)
+				else:
+					parent_coverage_ls = [-2,-2]
+				parent_coverage_ls.sort()
+				parentConf = tuple(parent_coverage_ls)
+				if parentConf not in parentConf2count:
+					parentConf2count[parentConf] = 0
+				parentConf2count[parentConf] += 1
+				monkey_id2parentConf[monkey_id] = parentConf
+			sys.stderr.write("%s 1X monkeys .\n"%(len(monkey_id2parentConf)))
+			
+			sys.stderr.write("Turning count into probabilities ...\n")
+			no_of_1X_monkeys = len(monkey_id2parentConf)
+			parentConf2interval = {}
+			cumu_prob = 0.0
+			for parentConf, count in parentConf2count.iteritems():
+				prob_increment = count/float(no_of_1X_monkeys)
+				prob_interval = [cumu_prob, cumu_prob+prob_increment]
+				parentConf2interval[parentConf] = prob_interval
+				cumu_prob += prob_increment
+				sys.stderr.write("%s\t%s\t%s\n"%(repr(parentConf), count, prob_increment))
+			sys.stderr.write(".\n")
+			
+			#do the sampling
+			parentConf2index = {}
+			for parentConf, interval in parentConf2interval.iteritems():
+				parentConf2index[parentConf] = len(parentConf2index)
+			
+			parentConfDist2partition = {}
+			for i in xrange(no_of_samplings):
+				partitionId2MonkeyList, parentConfDist = cls.sample1XMonkeys(partitionId2size, monkey_id2parentConf=monkey_id2parentConf, \
+								parentConf2interval=parentConf2interval, DG=DG, parentConf2index=parentConf2index,\
+								monkey_id2coverage=monkey_id2coverage)
+				parentConfDist2partition[parentConfDist] = partitionId2MonkeyList
+			
+			parentConfDistLs = parentConfDist2partition.keys()
+			parentConfDistLs.sort()
+			lowestParentConfDist = parentConfDistLs[0]
+			sys.stderr.write("lowest parentConf distance between two sets is %s.\n"%(lowestParentConfDist))
+			partitionId2MonkeyList = parentConfDist2partition[lowestParentConfDist]
+			
+			cls.outputParentConfDistributionOfGivenMonkeyList(partitionId2MonkeyList[1], monkey_id2parentConf,\
+														parentConf2index=parentConf2index, output=True)
+			cls.outputParentConfDistributionOfGivenMonkeyList(partitionId2MonkeyList[2], monkey_id2parentConf,\
+														parentConf2index=parentConf2index, output=True)
+			
+			sys.stderr.write("Outputting ...")
+			writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+			header = ['UCLAID', 'parentConf', 'partitionId']
+			writer.writerow(header)
+			counter = 0
+			for partitionId, monkeyList in partitionId2MonkeyList.iteritems():
+				for monkey_id in monkeyList:
+					parentConf = monkey_id2parentConf.get(monkey_id)
+					writer.writerow([monkey_id, parentConf, partitionId])
+					counter += 1
+			del writer
+			sys.stderr.write("%s monkeys.\n"%(counter))
+			
+		"""
+			#2012.2.7
+			inputFname = "/tmp/723MonkeysForWGS_to_be_sequenced.tsv"
+			outputFname = "/tmp/723MonkeysForWGS_partition.tsv"
+			DBVervet.SequencingStrategy.partition1XMonkeySet(db_vervet, inputFname, outputFname)
+			sys.exit(0)
+			
+		"""
+		
+		@classmethod
+		def outputToBeSequencedMonkeysWithTargetCoverage(cls, inputFnameWithMonkeysToBeSequenced, inputFnameWithRankedMonkeys, \
+											inputFnameWithPartitioned1XMonkeys, outputFnameWUSTL, outputFname1X):
+			"""
+			2012.2.8
+				inputFnameWithMonkeysToBeSequenced is from Ania.
+				inputFnameWithRankedMonkeys is output of assignVRCSequencePriorityBasedOnPedigree() + manually set future coverage of top 12 non-HC to 30
+				inputFnameWithPartitioned1XMonkeys is output of partition1XMonkeySet()
+				
+			"""
+			to_sequence_monkey_id2status = cls.getToBeSequencedMonkeysFromFile(inputFnameWithMonkeysToBeSequenced, \
+																	monkey_id2preDeterminedCoverage=None)
+			
+			from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
+			import VervetDB
+			import csv
+			
+			sys.stderr.write("Reading the list of ranked monkeys from %s ..."%(inputFnameWithRankedMonkeys))
+			reader = csv.reader(open(inputFnameWithRankedMonkeys), delimiter=figureOutDelimiter(inputFnameWithRankedMonkeys))
+			header = reader.next()
+			col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+			monkey_id_index = col_name2index.get("UCLAID")
+			pre_set_coverage_index = col_name2index.get("pre-set-coverage")
+			future_coverage_index = col_name2index.get("future coverage")
+			to_sequence_monkey_id2coverage = {}
+			for row in reader:
+				monkey_id = row[monkey_id_index]
+				pre_set_coverage = row[pre_set_coverage_index]
+				if pre_set_coverage:
+					pre_set_coverage = float(pre_set_coverage)
+				else:
+					pre_set_coverage = 0
+				future_coverage = 0
+				if len(row)>=future_coverage_index+1:
+					future_coverage = float(row[future_coverage_index])
+				to_be_sequenced_or_not = to_sequence_monkey_id2status.get(monkey_id)
+				if future_coverage!=0 or to_be_sequenced_or_not==0:	#some 4X monkeys have been sequenced but their coverage is set to 30 manually.
+					to_sequence_monkey_id2coverage[monkey_id] = abs(future_coverage-pre_set_coverage)
+			del reader
+			sys.stderr.write(" %s monkeys are to-be-sequenced.\n"%(len(to_sequence_monkey_id2coverage)))
+			
+			sys.stderr.write("Reading partitioned 1X monkeys from %s ..."%(inputFnameWithPartitioned1XMonkeys))
+			reader = csv.reader(open(inputFnameWithPartitioned1XMonkeys), delimiter=figureOutDelimiter(inputFnameWithPartitioned1XMonkeys))
+			header = reader.next()
+			col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+			monkey_id_index = col_name2index.get("UCLAID")
+			partitionId_index = col_name2index.get("partitionId")
+			monkey_1X_id2partitionIdLs = {}
+			for row in reader:
+				monkey_id = row[monkey_id_index]
+				partitionId = int(row[partitionId_index])
+				if monkey_id not in monkey_1X_id2partitionIdLs:
+					monkey_1X_id2partitionIdLs[monkey_id] = []
+				monkey_1X_id2partitionIdLs[monkey_id].append(partitionId)
+			del reader
+			sys.stderr.write(" %s 1X monkeys.\n"%(len(monkey_1X_id2partitionIdLs)))
+			
+			sys.stderr.write("Outputting monkeys with coverage and sex ...")
+			writer1 = csv.writer(open(outputFnameWUSTL, 'w'), delimiter='\t')
+			writer2 = csv.writer(open(outputFname1X, 'w'), delimiter='\t')
+			header = ['UCLAID', 'sex', 'targetCoverage', 'centerID']
+			writer1.writerow(header)
+			writer2.writerow(header)
+			counter = 0
+			no_of_monkeys_to_both_centers= 0
+			no_of_1X_monkeys = 0
+			for monkey_id, coverage in to_sequence_monkey_id2coverage.iteritems():
+				if monkey_id in monkey_1X_id2partitionIdLs:
+					writer = writer2
+					partitionIdLs = monkey_1X_id2partitionIdLs.get(monkey_id)
+					no_of_1X_monkeys += 1
+				else:
+					writer = writer1
+					partitionIdLs = [2]	#2 represents WUSTL
+					
+				individual = VervetDB.Individual.query.filter_by(code=monkey_id).first()
+				if len(partitionIdLs)>=2:
+					centerID = 3
+					no_of_monkeys_to_both_centers += 1
+				else:
+					centerID = partitionIdLs[0]
+				data_row = [monkey_id, individual.sex, coverage, centerID]
+				writer.writerow(data_row)
+				counter += 1
+			del writer1, writer2
+			sys.stderr.write("%s total monkeys, %s 1X monkeys, %s monkeys sent to both centers. \n"%\
+							(counter, no_of_1X_monkeys, no_of_monkeys_to_both_centers))
+			
+			
+		"""
+		#2012.2.8
+		inputFnameWithMonkeysToBeSequenced = '/tmp/723MonkeysForWGS - FromAnia.csv'
+		inputFnameWithRankedMonkeys = "/tmp/723MonkeysForWGS_to_be_sequenced.tsv"
+		inputFnameWithPartitioned1XMonkeys = "/tmp/723MonkeysForWGS_partition.tsv"
+		inputFnameWithPartitioned1XMonkeys = "/tmp/723MonkeysForWGS_partition.csv"
+		outputFnameWUSTL = "/tmp/MedianHighCoverageMonkeysToBeSequenced.tsv"
+		outputFname1X = "/tmp/1XMonkeysToBeSequenced.tsv"
+		DBVervet.SequencingStrategy.outputToBeSequencedMonkeysWithTargetCoverage(inputFnameWithMonkeysToBeSequenced, inputFnameWithRankedMonkeys,\
+									inputFnameWithPartitioned1XMonkeys, outputFnameWUSTL, outputFname1X)
+		sys.exit(0)
+		
+		"""
+			
+			
 	@classmethod
 	def calculateAndDrawPairwiseDistanceInPedigree(cls, db_vervet, inputFname, outputFnamePrefix=None, baseNodeSize=40):
 		"""
@@ -5451,15 +6374,15 @@ class VervetGenome(object):
 class Main(object):
 	__doc__ = __doc__
 	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-							('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-							('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
-							('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-							('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-							('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-							('input', 0, ): ['', 'i', 1, 'common input.', ],\
-							('output', 0, ): ['', 'o', 1, 'common output', ],\
-							('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-							('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
+						('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
+						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
+						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
+						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
+						('input', 0, ): ['', 'i', 1, 'common input.', ],\
+						('output', 0, ): ['', 'o', 1, 'common output', ],\
+						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
+						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 	
 	def __init__(self, **keywords):
 		"""
@@ -5486,6 +6409,20 @@ class Main(object):
 		#import MySQLdb
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
+		
+		#2012.2.17
+		kinshipFname = "/Network/Data/vervet/Kinx2Jan2012.txt"
+		outputFnamePrefix = '/Network/Data/vervet/Kinx2Jan2012'
+		DBVervet.PCAKinship(db_vervet, kinshipFname=kinshipFname, outputFnamePrefix=outputFnamePrefix, monkeyType=1)
+		sys.exit(0)
+		
+		#2012.2.10
+		kinshipFname = "/Network/Data/vervet/Kinx2Jan2012.txt"
+		monkeyCoverageFname = "/tmp/723MonkeysForWGS_to_be_sequenced.tsv"
+		outputFnamePrefix = os.path.expanduser('~/script/vervet/data/kinshipOf723')
+		DBVervet.drawKinshipHistogram(outputFnamePrefix=outputFnamePrefix, kinshipFname=kinshipFname, monkeyCoverageFname=monkeyCoverageFname)
+		sys.exit(0)
+		
 		
 		#2011.12.9
 		inputDir='/Network/Data/vervet/vervetPipeline/work/'

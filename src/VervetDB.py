@@ -236,6 +236,8 @@ class GeographicIntegrity(Entity):
 
 class Individual(Entity, TableClass):
 	"""
+	2012.2.7
+		make code unique
 	2011-10-7
 		add microchip ID
 	2011-9-8
@@ -248,7 +250,7 @@ class Individual(Entity, TableClass):
 		add tax_id, collector, site, group_ls, user_ls, latitude, longitude
 	"""
 	family = ManyToOne('Family', colname='family_id', ondelete='CASCADE', onupdate='CASCADE')
-	code = Field(String(256))
+	code = Field(String(256), unique=True)
 	name = Field(String(256))
 	ucla_id = Field(String(256))	#2011-4-26
 	sex = Field(String(256))
@@ -325,6 +327,24 @@ class Individual(Entity, TableClass):
 			return 1
 		else:
 			return 2
+	
+	def getCurrentAge(self):
+		"""
+		2012.2.22
+			get the most current age of the monkey
+		"""
+		if self.birthdate:
+			from datetime import datetime
+			return datetime.now().year - self.birthdate.year
+		elif self.collection_date and (self.age  or self.age_cas):
+			extraYears = datetime.now().year - self.collection_date.year
+			if self.age:
+				ageInYears = self.age
+			else:
+				ageInYears = self.age_cas
+			return ageInYears + extraYears
+		else:
+			return None
 	
 class Ind2Ind(Entity, TableClass):
 	"""
@@ -408,8 +428,33 @@ class IndividualAlignment(Entity, TableClass):
 								sequencer, self.ref_ind_seq_id)
 		return read_group
 
+	def getCompositeID(self):
+		"""
+		2012.1.25
+			ID to be used to identify members of trios. almost same as getReadGroup()
+		"""
+		read_group = '%s_%s_%s_%s'%(self.id, self.ind_seq_id, self.ind_sequence.individual.id, \
+								self.ind_sequence.individual.code)
+		return read_group
+	
+	def constructRelativePath(self, subFolder='individual_alignment'):
+		"""
+		2012.2.10
+			moved from VervetDB.constructRelativePathForIndividualAlignment
+		2011-8-29
+			called by getAlignment() and other programs
+		"""
+		#'/' must not be put in front of the relative path.
+		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
+		dst_relative_path = '%s/%s_%s_vs_%s_by_%s.%s'%(subFolder, self.id, self.individual_sequence.id,\
+												self.ref_ind_seq_id, self.aln_method_id, self.format)
+		
+		return dst_relative_path
+	
 class IndividualSequence(Entity, TableClass):
 	"""
+	2012.1.26
+		add column individual_sequence_file_raw_ls
 	2011-8-30
 		add column chromosome
 	2011-8-18
@@ -429,7 +474,7 @@ class IndividualSequence(Entity, TableClass):
 	tissue  = ManyToOne('Tissue', colname='tissue_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-5-9
 	coverage = Field(Float)	#2011-5-8
 	base_count = Field(BigInteger)	#2011-8-2
-	path = Field(Text)	#storage folder path
+	path = Field(Text, unique=True)	#storage folder path
 	format = Field(String(512))	#fasta, fastq
 	original_path = Field(Text)	#the path to the original file
 	quality_score_format = Field(String(512))	#Standard=Phred+33 (=Sanger), Illumina=Phred+64 (roughly, check pymodule/utils for exact formula)
@@ -437,6 +482,7 @@ class IndividualSequence(Entity, TableClass):
 	parent_individual_sequence = ManyToOne('IndividualSequence', colname='parent_individual_sequence_id', ondelete='SET NULL', onupdate='CASCADE')
 	filtered = Field(Integer, default=0)	#0 means not. 1 means yes.
 	individual_sequence_file_ls = OneToMany("IndividualSequenceFile")
+	individual_sequence_file_raw_ls = OneToMany("IndividualSequenceFileRaw")
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -444,31 +490,79 @@ class IndividualSequence(Entity, TableClass):
 	using_options(tablename='individual_sequence', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('individual_id', 'sequencer', 'sequence_type', 'tissue_id',\
-		'filtered', "chromosome"))
+		'filtered', "chromosome", 'parent_individual_sequence_id'))
+	
+		
+	def constructRelativePathForIndividualSequence(self, subFolder='individual_sequence'):
+		"""
+		2012.2.10
+			add "split" in the end of the path
+		2011-8-3
+			called by getIndividualSequence() and other outside programs
+		"""
+		#'/' must not be put in front of the relative path.
+		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
+		dst_relative_path = '%s/%s_%s_%s_%s_%s_%s'%(subFolder, self.id, self.individual_id, self.individual.code,\
+										self.sequencer, getattr(self.tissue, 'id', 0), self.filtered)
+		return dst_relative_path
 
 class IndividualSequenceFile(Entity, TableClass):
 	"""
+	2012.2.10
+		add column parent_individual_sequence_file_id
+	2012.1.26
 	2011-10-31
 		a table recording a number of files (split fastq mostly) affiliated with one IndividualSequence entry
 	"""
 	individual_sequence = ManyToOne('IndividualSequence', colname='individual_sequence_id', ondelete='CASCADE', onupdate='CASCADE')
+	individual_sequence_file_raw = ManyToOne('IndividualSequenceFileRaw', colname='individual_sequence_file_raw_id', \
+											ondelete='CASCADE', onupdate='CASCADE')
 	library = Field(Text)	#id for the preparation library
-	order_number = Field(Integer)	# the number that designates the order of this split fastq file within the large file
+	split_order = Field(Integer)	# the number that designates the order of this split fastq file within the large file
 	mate_id = Field(Integer)	# id of the mate pair. 1 = 1st end. 2 = 2nd end. null = single-end.
 	base_count = Field(BigInteger)	#2011-8-2
-	path = Field(Text)	#storage folder path
+	path = Field(Text, unique=True)	#path to the actual file
 	format = Field(String(512))	#fasta, fastq
-	original_path = Field(Text)	#the path to the original file
-	quality_score_format = Field(String(512))
+	quality_score_format = Field(String(512), default='Standard')
 		#Standard=Phred+33 (=Sanger), Illumina=Phred+64 (roughly, check pymodule/utils for exact formula)
 		# Illumina1.8+ (after 2011-02) is Standard.
+	filtered = Field(Integer, default=0)	#0 means not. 1 means yes.
+	parent_individual_sequence_file = ManyToOne('IndividualSequenceFile', colname='parent_individual_sequence_file_id', \
+											ondelete='CASCADE', onupdate='CASCADE')
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
 	date_updated = Field(DateTime)
 	using_options(tablename='individual_sequence_file', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-	using_table_options(UniqueConstraint('individual_sequence_id', 'library', 'order_number', 'mate_id'))
+	using_table_options(UniqueConstraint('individual_sequence_id', 'library', 'split_order', 'mate_id', 'filtered',\
+										'parent_individual_sequence_file_id'))
+
+
+class IndividualSequenceFileRaw(Entity, TableClass):
+	"""
+	2012.1.26
+		this table is used to store the bam files from WUSTL. The bam files hold either single-end or paired-end reads
+			in one file.
+		Technically, this table is parent of IndividualSequenceFile.
+	"""
+	individual_sequence = ManyToOne('IndividualSequence', colname='individual_sequence_id', ondelete='CASCADE', onupdate='CASCADE')
+	individual_sequence_file_ls = OneToMany("IndividualSequenceFile")
+	library = Field(Text)	#id for the preparation library
+	base_count = Field(BigInteger)
+	path = Field(Text)	#path to the actual file
+	md5sum = Field(Text, unique=True)	#used to identify each raw file
+	quality_score_format = Field(String(512), default='Standard')
+		#Standard=Phred+33 (=Sanger), Illumina=Phred+64 (roughly, check pymodule/utils for exact formula)
+		# Illumina1.8+ (after 2011-02) is Standard.
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='individual_sequence_file_raw', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+	using_table_options(UniqueConstraint('library', 'md5sum'))
+
 
 class Tissue(Entity, TableClass):
 	"""
@@ -895,20 +989,6 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
-	def constructRelativePathForIndividualAlignment(self, individual_alignment_id=None, individual_sequence_id=None, \
-									ref_individual_sequence_id=None, alignment_method=None, alignment_format=None,\
-									subFolder='individual_alignment'):
-		"""
-		2011-8-29
-			called by getAlignment() and other programs
-		"""
-		#'/' must not be put in front of the relative path.
-		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-		dst_relative_path = '%s/%s_%s_vs_%s_by_%s.%s'%(subFolder, individual_alignment_id, individual_sequence_id,\
-										ref_individual_sequence_id, alignment_method.id, alignment_format)
-		
-		return dst_relative_path
-	
 	def getAlignment(self, individual_code=None, individual_sequence_id=None, path_to_original_alignment=None, sequencer='GA', \
 					sequence_type='SR', sequence_format='fastq', \
 					ref_individual_sequence_id=10, \
@@ -948,10 +1028,7 @@ class VervetDB(ElixirDB):
 			
 			#'/' must not be put in front of the relative path.
 			# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-			dst_relative_path = self.constructRelativePathForIndividualAlignment(individual_alignment_id=db_entry.id, \
-								individual_sequence_id=db_entry.ind_seq_id, \
-								ref_individual_sequence_id=ref_individual_sequence_id, alignment_method=alignment_method, \
-								alignment_format=alignment_format, subFolder=subFolder)
+			dst_relative_path = db_entry.constructRelativePath(subFolder=subFolder)
 			
 			#update its path in db to the relative path
 			db_entry.path = dst_relative_path
@@ -1032,22 +1109,14 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
-	def constructRelativePathForIndividualSequence(self, individual_id=None, individual_sequence_id=None, individual_code=None,\
-												sequencer='GA', tissue=None, subFolder='individual_sequence'):
-		"""
-		2011-8-3
-			called by getIndividualSequence() and other outside programs
-		"""
-		#'/' must not be put in front of the relative path.
-		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-		dst_relative_path = '%s/%s_%s_%s_%s_%s'%(subFolder, individual_sequence_id, individual_id, individual_code,\
-										sequencer, getattr(tissue, 'id', 0),)
-		return dst_relative_path
-		
 	def getIndividualSequence(self, individual_id=None, sequencer=None, sequence_type=None,\
 						sequence_format=None, path_to_original_sequence=None, tissue_name=None, coverage=None,\
-						subFolder='individual_sequence', quality_score_format="Standard", filtered=0):
+						subFolder='individual_sequence', quality_score_format="Standard", filtered=0,\
+						parent_individual_sequence_id=None):
 		"""
+		2012.2.10
+			path_to_original_sequence is only given when you want to copy the file to db storage.
+			add argument parent_individual_sequence_id
 		2011-8-30
 			add argument filtered
 		2011-8-18
@@ -1067,6 +1136,8 @@ class VervetDB(ElixirDB):
 		if tissue_name:
 			tissue = self.getTissue(short_name=tissue_name)
 			query = query.filter_by(tissue_id=tissue.id)
+		if parent_individual_sequence_id:
+			query = query.filter_by(parent_individual_sequence_id=parent_individual_sequence_id)
 		query= query.filter_by(filtered=filtered)
 		db_entry = query.first()
 		if not db_entry:
@@ -1077,14 +1148,13 @@ class VervetDB(ElixirDB):
 			individual = Individual.get(individual_id)
 			db_entry = IndividualSequence(individual_id=individual_id, sequencer=sequencer, sequence_type=sequence_type,\
 									format=sequence_format, tissue=tissue, coverage=coverage, \
-									quality_score_format=quality_score_format, filtered=filtered)
+									quality_score_format=quality_score_format, filtered=filtered,\
+									parent_individual_sequence_id=parent_individual_sequence_id)
 			#to make db_entry.id valid
 			self.session.add(db_entry)
 			self.session.flush()
 			
-			dst_relative_path = self.constructRelativePathForIndividualSequence(individual_id=individual.id, \
-												individual_sequence_id=db_entry.id, individual_code=individual.code,\
-												sequencer=sequencer, tissue=tissue, subFolder=subFolder)
+			dst_relative_path = db_entry.constructRelativePathForIndividualSequence(subFolder=subFolder)
 			
 			#update its path in db to the relative path
 			db_entry.path = dst_relative_path
@@ -1094,10 +1164,10 @@ class VervetDB(ElixirDB):
 			if path_to_original_sequence and (os.path.isfile(path_to_original_sequence) or os.path.isdir(path_to_original_sequence)):
 				dst_dir = os.path.join(self.data_dir, subFolder)
 				if not os.path.isdir(dst_dir):	#the upper directory has to be created at this moment.
-					commandline = 'mkdir %s'%(dst_dir)
+					commandline = 'mkdir -p %s'%(dst_dir)
 					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 				if not os.path.isdir(dst_abs_path):	#2011-8-3 create the directory to host all sequences.
-					commandline = 'mkdir %s'%(dst_abs_path)
+					commandline = 'mkdir -p %s'%(dst_abs_path)
 					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 				commandline = 'cp -r %s %s'%(path_to_original_sequence, dst_abs_path)
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
@@ -1106,8 +1176,11 @@ class VervetDB(ElixirDB):
 		return db_entry
 	
 	def copyParentIndividualSequence(self, parent_individual_sequence=None, parent_individual_sequence_id=None,\
-									subFolder='individual_sequence', quality_score_format='Standard'):
+									subFolder='individual_sequence', quality_score_format='Standard', filtered=1):
 		"""
+		2012.2.10
+			constructRelativePathForIndividualSequence is now moved to Table IndividualSequence
+			add argument filtered
 		2011-9-1
 			add quality_score_format
 		2011-8-11
@@ -1122,22 +1195,100 @@ class VervetDB(ElixirDB):
 		db_entry = IndividualSequence(individual_id=pis.individual_id, sequencer=pis.sequencer, sequence_type=pis.sequence_type,\
 							format=pis.format, tissue=pis.tissue, quality_score_format=quality_score_format)
 		
-		db_entry.filtered = 1
+		db_entry.filtered = filtered
 		db_entry.parent_individual_sequence = pis
 		#to make db_entry.id valid
 		self.session.add(db_entry)
 		self.session.flush()
 		
-		dst_relative_path = self.constructRelativePathForIndividualSequence(individual_id=individual.id, \
-											individual_sequence_id=db_entry.id, individual_code=individual.code,\
-											sequencer=pis.sequencer, tissue=pis.tissue, subFolder=subFolder)
+		dst_relative_path = db_entry.constructRelativePathForIndividualSequence(subFolder=subFolder)
 		
 		#update its path in db to the relative path
 		db_entry.path = dst_relative_path
 		self.session.add(db_entry)
 		self.session.flush()
 		return db_entry
+	
+	def copyParentIndividualSequenceFile(self, parent_individual_sequence_file=None, parent_individual_sequence_file_id=None,\
+									individual_sequence_id=None,\
+									quality_score_format='Standard', filtered=1):
+		"""
+		2012.2.14
+			call self.getIndividualSequenceFile() instead
+		2012.2.10
+		"""
+		if parent_individual_sequence_file is None:
+			if parent_individual_sequence_file_id is not None:
+				parent_individual_sequence_file = IndividualSequenceFile.get(parent_individual_sequence_file_id)
+			else:
+				sys.stderr.write("Warning: parent individual_sequence_id is None. No IndividualSequenceFile instance to be created.\n")
+				return None
 		
+		
+		parent = parent_individual_sequence_file
+		
+		
+		db_entry = self.getIndividualSequenceFile(individual_sequence_id, library=parent.library, mate_id=parent.mate_id, \
+									split_order=parent.split_order, format=parent.format,\
+									filtered=filtered, parent_individual_sequence_file_id=parent.id, \
+									individual_sequence_file_raw_id=parent.individual_sequence_file_raw_id,\
+									quality_score_format=quality_score_format)
+		return db_entry
+	
+	def getIndividualSequenceFileRaw(self, individual_sequence_id, library=None, md5sum=None, path=None):
+		"""
+		2012.2.14
+		"""
+		#query first
+		query = IndividualSequenceFileRaw.query.filter_by(individual_sequence_id=individual_sequence_id)
+		if library:
+			query = query.filter_by(library=library)
+		if md5sum:
+			query = query.filter_by(md5sum=md5sum)
+		if path:
+			query = query.filter_by(path=os.path.realpath(path))
+		db_entry = query.first()
+		if not db_entry:
+			db_entry = IndividualSequenceFileRaw(individual_sequence_id=individual_sequence_id, library=library, md5sum=md5sum, \
+										path=os.path.realpath(path))
+			self.session.add(db_entry)
+			self.session.flush()
+		return db_entry
+	
+	def getIndividualSequenceFile(self, individual_sequence_id, library=None, mate_id=None, split_order=None, format=None,\
+							filtered=0, parent_individual_sequence_file_id=None, individual_sequence_file_raw_id=None,\
+							quality_score_format='Standard'):
+		"""
+		2012.2.14
+		"""
+		#query first
+		query = IndividualSequenceFile.query.filter_by(individual_sequence_id=individual_sequence_id)
+		if library:
+			query = query.filter_by(library=library)
+		if mate_id:
+			query = query.filter_by(mate_id=mate_id)
+		if split_order:
+			query = query.filter_by(split_order=split_order)
+		if format:
+			query = query.filter_by(format=format)
+		if filtered:
+			query = query.filter_by(filtered=filtered)
+		if parent_individual_sequence_file_id:
+			query = query.filter_by(parent_individual_sequence_file_id=parent_individual_sequence_file_id)
+		if individual_sequence_file_raw_id:
+			query = query.filter_by(individual_sequence_file_raw_id=individual_sequence_file_raw_id)
+		db_entry = query.first()
+		if not db_entry:
+			db_entry = IndividualSequenceFile(individual_sequence_id=individual_sequence_id,\
+							library=library, mate_id=mate_id, split_order=split_order,\
+							format=format, filtered=filtered, \
+							parent_individual_sequence_file_id=parent_individual_sequence_file_id,\
+							individual_sequence_file_raw_id=individual_sequence_file_raw_id,\
+							quality_score_format=quality_score_format)
+			self.session.add(db_entry)
+			self.session.flush()
+		return db_entry
+	
 	def getRelationshipType(self, relationship_type_name=None):
 		"""
 		2011-5-5
@@ -1150,6 +1301,20 @@ class VervetDB(ElixirDB):
 			self.session.add(db_entry)
 			self.session.flush()
 		return db_entry
+	
+	def checkSpecificRelationOfIndividual2(self, individual2=None, relationship_type_name=None):
+		"""
+		2012.1.23
+			check to see if specific relationship of individual2 exists in Ind2Ind already.
+			This is to detect errors where one individual has >1 father/mother in the database.
+		"""
+		relationship_type = self.getRelationshipType(relationship_type_name)
+		query = Ind2Ind.query.filter_by(individual2_id=individual2.id).filter_by(relationship_type_id=relationship_type.id)
+		db_entry = query.first()
+		if not db_entry:
+			return None
+		else:
+			return db_entry
 	
 	def getInd2Ind(self, individual1=None, individual2=None, relationship_type_name=None):
 		"""
@@ -1302,8 +1467,13 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
-	def getIndividualSequenceID2FilePairLs(self, individualSequenceIDList, dataDir=None, needPair=True):
+	def getIndividualSequenceID2FilePairLs(self, individualSequenceIDList, dataDir=None, needPair=True, checkOldPath=False):
 		"""
+		2012.2.10
+			add argument checkOldPath.
+				True: find files in IndividualSequence.path[:-6], (=path without the trailing '_split').
+					This is the old format.
+				False: find files in IndividualSequence.path 
 		2011-8-30
 			filename in individualSequenceID2FilePairLs is path relative to dataDir
 		2011-8-28
@@ -1318,11 +1488,15 @@ class VervetDB(ElixirDB):
 		for individualSequenceID in individualSequenceIDList:
 			individual_sequence = IndividualSequence.get(individualSequenceID)
 			if individual_sequence and individual_sequence.path:
-				abs_path = os.path.join(dataDir, individual_sequence.path)
+				if checkOldPath:
+					path = individual_sequence.path[:-6]
+				else:
+					path = individual_sequence.path
+				abs_path = os.path.join(dataDir, path)
 				if individual_sequence.id not in individualSequenceID2FilePairLs:
 					individualSequenceID2FilePairLs[individual_sequence.id] = []
 				if os.path.isfile(abs_path):
-					fileRecord = [individual_sequence.path, individual_sequence.format, 'SR', individual_sequence.sequencer]
+					fileRecord = [path, individual_sequence.format, 'SR', individual_sequence.sequencer]
 						#"SR" means it's single-end
 					individualSequenceID2FilePairLs[individual_sequence.id].append([fileRecord])
 				elif os.path.isdir(abs_path):	#it's a folder, sometimes it's nothing there
@@ -1333,23 +1507,61 @@ class VervetDB(ElixirDB):
 					pairedEndPrefix2FileLs = NextGenSeq.getPEInputFiles(abs_path, isPE=isPE)
 					for pairedEndPrefix, fileLs in pairedEndPrefix2FileLs.iteritems():
 						if isPE and len(fileLs)==2 and fileLs[0] and fileLs[1]:	#PE
-							filename = os.path.join(individual_sequence.path, fileLs[0])	#take one file only
+							filename = os.path.join(path, fileLs[0])	#take one file only
 							fileRecord = [filename, individual_sequence.format, 'PE', individual_sequence.sequencer]
 							#"PE" means it's paired-end
-							filename2 = os.path.join(individual_sequence.path, fileLs[1])	#take one file only
+							filename2 = os.path.join(path, fileLs[1])	#take one file only
 							fileRecord2 = [filename2, individual_sequence.format, 'PE', individual_sequence.sequencer]
 							#"PE" means it's paired-end
 							individualSequenceID2FilePairLs[individual_sequence.id].append([fileRecord, fileRecord2])	#"PE" means it's paired-end
 						else:
 							for filename in fileLs:	#usually should be only one file
 								if filename:
-									filename = os.path.join(individual_sequence.path, filename)
+									filename = os.path.join(path, filename)
 									fileRecord = [filename, individual_sequence.format, 'SR', individual_sequence.sequencer]
 									#"SR" means it's single-end
 									individualSequenceID2FilePairLs[individual_sequence.id].append([fileRecord])
 		sys.stderr.write("%s individual sequences. Done.\n"%(len(individualSequenceID2FilePairLs)))
 		return individualSequenceID2FilePairLs
 	
+	def getISQ_ID2LibrarySplitOrder2FileLs(self, individualSequenceIDList, dataDir=None, filtered=0):
+		"""
+		2012.2.10
+			
+		"""
+		sys.stderr.write("Getting isq_id2LibrarySplitOrder2FileLs for %s isq entries ..."%(len(individualSequenceIDList)))
+		isq_id2LibrarySplitOrder2FileLs = {}
+		if not dataDir:
+			dataDir = self.data_dir
+		counter = 0
+		for individualSequenceID in individualSequenceIDList:
+			individual_sequence = IndividualSequence.get(individualSequenceID)
+			if not individual_sequence:	#not present in db, ignore
+				continue
+			for individual_sequence_file in individual_sequence.individual_sequence_file_ls:
+				if individual_sequence_file.filtered!=filtered:	#skip entries that don't matched the filtered argument
+					continue
+				if individualSequenceID not in isq_id2LibrarySplitOrder2FileLs:
+					isq_id2LibrarySplitOrder2FileLs[individualSequenceID] = {}
+				counter += 1
+				LibrarySplitOrder2FileLs = isq_id2LibrarySplitOrder2FileLs[individualSequenceID]
+				library = individual_sequence_file.library
+				split_order = individual_sequence_file.split_order
+				mate_id = individual_sequence_file.mate_id
+				if mate_id is None:
+					mate_id = 1
+				key = (library, split_order)
+				if key not in LibrarySplitOrder2FileLs:
+					LibrarySplitOrder2FileLs[key] = []
+				if len(LibrarySplitOrder2FileLs[key])<mate_id:
+					for i in xrange(mate_id-len(LibrarySplitOrder2FileLs[key])):	#expand the list to match the number of mates
+						LibrarySplitOrder2FileLs[key].append(None)
+				path = os.path.join(dataDir, individual_sequence_file.path)
+				isq_file_obj = PassingData(db_entry=individual_sequence_file, path=path)
+				LibrarySplitOrder2FileLs[key][mate_id-1] = isq_file_obj
+		
+		sys.stderr.write("%s individual sequence files from %s isq entries.\n"%(counter, len(isq_id2LibrarySplitOrder2FileLs)))
+		return isq_id2LibrarySplitOrder2FileLs
 	
 	@property
 	def data_dir(self, ):
@@ -1391,8 +1603,24 @@ class VervetDB(ElixirDB):
 		for row in Ind2Ind.query:
 			if row.individual1_id in individual_id2alignmentLs and row.individual2_id in individual_id2alignmentLs:
 				DG.add_edge(row.individual1_id, row.individual2_id)
-		sys.stderr.write("%s edges, %s nodes.\n"%(DG.number_of_edges(), DG.number_of_nodes()))
+		sys.stderr.write("%s nodes. %s edges. %s connected components.\n"%(DG.number_of_nodes(), DG.number_of_edges(), \
+															nx.number_connected_components(DG.to_undirected())))
 		return PassingData(DG=DG, individual_id2alignmentLs=individual_id2alignmentLs)
+	
+	def constructPedgree(self):
+		"""
+		2012.1.23
+		"""
+		sys.stderr.write("Constructing pedigree from db ...")
+		import networkx as nx
+		DG=nx.DiGraph()
+		
+		for row in Ind2Ind.query:
+			DG.add_edge(row.individual1_id, row.individual2_id)
+		
+		sys.stderr.write("%s nodes. %s edges. %s connected components.\n"%(DG.number_of_nodes(), DG.number_of_edges(), \
+															nx.number_connected_components(DG.to_undirected())))
+		return DG
 	
 	def findFamilyFromPedigreeGivenSize(self, DG, familySize=3, removeFamilyFromGraph=True):
 		"""
