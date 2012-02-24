@@ -29,6 +29,8 @@ class AccessionController(BaseController):
 		c.AccessionCountrySuggestOracleURL = url(controller='Accession', action="countryNameAutoComplete", id=None)
 		c.AccessionNameSuggestOracleURL = url(controller='Accession', action="autoComplete", id=None)
 		c.AccessionByNameURL = url(controller='Accession', action="findAccessionsByName", id=None)
+		c.accessionAttributeNameURL = url(controller='Accession', action="getAccessionAttributeNameLs", id=None)
+		c.accessionAttributeDataURL = url(controller='Accession', action='getAccessionAttributeValue', id=None)
 		return render('/Accession.html')
 
 	def findAccessionsByName(self):
@@ -51,10 +53,18 @@ class AccessionController(BaseController):
 	
 	def findAccessionsByCountry(self):
 		"""
+		2011-9-13
+			split country by "|" first
 		2011-4-29
 		"""
-		country = request.params.get('country', 'USA')	#default is 100
-		condition = "country='%s'"%(country)
+		country_ls = request.params.get('country', 'USA')	#default is USA
+		country_ls = country_ls.split('|')
+		condition_ls = []
+		for country in country_ls:
+			if country.strip():	#not empty after stripping
+				condition_ls.append("country='%s'"%(country.strip()))
+		
+		condition = " or ".join(condition_ls)
 		return self.findAccessions(condition)
 	
 	@classmethod
@@ -85,9 +95,11 @@ class AccessionController(BaseController):
 							("approx_age_group_at_collection",("string", "Approx. Age")), \
 							("latitude",("number", "Latitude")), \
 							("longitude",("number", "Longitude")), \
-							("city",("string", "City")),\
-							("province", ("string", "Province")), ("country", ("string", "Country")),\
-							("collector", ("string", "Collector")), ("collection_date", ("date", "Collection Date"))]
+							("site", ("string", "Site")), ("city",("string", "City")),\
+							("country", ("string", "Country")),\
+							("collector", ("string", "Collector")), ("collection_date", ("date", "Collection Date")),\
+							("seqCoverage", ("number", "Seq Coverage")), \
+							("seqCoverageFilter", ("number", "Filtered Seq Coverage"))]
 		
 		description = dict(column_name_type_ls)
 		return_ls = []
@@ -111,6 +123,20 @@ class AccessionController(BaseController):
 					column_value = getattr(row, 'id', default_value)
 				elif column_name=='nativename':
 					column_value = getattr(row, 'code', default_value)
+				elif column_name=='seqCoverage':
+					isq = model.VervetDB.IndividualSequence.query.filter_by(individual_id=row.id).filter_by(filtered=0).first()
+					if isq:
+						column_value = isq.coverage
+					else:
+						column_value = default_value
+				elif column_name=='seqCoverageFilter':
+					isq = model.VervetDB.IndividualSequence.query.filter_by(individual_id=row.id).filter_by(filtered=1).first()
+					if isq:
+						column_value = isq.coverage
+					else:
+						column_value = default_value
+				elif column_name=='site':
+					column_value = getattr(row, "site_name", default_value)
 				else:
 					column_value = getattr(row, column_name, default_value)
 				entry[column_name] = column_value
@@ -197,3 +223,79 @@ class AccessionController(BaseController):
 		response.headers['Content-Type'] = 'application/json'
 		return self.findAccessions(condition)
 	
+	@jsonify
+	def getAccessionAttributeNameLs(self):
+		"""
+		2011-5-15
+		"""
+		accessionAttributeNameLs = [[-3, 'Gender'], [-2, 'Age'], [-1, "Size"], [0, "Same"]]
+		for row in model.VervetDB.PhenotypeMethod.query:
+			label = '%s_%s'%(row.id, row.short_name)
+			accessionAttributeNameLs.append([row.id, label])
+		return accessionAttributeNameLs
+	
+	def getAccessionPhenotypeValueStructure(self, phenotype_method_id=None):
+		"""
+		2011-5-15
+		"""
+		accession_id2phenotype_value = {}
+		min_value = None
+		max_value = None
+		query = model.VervetDB.Phenotype.query.filter_by(phenotype_method_id=phenotype_method_id)
+		for row in query:
+			if row.value is not None:
+				phenotype_value = row.value
+				accession_id2phenotype_value[row.individual_id] = phenotype_value
+				
+				if min_value == None or phenotype_value<min_value:
+					min_value = phenotype_value
+				if max_value == None or phenotype_value>max_value:
+					max_value = phenotype_value
+		dc = dict(min_value=min_value, max_value=max_value, accession_id2phenotype_value=accession_id2phenotype_value)
+		return dc
+	
+	def getAccessionAttributeValue(self, returnJson=True, transform_func = None):
+		"""
+		2011-5-15
+		"""
+		attribute_id = int(request.params.get('attribute_id', 0))
+		
+		if attribute_id>0:
+			dc = self.getAccessionPhenotypeValueStructure(phenotype_method_id=attribute_id)
+			#dc["accession_id2attribute_value"] = dc["accession_id2phenotype_value"]
+			dc = dict(min_value=dc["min_value"], max_value=dc["max_value"], accession_id2attribute_value=dc["accession_id2phenotype_value"])
+		elif attribute_id<=0:	#same size for each cluster of accessions. so each accession attribute
+			accession_id2attribute_value = {}
+			min_value = None
+			max_value = None
+			query = model.VervetDB.Individual.query
+			for row in query:
+				if attribute_id==0:	#each cluster has the same size.
+					attribute_value = 0
+				elif attribute_id ==-1:	#size of cluster corresponds to the number of individuals included.
+					attribute_value = 1
+				elif attribute_id == -2:	#age
+					attribute_value = row.age
+				elif attribute_id == -3:	#gender
+					attribute_value = None
+					if row.sex:
+						if row.sex[0]=='M':#male is coded as 0, 
+							attribute_value = 0
+						elif row.sex[0]=='F':
+							attribute_value = 1
+				if attribute_value is not None:
+					if min_value == None or attribute_value<min_value:
+						min_value = attribute_value
+					if max_value == None or attribute_value>max_value:
+						max_value = attribute_value
+					accession_id2attribute_value[row.id] = attribute_value
+			dc = dict(min_value=min_value, max_value=max_value, accession_id2attribute_value=accession_id2attribute_value)
+			
+		if transform_func is not None:
+			dc["accession_id2attribute_value"] = transform_func(dc["accession_id2attribute_value"], dc['min_value'],\
+													dc['max_value']) 
+		if returnJson:
+			response.headers['Content-Type'] = 'application/json'
+			return simplejson.dumps(dc)
+		else:
+			return dc
