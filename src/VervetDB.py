@@ -439,6 +439,8 @@ class IndividualAlignment(Entity, TableClass):
 	
 	def constructRelativePath(self, subFolder='individual_alignment'):
 		"""
+		2012.2.24
+			fix a bug
 		2012.2.10
 			moved from VervetDB.constructRelativePathForIndividualAlignment
 		2011-8-29
@@ -446,7 +448,7 @@ class IndividualAlignment(Entity, TableClass):
 		"""
 		#'/' must not be put in front of the relative path.
 		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-		dst_relative_path = '%s/%s_%s_vs_%s_by_%s.%s'%(subFolder, self.id, self.individual_sequence.id,\
+		dst_relative_path = '%s/%s_%s_vs_%s_by_%s.%s'%(subFolder, self.id, self.ind_seq_id,\
 												self.ref_ind_seq_id, self.aln_method_id, self.format)
 		
 		return dst_relative_path
@@ -1524,10 +1526,15 @@ class VervetDB(ElixirDB):
 		sys.stderr.write("%s individual sequences. Done.\n"%(len(individualSequenceID2FilePairLs)))
 		return individualSequenceID2FilePairLs
 	
-	def getISQ_ID2LibrarySplitOrder2FileLs(self, individualSequenceIDList, dataDir=None, filtered=0):
+	def getISQ_ID2LibrarySplitOrder2FileLs(self, individualSequenceIDList, dataDir=None, filtered=None):
 		"""
-		2012.2.10
+		2012.2.24
+			filtered=None means "no filtering based on this field.".
 			
+		2012.2.10
+			If for one (isq_id, librarySplitOrder), there is only one mate (single-end).
+				The isq_id2LibrarySplitOrder2FileLs only stores one file object (FileLs is of length 1).
+			Length of FileLs is commesurate with the number of ends.
 		"""
 		sys.stderr.write("Getting isq_id2LibrarySplitOrder2FileLs for %s isq entries ..."%(len(individualSequenceIDList)))
 		isq_id2LibrarySplitOrder2FileLs = {}
@@ -1539,7 +1546,7 @@ class VervetDB(ElixirDB):
 			if not individual_sequence:	#not present in db, ignore
 				continue
 			for individual_sequence_file in individual_sequence.individual_sequence_file_ls:
-				if individual_sequence_file.filtered!=filtered:	#skip entries that don't matched the filtered argument
+				if filtered is not None and individual_sequence_file.filtered!=filtered:	#skip entries that don't matched the filtered argument
 					continue
 				if individualSequenceID not in isq_id2LibrarySplitOrder2FileLs:
 					isq_id2LibrarySplitOrder2FileLs[individualSequenceID] = {}
