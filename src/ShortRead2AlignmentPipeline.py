@@ -8,10 +8,9 @@ Examples:
 	%s -i 165-167 -o ShortRead2AlignmentPipeline_isq_id_165_167_vs_9.xml -u yh -a 9
 	-e /u/home/eeskin/polyacti -l hoffman2 -t /u/home/eeskin/polyacti/NetworkData/vervet/db -n1 -z dl324b-1.cmb.usc.edu -c
 	
-	# 2011-8-30 output a workflow to run alignments on hoffman2 (and add -D if your local db_vervet.data_dir is outdated.)
-	%s -i 165-495 -o ShortRead2AlignmentPipeline_isq_id_165_495_vs_120.xml -u yh -a 120 -e /u/home/eeskin/polyacti 
-		-l hoffman2 -t /u/home/eeskin/polyacti/NetworkData/vervet/db -n1 -z dl324b-1.cmb.usc.edu -c
-		-D ~/mnt/hoffman2/u/home/eeskintmp2/polyacti/NetworkData/vervet/db/
+	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (-D changes localDataDir. -t changes dataDir.)
+	%s  -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -z localhost 
+		-l hcondor -j hcondor -u yh -i 631-700 -o workflow/ShortRead2Alignment_Isq_631_700_vs_524_hcondor.xml  -a 524 -c -O 
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files.
@@ -143,6 +142,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					no_of_aln_threads=3, stampyExecutable=None):
 		"""
 		2012.2.24
+			pass dataDir to db_vervet.getAlignment()
 			add stampy part
 		2011-9-15
 			adjust alignment_method_name according to individual_sequence.sequencer and individual_sequence.sequence_type
@@ -185,7 +185,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 								sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
 								ref_individual_sequence_id=refSequence.id, \
 								alignment_method_name=alignment_method_name, alignment_format=alignment_format,\
-								individual_sequence_filtered=individual_sequence.filtered, read_group_added=1)	#read-group addition is part of pipeline
+								individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
+								dataDir=dataDir)	#read-group addition is part of pipeline
 					if not individual_alignment.path:
 						individual_alignment.path = individual_alignment.constructRelativePath()
 						session.add(individual_alignment)
