@@ -995,8 +995,10 @@ class VervetDB(ElixirDB):
 					sequence_type='SR', sequence_format='fastq', \
 					ref_individual_sequence_id=10, \
 					alignment_method_name='bwa-short-read', alignment_format='bam', subFolder='individual_alignment', \
-					createSymbolicLink=False, individual_sequence_filtered=0, read_group_added=None):
+					createSymbolicLink=False, individual_sequence_filtered=0, read_group_added=None, dataDir=None):
 		"""
+		2012.2.24
+			add argument dataDir
 		2011-9-15
 			add argument read_group_added
 		2011-8-30
@@ -1008,6 +1010,8 @@ class VervetDB(ElixirDB):
 		2011-5-6
 			subFolder is the name of the folder in self.data_dir that is used to hold the alignment files.
 		"""
+		if dataDir is None:
+			dataDir = self.data_dir
 		individual = self.getIndividual(individual_code)
 		if individual_sequence_id:
 			individual_sequence = IndividualSequence.get(individual_sequence_id)
@@ -1029,16 +1033,16 @@ class VervetDB(ElixirDB):
 			#copy the file over
 			
 			#'/' must not be put in front of the relative path.
-			# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
+			# otherwise, os.path.join(dataDir, dst_relative_path) will only take the path of dst_relative_path.
 			dst_relative_path = db_entry.constructRelativePath(subFolder=subFolder)
 			
 			#update its path in db to the relative path
 			db_entry.path = dst_relative_path
 			
-			dst_pathname = os.path.join(self.data_dir, dst_relative_path)
+			dst_pathname = os.path.join(dataDir, dst_relative_path)
 			from pymodule.utils import runLocalCommand
 			if path_to_original_alignment and (os.path.isfile(path_to_original_alignment) or os.path.isdir(path_to_original_alignment)):
-				dst_dir = os.path.join(self.data_dir, subFolder)
+				dst_dir = os.path.join(dataDir, subFolder)
 				if not os.path.isdir(dst_dir):	#the upper directory has to be created at this moment.
 					commandline = 'mkdir %s'%(dst_dir)
 					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
@@ -1114,8 +1118,10 @@ class VervetDB(ElixirDB):
 	def getIndividualSequence(self, individual_id=None, sequencer=None, sequence_type=None,\
 						sequence_format=None, path_to_original_sequence=None, tissue_name=None, coverage=None,\
 						subFolder='individual_sequence', quality_score_format="Standard", filtered=0,\
-						parent_individual_sequence_id=None):
+						parent_individual_sequence_id=None, dataDir=None):
 		"""
+		2012.2.24
+			add argument dataDir
 		2012.2.10
 			path_to_original_sequence is only given when you want to copy the file to db storage.
 			add argument parent_individual_sequence_id
@@ -1128,6 +1134,9 @@ class VervetDB(ElixirDB):
 		2011-5-7
 			subFolder is the name of the folder in self.data_dir that is used to hold the sequence files.
 		"""
+		if not dataDir:
+			dataDir = self.data_dir
+		
 		query = IndividualSequence.query.filter_by(individual_id=individual_id)
 		if sequencer:
 			query = query.filter_by(sequencer=sequencer)
@@ -1161,10 +1170,10 @@ class VervetDB(ElixirDB):
 			#update its path in db to the relative path
 			db_entry.path = dst_relative_path
 			
-			dst_abs_path = os.path.join(self.data_dir, dst_relative_path)
+			dst_abs_path = os.path.join(dataDir, dst_relative_path)
 			from pymodule.utils import runLocalCommand
 			if path_to_original_sequence and (os.path.isfile(path_to_original_sequence) or os.path.isdir(path_to_original_sequence)):
-				dst_dir = os.path.join(self.data_dir, subFolder)
+				dst_dir = os.path.join(dataDir, subFolder)
 				if not os.path.isdir(dst_dir):	#the upper directory has to be created at this moment.
 					commandline = 'mkdir -p %s'%(dst_dir)
 					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
