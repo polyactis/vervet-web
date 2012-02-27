@@ -219,7 +219,7 @@ class FilterShortReadPipeline(AbstractNGSWorkflow):
 						sequencer=parent_individual_sequence.sequencer, sequence_type=parent_individual_sequence.sequence_type,\
 						sequence_format=parent_individual_sequence.format, path_to_original_sequence=None, tissue_name=None, coverage=None,\
 						quality_score_format='Standard', filtered=1,\
-						parent_individual_sequence_id=parent_individual_sequence.id)
+						parent_individual_sequence_id=parent_individual_sequence.id, dataDir=self.dataDir)
 				
 				library_split_order2filtered_db_entry_ls = self.getLibrarySplitOrder2DBEntryLs(individual_sequence)
 				
