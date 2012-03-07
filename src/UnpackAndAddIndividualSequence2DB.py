@@ -73,7 +73,7 @@ class UnpackAndAddIndividualSequence2DB(AbstractNGSWorkflow):
 	option_default_dict.update({
 						('input', 1, ): ['', 'i', 1, 'if it is a directory, take every *.bam file in it. If it is a file, every line should be a path to actual bam file. ', ],\
 						('bamFname2MonkeyIDMapFname', 1, ): ['', 'm', 1, 'a tsv version of WUSTL xls file detailing what monkey is in which bam file.', ],\
-						('minNoOfReads', 1, int): [5000000, '', 1, 'minimum number of reads in each split fastq file. The upper limit in each split file is 2*minNoOfReads.', ],\
+						('minNoOfReads', 1, int): [500000, '', 1, 'minimum number of reads in each split fastq file. The upper limit in each split file is 2*minNoOfReads.', ],\
 						("sequencer", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger'],\
 						("sequence_type", 1, ): ["PE", '', 1, 'choices: BAC, genome, scaffold, PE, SR, ...'],\
 						("sequence_format", 1, ): ["fastq", 'f', 1, 'fasta, fastq, etc.'],\

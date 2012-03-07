@@ -29,6 +29,7 @@ class MergeGenotypeMatrix(object):
 	__doc__ = __doc__
 	option_default_dict = {('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
+						('noHeader', 0, int): [0, 'n', 0, 'all input has no header'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 
 	def __init__(self, inputFnameLs, **keywords):
@@ -51,23 +52,25 @@ class MergeGenotypeMatrix(object):
 			if not os.path.isfile(inputFname):
 				continue
 			inf = open(inputFname)
-			if header is None:
-				try:
-					header = inf.readline()
-					outf.write(header)
-				except:	#in case something wrong (i.e. file is empty)
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
-					print sys.exc_info()
-			else:	#skip the header for other input files
-				try:
-					inf.readline()
-				except:	#in case something wrong (i.e. file is empty)
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
-					print sys.exc_info()
+			if self.noHeader==0:	#in the case that every input has a common header
+				if header is None:
+					try:
+						header = inf.readline()
+						outf.write(header)
+					except:	#in case something wrong (i.e. file is empty)
+						sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+						import traceback
+						traceback.print_exc()
+						print sys.exc_info()
+				else:
+					#skip the header for other input files
+					try:
+						inf.readline()
+					except:	#in case something wrong (i.e. file is empty)
+						sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+						import traceback
+						traceback.print_exc()
+						print sys.exc_info()
 			for line in inf:
 				outf.write(line)
 		

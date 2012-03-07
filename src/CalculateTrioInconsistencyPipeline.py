@@ -1,19 +1,19 @@
 #!/usr/bin/env python
 """
 Examples:
-	# 2011-9-29
+	# 2011-9-29 (site depth >=1, -m 1)
 	%s -a 524 -I ./AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/call/ 
-		-o TrioInconsistency92VRC_20110922T2216.xml -l condorpool -j condorpool  -u yh -z uclaOffice
+		-o TrioInconsistency92VRC_20110922T2216.xml -l condorpool -j condorpool  -u yh -z uclaOffice -m 1
 	
 	# 2011-9-29 (including depth=0 sites, -m 0)
 	%s -a 524 -I ./AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/call/ 
 		-o TrioInconsistency92VRC_20110922T2216.xml -l condorpool -j condorpool  -u yh -z uclaOffice -m 0
 	
-	# 2011.12.16 run on hoffman2 condor
+	# 2011.12.16 run on hoffman2 condor (site depth >=1, -m 1)  (turn on checkEmptyVCFByReading, -E)
 	%s -a 524 -I AlignmentToTrioCallPipeline_VRC_Aln559_600_Trio620_632_648_top2Contigs.2011.12.14T1432/trioCaller/
 		-o TrioInconsistency_TrioCall_VRC_Aln559_600_Trio620_632_648_top2Contigs.xml -l hcondor -j hcondor  -u yh -z localhost
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/  -C 1 -E
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/  -C 1 -E -m 1
 	
 	
 Description:
@@ -253,33 +253,6 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		plotJob.uses(parentOutputF, transfer=True, register=True, link=Link.INPUT)
 		if parentJob:
 			workflow.depends(parent=parentJob, child=plotJob)
-	
-	@classmethod
-	def registerAllInputFiles(cls, workflow, inputDir, input_site_handler=None, checkEmptyVCFByReading=False):
-		"""
-		2012.1.9
-			the returning data structure is changed to conform to some standard used across several functions
-		2011-9-29
-			vcf files only
-		"""
-		sys.stderr.write("Registering input files from %s ..."%(inputDir))
-		returnData = PassingData(jobDataLs = [])
-		fnameLs = os.listdir(inputDir)
-		counter = 0
-		real_counter = 0
-		for fname in fnameLs:
-			counter += 1
-			inputFname = os.path.join(inputDir, fname)
-			if NextGenSeq.isFileNameVCF(fname, includeIndelVCF=False) and \
-					not NextGenSeq.isVCFFileEmpty(inputFname, checkContent=checkEmptyVCFByReading):
-				real_counter += 1
-				inputF = File(os.path.basename(inputFname))
-				inputF.addPFN(PFN("file://" + inputFname, input_site_handler))
-				inputF.abspath = inputFname
-				workflow.addFile(inputF)
-				returnData.jobDataLs.append(PassingData(vcfFile=inputF, jobLs=[]))
-		sys.stderr.write("%s non-empty out of %s files.\n"%(len(returnData.jobDataLs), counter))
-		return returnData
 	
 	def registerCustomExecutables(self, workflow):
 		"""
