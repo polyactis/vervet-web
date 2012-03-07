@@ -404,6 +404,14 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None,\
 					no_of_aln_threads=3, stampyExecutable=None, **keywords):
 		"""
+		2012.3.5
+			added "--overwrite" to stampy.py to overwrite partial output alignment file
+			added two stampy options
+				--baq                              (SAM format) Compute base-alignment quality (BAQ; BQ tag)
+				--alignquals                       (SAM format) Compute posterior alignment probabilities (YQ tag)
+		2012.2.26
+			handle read files with quality_score_format="Illumina" (post 1.3 solexa).
+			
 		2012.2.24
 			alignment job for stampy
 			no_of_aln_threads is only for bwa.
@@ -426,8 +434,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		
 		javaMemRequirement = "-Xms128m -Xmx%sm"%addRGJob_max_memory
 		refFastaFile = refFastaFList[0]
-		
-		fastqF = fileObjLs[0].fastqF
+		firstFileObject = fileObjLs[0]
+		fastqF = firstFileObject.fastqF
 		relativePath = fastqF.name
 		fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
 		outputSamFile = File('%s.sam'%(os.path.join(outputDir, fname_prefix)))
@@ -436,7 +444,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		# make sure to use ', rather than ", to wrap the bwaoptions. double-quote(") would disappear during xml translation.
 		alignmentJob.addArguments(" --bwa=%s "%(yh_pegasus.getAbsPathOutOfExecutable(bwa)), \
 					"--bwaoptions='%s -t%s %s' "%(additionalArguments, no_of_aln_threads, refFastaFile.name),  \
-					"-g", refFastaFile, "-h", refFastaFile, "-o", outputSamFile, " -M ")
+					"-g", refFastaFile, "-h", refFastaFile, "-o", outputSamFile, '--overwrite',\
+					'--baq', '--alignquals')
+		if firstFileObject.db_entry.quality_score_format=='Illumina':
+			alignmentJob.addArguments("--solexa")
 		alignmentJob.uses(outputSamFile, transfer=False, register=False, link=Link.OUTPUT)
 		alignmentJob.output = outputSamFile
 		alignmentJob.fname_prefix = fname_prefix
@@ -446,6 +457,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		yh_pegasus.setJobProperRequirement(alignmentJob, job_max_memory=aln_job_max_memory, \
 										no_of_cpus=no_of_aln_threads, max_walltime=aln_job_max_walltime)
 		workflow.addJob(alignmentJob)
+		alignmentJob.addArguments(" -M ")
 		for fileObject in fileObjLs:
 			fastqF = fileObject.fastqF
 			relativePath = fastqF.name

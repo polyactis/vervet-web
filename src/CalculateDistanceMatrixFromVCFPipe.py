@@ -32,9 +32,10 @@ import subprocess, cStringIO
 import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
+from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 
 
-class CalculateDistanceMatrixFromVCFPipe(object):
+class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 	__doc__ = __doc__
 	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
 						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
@@ -78,26 +79,6 @@ class CalculateDistanceMatrixFromVCFPipe(object):
 		self.vervetSrcPath = self.vervetSrcPath%self.home_path
 	
 	
-	def registerAllInputFiles(self, workflow, inputDir, input_site_handler=None):
-		"""
-		2011-9-29
-			vcf files only
-		"""
-		sys.stderr.write("Registering input files from %s ..."%(inputDir))
-		inputFLs = []
-		fnameLs = os.listdir(inputDir)
-		for fname in fnameLs:
-			if fname[-6:]!='vcf.gz' and fname[-3:]!='vcf':	#ignore non-vcf files
-				continue
-			inputFname = os.path.join(inputDir, fname)
-			
-			inputF = File(os.path.basename(inputFname))
-			inputF.addPFN(PFN("file://" + inputFname, input_site_handler))
-			workflow.addFile(inputF)
-			inputFLs.append(inputF)
-		sys.stderr.write("%s files.\n"%(len(inputFLs)))
-		return inputFLs
-		
 	def run(self):
 		"""
 		2011-9-28
@@ -159,7 +140,8 @@ class CalculateDistanceMatrixFromVCFPipe(object):
 		matrixDir = "pairwiseDistMatrix"
 		matrixDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=matrixDir, namespace=namespace, version=version)
 		
-		inputFLs = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler)
+		inputFLs = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler,
+											checkEmptyVCFByReading=self.checkEmptyVCFByReading)
 		
 		refSequence = VervetDB.IndividualSequence.get(self.aln_ref_ind_seq_id)
 		refFastaFname = os.path.join(self.dataDir, refSequence.path)

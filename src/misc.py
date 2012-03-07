@@ -333,7 +333,6 @@ class VariantDiscovery(object):
 		
 	"""
 	
-	
 	@classmethod
 	def moveFinishedBamIntoTargetFolder(cls, inputDirLs=None, outputDir=None, targetFolderSizeThresholdInMB=1000000,\
 									timeGapInMinutes=20):
@@ -2353,6 +2352,14 @@ class VariantDiscovery(object):
 		outputFnamePrefix = '/usr/local/vervetData/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
 		VariantDiscovery.PCAContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
 		sys.exit(3)
+		
+		
+		#2011-8-2
+		inputDir = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
+		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
+		VariantDiscovery.PCAContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
+		sys.exit(3)
+		
 	"""
 	
 	@classmethod
@@ -2516,7 +2523,13 @@ class VariantDiscovery(object):
 							min_no_of_data_points=50, needLog=False, dpi=200,)
 		
 	"""
+		#2011-8-26
 		
+		inputDir1 = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_all_bases/pairwiseDistMatrix/'
+		inputDir2 = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
+		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_ContigByDistVectorFrom8Genomes_all_bases_vs_variants_only'
+		VariantDiscovery.compareContigByDistVectorFromTwoDifferentRuns(inputDir1, inputDir2, outputFnamePrefix, partOfTitle='all_sites vs variants only')
+		sys.exit(3)
 	"""
 	
 	
@@ -4304,10 +4317,11 @@ class DBVervet(object):
 		"""
 		#2012.2.10
 		kinshipFname = "/Network/Data/vervet/Kinx2Jan2012.txt"
-		monkeyCoverageFname = 
-		outputFnamePrefix
+		monkeyCoverageFname = "/tmp/723MonkeysForWGS_to_be_sequenced.tsv"
+		outputFnamePrefix = os.path.expanduser('~/script/vervet/data/kinshipOf723')
 		DBVervet.drawKinshipHistogram(outputFnamePrefix=outputFnamePrefix, kinshipFname=kinshipFname, monkeyCoverageFname=monkeyCoverageFname)
 		sys.exit(0)
+		
 		"""
 	
 	
@@ -4420,6 +4434,137 @@ class DBVervet(object):
 		DBVervet.PCAKinship(db_vervet, kinshipFname=kinshipFname, outputFnamePrefix=outputFnamePrefix, monkeyType=1)
 		sys.exit(0)
 	"""
+	
+	@classmethod
+	def getMonkeyIDPair2Correlation(cls, smartpcaCorrelationFname=None):
+		"""
+		2012.3.1
+			smartpcaCorrelationFname is output from  PCAOnVCFWorkflow.py (with modified smartpca). tab-delimited.
+				553_2_VRC_ref_GA_vs_524	555_15_1987079_GA_vs_524        Case    Case    0.025
+				553_2_VRC_ref_GA_vs_524	556_16_1985088_GA_vs_524        Case    Case    -0.020
+				553_2_VRC_ref_GA_vs_524	557_17_1986014_GA_vs_524        Case    Case    -0.106
+				553_2_VRC_ref_GA_vs_524	558_18_1988009_GA_vs_524        Case    Case    -0.059
+		
+		"""
+		sys.stderr.write("Reading correlation from %s ... "%(smartpcaCorrelationFname))
+		monkey_id_pair2genotype_correlation = {}
+		import csv
+		from pymodule import figureOutDelimiter
+		reader = csv.reader(open(smartpcaCorrelationFname), delimiter=figureOutDelimiter(smartpcaCorrelationFname))
+		monkey_id_extract = lambda x: x.split('_')[2]
+		for row in reader:
+			monkey1 = row[0]
+			monkey2 = row[1]
+			cor = float(row[4])
+			pair_in_ls = [monkey_id_extract(monkey1), monkey_id_extract(monkey2)]
+			pair_in_ls.sort()
+			pair_key = tuple(pair_in_ls)
+			monkey_id_pair2genotype_correlation[pair_key] = cor
+		sys.stderr.write("%s pairs .\n"%(len(monkey_id_pair2genotype_correlation)))
+		return monkey_id_pair2genotype_correlation
+	
+	@classmethod
+	def plotPairwiseKinshipFromPedigreeVsGenotype(cls, db_vervet, kinshipFname=None, smartpcaCorrelationFname=None, outputFnamePrefix=None):
+		"""
+		2012.3.1
+			smartpcaCorrelationFname is output from  PCAOnVCFWorkflow.py (with modified smartpca). tab-delimited.
+			kinshipFname is from Sue (estimated by SOLAR based on pedigree)
+			
+		"""
+		monkey_id_pair2pedigree_kinship = cls.getMonkeyIDPair2Coverage(kinshipFname)
+		monkey_id_pair2genotype_correlation = cls.getMonkeyIDPair2Correlation(smartpcaCorrelationFname=smartpcaCorrelationFname)
+		
+		import csv
+		import VervetDB
+		tableOutputWriter = csv.writer(open("%s_table.tsv"%(outputFnamePrefix), 'w'), delimiter='\t')
+		header = ['monkey_pair', 'pedigree_kinship', 'genotype_correlation', 'age_difference']
+		tableOutputWriter.writerow(header)
+		
+		monkey_id_pair_ls = []
+		x_ls = []
+		y_ls = []
+		for monkey_id_pair, kinship in monkey_id_pair2pedigree_kinship.iteritems():
+			if monkey_id_pair in monkey_id_pair2genotype_correlation:
+				genotype_cor = monkey_id_pair2genotype_correlation.get(monkey_id_pair)
+				x_ls.append(kinship)
+				y_ls.append(genotype_cor)
+				monkey1 = VervetDB.Individual.query.filter_by(code=monkey_id_pair[0]).first()
+				monkey2 = VervetDB.Individual.query.filter_by(code=monkey_id_pair[1]).first()
+				
+				if monkey1 and monkey2 and monkey1.getCurrentAge() and monkey2.getCurrentAge():
+					ageDelta = abs(monkey1.getCurrentAge() - monkey2.getCurrentAge())
+				else:
+					ageDelta = ''
+				data_row = ['_'.join(monkey_id_pair), kinship, genotype_cor, ageDelta]
+				tableOutputWriter.writerow(data_row)
+		del tableOutputWriter
+		
+		sys.stderr.write("%s pairs overlap between pedigree kinship and genotype correlation.\n"%(len(x_ls)))
+		from pymodule import yh_matplotlib
+		fig_fname = '%s_scatter.png'%(outputFnamePrefix)
+		yh_matplotlib.drawScatter(x_ls, y_ls, fig_fname=fig_fname, title='%s pairs'%(len(x_ls)), xlabel='pedigree kinship', \
+								ylabel='genotype correlation', dpi=300)
+		"""
+		#2012.3.1
+		kinshipFname = "/Network/Data/vervet/Kinx2Jan2012.txt"
+		smartpcaCorrelationFname= "/Network/Data/vervet/vervetPipeline/PCAOnVCFWorkflow_VRC105_Top1000Contigs.2012.3.1T1505/pca/smartpca.cor"
+		outputFnamePrefix = os.path.expanduser("~/script/vervet//data/VRC105_Top1000Contigs_pedigree_kinship_vs_genotype_correlation")
+		DBVervet.plotPairwiseKinshipFromPedigreeVsGenotype(db_vervet, kinshipFname=kinshipFname, \
+														smartpcaCorrelationFname=smartpcaCorrelationFname,\
+														outputFnamePrefix=outputFnamePrefix)
+		sys.exit(3)
+		
+		"""
+	
+	@classmethod
+	def reformatSmartpcaPCOutputForDataExplorer(cls, db_vervet, smartpcaEvecFname=None, outputFname=None):
+		"""
+		2012.3.1
+			smartpcaEvecFname is output from  PCAOnVCFWorkflow.py (with modified smartpca). tab-delimited.
+			
+		"""
+		
+		import csv
+		import VervetDB
+		tableOutputWriter = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		header = ['monkey_id', 'age', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6']
+		tableOutputWriter.writerow(header)
+		
+		inf = open(smartpcaEvecFname, 'r')
+		eigenValues = inf.readline()
+		eigenValues = eigenValues.strip()
+		monkey_id_extract = lambda x: x.split('_')[2]
+		
+				
+				
+		for line in inf:
+			line = line.strip()
+			row = line.split(' ')
+			monkey_id = monkey_id_extract(row[0].strip())
+			monkey = VervetDB.Individual.query.filter_by(code=monkey_id).first()
+			if monkey and monkey.getCurrentAge():
+				age = monkey.getCurrentAge()
+			else:
+				age = ''
+			PCs = []
+			for PC in row[1:-1]:
+				if PC:
+					PC = float(PC)
+					PCs.append(PC)
+			data_row = [monkey_id, age] + PCs[:6]
+			tableOutputWriter.writerow(data_row)
+		del tableOutputWriter
+		
+		"""
+		#2012.3.1
+		smartpcaEvecFname= "/Network/Data/vervet/vervetPipeline/PCAOnVCFWorkflow_VRC105_Top1000Contigs.2012.3.1T1505/pca/smartpca.evec"
+		outputFname = os.path.expanduser("~/script/vervet//data/VRC105_Top1000Contigs_PCA_table.tsv")
+		DBVervet.reformatSmartpcaPCOutputForDataExplorer(db_vervet, smartpcaEvecFname=smartpcaEvecFname,\
+					outputFname=outputFname)
+		sys.exit(3)
+		
+		"""
+		
 	
 	@classmethod
 	def drawPedigree(cls, db_vervet, outputFnamePrefix=None, baseNodeSize=40, monkeyCoverageFname=None):
@@ -6410,19 +6555,6 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2012.2.17
-		kinshipFname = "/Network/Data/vervet/Kinx2Jan2012.txt"
-		outputFnamePrefix = '/Network/Data/vervet/Kinx2Jan2012'
-		DBVervet.PCAKinship(db_vervet, kinshipFname=kinshipFname, outputFnamePrefix=outputFnamePrefix, monkeyType=1)
-		sys.exit(0)
-		
-		#2012.2.10
-		kinshipFname = "/Network/Data/vervet/Kinx2Jan2012.txt"
-		monkeyCoverageFname = "/tmp/723MonkeysForWGS_to_be_sequenced.tsv"
-		outputFnamePrefix = os.path.expanduser('~/script/vervet/data/kinshipOf723')
-		DBVervet.drawKinshipHistogram(outputFnamePrefix=outputFnamePrefix, kinshipFname=kinshipFname, monkeyCoverageFname=monkeyCoverageFname)
-		sys.exit(0)
-		
 		
 		#2011.12.9
 		inputDir='/Network/Data/vervet/vervetPipeline/work/'
@@ -6513,20 +6645,6 @@ class Main(object):
 		DBVervet.pokeBamReadGroupPresence(db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), dataDir=dataDir, commit=True)
 		sys.exit(0)
 		
-		
-		#2011-8-26
-		
-		inputDir1 = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_all_bases/pairwiseDistMatrix/'
-		inputDir2 = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
-		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/8GenomeVsTop156Contigs_GATK_ContigByDistVectorFrom8Genomes_all_bases_vs_variants_only'
-		VariantDiscovery.compareContigByDistVectorFromTwoDifferentRuns(inputDir1, inputDir2, outputFnamePrefix, partOfTitle='all_sites vs variants only')
-		sys.exit(3)
-		
-		#2011-8-2
-		inputDir = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/call/'
-		outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/workflow_8GenomeVsTop156Contigs_GATK/contigPCAByDistVector'
-		VariantDiscovery.PCAContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix)
-		sys.exit(3)
 		
 		
 		

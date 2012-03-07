@@ -455,6 +455,8 @@ class IndividualAlignment(Entity, TableClass):
 	
 class IndividualSequence(Entity, TableClass):
 	"""
+	2012.2.27
+		add column read_count
 	2012.1.26
 		add column individual_sequence_file_raw_ls
 	2011-8-30
@@ -475,6 +477,7 @@ class IndividualSequence(Entity, TableClass):
 	chromosome = Field(String(512))	#1,2,4,5,X,Y,etc
 	tissue  = ManyToOne('Tissue', colname='tissue_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-5-9
 	coverage = Field(Float)	#2011-5-8
+	read_count = Field(BigInteger)	#2012.2.27
 	base_count = Field(BigInteger)	#2011-8-2
 	path = Field(Text, unique=True)	#storage folder path
 	format = Field(String(512))	#fasta, fastq
@@ -510,6 +513,8 @@ class IndividualSequence(Entity, TableClass):
 
 class IndividualSequenceFile(Entity, TableClass):
 	"""
+	2012.2.27
+		add column read_count
 	2012.2.10
 		add column parent_individual_sequence_file_id
 	2012.1.26
@@ -522,6 +527,7 @@ class IndividualSequenceFile(Entity, TableClass):
 	library = Field(Text)	#id for the preparation library
 	split_order = Field(Integer)	# the number that designates the order of this split fastq file within the large file
 	mate_id = Field(Integer)	# id of the mate pair. 1 = 1st end. 2 = 2nd end. null = single-end.
+	read_count = Field(BigInteger)	#2012.2.27
 	base_count = Field(BigInteger)	#2011-8-2
 	path = Field(Text, unique=True)	#path to the actual file
 	format = Field(String(512))	#fasta, fastq
@@ -543,6 +549,8 @@ class IndividualSequenceFile(Entity, TableClass):
 
 class IndividualSequenceFileRaw(Entity, TableClass):
 	"""
+	2012.2.27
+		add column read_count
 	2012.1.26
 		this table is used to store the bam files from WUSTL. The bam files hold either single-end or paired-end reads
 			in one file.
@@ -551,6 +559,7 @@ class IndividualSequenceFileRaw(Entity, TableClass):
 	individual_sequence = ManyToOne('IndividualSequence', colname='individual_sequence_id', ondelete='CASCADE', onupdate='CASCADE')
 	individual_sequence_file_ls = OneToMany("IndividualSequenceFile")
 	library = Field(Text)	#id for the preparation library
+	read_count = Field(BigInteger)	#2012.2.27
 	base_count = Field(BigInteger)
 	path = Field(Text)	#path to the actual file
 	md5sum = Field(Text, unique=True)	#used to identify each raw file
