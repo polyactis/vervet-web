@@ -6,11 +6,14 @@ Examples:
 	
 	# 2011-8-30 a workflow with 454 long-read and short-read PE 
 	%s -i 165-167 -o ShortRead2AlignmentPipeline_isq_id_165_167_vs_9.xml -u yh -a 9
-	-e /u/home/eeskin/polyacti -l hoffman2 -t /u/home/eeskin/polyacti/NetworkData/vervet/db -n1 -z dl324b-1.cmb.usc.edu -c
+		-e /u/home/eeskin/polyacti -l hoffman2 -t /u/home/eeskin/polyacti/NetworkData/vervet/db -n1 -z dl324b-1.cmb.usc.edu -c
+		-x /work/
 	
 	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (-D changes localDataDir. -t changes dataDir.)
+	# 2012.3.20 use /work/ as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
 	%s  -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -z localhost 
 		-l hcondor -j hcondor -u yh -i 631-700 -o workflow/ShortRead2Alignment_Isq_631_700_vs_524_hcondor.xml  -a 524 -c -O 
+		-x /work/
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files.
@@ -74,15 +77,8 @@ import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], \
 				sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 
-from sqlalchemy.types import LargeBinary
-
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
 import VervetDB
@@ -110,7 +106,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 						("needRefIndexJob", 0, int): [0, 'n', 1, 'need to add a reference index job by bwa?'],\
 						('no_of_aln_threads', 1, int): [1, 'm', 1, 'number of threads during alignment'],\
 						('stageOutFinalOutput', 0, int):[0, 'O', 0, 'toggle to stage out final output (bam + bam.bai)'],\
-						("tmpDir", 1, ): ["/tmp/", '', 1, 'for MarkDuplicates.jar, default is /tmp/ but sometimes it is too small'],\
+						("tmpDir", 1, ): ["/tmp/", 'x', 1, 'for MarkDuplicates.jar, default is /tmp/ but sometimes it is too small'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_alignment and/or individual_alignment.path'],\
 						})
 
@@ -212,7 +208,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(individual_alignment.path))[0]
 				
 				mergedBamFile = File('%s_merged.bam'%(fname_prefix))
-				alignmentMergeJob = self.addAlignmentMergeJob(workflow, AlignmentJobAndOutputLs=AlignmentJobAndOutputLs, \
+				alignmentMergeJob, bamIndexJob = self.addAlignmentMergeJob(workflow, AlignmentJobAndOutputLs=AlignmentJobAndOutputLs, \
 									outputBamFile=mergedBamFile, \
 									samtools=samtools, java=java, \
 									mergeSamFilesJava=mergeSamFilesJava, mergeSamFilesJar=mergeSamFilesJar, \
@@ -223,10 +219,11 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				finalBamFileName = os.path.basename(individual_alignment.path)	#relative path in the scratch
 				finalBamFile = File(finalBamFileName)
 				
-				self.addMarkDupJob(workflow, parentJob=alignmentMergeJob, inputBamF=mergedBamFile, outputBamFile=finalBamFile,\
-					MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=tmpDir,\
-					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
-					namespace=namespace, version=version, stageOutFinalOutput=self.stageOutFinalOutput)
+				markDupJob, markDupBamIndexJob = self.addMarkDupJob(workflow, parentJobLs=[alignmentMergeJob, bamIndexJob], inputBamF=mergedBamFile, \
+						inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
+						MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=tmpDir,\
+						BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+						namespace=namespace, version=version, stageOutFinalOutput=self.stageOutFinalOutput)
 		sys.stderr.write("%s alignment jobs.\n"%(no_of_alignment_jobs))
 	
 	def registerFileToWorkflow(self, filePair, workflow, dataDir=None):
@@ -312,7 +309,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			index_algorithm = "bwtsw"
 		bwa_index_job.addArguments("index", "-a", index_algorithm, refFastaF)
 		for refFastaFile in refFastaFList:
-			bwa_index_job.uses(refFastaFile, transfer=True, register=False, link=Link.INPUT)
+			bwa_index_job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
 		bwa_index_job.outputLs = []
 		for suffix in bwaIndexFileSuffixLs:
 			file = File("%s.%s"%(refFastaFile.name, suffix))
@@ -357,7 +354,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				alignmentJob = Job(namespace=namespace, name=LongSEAlignmentByBWA.name, version=version)
 			
 			alignmentJob.addArguments(refFastaF, fastqF, bam_output_fname_prefix)
-			alignmentJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+			alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 			alignmentJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%se_job_max_memory))
 			alignmentJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%se_job_max_memory))
 			#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="RequestCpus", value="%s"%no_of_aln_threads))
@@ -372,17 +369,17 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			sortBamF = File('%s.bam'%(bam_output_fname_prefix))
 			alignmentJob = Job(namespace=namespace, name=PEAlignmentByBWA.name, version=version)
 			alignmentJob.addArguments(refFastaF, fastqF1, fastqF2, bam_output_fname_prefix)
-			alignmentJob.uses(fastqF1, transfer=True, register=False, link=Link.INPUT)
-			alignmentJob.uses(fastqF2, transfer=True, register=False, link=Link.INPUT)
+			alignmentJob.uses(fastqF1, transfer=True, register=True, link=Link.INPUT)
+			alignmentJob.uses(fastqF2, transfer=True, register=True, link=Link.INPUT)
 			
 			alignmentJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%pe_job_max_memory))
 			alignmentJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%pe_job_max_memory))
 			#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="RequestCpus", value="%s"%no_of_aln_threads))
 			
-		alignmentJob.uses(sortBamF, transfer=False, register=False, link=Link.OUTPUT)
+		alignmentJob.uses(sortBamF, transfer=False, register=True, link=Link.OUTPUT)
 		workflow.addJob(alignmentJob)
 		if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-			alignmentJob.uses(refFastaF, transfer=True, register=False, link=Link.INPUT)
+			alignmentJob.uses(refFastaF, transfer=True, register=True, link=Link.INPUT)
 		if mkdirJob:
 			workflow.depends(parent=mkdirJob, child=alignmentJob)
 		return alignmentJob, sortBamF
@@ -393,7 +390,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		"""
 		workflow.depends(parent=refIndexJob, child=childJob)
 		for output in refIndexJob.outputLs:
-			childJob.uses(output, transfer=True, register=False, link=Link.INPUT)
+			childJob.uses(output, transfer=True, register=True, link=Link.INPUT)
 	
 	def addStampyAlignmentJob(self, workflow, fileObjLs, individual_alignment=None, \
 					dataDir=None, refFastaFList=None, bwa=None, additionalArguments=None, \
@@ -430,7 +427,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		sampe_job_max_memory = 6000	#in MB
 		addRGJob_max_memory = 2500	#in MB
 		aln_job_max_walltime= 4800	#80 hours, in minutes
-		aln_job_max_walltime = 960	#16 hours, because all reads are stored in chunks of 5-million-read files
+		aln_job_max_walltime = 1320	#22 hours, because all reads are stored in chunks of 5-million-read files
 		
 		javaMemRequirement = "-Xms128m -Xmx%sm"%addRGJob_max_memory
 		refFastaFile = refFastaFList[0]
@@ -448,12 +445,12 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					'--baq', '--alignquals')
 		if firstFileObject.db_entry.quality_score_format=='Illumina':
 			alignmentJob.addArguments("--solexa")
-		alignmentJob.uses(outputSamFile, transfer=False, register=False, link=Link.OUTPUT)
+		alignmentJob.uses(outputSamFile, transfer=False, register=True, link=Link.OUTPUT)
 		alignmentJob.output = outputSamFile
 		alignmentJob.fname_prefix = fname_prefix
 		
 		for refFastaFile in refFastaFList:
-			alignmentJob.uses(refFastaFile, transfer=True, register=False, link=Link.INPUT)
+			alignmentJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
 		yh_pegasus.setJobProperRequirement(alignmentJob, job_max_memory=aln_job_max_memory, \
 										no_of_cpus=no_of_aln_threads, max_walltime=aln_job_max_walltime)
 		workflow.addJob(alignmentJob)
@@ -462,7 +459,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			fastqF = fileObject.fastqF
 			relativePath = fastqF.name
 			alignmentJob.addArguments(fastqF)
-			alignmentJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+			alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 		if refIndexJob:
 			self.addRefIndexJobAndItsOutputAsParent(workflow, refIndexJob, childJob=alignmentJob)
 		if mkdirJob:
@@ -503,10 +500,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				alignmentJob.addArguments(alignment_method.command, additionalArguments,"-t %s"%no_of_aln_threads, \
 										"-f", saiOutput, refFastaFList[0], \
 										fastqF)
-				alignmentJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+				alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 				for refFastaFile in refFastaFList:
-					alignmentJob.uses(refFastaFile, transfer=True, register=False, link=Link.INPUT)
-				alignmentJob.uses(saiOutput, transfer=False, register=False, link=Link.OUTPUT)
+					alignmentJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
+				alignmentJob.uses(saiOutput, transfer=False, register=True, link=Link.OUTPUT)
 				yh_pegasus.setJobProperRequirement(alignmentJob, job_max_memory=aln_job_max_memory, \
 												no_of_cpus=no_of_aln_threads, max_walltime=aln_job_max_walltime)
 				
@@ -518,9 +515,9 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				
 				sai2samJob.addArguments(refFastaFList[0], saiOutput, fastqF, alignmentSamF)
 				for refFastaFile in refFastaFList:
-					sai2samJob.uses(refFastaFile, transfer=True, register=False, link=Link.INPUT)
-				sai2samJob.uses(saiOutput, transfer=False, register=False, link=Link.INPUT)
-				sai2samJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+					sai2samJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
+				sai2samJob.uses(saiOutput, transfer=True, register=True, link=Link.INPUT)
+				sai2samJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 				yh_pegasus.setJobProperRequirement(sai2samJob, job_max_memory=samse_job_max_memory)
 				workflow.addJob(sai2samJob)
 				workflow.depends(parent=alignmentJob, child=sai2samJob)
@@ -532,8 +529,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				
 				alignmentJob.addArguments(refFastaFList[0], fastqF, alignmentSamF, repr(no_of_aln_threads))
 				for refFastaFile in refFastaFList:
-					alignmentJob.uses(refFastaFile, transfer=True, register=False, link=Link.INPUT)
-				alignmentJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+					alignmentJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
+				alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 				yh_pegasus.setJobProperRequirement(alignmentJob, job_max_memory=bwasw_job_max_memory, \
 												no_of_cpus=no_of_aln_threads, max_walltime=aln_job_max_walltime)
 				workflow.addJob(alignmentJob)
@@ -557,7 +554,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			sai2samJob.addArguments(refFastaFList[0])
 			yh_pegasus.setJobProperRequirement(sai2samJob, job_max_memory=sampe_job_max_memory)
 			for refFastaFile in refFastaFList:
-				sai2samJob.uses(refFastaFile, transfer=True, register=False, link=Link.INPUT)
+				sai2samJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
 			workflow.addJob(sai2samJob)
 			for fileRecord in filePair:
 				fastqF, format, sequence_type = fileRecord[:3]
@@ -572,10 +569,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 										"-f", saiOutput, refFastaFList[0], fastqF)
 				yh_pegasus.setJobProperRequirement(alignmentJob, job_max_memory=aln_job_max_memory, \
 												no_of_cpus=no_of_aln_threads, max_walltime=aln_job_max_walltime)
-				alignmentJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+				alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 				for refFastaFile in refFastaFList:
-					alignmentJob.uses(refFastaFile, transfer=True, register=False, link=Link.INPUT)
-				alignmentJob.uses(saiOutput, transfer=False, register=False, link=Link.OUTPUT)
+					alignmentJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
+				alignmentJob.uses(saiOutput, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(alignmentJob)
 				
 				if refIndexJob:
@@ -585,16 +582,16 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					workflow.depends(parent=mkdirJob, child=alignmentJob)
 				
 				sai2samJob.addArguments(saiOutput)
-				sai2samJob.uses(saiOutput, transfer=False, register=False, link=Link.INPUT)
+				sai2samJob.uses(saiOutput, transfer=True, register=True, link=Link.INPUT)
 				workflow.depends(parent=alignmentJob, child=sai2samJob)
 			
 			#add a pair of fastq files to sampe in the end
 			for fileRecord in filePair:
 				fastqF = fileRecord[0]
 				sai2samJob.addArguments(fastqF)
-				sai2samJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+				sai2samJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 			sai2samJob.addArguments(alignmentSamF)
-		sai2samJob.uses(alignmentSamF, transfer=False, register=False, link=Link.OUTPUT)
+		sai2samJob.uses(alignmentSamF, transfer=False, register=True, link=Link.OUTPUT)
 		sai2samJob.output = alignmentSamF
 		sai2samJob.fname_prefix = fname_prefix
 		return sai2samJob
@@ -658,8 +655,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		bamOutputF = File(os.path.join(outputDir, "%s.bam"%(fname_prefix)))
 		sam_convert_job.addArguments('view', '-bSh', '-o', bamOutputF, alignmentJob.output)
 		#'-F', '4', (remove un-mapped reads) is removed
-		sam_convert_job.uses(alignmentJob.output, transfer=False, register=False, link=Link.INPUT)
-		sam_convert_job.uses(bamOutputF, transfer=False, register=False, link=Link.OUTPUT)
+		sam_convert_job.uses(alignmentJob.output, transfer=True, register=True, link=Link.INPUT)
+		sam_convert_job.uses(bamOutputF, transfer=False, register=True, link=Link.OUTPUT)
 		workflow.addJob(sam_convert_job)
 		workflow.depends(parent=alignmentJob, child=sam_convert_job)
 		
@@ -685,7 +682,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 							'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
 							'OUTPUT=', outputRGBAM, "VALIDATION_STRINGENCY=LENIENT")	#not including 'SORT_ORDER=coordinate'
 							#(adding the SORT_ORDER doesn't do sorting but it marks the header as sorted so that BuildBamIndexFilesJar won't fail.)
-		addRGJob.uses(bamOutputF, transfer=False, register=True, link=Link.INPUT)
+		addRGJob.uses(bamOutputF, transfer=True, register=True, link=Link.INPUT)
 		addRGJob.uses(outputRGBAM, transfer=False, register=True, link=Link.OUTPUT)
 		yh_pegasus.setJobProperRequirement(addRGJob, job_max_memory=addRGJob_max_memory, no_of_cpus=None)
 		workflow.addJob(addRGJob)
@@ -701,8 +698,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		sort_sam_job = Job(namespace=namespace, name=SortSamFilesJava.name, version=version)
 		sort_sam_job.addArguments(javaMemRequirement, '-jar', SortSamFilesJar, "SORT_ORDER=coordinate", "I=", outputRGBAM, \
 								"O=", sortBamF, "VALIDATION_STRINGENCY=LENIENT")
-		sort_sam_job.uses(outputRGBAM, transfer=False, register=False, link=Link.INPUT)
-		sort_sam_job.uses(sortBamF, transfer=False, register=False, link=Link.OUTPUT)
+		sort_sam_job.uses(outputRGBAM, transfer=True, register=True, link=Link.INPUT)
+		sort_sam_job.uses(sortBamF, transfer=False, register=True, link=Link.OUTPUT)
 		sort_sam_job.output = sortBamF
 		#job_max_memory = 2500	#in MB, 2.5g resident memory, 6458Mb Virtual in one example 
 		yh_pegasus.setJobProperRequirement(sort_sam_job, job_max_memory=addRGJob_max_memory, no_of_cpus=None)
@@ -733,10 +730,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				alignmentJob.addArguments(alignment_method.command, additionalArguments,"-t %s"%no_of_aln_threads, \
 										"-f", saiOutput, refFastaF, \
 										fastqF)
-				alignmentJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+				alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 				if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-					alignmentJob.uses(refFastaF, register=False, link=Link.INPUT)
-				alignmentJob.uses(saiOutput, transfer=False, register=False, link=Link.OUTPUT)
+					alignmentJob.uses(refFastaF, transfer=True, register=True, link=Link.INPUT)
+				alignmentJob.uses(saiOutput, transfer=False, register=True, link=Link.OUTPUT)
 				alignmentJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%aln_job_max_memory))
 				alignmentJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%aln_job_max_memory))
 				#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="RequestCpus", value="%s"%no_of_aln_threads))
@@ -746,11 +743,11 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				outputFname = os.path.join(outputDir, '%s.sam'%fname_prefix)
 				alignmentSamF = File(outputFname)
 				sai2samJob.addArguments("samse", "-f", outputFname, refFastaF, saiOutput, fastqF)
-				sai2samJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+				sai2samJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 				if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-					sai2samJob.uses(refFastaF, register=False, link=Link.INPUT)
-				sai2samJob.uses(saiOutput, transfer=False, register=False, link=Link.INPUT)
-				sai2samJob.uses(alignmentSamF, transfer=False, register=False, link=Link.OUTPUT)
+					sai2samJob.uses(refFastaF, transfer=True, register=True, link=Link.INPUT)
+				sai2samJob.uses(saiOutput, transfer=True, register=True, link=Link.INPUT)
+				sai2samJob.uses(alignmentSamF, transfer=False, register=True, link=Link.OUTPUT)
 				job_max_memory = 2500	#in MB
 				sai2samJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
 				sai2samJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
@@ -766,10 +763,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				alignmentSamF = File(outputFname)
 				alignmentJob.addArguments('bwasw', additionalArguments, "-t %s"%(no_of_aln_threads), "-f", alignmentSamF, refFastaF, \
 									fastqF)
-				alignmentJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+				alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 				if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-					alignmentJob.uses(refFastaF, register=False, link=Link.INPUT)
-				alignmentJob.uses(alignmentSamF, transfer=False, register=False, link=Link.OUTPUT)
+					alignmentJob.uses(refFastaF, transfer=True, register=True, link=Link.INPUT)
+				alignmentJob.uses(alignmentSamF, transfer=False, register=True, link=Link.OUTPUT)
 				alignmentJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%aln_job_max_memory))
 				alignmentJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%aln_job_max_memory))
 				#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="RequestCpus", value="%s"%no_of_aln_threads))
@@ -804,8 +801,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			sai2samJob.addArguments("-f", alignmentSamF)
 			sai2samJob.addArguments(refFastaF)
 			if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-				sai2samJob.uses(refFastaF, register=False, link=Link.INPUT)
-			sai2samJob.uses(alignmentSamF, transfer=False, register=False, link=Link.OUTPUT)
+				sai2samJob.uses(refFastaF, transfer=True, register=True, link=Link.INPUT)
+			sai2samJob.uses(alignmentSamF, transfer=False, register=True, link=Link.OUTPUT)
 			workflow.addJob(sai2samJob)
 			for fileRecord in filePair:
 				fastqF, format, sequence_type = fileRecord[:3]
@@ -822,10 +819,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				alignmentJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%aln_job_max_memory))
 				#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="RequestCpus", value="%s"%no_of_aln_threads))
 				#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="request_cpus", value="%s"%no_of_aln_threads))
-				alignmentJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
+				alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
 				if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-					alignmentJob.uses(refFastaF, register=False, link=Link.INPUT)
-				alignmentJob.uses(saiOutput, transfer=False, register=False, link=Link.OUTPUT)
+					alignmentJob.uses(refFastaF, transfer=True, register=True, link=Link.INPUT)
+				alignmentJob.uses(saiOutput, transfer=False, register=True, link=Link.OUTPUT)
 				workflow.addJob(alignmentJob)
 				
 				if refIndexJob:
@@ -834,8 +831,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					workflow.depends(parent=mkdirJob, child=alignmentJob)
 				
 				sai2samJob.addArguments(saiOutput)
-				sai2samJob.uses(fastqF, transfer=True, register=False, link=Link.INPUT)
-				sai2samJob.uses(saiOutput, transfer=False, register=False, link=Link.INPUT)
+				sai2samJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
+				sai2samJob.uses(saiOutput, transfer=True, register=True, link=Link.INPUT)
 				workflow.depends(parent=alignmentJob, child=sai2samJob)
 				
 			
@@ -849,8 +846,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		sam_convert_job = Job(namespace=namespace, name=samtools.name, version=version)
 		bamOutputF = File(os.path.join(outputDir, "%s.bam"%(fname_prefix)))
 		sam_convert_job.addArguments('view',  '-F', '4', '-bSh', '-o', bamOutputF, alignmentSamF)
-		sam_convert_job.uses(alignmentSamF, transfer=False, register=False, link=Link.INPUT)
-		sam_convert_job.uses(bamOutputF, transfer=False, register=False, link=Link.OUTPUT)
+		sam_convert_job.uses(alignmentSamF, transfer=True, register=True, link=Link.INPUT)
+		sam_convert_job.uses(bamOutputF, transfer=False, register=True, link=Link.OUTPUT)
 		workflow.addJob(sam_convert_job)
 		workflow.depends(parent=sai2samJob, child=sam_convert_job)
 		
@@ -862,8 +859,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		sam_sort_job = Job(namespace=namespace, name=samtools.name, version=version)
 		sam_sort_job.addArguments('sort', '-m', '2000000000', bamOutputF, bam_output_fname_prefix)	#maxMemory is down to 2G
 		sortBamF = File('%s.bam'%(bam_output_fname_prefix))
-		sam_sort_job.uses(bamOutputF, transfer=False, register=False, link=Link.INPUT)
-		sam_sort_job.uses(sortBamF, transfer=False, register=False, link=Link.OUTPUT)
+		sam_sort_job.uses(bamOutputF, transfer=True, register=True, link=Link.INPUT)
+		sam_sort_job.uses(sortBamF, transfer=False, register=True, link=Link.OUTPUT)
 		job_max_memory = 2000	#in MB
 		sam_sort_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
 		sam_sort_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
@@ -890,39 +887,43 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			merge_sam_job = Job(namespace=namespace, name=mergeSamFilesJava.name, version=version)
 			merge_sam_job.addArguments("-Xms128m", "-Xmx%sm"%(javaMaxMemory), "-jar", mergeSamFilesJar, 'USE_THREADING=true', 'SORT_ORDER=coordinate', \
 						'ASSUME_SORTED=true', 'OUTPUT=', outputBamFile, "VALIDATION_STRINGENCY=LENIENT")
-			merge_sam_job.uses(outputBamFile, transfer=stageOutFinalOutput, register=False, link=Link.OUTPUT)
+			merge_sam_job.uses(outputBamFile, transfer=stageOutFinalOutput, register=True, link=Link.OUTPUT)
 			yh_pegasus.setJobProperRequirement(merge_sam_job, job_max_memory=javaMaxMemory)
 			workflow.addJob(merge_sam_job)
 			for AlignmentJobAndOutput in AlignmentJobAndOutputLs:
 				alignmentJob, alignmentOutput = AlignmentJobAndOutput[:2]
 				merge_sam_job.addArguments('INPUT=', alignmentOutput)
-				merge_sam_job.uses(alignmentOutput, transfer=False, register=False, link=Link.INPUT)
+				merge_sam_job.uses(alignmentOutput, transfer=True, register=True, link=Link.INPUT)
 				workflow.depends(parent=alignmentJob, child=merge_sam_job)
 		else:	#one input file, no samtools merge. use "mv" to rename it instead
 			alignmentJob, alignmentOutput = AlignmentJobAndOutputLs[0][:2]
 			merge_sam_job = Job(namespace=namespace, name=mv.name, version=version)
 			merge_sam_job.addArguments(alignmentOutput, outputBamFile)
 			workflow.depends(parent=alignmentJob, child=merge_sam_job)
-			merge_sam_job.uses(alignmentOutput, transfer=False, register=False, link=Link.INPUT)
-			merge_sam_job.uses(outputBamFile, transfer=False, register=False, link=Link.OUTPUT)
+			merge_sam_job.uses(alignmentOutput, transfer=True, register=True, link=Link.INPUT)
+			merge_sam_job.uses(outputBamFile, transfer=stageOutFinalOutput, register=True, link=Link.OUTPUT)
 			workflow.addJob(merge_sam_job)
 		
 		
 		# add the index job on the merged bam file
-		return self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+		bamIndexJob = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					inputBamF=outputBamFile,\
-					parentJob=merge_sam_job, namespace=namespace, version=version,\
+					parentJobLs=[merge_sam_job], namespace=namespace, version=version,\
 					stageOutFinalOutput=stageOutFinalOutput, javaMaxMemory=javaMaxMemory)
+		return merge_sam_job, bamIndexJob
 	
-	def addMarkDupJob(self, workflow, parentJob=None, inputBamF=None, outputBamFile=None,\
+	def addMarkDupJob(self, workflow, parentJobLs=[], inputBamF=None, inputBaiF=None, outputBamFile=None,\
 					MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir="/Network/Data/vervet/vervetPipeline/tmp/",\
 					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
-					namespace='workflow', version='1.0', stageOutFinalOutput=True):
+					namespace='workflow', version='1.0', stageOutFinalOutput=True, no_of_cpus=2):
 		"""
+		2012.3.21
+			improve it
 		#2011-11-10 duplicate-marking job
 		"""
 		MarkDupJobMaxMemory=4000
-		MarkDupJob = Job(namespace=namespace, name=MarkDuplicatesJava.name, version=version)
+		MarkDupJob = Job(namespace=getattr(workflow, 'namespace', namespace), name=MarkDuplicatesJava.name, \
+						version=getattr(workflow, 'version', version))
 		bamFnamePrefix = os.path.splitext(outputBamFile.name)[0]
 		MarkDupOutputF = outputBamFile
 		MarkDupOutputMetricF = '%s.metric'%(bamFnamePrefix)
@@ -930,23 +931,30 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			"VALIDATION_STRINGENCY=LENIENT", "ASSUME_SORTED=true", "INPUT=", inputBamF, \
 			'OUTPUT=', MarkDupOutputF, "M=", MarkDupOutputMetricF, "MAX_RECORDS_IN_RAM=500000",\
 			"TMP_DIR=%s"%tmpDir)
-		MarkDupJob.uses(parentJob.baiFile, transfer=False, register=True, link=Link.INPUT)
-		MarkDupJob.uses(inputBamF, transfer=False, register=True, link=Link.INPUT)
+		MarkDupJob.uses(inputBaiF, transfer=True, register=True, link=Link.INPUT)
+		MarkDupJob.uses(inputBamF, transfer=True, register=True, link=Link.INPUT)
+		MarkDupJob.output = MarkDupOutputF
+		MarkDupJob.MarkDupOutputMetricF = MarkDupOutputMetricF
 		if stageOutFinalOutput:
 			MarkDupJob.uses(MarkDupOutputF, transfer=True, register=True, link=Link.OUTPUT)
 			MarkDupJob.uses(MarkDupOutputMetricF, transfer=True, register=True, link=Link.OUTPUT)
 		else:
-			pass	#don't register the files so leave them there
+			MarkDupJob.uses(MarkDupOutputF, transfer=False, register=True, link=Link.OUTPUT)
+			MarkDupJob.uses(MarkDupOutputMetricF, transfer=False, register=True, link=Link.OUTPUT)
+			#pass	#don't register the files so leave them there
 		workflow.addJob(MarkDupJob)
-		yh_pegasus.setJobProperRequirement(MarkDupJob, job_max_memory=MarkDupJobMaxMemory, no_of_cpus=2)
-		workflow.depends(parent=parentJob, child=MarkDupJob)
+		yh_pegasus.setJobProperRequirement(MarkDupJob, job_max_memory=MarkDupJobMaxMemory, no_of_cpus=no_of_cpus)
+		for parentJob in parentJobLs:
+			if parentJob:
+				workflow.depends(parent=parentJob, child=MarkDupJob)
 		
 		
 		# add the index job on the bam file
-		return self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+		bamIndexJob = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					inputBamF=MarkDupOutputF,\
 					parentJob=MarkDupJob, namespace=namespace, version=version,\
 					stageOutFinalOutput=stageOutFinalOutput)
+		return MarkDupJob, bamIndexJob
 		
 	@classmethod
 	def addSAMtoolsCalmdJob(cls, workflow, samtoolsCalmd=None, inputBamF=None, \
@@ -1126,7 +1134,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		
 		
 		#individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, dataDir=self.localDataDir)
-		isq_id2LibrarySplitOrder2FileLs = db_vervet.getISQ_ID2LibrarySplitOrder2FileLs(self.ind_seq_id_ls, dataDir=self.dataDir, filtered=None)
+		isq_id2LibrarySplitOrder2FileLs = db_vervet.getISQ_ID2LibrarySplitOrder2FileLs(self.ind_seq_id_ls, dataDir=self.dataDir, \
+																					filtered=None)
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		
 		

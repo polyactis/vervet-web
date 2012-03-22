@@ -21,6 +21,36 @@ Examples:
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -J ~/bin/jdk/bin/java
 	 
 Description:
+	2012.3.21
+		use samtools flagstat
+		polyacti@n260:~/NetworkData/vervet/vervetPipeline$ samtools flagstat ShortRead2Alignment_Isq_631_700_vs_524_hcondor.2012.2.24T190
+2/688_641_vs_524_by_2.bam
+1207621900 + 0 in total (QC-passed reads + QC-failed reads)
+183795287 + 0 duplicates
+1189930285 + 0 mapped (98.54%:-nan%)
+1207621900 + 0 paired in sequencing
+603810950 + 0 read1
+603810950 + 0 read2
+1053630056 + 0 properly paired (87.25%:-nan%)
+1185787652 + 0 with itself and mate mapped
+4142633 + 0 singletons (0.34%:-nan%)
+119269504 + 0 with mate mapped to a different chr
+26431776 + 0 with mate mapped to a different chr (mapQ>=5)
+
+
+		crocea@crocea:~$ samtools flagstat /Network/Data/vervet/db/individual_alignment/27_2_vs_9_by_2.bam
+6759182 + 0 in total (QC-passed reads + QC-failed reads)
+0 + 0 duplicates
+6759182 + 0 mapped (100.00%:-nan%)
+6759182 + 0 paired in sequencing
+3406895 + 0 read1
+3352287 + 0 read2
+6095302 + 0 properly paired (90.18%:-nan%)
+6198408 + 0 with itself and mate mapped
+560774 + 0 singletons (8.30%:-nan%)
+0 + 0 with mate mapped to a different chr
+0 + 0 with mate mapped to a different chr (mapQ>=5)
+
 	2011-11-4
 		a pegasus workflow that inspects no-of-reads-aligned, inferred insert size and etc.
 """

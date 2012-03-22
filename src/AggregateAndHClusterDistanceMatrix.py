@@ -17,18 +17,7 @@ import os, sys, numpy
 __doc__ = __doc__%(sys.argv[0], sys.argv[0])
 #2007-03-05 common codes to initiate database connection
 import sys, os, math
-"""
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:       #64bit
-	#sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/annot/bin')))
-	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/test/python')))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/variation/src')))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:	#32bit
-	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script/annot/bin')))
-	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script/test/python')))
-"""
+
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 

@@ -411,6 +411,14 @@ class VariantDiscovery(object):
 		VariantDiscovery.moveFinishedBamIntoTargetFolder(inputDirLs=inputDirLs, outputDir=outputDir, \
 														targetFolderSizeThresholdInMB=2000000)
 		sys.exit(0)
+		
+		#2011-11-6
+		inputDirLs = [os.path.expanduser("~/NetworkData/vervet/db/individual_alignment/"),]
+		outputDir = os.path.expanduser("~/panfs/NetworkData/vervet/db/individual_alignment/")
+		VariantDiscovery.moveFinishedBamIntoTargetFolder(inputDirLs=inputDirLs, outputDir=outputDir, \
+														targetFolderSizeThresholdInMB=1300000, timeGapInMinutes=2400)
+		sys.exit(0)
+		
 	"""
 	@classmethod
 	def getIndividual2ColIndex(cls, header, col_name2index, sampleStartingColumn=9):
@@ -1055,6 +1063,16 @@ class VariantDiscovery(object):
 		plotType = 1
 		outputFnamePrefix = os.path.expanduser("%s.score%s.plot%s"%(inputPrefix, scoreType, plotType))
 		VariantDiscovery.drawHistogramOfPairEndBWAOutputScore(inputFname, outputFnamePrefix, scoreType=scoreType, plotType=plotType)
+		sys.exit(0)
+		
+		#2011-3-24
+		inputPrefix = os.path.expanduser("/Network/Data/vervet/db/individual_alignment/577_37_vs_524_by_2")
+		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
+		scoreType = 1
+		plotType = 1
+		outputFnamePrefix = os.path.expanduser("/tmp/%s.score%s.plot%s"%(os.path.basename(inputPrefix), scoreType, plotType))
+		VariantDiscovery.drawHistogramOfPairEndBWAOutputScore(inputFname, outputFnamePrefix, scoreType=scoreType, \
+						plotType=plotType, exitAfterNumberOfReads=500000)
 		sys.exit(0)
 	"""
 	
@@ -2486,6 +2504,23 @@ class VariantDiscovery(object):
 		VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix, refID='ref')
 		sys.exit(0)
 		
+		workflowName= '8GenomeVsTop156Contigs_GATK_all_bases_maxNA0_minMAF0_het2NA_20111014T0043'
+		#workflowName = '8GenomeVsTop156Contigs_GATK_all_bases_maxNA0.8_minMAF0_het2NA_20111014T0059'
+		inputDir= "/Network/Data/vervet/vervetPipeline/%s/pairwiseDistMatrix/"%(workflowName)
+		for subspeciesName in ['ref', 'Barbados', 'VRC_ref_454', "VRC_ref_GA", 'aethiops', 'cynosurus', 'sabaeus', 'tantalus','pygerythrus',]:
+			outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/%s/GATK_all_bases_maxNA0_minMAF0_het2NA_DistVectorFrom8Genomes2%s'%\
+				(workflowName, subspeciesName)
+			if subspeciesName=='ref':
+				refID = subspeciesName
+			elif subspeciesName =='VRC_ref_GA' or subspeciesName=='VRC_ref_454':
+				refID = '%s_vs_top156Contigs'%(subspeciesName)
+			else:
+				refID = '%s_GA_vs_top156Contigs'%(subspeciesName)
+			VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix, refID=refID, subspeciesName=subspeciesName)
+		sys.exit(0)
+
+		
+		
 	"""
 
 	@classmethod
@@ -2579,10 +2614,16 @@ class VariantDiscovery(object):
 	
 	"""
 		#2011-9-23
-		inputDir = 
-		outputFname
-		VariantDiscovery.drawHist(inputDir, outputFname)
+		workflowDir = 'AlignmentToCallPipeline_4_8_vs_524_top_156Contigs_uschpc'
+		workflowDir = 'AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110920T2319'
+		workflowDir = 'AlignmentToCallPipeline_10VWP_627_629_650_656_vs_524_top_156Contigs_condorpool_20110922T1837'
+		inputDir = '/Network/Data/vervet/vervetPipeline/%s/samtools/'%workflowDir
+		outputFname = '/Network/Data/vervet/vervetPipeline/%s/samtools_TsTv_hist.png'%(workflowDir)
+		VariantDiscovery.drawContigTsTvHistogram(inputDir, outputFname)
 		sys.exit(0)
+		
+		
+		
 	"""
 	
 	@classmethod
@@ -2869,6 +2910,13 @@ class VariantDiscovery(object):
 		outputFnamePrefix = '/tmp/%s_Contig0'%(workflowName)
 		VariantDiscovery.countHomoHetCallsForEachSampleFromVCF(inputFname, outputFnamePrefix)
 		sys.exit(0)
+		
+		#2011-11-2
+		workflowName = 'AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top156Contigs_condor_20111101T2316'
+		inputFname = '/Network/Data/vervet/vervetPipeline/%s/call/Contig0.vcf.gz'%(workflowName)
+		outputFnamePrefix = '/tmp/%s_Contig0'%(workflowName)
+		VariantDiscovery.countHomoHetCallsForEachSampleFromVCF(inputFname, outputFnamePrefix)
+		sys.exit(0)
 	"""
 
 	class TallyFilteredSNPs(object):
@@ -2958,6 +3006,20 @@ class VariantDiscovery(object):
 		FilterVCFByDepthStdoutFnamePattern = os.path.join(inputDir, FilterVCFByDepthStdoutFnamePattern)
 		VariantDiscovery.TallyFilteredSNPs.findSitesFilteredOrMaskedByFilterVCFByDepth(FilterVCFByDepthStdoutFnamePattern=FilterVCFByDepthStdoutFnamePattern, \
 			sampleSize=101, grepPattern='call\/Contig')
+		sys.exit(0)
+		
+				
+		#2011.12.9
+		inputDir='/Network/Data/vervet/vervetPipeline/work/'
+		workflowName = 'FilterVCF_LowPass_top7559Contigs_no12eVarFilter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25_2011.12.1T1155'
+		workflowName = ''
+		workflowName = 'Filter_Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25.2011.12.9T0643'
+		FilterVCFByDepthStdoutFnamePattern="%s/merge_workflow-FilterVCFByDepth*out.000"%(workflowName)
+		FilterVCFByDepthStdoutFnamePattern = os.path.join(inputDir, FilterVCFByDepthStdoutFnamePattern)
+		grepPattern='call_vcftoolsFilter\/Contig'
+		#grepPattern='call_vcftoolsFilter_vcftoolsFilter\/Contig'
+		VariantDiscovery.TallyFilteredSNPs.findSitesFilteredOrMaskedByFilterVCFByDepth(FilterVCFByDepthStdoutFnamePattern=FilterVCFByDepthStdoutFnamePattern, \
+			sampleSize=101, grepPattern=grepPattern)
 		sys.exit(0)
 		"""
 	
@@ -3067,6 +3129,22 @@ class VariantDiscovery(object):
 		inputDir = os.path.join(inputDir, subFolder)
 		VariantDiscovery.TallyFilteredSNPs.countTotalNoOfSitesFilteredByVCFtools(inputDir=inputDir)
 		sys.exit(0)
+		
+		
+		#2011.12.9
+		inputDir='/Network/Data/vervet/vervetPipeline/scratch/'
+		workflowName = 'FilterVCF_LowPass_top7559Contigs_no12eVarFilter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25_2011.12.1T1155'
+		workflowName = 'Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4.2011.12.9T0505'
+		workflowName = 'Filter_Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25.2011.12.9T0643'
+		subFolder="%s/call_vcftoolsFilter"%(workflowName)
+		subFolder="%s/call_vcftoolsFilter_vcftoolsFilter"%(workflowName)
+		inputDir = os.path.join(inputDir, subFolder)
+		fileSuffix='filter_by_vcftools.log'
+		#fileSuffix='keepGivenSNP.log'
+		VariantDiscovery.TallyFilteredSNPs.countTotalNoOfSitesFilteredByVCFtools(inputDir=inputDir, fileSuffix=fileSuffix)
+		sys.exit(0)
+		
+		
 		"""
 		
 	@classmethod
@@ -3313,7 +3391,6 @@ class DBVervet(object):
 		dataDir = os.path.expanduser("~/mnt/hpc-cmb_home/NetworkData/vervet/db/")
 		DBVervet.pokeBamReadGroupPresence(db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), dataDir=dataDir, commit=True)
 		sys.exit(0)
-		
 		
 	"""
 	
@@ -5396,6 +5473,14 @@ class DBVervet(object):
 		outputFnamePrefix = '/tmp/LeastRelatedVervets_pedigree_distance'
 		DBVervet.calculateAndDrawPairwiseDistanceInPedigree(db_vervet, inputFname, outputFnamePrefix=outputFnamePrefix)
 		sys.exit(0)
+		
+		
+		#2011-9-22
+		inputFname = '/tmp/LeastRelatedVervets.csv'
+		outputFnamePrefix = '/tmp/LeastRelatedVervets_pedigree_distance'
+		DBVervet.calculateAndDrawPairwiseDistanceInPedigree(db_vervet, inputFname, outputFnamePrefix=outputFnamePrefix)
+		sys.exit(0)
+		
 	"""
 	@classmethod
 	def filterValue(cls, value, data_type=None, NA_str_set=set(["", "NA", "N/A", 'n/a'])):
@@ -5928,6 +6013,72 @@ class DBVervet(object):
 		sys.exit(0)
 		
 	"""
+	
+	@classmethod
+	def put2012BarbadosCollectionIntoDB(cls, db_vervet, inputFname, monkeyIDPrefix="", \
+								collector_name='Barbados Primate Research Center', country="Barbados",tax_id=60711):
+		"""
+		2012.3.20
+			5 monkeys from Barbados
+		"""
+		sys.stderr.write("Putting 2012 Barbados collection (%s) into db ...\n"%(inputFname))
+		db_vervet.session.begin()
+		import csv, re
+		from datetime import datetime
+		from pymodule.utils import getColName2IndexFromHeader, figureOutDelimiter
+		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("ID Number")
+		site_index = col_name2index.get("Location of Capture")
+		gps_index = col_name2index.get("Approximate GPS position")
+		sex_index = col_name2index.get("Sex")
+		ageStr_index = col_name2index.get("Age")
+		collection_date_index = col_name2index.get("Date of Capture")
+		
+		collector = db_vervet.getUser(collector_name)
+		counter = 0
+		no_of_phenotype_entries = 0
+		for row in reader:
+			monkey_id = monkeyIDPrefix + row[monkey_id_index].strip()
+			site_str = row[site_index].strip()
+			gps = row[gps_index]
+			sex = row[sex_index].strip()
+			ageStr = row[ageStr_index].strip()
+			#age = row[age_index]
+			#age = cls.filterValue(age, int)
+			collection_date = row[collection_date_index]
+			collection_date = datetime.strptime(collection_date, '%d/%m/%Y')	#20/6/2011
+			#birthdate = datetime.datetime(collection_date.year-age, collection_date.month, collection_date.day)
+			
+			latitude, longitude = gps.split(',')[:2]
+			latitude = float(latitude)
+			longitude = float(longitude)
+			
+			
+			description = site_str.strip()
+			city = None
+			site = db_vervet.getSite(description=description, city=city, stateprovince=None, country_name=country, \
+									latitude=latitude, longitude=longitude,\
+									altitude=None)
+			
+			individual = db_vervet.getIndividual(code=monkey_id, sex=sex[0], age=None, latitude=latitude,\
+								longitude=longitude, altitude=None, ucla_id=monkey_id, site=site, \
+								collection_date=collection_date, collector=collector, tax_id=tax_id, \
+								birthdate=None, vrc_founder=None, comment=ageStr, microchip_id=None)
+			counter += 1
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		sys.stderr.write("%s individuals, %s phenotype entries. Done.\n"%(counter, no_of_phenotype_entries))
+	
+	"""
+		#2012.3.20
+		inputFname = os.path.expanduser("/tmp/2012.3.7AnimalsFromBarbadosPrimateResearchCenter.csv")
+		DBVervet.put2012BarbadosCollectionIntoDB(db_vervet, inputFname)
+		sys.exit(0)
+	"""
+	
+	
 	@classmethod
 	def putDOCWalkerResultsIntoDB(cls, db_vervet, inputFname, commit=True):
 		"""
@@ -6554,98 +6705,6 @@ class Main(object):
 		#import MySQLdb
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
-		
-		
-		#2011.12.9
-		inputDir='/Network/Data/vervet/vervetPipeline/work/'
-		workflowName = 'FilterVCF_LowPass_top7559Contigs_no12eVarFilter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25_2011.12.1T1155'
-		workflowName = ''
-		workflowName = 'Filter_Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25.2011.12.9T0643'
-		FilterVCFByDepthStdoutFnamePattern="%s/merge_workflow-FilterVCFByDepth*out.000"%(workflowName)
-		FilterVCFByDepthStdoutFnamePattern = os.path.join(inputDir, FilterVCFByDepthStdoutFnamePattern)
-		grepPattern='call_vcftoolsFilter\/Contig'
-		#grepPattern='call_vcftoolsFilter_vcftoolsFilter\/Contig'
-		VariantDiscovery.TallyFilteredSNPs.findSitesFilteredOrMaskedByFilterVCFByDepth(FilterVCFByDepthStdoutFnamePattern=FilterVCFByDepthStdoutFnamePattern, \
-			sampleSize=101, grepPattern=grepPattern)
-		sys.exit(0)
-		
-		#2011.12.9
-		inputDir='/Network/Data/vervet/vervetPipeline/scratch/'
-		workflowName = 'FilterVCF_LowPass_top7559Contigs_no12eVarFilter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25_2011.12.1T1155'
-		workflowName = 'Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4.2011.12.9T0505'
-		workflowName = 'Filter_Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25.2011.12.9T0643'
-		subFolder="%s/call_vcftoolsFilter"%(workflowName)
-		subFolder="%s/call_vcftoolsFilter_vcftoolsFilter"%(workflowName)
-		inputDir = os.path.join(inputDir, subFolder)
-		fileSuffix='filter_by_vcftools.log'
-		#fileSuffix='keepGivenSNP.log'
-		VariantDiscovery.TallyFilteredSNPs.countTotalNoOfSitesFilteredByVCFtools(inputDir=inputDir, fileSuffix=fileSuffix)
-		sys.exit(0)
-		
-		
-		
-		#2011-11-6
-		inputDirLs = [os.path.expanduser("~/NetworkData/vervet/db/individual_alignment/"),]
-		outputDir = os.path.expanduser("~/panfs/NetworkData/vervet/db/individual_alignment/")
-		VariantDiscovery.moveFinishedBamIntoTargetFolder(inputDirLs=inputDirLs, outputDir=outputDir, \
-														targetFolderSizeThresholdInMB=1300000, timeGapInMinutes=2400)
-		sys.exit(0)
-		
-		#2011-3-24
-		inputPrefix = os.path.expanduser("/Network/Data/vervet/db/individual_alignment/577_37_vs_524_by_2")
-		inputFname = os.path.expanduser("%s.bam"%(inputPrefix))
-		scoreType = 1
-		plotType = 1
-		outputFnamePrefix = os.path.expanduser("/tmp/%s.score%s.plot%s"%(os.path.basename(inputPrefix), scoreType, plotType))
-		VariantDiscovery.drawHistogramOfPairEndBWAOutputScore(inputFname, outputFnamePrefix, scoreType=scoreType, \
-						plotType=plotType, exitAfterNumberOfReads=500000)
-		sys.exit(0)
-		
-		#2011-11-2
-		workflowName = 'AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top156Contigs_condor_20111101T2316'
-		inputFname = '/Network/Data/vervet/vervetPipeline/%s/call/Contig0.vcf.gz'%(workflowName)
-		outputFnamePrefix = '/tmp/%s_Contig0'%(workflowName)
-		VariantDiscovery.countHomoHetCallsForEachSampleFromVCF(inputFname, outputFnamePrefix)
-		sys.exit(0)
-		
-		workflowName= '8GenomeVsTop156Contigs_GATK_all_bases_maxNA0_minMAF0_het2NA_20111014T0043'
-		#workflowName = '8GenomeVsTop156Contigs_GATK_all_bases_maxNA0.8_minMAF0_het2NA_20111014T0059'
-		inputDir= "/Network/Data/vervet/vervetPipeline/%s/pairwiseDistMatrix/"%(workflowName)
-		for subspeciesName in ['ref', 'Barbados', 'VRC_ref_454', "VRC_ref_GA", 'aethiops', 'cynosurus', 'sabaeus', 'tantalus','pygerythrus',]:
-			outputFnamePrefix = '/Network/Data/vervet/vervetPipeline/%s/GATK_all_bases_maxNA0_minMAF0_het2NA_DistVectorFrom8Genomes2%s'%\
-				(workflowName, subspeciesName)
-			if subspeciesName=='ref':
-				refID = subspeciesName
-			elif subspeciesName =='VRC_ref_GA' or subspeciesName=='VRC_ref_454':
-				refID = '%s_vs_top156Contigs'%(subspeciesName)
-			else:
-				refID = '%s_GA_vs_top156Contigs'%(subspeciesName)
-			VariantDiscovery.drawContigByDistVectorFromOtherGenomes(inputDir, outputFnamePrefix, refID=refID, subspeciesName=subspeciesName)
-		sys.exit(0)
-		
-		
-		#2011-9-22
-		inputFname = '/tmp/LeastRelatedVervets.csv'
-		outputFnamePrefix = '/tmp/LeastRelatedVervets_pedigree_distance'
-		DBVervet.calculateAndDrawPairwiseDistanceInPedigree(db_vervet, inputFname, outputFnamePrefix=outputFnamePrefix)
-		sys.exit(0)
-		
-		#2011-9-23
-		workflowDir = 'AlignmentToCallPipeline_4_8_vs_524_top_156Contigs_uschpc'
-		workflowDir = 'AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110920T2319'
-		workflowDir = 'AlignmentToCallPipeline_10VWP_627_629_650_656_vs_524_top_156Contigs_condorpool_20110922T1837'
-		inputDir = '/Network/Data/vervet/vervetPipeline/%s/samtools/'%workflowDir
-		outputFname = '/Network/Data/vervet/vervetPipeline/%s/samtools_TsTv_hist.png'%(workflowDir)
-		VariantDiscovery.drawContigTsTvHistogram(inputDir, outputFname)
-		sys.exit(0)
-		
-		
-		#2011-9-15
-		dataDir = os.path.expanduser("~/mnt/hpc-cmb_home/NetworkData/vervet/db/")
-		DBVervet.pokeBamReadGroupPresence(db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), dataDir=dataDir, commit=True)
-		sys.exit(0)
-		
-		
 		
 		
 		#2011-7-7 output all the BACs in order

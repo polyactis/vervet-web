@@ -22,3 +22,7 @@ create or replace view view_individual_sequence as select isq.id as isq_id, isq.
 	i.longitude, s.short_name as site_name, s.city, s.stateprovince as province
 	from individual i, individual_sequence isq, site s
 	where i.site_id=s.id and i.id=isq.individual_id order by code;
+
+drop view view_compare_seq_coverage;
+create or replace view view_compare_seq_coverage as select i1.individual_id, i1.path, i1.coverage as coverage_after_filter, 
+	i2.coverage, i1.coverage/i2.coverage as ratio from individual_sequence i1, individual_sequence i2 where i1.parent_individual_sequence_id=i2.id order by ratio;
