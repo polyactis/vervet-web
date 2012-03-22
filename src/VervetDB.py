@@ -1544,8 +1544,10 @@ class VervetDB(ElixirDB):
 		sys.stderr.write("%s individual sequences. Done.\n"%(len(individualSequenceID2FilePairLs)))
 		return individualSequenceID2FilePairLs
 	
-	def getISQ_ID2LibrarySplitOrder2FileLs(self, individualSequenceIDList, dataDir=None, filtered=None):
+	def getISQ_ID2LibrarySplitOrder2FileLs(self, individualSequenceIDList, dataDir=None, filtered=None, ignoreEmptyReadFile=True):
 		"""
+		2012.3.19
+			add argument, ignoreEmptyReadFile
 		2012.2.24
 			filtered=None means "no filtering based on this field.".
 			
@@ -1559,13 +1561,24 @@ class VervetDB(ElixirDB):
 		if not dataDir:
 			dataDir = self.data_dir
 		counter = 0
+		from mapper.CountFastqReadBaseCount import CountFastqReadBaseCount
+		
 		for individualSequenceID in individualSequenceIDList:
 			individual_sequence = IndividualSequence.get(individualSequenceID)
 			if not individual_sequence:	#not present in db, ignore
 				continue
 			for individual_sequence_file in individual_sequence.individual_sequence_file_ls:
+				path = os.path.join(dataDir, individual_sequence_file.path)
 				if filtered is not None and individual_sequence_file.filtered!=filtered:	#skip entries that don't matched the filtered argument
 					continue
+				if ignoreEmptyReadFile:	#2012.3.19	ignore empty read files.
+					if individual_sequence_file.read_count is None:	#calculate it on the fly
+						baseCountData = CountFastqReadBaseCount.getReadBaseCount(path, onlyForEmptyCheck=True)
+						read_count = baseCountData.read_count
+					else:
+						read_count = individual_sequence_file.read_count
+					if read_count==0:
+						continue
 				if individualSequenceID not in isq_id2LibrarySplitOrder2FileLs:
 					isq_id2LibrarySplitOrder2FileLs[individualSequenceID] = {}
 				counter += 1
@@ -1581,7 +1594,6 @@ class VervetDB(ElixirDB):
 				if len(LibrarySplitOrder2FileLs[key])<mate_id:
 					for i in xrange(mate_id-len(LibrarySplitOrder2FileLs[key])):	#expand the list to match the number of mates
 						LibrarySplitOrder2FileLs[key].append(None)
-				path = os.path.join(dataDir, individual_sequence_file.path)
 				isq_file_obj = PassingData(db_entry=individual_sequence_file, path=path)
 				LibrarySplitOrder2FileLs[key][mate_id-1] = isq_file_obj
 		
