@@ -2,16 +2,17 @@
 """
 Examples:
 	
-	#2011-11-4 run on condorpool
-	%s -j condorpool -l condorpool -u yh -z uclaOffice -o InspectTop804ContigsAlnRefSeq524Alignments.xml -i ...
+	#2012.3.21 run on condorpool
+	%s -j condorpool -l condorpool -u yh -z uclaOffice -o MarkDup.xml -i ...
 	
-	#2011-11-5 run on uschpc (input data is on uschpc), for each top contig as well
-	%s -j uschpc -l uschpc -u yh -z uclaOffice -o MarkDupAlnID552_661Pipeline_uschpc.xml
+	#2012.3.21 run on uschpc (input data is on uschpc), for each top contig as well
+	%s -j uschpc -l uschpc -u yh -z uclaOffice -o MarkDup....xml
 		-i ... -e /home/cmb-03/mn/yuhuang/ -m /home/cmb-03/mn/yuhuang/tmp/
 		-J /usr/usc/jdk/default/bin/java -t /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/ -D /Network/Data/vervet/db/
 	
 	#2012-3-21 on hoffman2's condor pool
-	%s -j hcondor -l hcondor -u yh -i ... -o InspectRefSeq524WholeAlignment.xml -C 30
+	%s -j hcondor -l hcondor -u yh -i ShortRead2Alignment_Isq_631_700_vs_524_hcondor.2012.2.24T1902/
+		-o MarkDuplicatesShortRead2Alignment_Isq_631_700_vs_524_hcondor.2012.2.24T1902.xml
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -J ~/bin/jdk/bin/java -m /work/
 	 
@@ -21,6 +22,7 @@ Description:
 		fails to run jobs after MergeSam in proper parallel fashion.
 		
 		outputFname: if inputFname is like xxx_merged.bam, outputFname is xxx.bam. If not, it'll become xxx.markDup.bam.
+		bwa and stampy are not used but added because it inherits ShortRead2AlignmentPipeline's registerCustomExecutables().
 """
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
@@ -39,6 +41,8 @@ class MarkDuplicatesWorkflow(ShortRead2AlignmentPipeline):
 	__doc__ = __doc__
 	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
 	option_default_dict.update({
+						("bwa_path", 1, ): ["%s/bin/bwa", '', 1, 'bwa binary'],\
+						("stampy_path", 1, ): ["%s/bin/stampy.py", '', 1, 'path to stampy.py'],\
 						('inputFolder', 0, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. alignments come from these', ],\
 						("tmpDir", 1, ): ["/tmp/", 'm', 1, 'for MarkDuplicates.jar, default is /tmp/ but sometimes too small'],\
 						})
@@ -48,6 +52,10 @@ class MarkDuplicatesWorkflow(ShortRead2AlignmentPipeline):
 		2012.3.21
 		"""
 		AbstractNGSWorkflow.__init__(self, **keywords)
+		
+		#bwa and stampy are not used but added because it inherits ShortRead2AlignmentPipeline's registerCustomExecutables().
+		self.bwa_path =  self.insertHomePath(self.bwa_path, self.home_path)
+		self.stampy_path =  self.insertHomePath(self.stampy_path, self.home_path)
 	
 	def getMarkDupOutputFnameBasedOnInputFname(self, inputFname=None):
 		"""
