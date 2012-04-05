@@ -19,53 +19,23 @@ Examples:
 	%s -a 524 -j hcondor -l hcondor -u yh -z localhost -N 7559 -o InspectRefSeq524WholeAlignment.xml -C 30
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -J ~/bin/jdk/bin/java
+	
+	#2012.4.3 change tmpDir (-m) for AddOrReplaceReadGroups, no job clustering (-C 1)
+	%s -a 524 -j condorpool -l condorpool -u yh -z uclaOffice -o InspectAln1_To_661_RefSeq524Alignments.xml -I 1-661
+		-m /Network/Data/vervet/vervetPipeline/tmp/ -C 1
+	
 	 
 Description:
 	2012.3.21
 		use samtools flagstat
-		polyacti@n260:~/NetworkData/vervet/vervetPipeline$ samtools flagstat ShortRead2Alignment_Isq_631_700_vs_524_hcondor.2012.2.24T190
-2/688_641_vs_524_by_2.bam
-1207621900 + 0 in total (QC-passed reads + QC-failed reads)
-183795287 + 0 duplicates
-1189930285 + 0 mapped (98.54%:-nan%)
-1207621900 + 0 paired in sequencing
-603810950 + 0 read1
-603810950 + 0 read2
-1053630056 + 0 properly paired (87.25%:-nan%)
-1185787652 + 0 with itself and mate mapped
-4142633 + 0 singletons (0.34%:-nan%)
-119269504 + 0 with mate mapped to a different chr
-26431776 + 0 with mate mapped to a different chr (mapQ>=5)
-
-
-		crocea@crocea:~$ samtools flagstat /Network/Data/vervet/db/individual_alignment/27_2_vs_9_by_2.bam
-6759182 + 0 in total (QC-passed reads + QC-failed reads)
-0 + 0 duplicates
-6759182 + 0 mapped (100.00%:-nan%)
-6759182 + 0 paired in sequencing
-3406895 + 0 read1
-3352287 + 0 read2
-6095302 + 0 properly paired (90.18%:-nan%)
-6198408 + 0 with itself and mate mapped
-560774 + 0 singletons (8.30%:-nan%)
-0 + 0 with mate mapped to a different chr
-0 + 0 with mate mapped to a different chr (mapQ>=5)
-
 	2011-11-4
 		a pegasus workflow that inspects no-of-reads-aligned, inferred insert size and etc.
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])	# sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0]
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])	#, sys.argv[0], sys.argv[0], sys.argv[0]
 
-from sqlalchemy.types import LargeBinary
-
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
 import VervetDB
@@ -80,10 +50,10 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 	option_default_dict.update({
 						('ind_seq_id_ls', 0, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. alignments come from these', ],\
 						('ind_aln_id_ls', 0, ): ['', 'I', 1, 'a comma/dash-separated list of IndividualAlignment.id. This overrides ind_seq_id_ls.', ],\
-						("contigMinRankBySize", 1, int): [1, 'M', 1, 'min rank (by size) of contigs'],\
-						("tmpDir", 1, ): ["/tmp/", 'm', 1, 'for MarkDuplicates.jar, default is /tmp/ but sometimes too small'],\
+						("tmpDir", 1, ): ["/tmp/", 'm', 1, 'for MarkDuplicates.jar or AddOrReplaceReadGroups.jar, default is /tmp/ but sometimes too small'],\
 						("topNumberOfContigs", 1, int): [156, 'N', 1, 'max rank (by size) of contigs'],\
 						("needPerContigJob", 0, int): [0, 'P', 0, 'toggle to add DepthOfCoverage and VariousReadCount jobs for each contig.'],\
+						("fractionToSample", 0, float): [0.05, '', 1, 'fraction of loci to walk through for DepthOfCoverage walker.'],\
 						("needFastaIndexJob", 0, int): [0, '', 0, 'toggle to add a reference index job by samtools'],\
 						("needFastaDictJob", 0, int): [0, '', 0, 'toggle to add a reference dict job by picard CreateSequenceDictionary.jar'],\
 						})
@@ -101,10 +71,13 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		
 	
 	def addDepthOfCoverageJob(self, workflow, DOCWalkerJava=None, genomeAnalysisTKJar=None,\
-							refFastaFList=None, bamF=None, baiFile=None, DOCOutputFnamePrefix=None,\
-							parentJob=None, job_max_memory = 1000, additionalArguments="", \
+							refFastaFList=None, bamF=None, baiF=None, DOCOutputFnamePrefix=None,\
+							fractionToSample=None,\
+							parentJobLs=[], job_max_memory = 1000, additionalArguments="", \
 							transferOutput=False):
 		"""
+		2012.4.3
+			add argument fractionToSample
 		2011-11-25
 		"""
 		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
@@ -114,11 +87,13 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 			'-R', refFastaF, '-o', DOCOutputFnamePrefix, "-pt sample", "--omitDepthOutputAtEachBase",\
 			"-mmq 30", "-mbq 20")
 		DOCJob.addArguments("-I", bamF)
+		if fractionToSample and fractionToSample>0 and fractionToSample<=1:
+			DOCJob.addArguments("--fractionToSample %s"%(fractionToSample))
 		if additionalArguments:
 			DOCJob.addArguments(additionalArguments)
 		#it's either symlink or stage-in
 		DOCJob.uses(bamF, transfer=True, register=True, link=Link.INPUT)
-		DOCJob.uses(baiFile, transfer=True, register=True, link=Link.INPUT)
+		DOCJob.uses(baiF, transfer=True, register=True, link=Link.INPUT)
 		self.registerFilesAsInputToJob(DOCJob, refFastaFList)
 		DOCJob.sample_summary_file = File('%s.sample_summary'%(DOCOutputFnamePrefix))
 		DOCJob.sample_interval_summary_file =File('%s.sample_interval_summary'%(DOCOutputFnamePrefix)) 
@@ -126,13 +101,13 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		DOCJob.uses(DOCJob.sample_interval_summary_file, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		workflow.addJob(DOCJob)
 		yh_pegasus.setJobProperRequirement(DOCJob, job_max_memory=job_max_memory)
-		if parentJob:
+		for parentJob in parentJobLs:
 			workflow.depends(parent=parentJob, child=DOCJob)
 		return DOCJob
 	
 	def addReadCountJob(self, workflow, VariousReadCountJava=None, genomeAnalysisTKJar=None,\
-					refFastaFList=None, bamF=None, baiFile=None, readCountOutputF=None,\
-					parentJob=None, job_max_memory = 1000, additionalArguments="", \
+					refFastaFList=None, bamF=None, baiF=None, readCountOutputF=None,\
+					parentJobLs=[], job_max_memory = 1000, additionalArguments="", \
 					transferOutput=False):
 		"""
 		2011-11-25
@@ -146,17 +121,37 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		if additionalArguments:
 			DOCJob.addArguments(additionalArguments)
 		readCountJob.uses(bamF, transfer=True, register=True, link=Link.INPUT)
-		readCountJob.uses(baiFile, transfer=True, register=True, link=Link.INPUT)
+		readCountJob.uses(baiF, transfer=True, register=True, link=Link.INPUT)
 		self.registerFilesAsInputToJob(readCountJob, refFastaFList)
 		readCountJob.output = readCountOutputF
 		readCountJob.uses(readCountOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		workflow.addJob(readCountJob)
 		yh_pegasus.setJobProperRequirement(readCountJob, job_max_memory=job_max_memory)
-		if parentJob:
+		for parentJob in parentJobLs:
 			workflow.depends(parent=parentJob, child=readCountJob)
 		return readCountJob
 	
-	def addJobs(self, workflow, alignmentLs, refName2size, samtools=None, DOCWalkerJava=None, \
+	def addReformatFlagstatOutputJob(self, workflow, executable=None, inputF=None, alignmentID=None, outputF=None, \
+					parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+					extraArguments=None, job_max_memory=2000, **keywords):
+		"""
+		2012.4.3
+			input is output of "samtools flagstat"
+		"""
+		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
+		job.addArguments('-a %s'%(alignmentID), '-i', inputF, '-o', outputF)
+		job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
+		job.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		job.output = outputF
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
+		workflow.addJob(job)
+		for parentJob in parentJobLs:
+			workflow.depends(parent=parentJob, child=job)
+		for input in extraDependentInputLs:
+			job.uses(input, transfer=True, register=True, link=Link.INPUT)
+		return job
+	
+	def addJobs(self, workflow, alignmentDataLs, refName2size, samtools=None, DOCWalkerJava=None, \
 				ContigDOCWalkerJava=None, ContigVariousReadCountJava=None, \
 				VariousReadCountJava=None,  genomeAnalysisTKJar=None, \
 				createSequenceDictionaryJava=None, createSequenceDictionaryJar=None, \
@@ -164,6 +159,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
 				MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir="/Network/Data/vervet/vervetPipeline/tmp/",\
 				mkdirWrap=None, mv=None, \
+				ReformatFlagstatOutput=None, PutFlagstatOutput2DB=None, PutDOCOutput2DB=None,\
 				
 				reduceDepthOfCoverage=None, reduceVariousReadCount=None,\
 				refFastaFList=None, \
@@ -172,16 +168,20 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				needFastaIndexJob=False, needFastaDictJob=False, \
 				dataDir=None, needPerContigJob=False):
 		"""
+		2012.4.3
+			add ReformatFlagstatOutput, PutDOCOutput2DB, PutFlagstatOutput2DB jobs
 		2011-11-4
 			
 		"""
-		sys.stderr.write("Adding jobs for %s references and %s alignments..."%(len(refName2size), len(alignmentLs)))
+		sys.stderr.write("Adding jobs for %s references and %s alignments..."%(len(refName2size), len(alignmentDataLs)))
 		perContigJobMaxMemory = 1000	#in MB
 		refFastaF = refFastaFList[0]
+		no_of_jobs = 0
 		if needFastaDictJob:
 			fastaDictJob = self.addRefFastaDictJob(workflow, createSequenceDictionaryJava=createSequenceDictionaryJava, \
 										refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
+			no_of_jobs += 1
 		else:
 			fastaDictJob = None
 			refFastaDictF = None
@@ -189,93 +189,139 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		if needFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
+			no_of_jobs += 1
 		else:
 			fastaIndexJob = None
 			refFastaIndexF = None
 		
+		"""
+		#2012.4.3 no more VariousReadCountJava job
 		readCountOutputF = File('VariousReadCount.tsv')
 		readCountOutputMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=readCountOutputF, namespace=namespace, version=version)
+		"""
 		
 		depthOfCoverageOutputF = File('DepthOfCoverage.tsv')
 		depthOfCoverageOutputMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-							outputF=depthOfCoverageOutputF, namespace=namespace, version=version)
-				
-		returnData = self.addAddRG2BamJobsAsNeeded(workflow, alignmentLs, site_handler, input_site_handler=input_site_handler, \
+							outputF=depthOfCoverageOutputF, namespace=namespace, version=version,\
+							transferOutput=True)
+		
+		flagStatOutputF = File('FlagStat.tsv')
+		flagStatOutputMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=flagStatOutputF, namespace=namespace, version=version,\
+							transferOutput=True)
+		
+		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
 					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
-					mv=mv, namespace=namespace, version=version, dataDir=dataDir)
-		alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
-		
-		for alignment in alignmentLs:
-			#if alignment.id in alignmentId2RGJobDataLs:
-				index_sam_job, bamF, baiFile = alignmentId2RGJobDataLs[alignment.id]
+					mv=mv, namespace=namespace, version=version, dataDir=dataDir, tmpDir=tmpDir)
+		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
+		no_of_jobs += 2
+		for alignmentData in alignmentDataLs:
+			alignment = alignmentData.alignment
+			
+			bamF= alignmentData.bamF
+			baiF = alignmentData.baiF
+			
+			DOCOutputFnamePrefix = '%s_DOC'%(alignment.id)
+			DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=DOCWalkerJava, genomeAnalysisTKJar=genomeAnalysisTKJar,\
+						refFastaFList=refFastaFList, bamF=bamF, baiF=baiF, \
+						DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
+						parentJobLs=alignmentData.jobLs, job_max_memory = perContigJobMaxMemory*2, transferOutput=True)
+			self.addInputToStatMergeJob(workflow, statMergeJob=depthOfCoverageOutputMergeJob, inputF=DOCJob.sample_summary_file,\
+						parentJobLs=[DOCJob])
+			
+			
+			oneFlagStatOutputF = File('%s_flagstat.txt'%(alignment.id))
+			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(workflow, executable=samtools, inputF=bamF, outputF=oneFlagStatOutputF, \
+				parentJobLs=alignmentData.jobLs, extraDependentInputLs=[baiF], transferOutput=False, \
+				extraArguments=None, job_max_memory=perContigJobMaxMemory)
+			
+			reformatFlagStatOutputF = File('%s_flagstat.tsv'%(alignment.id))
+			reformatFlagStatOutputJob = self.addReformatFlagstatOutputJob(workflow, executable=ReformatFlagstatOutput, \
+								inputF=oneFlagStatOutputF, alignmentID=alignment.id, outputF=reformatFlagStatOutputF, \
+								parentJobLs=[samtoolsFlagStatJob], extraDependentInputLs=[], transferOutput=False, \
+								extraArguments=None, job_max_memory=20)
+			self.addInputToStatMergeJob(workflow, statMergeJob=flagStatOutputMergeJob, inputF=reformatFlagStatOutputJob.output, \
+						parentJobLs=[reformatFlagStatOutputJob])
+			
+			no_of_jobs += 3
+			
+			"""
+				#2012.4.3 no more VariousReadCountJava job
+			readCountOutputF = File('%s_variousReadCount.tsv'%(alignment.id))
+			readCountJob = self.addReadCountJob(workflow, VariousReadCountJava=VariousReadCountJava, \
+						genomeAnalysisTKJar=genomeAnalysisTKJar, refFastaFList=refFastaFList, \
+						bamF=bamF, baiF=baiF, readCountOutputF=readCountOutputF,\
+						parentJobLs=None, job_max_memory = perContigJobMaxMemory*2, \
+						transferOutput=True)
+			self.addInputToStatMergeJob(workflow, statMergeJob=readCountOutputMergeJob, inputF=readCountOutputF,\
+						parentJobLs=[readCountJob])
+			"""
+			if not needPerContigJob:	#no need for per-contig job
+				continue
+			
+			statOutputDir = '%s'%(alignment.id)
+			statOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=statOutputDir, namespace=namespace, \
+													version=version)
+			
+			"""
+				#2012.4.3 no more VariousReadCountJava job
+			finalVariousReadCountOutputF = File("%s_VariousReadCount.tsv"%(alignment.getReadGroup()))
+			reduceVariousReadCountJob = Job(namespace=namespace, name=reduceVariousReadCount.name, version=version)
+			reduceVariousReadCountJob.addArguments("-o", finalVariousReadCountOutputF)
+			reduceVariousReadCountJob.uses(finalVariousReadCountOutputF, transfer=True, register=True, link=Link.OUTPUT)
+			workflow.addJob(reduceVariousReadCountJob)
+			"""
+			finalDepthOfCoverageOutputF = File("%s_DepthOfCoverage.tsv"%(alignment.getReadGroup()))
+			reduceDepthOfCoverageJob = Job(namespace=namespace, name=reduceDepthOfCoverage.name, version=version)
+			reduceDepthOfCoverageJob.addArguments("-o", finalDepthOfCoverageOutputF)
+			reduceDepthOfCoverageJob.uses(finalDepthOfCoverageOutputF, transfer=True, register=True, link=Link.OUTPUT)
+			workflow.addJob(reduceDepthOfCoverageJob)
+			
+			for refName, refSize in refName2size.iteritems():	#this could be further improved to work on per-interval
+				DOCOutputFnamePrefix = os.path.join(statOutputDir, '%s_%s_DOC'%(alignment.id, refName))
+				DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=ContigDOCWalkerJava, \
+						genomeAnalysisTKJar=genomeAnalysisTKJar,\
+						refFastaFList=refFastaFList, bamF=bamF, baiF=baiF, \
+						DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
+						parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = perContigJobMaxMemory, additionalArguments="-L %s"%(refName),\
+						transferOutput=False)
 				
-				DOCOutputFnamePrefix = '%s_DOC'%(alignment.id)
-				DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=DOCWalkerJava, genomeAnalysisTKJar=genomeAnalysisTKJar,\
-							refFastaFList=refFastaFList, bamF=bamF, baiFile=baiFile, \
-							DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
-							parentJob=None, job_max_memory = perContigJobMaxMemory*2, transferOutput=True)
-				self.addInputToStatMergeJob(workflow, statMergeJob=depthOfCoverageOutputMergeJob, inputF=DOCJob.sample_summary_file,\
-							parentJobLs=[DOCJob])
+				reduceDepthOfCoverageJob.addArguments(DOCJob.sample_interval_summary_file)
+				reduceDepthOfCoverageJob.uses(DOCJob.sample_interval_summary_file, transfer=True, register=True, link=Link.INPUT)
+				workflow.depends(parent=DOCJob, child=reduceDepthOfCoverageJob)
 				
-				readCountOutputF = File('%s_variousReadCount.tsv'%(alignment.id))
-				readCountJob = self.addReadCountJob(workflow, VariousReadCountJava=VariousReadCountJava, \
+				"""
+				#2012.4.3 no more VariousReadCountJava job
+				readCountOutputF = File(os.path.join(statOutputDir, '%s_%s_variousReadCount.tsv'%(alignment.id, refName)))
+				readCountJob = self.addReadCountJob(workflow, VariousReadCountJava=ContigVariousReadCountJava, \
 							genomeAnalysisTKJar=genomeAnalysisTKJar, refFastaFList=refFastaFList, \
-							bamF=bamF, baiFile=baiFile, readCountOutputF=readCountOutputF,\
-							parentJob=None, job_max_memory = perContigJobMaxMemory*2, \
-							transferOutput=True)
-				self.addInputToStatMergeJob(workflow, statMergeJob=readCountOutputMergeJob, inputF=readCountOutputF,\
-							parentJobLs=[readCountJob])
-				
-				if not needPerContigJob:	#no need for per-contig job
-					continue
-				
-				statOutputDir = '%s'%(alignment.id)
-				statOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=statOutputDir, namespace=namespace, \
-														version=version)
-				
-				finalVariousReadCountOutputF = File("%s_VariousReadCount.tsv"%(alignment.getReadGroup()))
-				reduceVariousReadCountJob = Job(namespace=namespace, name=reduceVariousReadCount.name, version=version)
-				reduceVariousReadCountJob.addArguments("-o", finalVariousReadCountOutputF)
-				reduceVariousReadCountJob.uses(finalVariousReadCountOutputF, transfer=True, register=True, link=Link.OUTPUT)
-				workflow.addJob(reduceVariousReadCountJob)
-				
-				finalDepthOfCoverageOutputF = File("%s_DepthOfCoverage.tsv"%(alignment.getReadGroup()))
-				reduceDepthOfCoverageJob = Job(namespace=namespace, name=reduceDepthOfCoverage.name, version=version)
-				reduceDepthOfCoverageJob.addArguments("-o", finalDepthOfCoverageOutputF)
-				reduceDepthOfCoverageJob.uses(finalDepthOfCoverageOutputF, transfer=True, register=True, link=Link.OUTPUT)
-				workflow.addJob(reduceDepthOfCoverageJob)
-				
-				for refName, refSize in refName2size.iteritems():	#this could be further improved to work on per-interval
-					DOCOutputFnamePrefix = os.path.join(statOutputDir, '%s_%s_DOC'%(alignment.id, refName))
-					DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=ContigDOCWalkerJava, \
-							genomeAnalysisTKJar=genomeAnalysisTKJar,\
-							refFastaFList=refFastaFList, bamF=bamF, baiFile=baiFile, \
-							DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
-							parentJob=statOutputDirJob, job_max_memory = perContigJobMaxMemory, additionalArguments="-L %s"%(refName),\
+							bamF=bamF, baiF=baiF, readCountOutputF=readCountOutputF,\
+							parentJobLs=statOutputDirJob, job_max_memory = perContigJobMaxMemory, additionalArguments="-L %s"%(refName), \
 							transferOutput=False)
-					
-					reduceDepthOfCoverageJob.addArguments(DOCJob.sample_interval_summary_file)
-					reduceDepthOfCoverageJob.uses(DOCJob.sample_interval_summary_file, transfer=True, register=True, link=Link.INPUT)
-					workflow.depends(parent=DOCJob, child=reduceDepthOfCoverageJob)
-					
-					
-					readCountOutputF = File(os.path.join(statOutputDir, '%s_%s_variousReadCount.tsv'%(alignment.id, refName)))
-					readCountJob = self.addReadCountJob(workflow, VariousReadCountJava=ContigVariousReadCountJava, \
-								genomeAnalysisTKJar=genomeAnalysisTKJar, refFastaFList=refFastaFList, \
-								bamF=bamF, baiFile=baiFile, readCountOutputF=readCountOutputF,\
-								parentJob=statOutputDirJob, job_max_memory = perContigJobMaxMemory, additionalArguments="-L %s"%(refName), \
-								transferOutput=False)
-					
-					reduceVariousReadCountJob.addArguments(readCountOutputF)
-					reduceVariousReadCountJob.uses(readCountOutputF, transfer=True, register=True, link=Link.INPUT)
-					workflow.depends(parent=readCountJob, child=reduceVariousReadCountJob)
-					
-					if index_sam_job is not None:
-						workflow.depends(parent=index_sam_job, child=DOCJob)
-						workflow.depends(parent=index_sam_job, child=readCountJob)
-		sys.stderr.write(".Done\n")
+				
+				reduceVariousReadCountJob.addArguments(readCountOutputF)
+				reduceVariousReadCountJob.uses(readCountOutputF, transfer=True, register=True, link=Link.INPUT)
+				workflow.depends(parent=readCountJob, child=reduceVariousReadCountJob)
+				"""
+				if index_sam_job is not None:
+					workflow.depends(parent=index_sam_job, child=DOCJob)
+					#workflow.depends(parent=index_sam_job, child=readCountJob)
+		
+		flagStat2DBLogFile = File("flagStat2DB.log")
+		flagStat2DBJob = self.addPutStuffIntoDBJob(workflow, executable=PutFlagstatOutput2DB, inputFileLs=[flagStatOutputF], \
+					logFile=flagStat2DBLogFile, commit=True, \
+					parentJobLs=[flagStatOutputMergeJob], extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
+					job_max_memory=10)
+		DOC2DBLogFile = File("DOC2DB.log")
+		DOC2DBJob = self.addPutStuffIntoDBJob(workflow, executable=PutDOCOutput2DB, inputFileLs=[depthOfCoverageOutputF], \
+					logFile=DOC2DBLogFile, commit=True, \
+					parentJobLs=[depthOfCoverageOutputMergeJob], extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
+					job_max_memory=10)
+		
+		no_of_jobs += 2
+		sys.stderr.write(" %s jobs.\n"%(no_of_jobs))
 	
 	def registerCustomExecutables(self, workflow):
 		"""
@@ -291,7 +337,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		
 		reduceDepthOfCoverage = Executable(namespace=namespace, name="ReduceDepthOfCoverage", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
-		reduceDepthOfCoverage.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reduce/ReduceDepthOfCoverage.py"), site_handler))
+		reduceDepthOfCoverage.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/ReduceDepthOfCoverage.py"), site_handler))
 		#clustering is buggy for programs with long arguments.
 		#reduceDepthOfCoverage.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(reduceDepthOfCoverage)
@@ -299,7 +345,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		
 		reduceVariousReadCount = Executable(namespace=namespace, name="ReduceVariousReadCount", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
-		reduceVariousReadCount.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reduce/ReduceVariousReadCount.py"), site_handler))
+		reduceVariousReadCount.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/ReduceVariousReadCount.py"), site_handler))
 		#clustering is buggy for programs with long arguments.
 		#reduceVariousReadCount.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(reduceVariousReadCount)
@@ -321,7 +367,27 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		workflow.addExecutable(ContigVariousReadCountJava)
 		workflow.ContigVariousReadCountJava = ContigVariousReadCountJava
 		
-	
+		ReformatFlagstatOutput = Executable(namespace=namespace, name="ReformatFlagstatOutput", version=version, os=operatingSystem,\
+								arch=architecture, installed=True)
+		ReformatFlagstatOutput.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mapper/ReformatFlagstatOutput.py"), site_handler))
+		ReformatFlagstatOutput.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(ReformatFlagstatOutput)
+		workflow.ReformatFlagstatOutput = ReformatFlagstatOutput
+		
+		PutFlagstatOutput2DB = Executable(namespace=namespace, name="PutFlagstatOutput2DB", version=version, os=operatingSystem,\
+								arch=architecture, installed=True)
+		PutFlagstatOutput2DB.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/PutFlagstatOutput2DB.py"), site_handler))
+		#PutFlagstatOutput2DB.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(PutFlagstatOutput2DB)
+		workflow.PutFlagstatOutput2DB = PutFlagstatOutput2DB
+		
+		PutDOCOutput2DB = Executable(namespace=namespace, name="PutDOCOutput2DB", version=version, os=operatingSystem,\
+								arch=architecture, installed=True)
+		PutDOCOutput2DB.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/PutDOCOutput2DB.py"), site_handler))
+		#PutDOCOutput2DB.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(PutDOCOutput2DB)
+		workflow.PutDOCOutput2DB = PutDOCOutput2DB
+		
 	def run(self):
 		"""
 		2011-7-11
@@ -348,13 +414,15 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		vervetSrcPath = self.vervetSrcPath
 		site_handler = self.site_handler
 		
-		refName2size = self.getTopNumberOfContigs(self.topNumberOfContigs)
-		#refName2size = set(['Contig149'])	#temporary when testing Contig149
-		#refName2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
-		refNameLs = refName2size.keys()
+		if self.needPerContigJob:
+			refName2size = self.getTopNumberOfContigs(self.topNumberOfContigs)
+			#refName2size = set(['Contig149'])	#temporary when testing Contig149
+			#refName2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
+		else:
+			refName2size = {}
 		
 		alignmentLs = self.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										aln_method_id=2, dataDir=self.localDataDir)
+									dataDir=self.localDataDir)
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.dataDir, refSequence.path)
@@ -368,7 +436,9 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		self.registerCommonExecutables(workflow)
 		self.registerCustomExecutables(workflow)
 		
-		self.addJobs(workflow, alignmentLs, refName2size, samtools=workflow.samtools, DOCWalkerJava=workflow.DOCWalkerJava, 
+		alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, dataDir=self.dataDir)
+		
+		self.addJobs(workflow, alignmentDataLs, refName2size, samtools=workflow.samtools, DOCWalkerJava=workflow.DOCWalkerJava, 
 				ContigDOCWalkerJava=workflow.ContigDOCWalkerJava, \
 				VariousReadCountJava=workflow.VariousReadCountJava, \
 				ContigVariousReadCountJava=workflow.ContigVariousReadCountJava, \
@@ -378,6 +448,8 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar,\
 				MarkDuplicatesJava=workflow.MarkDuplicatesJava, MarkDuplicatesJar=workflow.MarkDuplicatesJar, tmpDir=self.tmpDir,\
 				mkdirWrap=workflow.mkdirWrap, mv=workflow.mv, \
+				ReformatFlagstatOutput=workflow.ReformatFlagstatOutput, PutFlagstatOutput2DB=workflow.PutFlagstatOutput2DB, \
+				PutDOCOutput2DB=workflow.PutDOCOutput2DB,\
 				reduceDepthOfCoverage=workflow.reduceDepthOfCoverage, reduceVariousReadCount=workflow.reduceVariousReadCount,\
 				refFastaFList=refFastaFList, \
 				namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
