@@ -130,6 +130,8 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], aln_method_id=2, \
 					dataDir=None, sequence_type=None):
 		"""
+		2012.4.5
+			select alignment using AND between all input arguments
 		2011-11-27
 			add argument sequence_type
 		2011-9-16
@@ -145,17 +147,19 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		"""
 		alignmentLs = []
 		TableClass = VervetDB.IndividualAlignment
+		query = TableClass.query
 		if ind_aln_id_ls:
-			sys.stderr.write("Getting %s alignments ..."%(len(ind_aln_id_ls)) )
-			query = TableClass.query.filter(TableClass.id.in_(ind_aln_id_ls))
-		elif ind_seq_id_ls and ref_ind_seq_id:
-			sys.stderr.write("Getting all alignments for %s sequences with %s as reference ..."%(len(ind_seq_id_ls), ref_ind_seq_id))
-			query = TableClass.query.filter_by(ref_ind_seq_id=ref_ind_seq_id).filter(TableClass.ind_seq_id.in_(ind_seq_id_ls))\
-				.filter_by(aln_method_id=aln_method_id)
-		elif ref_ind_seq_id:
-			sys.stderr.write("Getting all alignments with %s as reference ..."%(ref_ind_seq_id))
-			query = TableClass.query.filter_by(ref_ind_seq_id=ref_ind_seq_id).filter_by(aln_method_id=aln_method_id)
-		else:
+			sys.stderr.write("Adding filter via %s alignment IDs ...\n"%(len(ind_aln_id_ls)) )
+			query = query.filter(TableClass.id.in_(ind_aln_id_ls))
+		if ind_seq_id_ls:
+			sys.stderr.write("Adding filter via %s sequence IDs  ...\n"%(len(ind_seq_id_ls)))
+			query = query.filter(TableClass.ind_seq_id.in_(ind_seq_id_ls))
+		if ref_ind_seq_id:
+			sys.stderr.write("Adding filter via the reference sequence ID %s ...\n"%(ref_ind_seq_id))
+			query = query.filter_by(ref_ind_seq_id=ref_ind_seq_id)
+		if aln_method_id:
+			query = query.filter_by(aln_method_id=aln_method_id)
+		if not ind_aln_id_ls and not ind_seq_id_ls and not ref_ind_seq_id:
 			sys.stderr.write("Both ind_seq_id_ls and ind_aln_id_ls are empty and ref_ind_seq_id is None. no alignment to be fetched.\n")
 			sys.exit(3)
 		#order by TableClass.id is important because this is the order that gatk&samtools take input bams.
@@ -172,18 +176,22 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		sys.stderr.write("%s alignments Done.\n"%(len(alignmentLs)))
 		return alignmentLs
 	
-	def filterAlignments(self, alignmentLs, max_coverage=None, individual_site_id=447, ):
+	def filterAlignments(self, alignmentLs, max_coverage=None, individual_site_id=447, sequence_filtered=0):
 		"""
+		2012.4.2
+			add argument sequence_filtered
 		2011-11-22
 			447 in "individual_site_id=447" is VRC.
 		"""
-		sys.stderr.write("Filter %s alignments to select individual_sequence.coverage <=%s and site-id=%s..."%\
-						(len(alignmentLs), max_coverage, individual_site_id))
+		sys.stderr.write("Filter %s alignments to select individual_sequence.coverage <=%s and site-id=%s and sequence_filtered=%s..."%\
+						(len(alignmentLs), max_coverage, individual_site_id, sequence_filtered))
 		newAlignmentLs = []
 		for alignment in alignmentLs:
 			if max_coverage is not None and alignment.ind_sequence.coverage>max_coverage:
 				continue
 			if individual_site_id and alignment.ind_sequence.individual.site_id!=individual_site_id:
+				continue
+			if sequence_filtered is not None and alignment.ind_sequence.filtered!=sequence_filtered:
 				continue
 			newAlignmentLs.append(alignment)
 		sys.stderr.write(" kept %s alignments. Done.\n"%(len(newAlignmentLs)))
@@ -585,8 +593,10 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 							addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
 							BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
 							mv=None, namespace="workflow", version="1.0", \
-							dataDir=None):
+							dataDir=None, tmpDir="/tmp"):
 		"""
+		2012.4.5
+			fix some bugs here
 		2011-9-15
 			add a read group only when the alignment doesn't have it according to db record
 			DBVervet.pokeBamReadGroupPresence() from misc.py helps to fill in db records if it's unclear.
@@ -637,6 +647,8 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
 									'OUTPUT=', outputRGSAM, 'SORT_ORDER=coordinate', "VALIDATION_STRINGENCY=LENIENT")
 									#(adding the SORT_ORDER doesn't do sorting but it marks the header as sorted so that BuildBamIndexFilesJar won't fail.)
+				if tmpDir:
+					addRGJob.addArguments("TMP_DIR=%s"%tmpDir)
 				addRGJob.uses(bamF, transfer=True, register=True, link=Link.INPUT)
 				addRGJob.uses(baiF, transfer=True, register=True, link=Link.INPUT)
 				addRGJob.uses(outputRGSAM, transfer=True, register=True, link=Link.OUTPUT)
@@ -650,7 +662,7 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 				index_sam_job = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 					inputBamF=outputRGSAM, parentJobLs=[addRGJob], stageOutFinalOutput=True, javaMaxMemory=2000)
 				newAlignmentData = PassingData(alignment=alignment)
-				newAlignmentData.jobLs = [index_sam_job]
+				newAlignmentData.jobLs = [index_sam_job, addRGJob]
 				newAlignmentData.bamF = index_sam_job.bamFile
 				newAlignmentData.baiF = index_sam_job.baiFile
 				"""
@@ -687,7 +699,7 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 				no_of_rg_jobs += 1
 			else:
 				newAlignmentData = alignmentData
-			returnData.append(alignmentData)
+			returnData.append(newAlignmentData)
 		sys.stderr.write(" %s alignments need read-group addition. Done\n"%(no_of_rg_jobs))
 		return returnData
 	
@@ -1053,30 +1065,30 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		#GATK job
 		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
 		refFastaF = refFastaFList[0]
-		gatk_job = Job(namespace=workflow.namespace, name=genotyperJava.name, version=workflow.version)
-		gatk_job.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "UnifiedGenotyper",\
+		job = Job(namespace=workflow.namespace, name=genotyperJava.name, version=workflow.version)
+		job.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "UnifiedGenotyper",\
 			"-mbq 20", "-R", refFastaF, "--out", gatkOutputF,\
 			'-U', '-S SILENT', "-nt %s"%no_of_gatk_threads, "--baq CALCULATE_AS_NECESSARY")
 		# 2011-11-22 "-mmq 30",  is no longer included
 		if site_type==1:
-			gatk_job.addArguments('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
+			job.addArguments('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
 		if extraArguments:
-			gatk_job.addArguments(extraArguments)
+			job.addArguments(extraArguments)
 		if interval is not None:
-			gatk_job.addArguments("-L", interval)
+			job.addArguments("-L", interval)
 		for refFastaFile in refFastaFList:
-			gatk_job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
-		gatk_job.uses(gatkOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		gatk_job.uses(gatkIDXOutput, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		gatk_job.output = gatkOutputF
-		gatk_job.gatkIDXOutput = gatkIDXOutput
-		yh_pegasus.setJobProperRequirement(gatk_job, job_max_memory=job_max_memory, no_of_cpus=no_of_gatk_threads)
-		workflow.addJob(gatk_job)
+			job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
+		job.uses(gatkOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		job.uses(gatkIDXOutput, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		job.output = gatkOutputF
+		job.gatkIDXOutput = gatkIDXOutput
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, no_of_cpus=no_of_gatk_threads)
+		workflow.addJob(job)
 		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=gatk_job)
+			workflow.depends(parent=parentJob, child=job)
 		for input in extraDependentInputLs:
-			gatk_job.uses(input, transfer=True, register=True, link=Link.INPUT)
-		return gatk_job
+			job.uses(input, transfer=True, register=True, link=Link.INPUT)
+		return job
 	
 	def addSAMtoolsCallJob(self, workflow, CallVariantBySamtools=None, samtoolsOutputF=None, indelVCFOutputF=None, \
 					refFastaFList=[], parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
@@ -1085,22 +1097,22 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		2011-12-4
 		"""
 		refFastaF = refFastaFList[0]
-		samtools_job = Job(namespace=workflow.namespace, name=CallVariantBySamtools.name, version=workflow.version)
-		samtools_job.addArguments(refFastaF, interval, samtoolsOutputF, repr(site_type))
+		job = Job(namespace=workflow.namespace, name=CallVariantBySamtools.name, version=workflow.version)
+		job.addArguments(refFastaF, interval, samtoolsOutputF, repr(site_type))
 		for refFastaFile in refFastaFList:
-			samtools_job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
-		#samtools_job.uses(bamListF, transfer=True, register=True, link=Link.INPUT)
-		samtools_job.uses(samtoolsOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		samtools_job.uses(indelVCFOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		samtools_job.output = samtoolsOutputF
-		samtools_job.indelVCFOutputF = indelVCFOutputF
-		yh_pegasus.setJobProperRequirement(samtools_job, job_max_memory=job_max_memory)
-		workflow.addJob(samtools_job)
+			job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
+		#job.uses(bamListF, transfer=True, register=True, link=Link.INPUT)
+		job.uses(samtoolsOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		job.uses(indelVCFOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		job.output = samtoolsOutputF
+		job.indelVCFOutputF = indelVCFOutputF
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
+		workflow.addJob(job)
 		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=samtools_job)
+			workflow.depends(parent=parentJob, child=job)
 		for input in extraDependentInputLs:
-			samtools_job.uses(input, transfer=True, register=True, link=Link.INPUT)
-		return samtools_job
+			job.uses(input, transfer=True, register=True, link=Link.INPUT)
+		return job
 	
 	def registerCustomExecutables(self, workflow):
 		"""
@@ -1120,6 +1132,19 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		workflow.addExecutable(trioCallerWrapper)
 		workflow.trioCallerWrapper = trioCallerWrapper
 		
+		MergeVCFReplicateGenotypeColumnsJava = Executable(namespace=namespace, name="MergeVCFReplicateGenotypeColumnsJava", \
+											version=version, os=operatingSystem,\
+											arch=architecture, installed=True)
+		MergeVCFReplicateGenotypeColumnsJava.addPFN(PFN("file://" + self.javaPath, site_handler))
+		workflow.addExecutable(MergeVCFReplicateGenotypeColumnsJava)
+		workflow.MergeVCFReplicateGenotypeColumnsJava = MergeVCFReplicateGenotypeColumnsJava
+		
+		ReplicateVCFGenotypeColumns = Executable(namespace=namespace, name="ReplicateVCFGenotypeColumns", version=version, os=operatingSystem,\
+									arch=architecture, installed=True)
+		ReplicateVCFGenotypeColumns.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/ReplicateVCFGenotypeColumns.py"), site_handler))
+		workflow.addExecutable(ReplicateVCFGenotypeColumns)
+		workflow.ReplicateVCFGenotypeColumns = ReplicateVCFGenotypeColumns
+		
 		if self.noOfCallingJobsPerNode>1:
 			workflow.genotyperJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
 										value="%s"%self.noOfCallingJobsPerNode))
@@ -1128,6 +1153,8 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 			workflow.CallVariantBySamtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
 										value="%s"%self.noOfCallingJobsPerNode))
 			workflow.trioCallerWrapper.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
+										value="%s"%self.noOfCallingJobsPerNode))
+			workflow.ReplicateVCFGenotypeColumns.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
 										value="%s"%self.noOfCallingJobsPerNode))
 		
 	def run(self):
