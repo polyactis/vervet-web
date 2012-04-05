@@ -391,6 +391,8 @@ class AlignmentMethod(Entity, TableClass):
 
 class IndividualAlignment(Entity, TableClass):
 	"""
+	2012.4.2
+		add a couple of statistics, perc_reads_mapped, ... perc_mapped_to_diff_chrs.
 	2011-11-28
 		add pass_qc_read_base_count which counts the number of bases in all pass-QC reads (base quality>=20, read mapping quality >=30).
 	2011-9-19
@@ -410,6 +412,15 @@ class IndividualAlignment(Entity, TableClass):
 	mean_depth = Field(Float)	#2011-9-12
 	pass_qc_read_base_count = Field(BigInteger)	#2011-11-28	QC = (base quality>=20, read mapping quality >=30). 
 	read_group_added = Field(Integer, default=0)	# 2011-9-15 0=No, 1=Yes
+	perc_reads_mapped = Field(Float)	#2012.4.2
+	perc_duplicates = Field(Float)	#2012.4.2
+	perc_paired = Field(Float)	#2012.4.2
+	perc_properly_paired = Field(Float)	#2012.4.2
+	perc_both_mates_mapped = Field(Float)	#2012.4.2
+	perc_singletons = Field(Float)	#2012.4.2
+	perc_mapped_to_diff_chrs = Field(Float)	#2012.4.2
+	perc_mapq5_mapped_to_diff_chrs = Field(Float)	#2012.4.2
+	total_no_of_reads = Field(Integer)	#2012.4.2
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -1603,6 +1614,8 @@ class VervetDB(ElixirDB):
 	@property
 	def data_dir(self, ):
 		"""
+		2012.3.29
+			raise a BaseException
 		2011-2-11
 			get the master directory in which all files attached to this db are stored.
 		"""
@@ -1610,7 +1623,7 @@ class VervetDB(ElixirDB):
 		if not dataDirEntry or not dataDirEntry.description or not os.path.isdir(dataDirEntry.description):
 			# todo: need to test dataDirEntry.description is writable to the user
 			sys.stderr.write("data_dir not available in db or not accessible on the harddisk. Raise exception.\n")
-			raise
+			raise BaseException
 			return None
 		else:
 			return dataDirEntry.description
@@ -1659,8 +1672,10 @@ class VervetDB(ElixirDB):
 															nx.number_connected_components(DG.to_undirected())))
 		return DG
 	
-	def findFamilyFromPedigreeGivenSize(self, DG, familySize=3, removeFamilyFromGraph=True):
+	def findFamilyFromPedigreeGivenSize(self, DG, familySize=3, removeFamilyFromGraph=True, noOfOutgoingEdges=None):
 		"""
+		2012.4.2
+			add noOfOutgoingEdges to find true singletons.
 		2011.12.15
 			copied from AlignmentToTrioCallPipeline.py
 		2011-12.4
@@ -1685,6 +1700,8 @@ class VervetDB(ElixirDB):
 			if DG.has_node(node):	#it could have been removed as trios/duos were found
 				#edges = DG.in_edges(node)
 				noOfIncomingEdges = DG.in_degree(node)
+				if noOfOutgoingEdges is not None and out_degree!=noOfOutgoingEdges:
+					continue
 				#noOfIncomingEdges = len(edges)
 				if noOfIncomingEdges==familySize-1:	# a trio is found
 					parents = DG.predecessors(node)
