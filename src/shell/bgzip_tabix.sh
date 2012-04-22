@@ -29,7 +29,9 @@ then
 fi
 if test -r $inputVCF
 then
-	$bgzipPath $inputVCF
+	$bgzipPath -c -f $inputVCF > $outputVCF
+	# -c: write on standard output, keep original files unchanged
+	# -f: overwrite files without asking
 	exitCode=$?
 	if test "$exitCode" = "0"
 	then
