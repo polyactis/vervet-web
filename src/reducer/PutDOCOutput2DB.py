@@ -61,7 +61,7 @@ Total   2136011136      7.23    N/A     N/A     N/A
 		for inputFname in self.inputFnameLs:
 			reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
 			header = reader.next()
-			colName2Index = utils.getColName2IndexFromHeader(header, skipEmptyColumn=True)
+			col_name2index = utils.getColName2IndexFromHeader(header, skipEmptyColumn=True)
 			
 			sample_id_index = col_name2index.get("sample_id")
 			total_base_count_index = col_name2index.get('total')
