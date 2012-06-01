@@ -6,12 +6,13 @@ Examples:
 	
 	
 	%s 
+	
 Description:
 	Aggregate pairwise distance matrices, output by CalculatePairwiseDistanceOutOfSNPXStrainMatrix.py
 		into one distance matrix. Then run PCA and hclustering on this matrix.
 	Output:
-		1. %s.png %s.svg: hcluster dendrogram output figures
-		2. %s_PCA.tsv: matrix with top 6 PCs from running PCA. It could be uploaded to custom motionchart web app.
+		1. .png .svg: hcluster dendrogram output figures
+		2. _PCA.tsv: matrix with top 6 PCs from running PCA. It could be uploaded to custom motionchart web app.
 """
 import os, sys, numpy
 __doc__ = __doc__%(sys.argv[0], sys.argv[0])
@@ -115,7 +116,7 @@ class AggregateAndHClusterDistanceMatrix(object):
 		2011-10-21
 		"""
 		sys.stderr.write("Running PCA on distance matrix and output ...")
-		import pca_module
+		#import pca_module
 		from pymodule.PCA import PCA
 		PCA_writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
 		#T, P, explained_var = pca_module.PCA_svd(phenData_trans.data_matrix, standardize=True)
