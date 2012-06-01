@@ -17,10 +17,16 @@ Examples:
 		-c 
 	
 	# 2011-8-28 output a workflow to run on local condorpool, no db commit (because records are already in db)
-	~/script/vervet/src/UnpackAndAddIndividualSequence2DB.py -i /Network/Data/vervet/raw_sequence/xfer.genome.wustl.edu/gxfer3/
+	%s -i /Network/Data/vervet/raw_sequence/xfer.genome.wustl.edu/gxfer3/
 		-u yh
 		-m ~/mnt/hoffman2/u/home/eeskintmp/polyacti/NetworkData/vervet/raw_sequence/xfer.genome.wustl.edu/gxfer3/46019922623327/Vervet_12_4X_README.tsv
 		-z dl324b-1.cmb.usc.edu -j condorpool -l condorpool -o unpackAndAdd12_2007Monkeys2DB_condor.xml
+	
+	# 2012.4.30 run on hcondor, to import McGill 1X data (-y2), (-e) is not necessary because it's running on hoffman2 and can recognize home folder.
+	#. -H means it needs sshTunnel for db-interacting jobs.
+	%s -i ~/NetworkData/vervet/raw_sequence/McGill96_1X/ -z localhost -u yh -j hcondor -l hcondor -c
+		-o workflow/unpackMcGill96_1X.xml -y2 -H 
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -e /u/home/eeskin/polyacti
 	
 Description:
 	2011-8-2
@@ -48,17 +54,10 @@ Description:
 	2. The workflow has to be run on nodes where they have direct db and db-affiliated file-storage access.
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 
-from sqlalchemy.types import LargeBinary
-
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, re, csv
 import VervetDB
@@ -71,13 +70,14 @@ class UnpackAndAddIndividualSequence2DB(AbstractNGSWorkflow):
 	__doc__ = __doc__
 	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
 	option_default_dict.update({
-						('input', 1, ): ['', 'i', 1, 'if it is a directory, take every *.bam file in it. If it is a file, every line should be a path to actual bam file. ', ],\
-						('bamFname2MonkeyIDMapFname', 1, ): ['', 'm', 1, 'a tsv version of WUSTL xls file detailing what monkey is in which bam file.', ],\
-						('minNoOfReads', 1, int): [500000, '', 1, 'minimum number of reads in each split fastq file. The upper limit in each split file is 2*minNoOfReads.', ],\
+						('input', 1, ): ['', 'i', 1, 'if it is a folder, take all .bam/.sam/.fastq files recursively. If it is a file, every line should be a path to the input file.', ],\
+						('bamFname2MonkeyIDMapFname', 0, ): ['', 'm', 1, 'a tsv version of WUSTL xls file detailing what monkey is in which bam file.', ],\
+						('minNoOfReads', 1, int): [1000000, '', 1, 'minimum number of reads in each split fastq file. The upper limit in each split file is 2*minNoOfReads.', ],\
 						("sequencer", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger'],\
 						("sequence_type", 1, ): ["PE", '', 1, 'choices: BAC, genome, scaffold, PE, SR, ...'],\
 						("sequence_format", 1, ): ["fastq", 'f', 1, 'fasta, fastq, etc.'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_sequence.path and individual_sequence records if inexistent)'],\
+						('inputType', 1, int): [1, 'y', 1, 'input type. 1: bam files from WUSTL. 2: fastq files from McGill (paired ends are split.).', ],\
 						})
 	#('jobFileDir', 0, ): ['', 'j', 1, 'folder to contain qsub scripts', ],\
 	
@@ -87,21 +87,26 @@ class UnpackAndAddIndividualSequence2DB(AbstractNGSWorkflow):
 		"""
 		AbstractNGSWorkflow.__init__(self, **keywords)
 	
-	def getBamBaseFname2MonkeyID(self, bamFname2MonkeyIDMapFname, ):
+	def getBamBaseFname2MonkeyID(self, inputFname, ):
 		"""
 		2011-8-3
-			
+			the input looks like this:
+			#	FlowCell	Lane	Index Sequence	Library	Common Name	Bam Path	MD5
+			1	64J6AAAXX	1	VCAC-2007002-1-lib1	African	Green	Monkey	/gscmnt/sata755/production/csf_111215677/gerald_64J6AAAXX_1.bam	/gscmnt/sata755/production/csf_111215677/gerald_64J6AAAXX_1.bam.md5
+			2	64J6AAAXX	2	VCAC-2007006-1-lib1	African	Green	Monkey	/gscmnt/sata751/production/csf_111215675/gerald_64J6AAAXX_2.bam	/gscmnt/sata751/production/csf_111215675/gerald_64J6AAAXX_2.bam.md5
 		"""
 		sys.stderr.write("Getting bamBaseFname2MonkeyID dictionary ...")
 		bamBaseFname2MonkeyID = {}
-		reader = csv.reader(open(bamFname2MonkeyIDMapFname), delimiter='\t')
+		reader = csv.reader(open(inputFname), delimiter='\t')
 		header = reader.next()
 		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
 		monkeyIDIndex = col_name2index.get("Library")
 		bamFnameIndex = col_name2index.get("Bam Path")
 		if bamFnameIndex is None:	#2012.2.9
 			bamFnameIndex = col_name2index.get("BAM Path")
-		monkeyIDPattern = re.compile(r'\w+-(\w+)-\d+-\w+')	# i.e. VCAC-2007002-1-lib1
+		#monkeyIDPattern = re.compile(r'\w+-(\w+)-\d+-\w+')	# i.e. VCAC-2007002-1-lib1
+		monkeyIDPattern = re.compile(r'\w+-(\w+)-\w+-\w+')	# 2012.5.29 i.e. VCAC-VGA00006-AGM0075-lib1 ,
+		# VCAC-VZC1014-AGM0055-lib1, VCAC-1996031-VRV0265-lib2a, VCAC-VKD7-361-VKD7-361-lib1 (VKD7 is to be taken),
 		for row in reader:
 			monkeyID = row[monkeyIDIndex]
 			pa_search = monkeyIDPattern.search(monkeyID)
@@ -134,15 +139,17 @@ class UnpackAndAddIndividualSequence2DB(AbstractNGSWorkflow):
 				self.getAllBamFiles(inputFname, bamFnameLs)
 		
 	def addMonkeySequence(self, db_vervet, monkeyID, sequencer='GA', sequence_type='PE', sequence_format='fastq',\
-						path_to_original_sequence=None):
+						path_to_original_sequence=None, dataDir=None):
 		"""
+		2012.4.30
+			add argument dataDir
 		2011-8-3
 		"""
 		individual = db_vervet.getIndividual(code=monkeyID)
 		individual_sequence = db_vervet.getIndividualSequence(individual_id=individual.id, sequencer=sequencer, \
 						sequence_type=sequence_type, sequence_format=sequence_format, \
 						path_to_original_sequence=path_to_original_sequence, tissue_name=None, coverage=None,\
-						subFolder='individual_sequence')
+						subFolder='individual_sequence', dataDir=dataDir)
 		
 		return individual_sequence
 	
@@ -169,7 +176,7 @@ echo %s
 %s"""%(outputDir, commandline, commandline))
 		jobF.close()
 	
-	def registerCustomExecutables(self, workflow):
+	def registerCustomExecutables(self, workflow=None):
 		"""
 		2012.1.3
 		"""
@@ -202,7 +209,7 @@ echo %s
 		workflow.addExecutable(registerAndMoveSplitSequenceFiles)
 		workflow.registerAndMoveSplitSequenceFiles = registerAndMoveSplitSequenceFiles
 		
-	def addConvertBamToFastqAndGzipJob(self, workflow, executable=None, \
+	def addConvertBamToFastqAndGzipJob(self, workflow=None, executable=None, \
 							inputF=None, outputFnamePrefix=None, \
 							parentJobLs=[], job_max_memory=2000, job_max_walltime = 800, extraDependentInputLs=[], \
 							transferOutput=False, **keywords):
@@ -270,14 +277,16 @@ echo %s
 			workflow.depends(parent=parentJob, child=job)
 		return job
 	
-	def addRegisterAndMoveSplitFileJob(self, workflow, executable=None, \
+	def addRegisterAndMoveSplitFileJob(self, workflow=None, executable=None, \
 							inputDir=None, outputDir=None, relativeOutputDir=None, logFile=None,\
 							individual_sequence_id=None, bamFile=None, library=None, mate_id=None, \
 							parentJobLs=[], job_max_memory=100, job_max_walltime = 60, \
 							commit=0, sequence_format='fastq',\
-							extraDependentInputLs=[], \
-							transferOutput=False, **keywords):
+							extraDependentInputLs=[], extraArguments=None, \
+							transferOutput=False, sshDBTunnel=1, **keywords):
 		"""
+		2012.4.30
+			add argument extraArguments, sshDBTunnel
 		2012.1.24
 			job_max_walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			
@@ -290,7 +299,7 @@ echo %s
 		if commit:
 			job.addArguments("-c")
 		if mate_id:
-			job.addArguments('-m', repr(mate_id)) 
+			job.addArguments('-m %s'%(mate_id))
 		if bamFile:
 			job.addArguments('-a', bamFile)
 			job.uses(bamFile, transfer=True, register=True, link=Link.INPUT)
@@ -298,8 +307,9 @@ echo %s
 			job.addArguments('-g', logFile)
 			job.uses(logFile, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
 			job.output = logFile
-		
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime)
+		if extraArguments:
+			job.addArguments(extraArguments)
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime, sshDBTunnel=sshDBTunnel)
 		workflow.addJob(job)
 		for input in extraDependentInputLs:
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
@@ -307,49 +317,132 @@ echo %s
 			workflow.depends(parent=parentJob, child=job)
 		return job
 	
-	def run(self):
+	def getInputFnameLsFromInput(self, input, suffixSet=set(['.fastq']), fakeSuffix='.gz'):
 		"""
-		2011-8-3
+		2012.4.30
+			this function supercedes self.getAllBamFiles() and it's more flexible.
 		"""
-		if self.debug:
-			import pdb
-			pdb.set_trace()
-		
-		import VervetDB
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema,\
-					port=self.port)
-		db_vervet.setup(create_tables=False)
-		session = db_vervet.session
-		session.begin()
-		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
-		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
-		
-		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = self.initiateWorkflow(workflowName)
-		
-		self.registerJars(workflow)
-		self.registerExecutables(workflow)
-		self.registerCustomExecutables(workflow)
-		
-		
-		bamBaseFname2MonkeyID = self.getBamBaseFname2MonkeyID(self.bamFname2MonkeyIDMapFname)
-		bamFnameLs = []
-		if os.path.isdir(self.input):
-			inputDir = self.input
-			self.getAllBamFiles(inputDir, bamFnameLs)
-		elif os.path.isfile(self.input):
-			inf = open(self.input)
+		inputFnameLs = []
+		if os.path.isdir(input):
+			self.getFilesWithSuffixFromFolderRecursive(inputFolder=input, suffixSet=suffixSet, fakeSuffix=fakeSuffix, \
+												inputFnameLs=inputFnameLs)
+		elif os.path.isfile(input):
+			inf = open(input)
 			for line in inf:
-				bamFnameLs.append(line.strip())
+				inputFnameLs.append(line.strip())
+			del inf
 		else:
-			sys.stderr.write("%s is neither a folder nor a file.\n"%(self.input))
+			sys.stderr.write("%s is neither a folder nor a file.\n"%(input))
 			sys.exit(4)
+		return inputFnameLs
+	
+	def getMonkeyID2FastqObjectLs(self, fastqFnameLs=None,):
+		"""
+		2012.4.30
+			each fastq file looks like 7_Index-11.2006013_R1.fastq.gz, 7_Index-11.2006013_R2.fastq.gz,
+				7_Index-10.2005045_replacement_R1.fastq.gz, 7_Index-10.2005045_replacement_R2.fastq.gz
 			
+			The data from McGill is dated 2012.4.27.
+			Each monkey is sequenced at 1X. There are 96 of them. Each library seems to contain 2 monkeys.
+				But each monkey has only 1 library.
+			
+			8_Index_23.2008126_R1.fastq.gz
+			8_Index_23.2008126_R2.fastq.gz
+			8_Index_23.2009017_R1.fastq.gz
+			8_Index_23.2009017_R2.fastq.gz
+
+		"""
+		sys.stderr.write("Passing monkeyID2FastqObjectLs from %s files ..."%(len(fastqFnameLs)))
+		monkeyID2FastqObjectLs = {}
+		import re, random
+		monkeyIDPattern = re.compile(r'(?P<library>[-\w]+)\.(?P<monkeyID>\d+)((_replacement)|(_pool)|())_R(?P<mateID>\d).fastq.gz')
+		counter = 0
+		real_counter = 0
+		library2UniqueLibrary = {}	#McGill's library ID , 7_Index-11, is not unique enough.
+		for fastqFname in fastqFnameLs:
+			counter += 1
+			monkeyIDSearchResult = monkeyIDPattern.search(fastqFname)
+			if monkeyIDSearchResult:
+				real_counter += 1
+				library = monkeyIDSearchResult.group('library')
+				monkeyID = monkeyIDSearchResult.group('monkeyID')
+				mateID = monkeyIDSearchResult.group('mateID')
+				#concoct a unique library ID
+				if library not in library2UniqueLibrary:
+					library2UniqueLibrary[library] = '%s_%s'%(library, repr(random.random())[2:])
+				uniqueLibrary = library2UniqueLibrary[library]
+				fastqObject = PassingData(library=uniqueLibrary, monkeyID=monkeyID, mateID=mateID, absPath=fastqFname)
+				if monkeyID not in monkeyID2FastqObjectLs:
+					monkeyID2FastqObjectLs[monkeyID] = []
+				monkeyID2FastqObjectLs[monkeyID].append(fastqObject)
+			else:
+				sys.stderr.write("Error: can't parse monkeyID, library, mateID out of %s.\n"%fastqFname)
+				sys.exit(4)
+		sys.stderr.write(" %s monkeys and %s files in the dictionary.\n"%(len(monkeyID2FastqObjectLs), real_counter))
+		return monkeyID2FastqObjectLs
+		
+	
+	def addJobsToProcessMcGillData(self, workflow, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, dataDir=None, \
+			minNoOfReads=None, commit=None,\
+			sequencer=None, sequence_type=None, sequence_format=None):
+		"""
+		2012.4.30
+		"""
+		fastqFnameLs = self.getInputFnameLsFromInput(input, suffixSet=set(['.fastq']), fakeSuffix='.gz')
+		monkeyID2FastqObjectLs = self.getMonkeyID2FastqObjectLs(fastqFnameLs)
+		
+		no_of_jobs = 0
+		for monkeyID, fastqObjectLs in monkeyID2FastqObjectLs.iteritems():
+			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer=sequencer, sequence_type=sequence_type, \
+										sequence_format=sequence_format, dataDir=dataDir)
+			
+			sequenceOutputDir = os.path.join(dataDir, individual_sequence.path)
+			sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
+			
+			splitOutputDir = '%s'%(individual_sequence.id)
+			#same directory containing split files from both mates is fine as RegisterAndMoveSplitSequenceFiles could pick up.
+			splitOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=splitOutputDir)
+			
+			no_of_jobs += 2
+			
+			
+			for fastqObject in fastqObjectLs:
+				library = fastqObject.library
+				mateID = fastqObject.mateID
+				fastqPath = fastqObject.absPath
+				fastqFile = self.registerOneInputFile(workflow, fastqPath)
+			
+				splitFastQFnamePrefix = os.path.join(splitOutputDir, '%s_%s_%s'%(individual_sequence.id, library, mateID))
+				logFile = File('%s_%s_%s.split.log'%(individual_sequence.id, library, mateID))
+				splitReadFileJob1 = self.addSplitReadFileJob(workflow, executable=workflow.splitReadFile, \
+								inputF=fastqFile, outputFnamePrefix=splitFastQFnamePrefix, \
+								outputFnamePrefixTail="", minNoOfReads=minNoOfReads, \
+								logFile=logFile, parentJobLs=[splitOutputDirJob], \
+								job_max_memory=2000, job_max_walltime = 800, \
+								extraDependentInputLs=[], transferOutput=True)
+				
+				logFile = File('%s_%s_%s.register.log'%(individual_sequence.id, library, mateID))
+				# 2012.4.30 add '-w' to registerAndMoveSplitSequenceFiles so that it will be used to distinguish IndividualSequenceFileRaw
+				registerJob1 = self.addRegisterAndMoveSplitFileJob(workflow, executable=workflow.registerAndMoveSplitSequenceFiles, \
+								inputDir=splitOutputDir, outputDir=sequenceOutputDir, relativeOutputDir=individual_sequence.path, logFile=logFile,\
+								individual_sequence_id=individual_sequence.id, bamFile=fastqFile, library=library, mate_id=mateID, \
+								parentJobLs=[splitReadFileJob1, sequenceOutputDirJob], job_max_memory=100, job_max_walltime = 60, \
+								commit=commit, sequence_format=sequence_format, extraDependentInputLs=[], extraArguments='-w', \
+								transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
+			
+				no_of_jobs += 2
+		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
+		
+	
+	def addJobsToProcessWUSTLData(self, workflow, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, dataDir=None, \
+			minNoOfReads=None, commit=None,\
+			sequencer=None, sequence_type=None, sequence_format=None):
+		"""
+		2012.4.30
+		"""
+		bamBaseFname2MonkeyID = self.getBamBaseFname2MonkeyID(bamFname2MonkeyIDMapFname)
+		bamFnameLs = self.getInputFnameLsFromInput(input, suffixSet=set(['.bam', '.sam']), fakeSuffix='.gz')
+		
 		sys.stderr.write("%s total bam files.\n"%(len(bamFnameLs)))
 		
 		sam2fastqOutputDir = 'sam2fastq'
@@ -361,8 +454,8 @@ echo %s
 				sys.stderr.write("%s doesn't have monkeyID affiliated with.\n"%(bamFname))
 				continue
 			monkeyID = bamBaseFname2MonkeyID.get(bamBaseFname)
-			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer=self.sequencer, sequence_type=self.sequence_type, \
-										sequence_format=self.sequence_format)
+			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer=sequencer, sequence_type=sequence_type, \
+										sequence_format=sequence_format, dataDir=dataDir)
 			#2012.2.10 stop passing path_to_original_sequence=bamFname to self.addMonkeySequence()
 			
 			"""
@@ -375,7 +468,7 @@ echo %s
 				session.flush()
 			"""
 			
-			sequenceOutputDir = os.path.join(self.dataDir, individual_sequence.path)
+			sequenceOutputDir = os.path.join(dataDir, individual_sequence.path)
 			sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
 			
 			bamInputF = yh_pegasus.registerFile(workflow, bamFname)
@@ -402,7 +495,7 @@ echo %s
 			logFile = File('%s_%s_%s.split.log'%(individual_sequence.id, library, mate_id))
 			splitReadFileJob1 = self.addSplitReadFileJob(workflow, executable=workflow.splitReadFile, \
 							inputF=convertBamToFastqAndGzip_job.output1, outputFnamePrefix=splitFastQFnamePrefix, \
-							outputFnamePrefixTail="", minNoOfReads=self.minNoOfReads, \
+							outputFnamePrefixTail="", minNoOfReads=minNoOfReads, \
 							logFile=logFile, parentJobLs=[convertBamToFastqAndGzip_job, splitOutputDirJob], \
 							job_max_memory=2000, job_max_walltime = 800, \
 							extraDependentInputLs=[], transferOutput=True)
@@ -412,15 +505,15 @@ echo %s
 							inputDir=splitOutputDir, outputDir=sequenceOutputDir, relativeOutputDir=individual_sequence.path, logFile=logFile,\
 							individual_sequence_id=individual_sequence.id, bamFile=bamInputF, library=library, mate_id=mate_id, \
 							parentJobLs=[splitReadFileJob1, sequenceOutputDirJob], job_max_memory=100, job_max_walltime = 60, \
-							commit=self.commit, sequence_format=self.sequence_format, extraDependentInputLs=[], \
-							transferOutput=True)
+							commit=commit, sequence_format=sequence_format, extraDependentInputLs=[], \
+							transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
 			#handle the 2nd end
 			mate_id = 2
 			splitFastQFnamePrefix = os.path.join(splitOutputDir, '%s_%s_%s'%(individual_sequence.id, library, mate_id))
 			logFile = File('%s_%s_%s.split.log'%(individual_sequence.id, library, mate_id))
 			splitReadFileJob2 = self.addSplitReadFileJob(workflow, executable=workflow.splitReadFile, \
 							inputF=convertBamToFastqAndGzip_job.output2, outputFnamePrefix=splitFastQFnamePrefix, \
-							outputFnamePrefixTail="", minNoOfReads=self.minNoOfReads, \
+							outputFnamePrefixTail="", minNoOfReads=minNoOfReads, \
 							logFile=logFile, parentJobLs=[convertBamToFastqAndGzip_job, splitOutputDirJob], \
 							job_max_memory=2000, job_max_walltime = 800, \
 							extraDependentInputLs=[], transferOutput=True)
@@ -430,8 +523,8 @@ echo %s
 							inputDir=splitOutputDir, outputDir=sequenceOutputDir, relativeOutputDir=individual_sequence.path, logFile=logFile,\
 							individual_sequence_id=individual_sequence.id, bamFile=bamInputF, library=library, mate_id=mate_id, \
 							parentJobLs=[splitReadFileJob2, sequenceOutputDirJob], job_max_memory=100, job_max_walltime = 60, \
-							commit=self.commit, sequence_format=self.sequence_format, extraDependentInputLs=[], \
-							transferOutput=True)
+							commit=commit, sequence_format=sequence_format, extraDependentInputLs=[], \
+							transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
 			
 			no_of_jobs += 5
 			"""
@@ -443,9 +536,49 @@ echo %s
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 			"""
 		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
+	
+	def run(self):
+		"""
+		2011-8-3
+		"""
+		if self.debug:
+			import pdb
+			pdb.set_trace()
+		
+		import VervetDB
+		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
+					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema,\
+					port=self.port)
+		db_vervet.setup(create_tables=False)
+		session = db_vervet.session
+		session.begin()
+		
+		if not self.dataDir:
+			self.dataDir = db_vervet.data_dir
+		
+		if not self.localDataDir:
+			self.localDataDir = db_vervet.data_dir
+		
+		workflow = self.initiateWorkflow()
+		
+		self.registerJars()
+		self.registerExecutables()
+		self.registerCustomExecutables(workflow=workflow)
+		
+		if self.inputType==1:
+			self.addJobsToProcessWUSTLData(workflow, db_vervet=db_vervet, bamFname2MonkeyIDMapFname=self.bamFname2MonkeyIDMapFname, input=self.input, \
+					dataDir=self.dataDir, minNoOfReads=self.minNoOfReads, commit=self.commit,\
+					sequencer=self.sequencer, sequence_type=self.sequence_type, sequence_format=self.sequence_format)
+		elif self.inputType==2:
+			self.addJobsToProcessMcGillData(workflow, db_vervet=db_vervet, bamFname2MonkeyIDMapFname=None, input=self.input, \
+					dataDir=self.dataDir, minNoOfReads=self.minNoOfReads, commit=self.commit,\
+					sequencer=self.sequencer, sequence_type=self.sequence_type, sequence_format=self.sequence_format)
+		else:
+			sys.stderr.write("error: inputType %s not supported.\n"%(self.inputType))
+			sys.exit(3)
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
-		workflow.writeXML(outf)
+		self.writeXML(outf)
 		if self.commit:
 			session.commit()
 		else:
