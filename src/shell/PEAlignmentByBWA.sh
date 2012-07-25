@@ -36,7 +36,13 @@ then
 	#normal exit
 	exit
 else
-	exit $exitCodeAll
+	if test "$exitCode" = "0"
+	then
+		finalExitCode=$exitCode2
+	else
+		finalExitCode=$exitCode
+	fi
+	exit $finalExitCode
 fi
 #$bwaPath sampe -P $refFastaFname $saiF1 $saiF2 $fastqF1 $fastqF2 | java -jar $picardPath/ViewSam.jar I=/dev/stdin ALIGNMENT_STATUS= Aligned | gzip >$outputSamGzipFname
 
