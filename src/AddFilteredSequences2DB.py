@@ -45,7 +45,7 @@ class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 		"""
 		2011-7-11
 		"""
-		AbstractDBInteractingClass.__init__(self, **keywords)
+		RegisterAndMoveSplitSequenceFiles.__init__(self, **keywords)
 	
 	
 	def run(self):
@@ -90,8 +90,23 @@ class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 		if db_entry:
 			#move the file
 			inputDir, filename = os.path.split(self.inputFname)
-			self.moveNewISQFileIntoDBStorage(session, individual_sequence_file=db_entry, filename=filename, inputDir=inputDir, \
-										outputDir=self.outputDir, relativeOutputDir=individual_sequence.path)
+			exitCode = db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=db_entry, filename=filename, \
+													inputDir=inputDir, outputDir=self.outputDir, \
+								relativeOutputDir=individual_sequence.path, shellCommand='cp -rL', \
+								srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs,\
+								constructRelativePathFunction=None)
+			"""
+			#2012.7.13 old way
+			exitCode = self.moveNewISQFileIntoDBStorage(session, individual_sequence_file=db_entry, filename=filename, inputDir=inputDir, \
+										outputDir=self.outputDir, relativeOutputDir=individual_sequence.path,\
+										shellCommand='cp', srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs)
+			"""
+			if exitCode!=0:
+				sys.stderr.write("Error: moveNewISQFileIntoDBStorage() exits with %s code.\n"%(exitCode))
+				session.rollback()
+				#delete all recorded target files
+				self.rmGivenFiles(filenameLs=self.dstFilenameLs)
+				sys.exit(exitCode)
 		else:
 			sys.stderr.write("Error: IndividualSequenceFile db entry is None.\n")
 			sys.exit(3)
@@ -102,10 +117,21 @@ class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 			outf.close()
 		
 		if self.commit:
-			session.commit()
+			try:
+				session.commit()
+				#delete all source files
+				self.rmGivenFiles(filenameLs=self.srcFilenameLs)
+			except:
+				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+				import traceback
+				traceback.print_exc()
+				#delete all recorded target files
+				self.rmGivenFiles(filenameLs=self.dstFilenameLs)
+				sys.exit(3)
 		else:
 			session.rollback()
-			
+			#delete all target files
+			self.rmGivenFiles(filenameLs=self.dstFilenameLs)
 			
 
 if __name__ == '__main__':

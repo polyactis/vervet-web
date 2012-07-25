@@ -36,6 +36,14 @@ Examples:
 		-o AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top804Contigs_single_sample_condor.xml -z uclaOffice -n 2
 		-O 5
 	
+	# 2012.6.26 run on hoffman2 condor pool (hcondor), filtered sequences (-Q 1), alignment method 2 (-G 2)
+	# no site ID filtering (-S ""), clustering size =5 for calling jobs (-O 5).
+	%s -a 524 -i 633,1495,...,1524,1459,1505,1478,1486,1442,1472,1516,1453
+		-u yh -z localhost -N 7559 -S "" -Q1 -G 2 -l hcondor -j hcondor -e /u/home/eeskin/polyacti 
+		-t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db 
+		-J /u/home/eeskin/polyacti/bin/jdk/bin/java -O 5 
+		-o workflow/AlignmentToCall_130PoplationVervets_vs_524_top7559Contigs.xml
+	
 Description:
 	2011-7-12
 		a program which generates a pegasus workflow dag (xml file) to call genotypes on all chosen alignments.
@@ -46,40 +54,44 @@ Description:
 """
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0],\
-				sys.argv[0], sys.argv[0], sys.argv[0])
+				sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 
 
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+#bit_number = math.log(sys.maxint)/math.log(2)
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
 import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
-from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
+from AbstractVervetWorkflow import AbstractVervetWorkflow
 from Pegasus.DAX3 import *
 
 
-class AlignmentToCallPipeline(AbstractNGSWorkflow):
+class AlignmentToCallPipeline(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
-	
-	option_default_dict.update({
+	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
+	commonCallPipelineOptionDict= {
 						('ind_seq_id_ls', 0, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. alignments come from these', ],\
 						('ind_aln_id_ls', 0, ): ['', 'I', 1, 'a comma/dash-separated list of IndividualAlignment.id. This overrides ind_seq_id_ls.', ],\
-						('seqCoverageFname', 0, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
-						("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
-						("contigMinRankBySize", 1, int): [1, 'M', 1, 'min rank (by size) of contigs'],\
+						#('seqCoverageFname', 0, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
 						("topNumberOfContigs", 1, int): [156, 'N', 1, 'max rank (by size) of contigs'],\
-						("needFastaIndexJob", 0, int): [0, '', 0, 'need to add a reference index job by samtools?'],\
-						("needFastaDictJob", 0, int): [0, '', 0, 'need to add a reference dict job by picard CreateSequenceDictionary.jar?'],\
+						("needFastaIndexJob", 0, int): [0, 'A', 0, 'need to add a reference index job by samtools?'],\
+						("needFastaDictJob", 0, int): [0, 'B', 0, 'need to add a reference dict job by picard CreateSequenceDictionary.jar?'],\
 						("site_type", 1, int): [2, 's', 1, '1: all genome sites, 2: variants only'],\
+						("sequence_filtered", 0, int): [None, 'Q', 1, 'To filter alignments. None: whatever; 0: unfiltered sequences, 1: filtered sequences'],\
+						("alignment_method_id", 0, int): [None, 'G', 1, 'To filter alignments. None: whatever; integer: AlignmentMethod.id'],\
 						("noOfCallingJobsPerNode", 1, int): [1, 'O', 1, 'this parameter controls how many genotype calling jobs should be clustered together to run on one node. \
 									Increase it to above 1 only when your average genotyping job is short and the number of input bam files are short.'],\
+						('intervalOverlapSize', 1, int): [300000, '', 1, 'overlap size between adjacent intervals from one contig/chromosome', ],\
+						('intervalSize', 1, int): [2000000, '', 1, 'size for adjacent intervals from one contig/chromosome', ],\
+						("site_id_ls", 0, ): ["", 'S', 1, 'comma/dash-separated list of site IDs. individuals must come from these sites.'],\
+						("contigMinRankBySize", 1, int): [1, 'M', 1, 'minimum rank number (rank 1=biggest) for a contig to be included in calling'],\
+						("ligateVcfPerlPath", 1, ): ["%s/bin/umake/scripts/ligateVcf.pl", '', 1, 'path to ligateVcf.pl'],\
+						}
+	option_default_dict.update(commonCallPipelineOptionDict)
+	option_default_dict.update({
+						("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
 						("run_type", 1, int): [1, 'n', 1, '1: multi-sample calling, 2: single-sample one by one'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
@@ -88,13 +100,17 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		"""
 		2011-7-11
 		"""
-		AbstractNGSWorkflow.__init__(self, **keywords)
+		AbstractVervetWorkflow.__init__(self, **keywords)
+		self.ligateVcfPerlPath =  self.insertHomePath(self.ligateVcfPerlPath, self.home_path)
 		
 		if self.ind_seq_id_ls:
 			self.ind_seq_id_ls = getListOutOfStr(self.ind_seq_id_ls, data_type=int)
 		if self.ind_aln_id_ls:
 			self.ind_aln_id_ls = getListOutOfStr(self.ind_aln_id_ls, data_type=int)
-		
+		if self.site_id_ls:
+			self.site_id_ls = getListOutOfStr(self.site_id_ls, data_type=int)
+		else:
+			self.site_id_ls = []
 	
 	def getTopNumberOfContigs(self, contigMaxRankBySize=100, contigMinRankBySize=1, tax_id=60711, sequence_type_id=9):
 		"""
@@ -130,6 +146,8 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], aln_method_id=2, \
 					dataDir=None, sequence_type=None):
 		"""
+		2012.4.13
+			moved to VervetDB.py
 		2012.4.5
 			select alignment using AND between all input arguments
 		2011-11-27
@@ -145,57 +163,20 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		2011-7-12
 		
 		"""
-		alignmentLs = []
-		TableClass = VervetDB.IndividualAlignment
-		query = TableClass.query
-		if ind_aln_id_ls:
-			sys.stderr.write("Adding filter via %s alignment IDs ...\n"%(len(ind_aln_id_ls)) )
-			query = query.filter(TableClass.id.in_(ind_aln_id_ls))
-		if ind_seq_id_ls:
-			sys.stderr.write("Adding filter via %s sequence IDs  ...\n"%(len(ind_seq_id_ls)))
-			query = query.filter(TableClass.ind_seq_id.in_(ind_seq_id_ls))
-		if ref_ind_seq_id:
-			sys.stderr.write("Adding filter via the reference sequence ID %s ...\n"%(ref_ind_seq_id))
-			query = query.filter_by(ref_ind_seq_id=ref_ind_seq_id)
-		if aln_method_id:
-			query = query.filter_by(aln_method_id=aln_method_id)
-		if not ind_aln_id_ls and not ind_seq_id_ls and not ref_ind_seq_id:
-			sys.stderr.write("Both ind_seq_id_ls and ind_aln_id_ls are empty and ref_ind_seq_id is None. no alignment to be fetched.\n")
-			sys.exit(3)
-		#order by TableClass.id is important because this is the order that gatk&samtools take input bams.
-		#Read group in each bam is beginned by alignment.id. GATK would arrange bams in the order of read groups.
-		# while samtools doesn't do that and vcf-isect could combine two vcfs with columns in different order.
-		query = query.order_by(TableClass.id)
-		for row in query:
-			if sequence_type is not None and row.sequence_type!=sequence_type:
-				continue
-			if row.path:	#it's not None
-				abs_path = os.path.join(dataDir, row.path)
-				if os.path.isfile(abs_path):
-					alignmentLs.append(row)
-		sys.stderr.write("%s alignments Done.\n"%(len(alignmentLs)))
-		return alignmentLs
+		return self.db_vervet.getAlignments(ref_ind_seq_id=ref_ind_seq_id, ind_seq_id_ls=ind_seq_id_ls, ind_aln_id_ls=ind_aln_id_ls, aln_method_id=aln_method_id, \
+					dataDir=dataDir, sequence_type=sequence_type)
 	
 	def filterAlignments(self, alignmentLs, max_coverage=None, individual_site_id=447, sequence_filtered=0):
 		"""
+		2012.4.13
+			moved to VervetDB.py
 		2012.4.2
 			add argument sequence_filtered
 		2011-11-22
 			447 in "individual_site_id=447" is VRC.
 		"""
-		sys.stderr.write("Filter %s alignments to select individual_sequence.coverage <=%s and site-id=%s and sequence_filtered=%s..."%\
-						(len(alignmentLs), max_coverage, individual_site_id, sequence_filtered))
-		newAlignmentLs = []
-		for alignment in alignmentLs:
-			if max_coverage is not None and alignment.ind_sequence.coverage>max_coverage:
-				continue
-			if individual_site_id and alignment.ind_sequence.individual.site_id!=individual_site_id:
-				continue
-			if sequence_filtered is not None and alignment.ind_sequence.filtered!=sequence_filtered:
-				continue
-			newAlignmentLs.append(alignment)
-		sys.stderr.write(" kept %s alignments. Done.\n"%(len(newAlignmentLs)))
-		return newAlignmentLs
+		return VervetDB.filterAlignments(alignmentLs, max_coverage=max_coverage, individual_site_id=individual_site_id, \
+								sequence_filtered=sequence_filtered)
 	
 	def addRefFastaFileSplitJobs(self, workflow, refFastaF, selectAndSplitFasta, refNameLs, mkdir=None, samtools=None,
 								java=None, createSequenceDictionaryJar=None,\
@@ -569,8 +550,10 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		sys.stderr.write(".Done\n")
 		return PassingData(refName2mergedBamCallJob=refName2mergedBamCallJob)
 	
-	def registerAlignmentAndItsIndexFile(self, workflow, alignmentLs, dataDir=None):
+	def registerAlignmentAndItsIndexFile(self, workflow=None, alignmentLs=None, dataDir=None, checkFileExistence=True):
 		"""
+		2012.6.12
+			add argument checkFileExistence
 		2012.1.9
 			register the input alignments and return in a data structure usd by several other functions
 		"""
@@ -579,10 +562,13 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		for alignment in alignmentLs:
 			inputFname = os.path.join(dataDir, alignment.path)
 			input = File(alignment.path)	#relative path, induces symlinking or stage-in
+			baiFilepath = '%s.bai'%(inputFname)
+			if checkFileExistence and (not os.path.isfile(inputFname) or not os.path.isfile(baiFilepath)):
+				continue
 			input.addPFN(PFN("file://" + inputFname, workflow.input_site_handler))
 			workflow.addFile(input)
 			baiF = File('%s.bai'%alignment.path)
-			baiF.addPFN(PFN("file://" + "%s.bai"%inputFname, workflow.input_site_handler))
+			baiF.addPFN(PFN("file://" + baiFilepath, workflow.input_site_handler))
 			workflow.addFile(baiF)
 			alignmentData = PassingData(alignment=alignment, jobLs = [], bamF=input, baiF=baiF)
 			returnData.append(alignmentData)
@@ -765,11 +751,13 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 			#however set it to 1 for contigs smaller than chunkSize 	
 			callOutputFname = os.path.join(callOutputDirJob.folder, '%s.vcf.gz'%refName)
 			callOutputF = File(callOutputFname)
+			"""
+			#2012.7.21 no more gatk-samtools intersection job
 			wholeRefUnionOfIntersectionJob = self.addVCFConcatJob(workflow, concatExecutable=vcf_concat, \
 							parentDirJob=callOutputDirJob, \
 							outputF=callOutputF, namespace=namespace, version=version, transferOutput=True, \
 							vcf_job_max_memory=vcf_job_max_memory)
-			
+			"""
 			#self.addRefFastaJobDependency(workflow, wholeRefUnionOfIntersectionJob, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
 			#							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
 			
@@ -886,7 +874,8 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 				samtoolsUnionJob.uses(samtoolsGzipOutput_tbi_F, transfer=False, register=True, link=Link.INPUT)
 				workflow.depends(parent=bgzip_tabix_samtoolsOutputF_job, child=samtoolsUnionJob)
 				
-				
+				"""
+				#2012.7.21 no more intersection
 				# intersection of GATK and samtools
 				isectJob = Job(namespace=namespace, name=vcf_isec.name, version=version)
 				intersectionOutputFname = os.path.join(intersectionDirJob.folder, '%s.isec.vcf.gz'%vcfBaseFname)
@@ -913,6 +902,7 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 				wholeRefUnionOfIntersectionJob.uses(intersectionOutputF, transfer=False, register=True, link=Link.INPUT)
 				wholeRefUnionOfIntersectionJob.uses(intersectionOutput_tbi_F, transfer=False, register=True, link=Link.INPUT)
 				workflow.depends(parent=isectJob, child=wholeRefUnionOfIntersectionJob)
+				"""
 				
 				"""
 				java -jar /path/to/dist/GenomeAnalysisTK.jar \
@@ -1114,49 +1104,73 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
 		return job
 	
-	def registerCustomExecutables(self, workflow):
+	def registerCustomExecutables(self, workflow=None):
 		"""
+		2012.6.1
+			self has become a workflow. added MergeVCFReplicateHaplotypesJava, ligateVcf
 		2011-11-28
 		"""
-		namespace = workflow.namespace
-		version = workflow.version
-		operatingSystem = workflow.operatingSystem
-		architecture = workflow.architecture
-		clusters_size = workflow.clusters_size
-		site_handler = workflow.site_handler
+		namespace = self.namespace
+		version = self.version
+		operatingSystem = self.operatingSystem
+		architecture = self.architecture
+		clusters_size = self.clusters_size
+		site_handler = self.site_handler
 		vervetSrcPath = self.vervetSrcPath
+		
+		executableList = []
+		genotypingExecutableSet = set([self.genotyperJava, self.samtools, self.CallVariantBySamtools, self.MergeVCFReplicateHaplotypesJava])
 		
 		trioCallerWrapper = Executable(namespace=namespace, name="trioCallerWrapper", version=version, os=operatingSystem,\
 									arch=architecture, installed=True)
 		trioCallerWrapper.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "shell/trioCallerWrapper.sh"), site_handler))
-		workflow.addExecutable(trioCallerWrapper)
-		workflow.trioCallerWrapper = trioCallerWrapper
+		executableList.append(trioCallerWrapper)
+		genotypingExecutableSet.append(trioCallerWrapper)
 		
 		MergeVCFReplicateGenotypeColumnsJava = Executable(namespace=namespace, name="MergeVCFReplicateGenotypeColumnsJava", \
 											version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
 		MergeVCFReplicateGenotypeColumnsJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(MergeVCFReplicateGenotypeColumnsJava)
-		workflow.MergeVCFReplicateGenotypeColumnsJava = MergeVCFReplicateGenotypeColumnsJava
+		executableList.append(MergeVCFReplicateGenotypeColumnsJava)
+		genotypingExecutableSet.append(MergeVCFReplicateGenotypeColumnsJava)
+		
+		ligateVcf = Executable(namespace=namespace, name="ligateVcf", \
+							version=version, os=operatingSystem, arch=architecture, installed=True)
+		ligateVcf.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "shell/ligateVcf.sh"), site_handler))
+		executableList.append(ligateVcf)
 		
 		ReplicateVCFGenotypeColumns = Executable(namespace=namespace, name="ReplicateVCFGenotypeColumns", version=version, os=operatingSystem,\
 									arch=architecture, installed=True)
 		ReplicateVCFGenotypeColumns.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/ReplicateVCFGenotypeColumns.py"), site_handler))
-		workflow.addExecutable(ReplicateVCFGenotypeColumns)
-		workflow.ReplicateVCFGenotypeColumns = ReplicateVCFGenotypeColumns
+		executableList.append(ReplicateVCFGenotypeColumns)
+	
+		for executable in executableList:
+			if executable not in genotypingExecutableSet:	#only the ones not in the latter set. profile couldn't be set twice
+				executable.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.clusters_size))
+			self.addExecutable(executable)
+			setattr(self, executable.name, executable)
 		
 		if self.noOfCallingJobsPerNode>1:
-			workflow.genotyperJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
+			for executable in genotypingExecutableSet:
+				executable.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
 										value="%s"%self.noOfCallingJobsPerNode))
-			workflow.samtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
-										value="%s"%self.noOfCallingJobsPerNode))
-			workflow.CallVariantBySamtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
-										value="%s"%self.noOfCallingJobsPerNode))
-			workflow.trioCallerWrapper.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
-										value="%s"%self.noOfCallingJobsPerNode))
-			workflow.ReplicateVCFGenotypeColumns.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
-										value="%s"%self.noOfCallingJobsPerNode))
-		
+	
+	def addLigateVcfJob(self, executable=None, ligateVcfPerlPath=None, outputFile=None, \
+						parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+						extraArguments=None, job_max_memory=2000, **keywords):
+		"""
+		2012.6.1
+			ligateVcf ligates overlapping VCF files.
+		"""
+		extraArgumentList = [ligateVcfPerlPath, outputFile]
+		if extraArguments:
+			extraArgumentList.append(extraArguments)
+		#do not pass outputFile as argument to addGenericJob() because addGenericJob will add "-o" in front of it.
+		return self.addGenericJob(executable=executable, \
+						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, extraOutputLs=[outputFile], \
+						transferOutput=transferOutput, \
+						extraArgumentList=extraArgumentList, job_max_memory=job_max_memory)
+	
 	def run(self):
 		"""
 		2011-7-11
@@ -1182,11 +1196,12 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		#refName2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
 		refNameLs = refName2size.keys()
 		
-		alignmentLs = self.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										aln_method_id=2, dataDir=self.localDataDir)
+		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
+										aln_method_id=self.alignment_method_id, dataDir=self.localDataDir)
+		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
+												individual_site_id_set=set(self.site_id_ls))
 		
-		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = self.initiateWorkflow(workflowName)
+		workflow = self.initiateWorkflow()
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.dataDir, refSequence.path)
@@ -1197,9 +1212,9 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 		
 		vervetSrcPath = self.vervetSrcPath
 		
-		self.registerJars(workflow)
-		self.registerExecutables(workflow)
-		self.registerCustomExecutables(workflow)
+		self.registerJars()
+		self.registerExecutables()
+		self.registerCustomExecutables()
 		alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, dataDir=self.dataDir)
 		
 		"""
@@ -1240,7 +1255,7 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 					namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 					seqCoverageF=None, \
 					needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-					chunkSize=2000000, site_type=self.site_type, dataDir=self.dataDir)
+					chunkSize=self.intervalSize, site_type=self.site_type, dataDir=self.dataDir)
 		elif self.run_type==2:
 			#2011-11-4 for single-alignment-calling pipeline, adjust the folder name so that they are unique from each other
 			for alignmentData in alignmentDataLs:
@@ -1272,7 +1287,7 @@ class AlignmentToCallPipeline(AbstractNGSWorkflow):
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						seqCoverageF=None, \
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-						chunkSize=2000000, site_type=self.site_type, dataDir=self.dataDir)
+						chunkSize=self.intervalSize, site_type=self.site_type, dataDir=self.dataDir)
 				
 		
 		"""

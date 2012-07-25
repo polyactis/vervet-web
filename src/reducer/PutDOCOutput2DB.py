@@ -3,7 +3,7 @@
 Examples:
 	%s 
 	
-	%s -u yh /tmp/outputStat.tsv  /tmp/outputStat2.tsv
+	%s -u yh -c /tmp/outputStat.tsv /tmp/depth.mode.tsv
 
 Description:
 	2012.4.3
@@ -39,6 +39,11 @@ class PutDOCOutput2DB(AbstractVervetMapper):
 	
 	def run(self):
 		"""
+		2012.5.7 new input looks like this (tab-delimited):
+			alignmentID     total_base_count        sampled_base_count      meanDepth       medianDepth     modeDepth
+			100     1005506 301614  70.0441756682   9.0     8.0
+			27     1005506 301614  70.0441756682   9.0     8.0
+
 		2012.4.3
 			each input looks like this:
 			
@@ -63,10 +68,11 @@ Total   2136011136      7.23    N/A     N/A     N/A
 			header = reader.next()
 			col_name2index = utils.getColName2IndexFromHeader(header, skipEmptyColumn=True)
 			
-			sample_id_index = col_name2index.get("sample_id")
-			total_base_count_index = col_name2index.get('total')
-			mean_depth_index = col_name2index.get("mean")
-			median_depth_index = col_name2index.get("granular_median")
+			sample_id_index = col_name2index.get("alignmentID")
+			total_base_count_index = col_name2index.get('total_base_count')
+			mean_depth_index = col_name2index.get("meanDepth")
+			median_depth_index = col_name2index.get("medianDepth")
+			mode_depth_index = col_name2index.get("modeDepth")
 			for row in reader:
 				sample_id = row[sample_id_index]
 				if sample_id=='Total':	#ignore rows with this as sample id
@@ -75,10 +81,12 @@ Total   2136011136      7.23    N/A     N/A     N/A
 				total_base_count = int(row[total_base_count_index])
 				mean_depth = float(row[mean_depth_index])
 				median_depth = float(row[median_depth_index])
+				mode_depth = float(row[mode_depth_index])
 				individual_alignment = VervetDB.IndividualAlignment.get(alignment_id)
 				individual_alignment.pass_qc_read_base_count = total_base_count
 				individual_alignment.mean_depth = mean_depth
 				individual_alignment.median_depth = median_depth
+				individual_alignment.mode_depth = mode_depth
 				session.add(individual_alignment)
 				no_of_total_lines += 1
 			del reader

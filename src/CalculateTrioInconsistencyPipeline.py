@@ -50,6 +50,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 	__doc__ = __doc__
 	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
 	option_default_dict.update({
+						('addTrioContigSpecificPlotJobs', 0, ): [0, '', 0, 'whether to add mendelian-inconsistency plotting jobs for each trio and each contig', ],\
 						('inputDir', 0, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						('maxContigID', 1, int): [1000, 'x', 1, 'if contig ID is beyond this number, it will not be included', ],\
 						})
@@ -336,6 +337,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		
 		topOutputDir = "%strioInconsistency"%(outputDirPrefix)
 		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		no_of_jobs += 1
 		
 		#each contig in each trio gets a summary.
 		trioInconsistencyByContigSummaryFile = File(os.path.join(topOutputDir, 'trio_inconsistency_by_contig_homo_het.tsv'))
@@ -621,20 +623,15 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		self.registerExecutables(workflow)
 		self.registerCustomExecutables(workflow)
 		
-		vervetSrcPath = self.vervetSrcPath
-		site_handler = self.site_handler
-		
-		
 		inputData = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler, \
 											checkEmptyVCFByReading=self.checkEmptyVCFByReading)
 		
 		self.addJobs(workflow, inputData, db_vervet=db_vervet, addTrioSpecificPlotJobs=True, \
-					addTrioContigSpecificPlotJobs=True)
+					addTrioContigSpecificPlotJobs=self.addTrioContigSpecificPlotJobs)
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
 		workflow.writeXML(outf)
-		
 
 
 if __name__ == '__main__':

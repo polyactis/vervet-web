@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 """
 Examples:
-	# 
-	%s 
+	# 2012.5.3 run on hoffman2's condorpool, need sshDBTunnel (-H1)
+	%s  -i 963-1346 -o workflow/read_count_isq_936_1346.xml -u yh -c -z localhost
+		-F readcount -H
+		-l hcondor -j hcondor 
+		-t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 	
 	# 2012.3.14 
 	%s -i 1-864 -o workflow/read_count_isq_1_864.xml -u yh -l condorpool -j condorpool -z uclaOffice -F readCount -c
@@ -108,8 +111,10 @@ class ReadFileBaseCountWorkflow(AbstractNGSWorkflow):
 	
 	def addPutReadBaseCountIntoDBJob(self, workflow, executable=None, inputFileLs=[], \
 					logFile=None, commit=False, parentJobLs=[], extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
-					job_max_memory=10, **keywords):
+					job_max_memory=10, sshDBTunnel=1, **keywords):
 		"""
+		2012.5.3
+			add argument sshDBTunnel
 		2012.3.14
 		"""
 		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
@@ -126,7 +131,7 @@ class ReadFileBaseCountWorkflow(AbstractNGSWorkflow):
 		job.uses(logFile, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		job.output = logFile
 		workflow.addJob(job)
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, sshDBTunnel=sshDBTunnel)
 		for parentJob in parentJobLs:
 			workflow.depends(parent=parentJob, child=job)
 		for input in extraDependentInputLs:
@@ -160,7 +165,7 @@ class ReadFileBaseCountWorkflow(AbstractNGSWorkflow):
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
 		return job
 	
-	def addJobs(self, workflow, inputData=None, pegasusFolderName=""):
+	def addJobs(self, workflow, inputData=None, pegasusFolderName="", needSSHDBTunnel=0):
 		"""
 		2012.3.14
 		"""
@@ -186,7 +191,7 @@ class ReadFileBaseCountWorkflow(AbstractNGSWorkflow):
 		putCountIntoDBJob = self.addPutReadBaseCountIntoDBJob(workflow, executable=workflow.PutReadBaseCountIntoDB, inputFileLs=[finalReduceFile], \
 					logFile=logFile, commit=self.commit, parentJobLs=[readBaseCountMergeJob], extraDependentInputLs=[], transferOutput=True, \
 					extraArguments=None, \
-					job_max_memory=10)
+					job_max_memory=10, sshDBTunnel=needSSHDBTunnel)
 		no_of_jobs += 2
 		for jobData in inputData.jobDataLs:
 			#add the read count job
@@ -236,7 +241,8 @@ class ReadFileBaseCountWorkflow(AbstractNGSWorkflow):
 		inputData = self.registerISQFiles(workflow=workflow, db_vervet=db_vervet, ind_seq_id_ls=self.ind_seq_id_ls, \
 										localDataDir=self.localDataDir, pegasusFolderName=self.pegasusFolderName,\
 										input_site_handler=self.input_site_handler)
-		self.addJobs(workflow, inputData=inputData, pegasusFolderName=self.pegasusFolderName)
+		self.addJobs(workflow, inputData=inputData, pegasusFolderName=self.pegasusFolderName,
+					needSSHDBTunnel=self.needSSHDBTunnel)
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')

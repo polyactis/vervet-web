@@ -10,6 +10,10 @@ Examples:
 		-o VCFStat_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_gatk_window20Mb.xml -l condorpool -j condorpool  -u yh -z uclaOffice
 		-w 20000000
 	
+	#2012.5.11 run on hoffman2 condor
+	%s ...
+		-j hcondor -l hcondor -u yh -z localhost  -D ~/NetworkData/vervet/db/ -t ~/NetworkData/vervet/db/
+	
 Description:
 	2011-10-6
 		a program which generates a pegasus workflow dag (xml file) that for each vcf file,
@@ -24,17 +28,10 @@ Description:
 	
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 
-from sqlalchemy.types import LargeBinary
-
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
 import VervetDB

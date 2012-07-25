@@ -6,14 +6,14 @@ Examples:
 	dirPrefix=./AlignmentToCallLowPass_top7559Contigs_no12eVarFilter_2011.11.23T1620/
 	%s -B ./TrioInconsistency_4HC101LCToCallLowPass_top7559Contigs_inter.2011.12.16T0428/avgTrioInconsistencyByPosition.tsv.gz
 		-i $dirPrefix\call/ -I $dirPrefix\gatk/ -o OutputSiteStat_4HC101LC_maxContigID1000_minGQ1_2foldMedianDepth.xml
-		-u yh -q ./alnStatForFilter.2011.12.21T0315.tsv -G1 -F 2 -K -a 524 -C 10
+		-u yh -q ./alnStatForFilter.2011.12.21T0315.tsv -G1 -A 2 -K -a 524 -C 10
 		-l condorpool -j condorpool
 	
 	#2011.12.9 to remove SNPs that are not in a file. no other filters.
 	dirPrefix=./AlignmentToCallLowPass_top7559Contigs_no12eVarFilter_2011.11.23T1620/
 	%s -i $dirPrefix\call/ -I $dirPrefix\gatk/ -l condorpool -j condorpool
 		-o Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4.xml
-		-z uclaOfficeTemp -u yh -q ./alnStatForFilter.2011.12.9T0207.tsv -G0 -K -F 100000 -a 524 -C 10
+		-z uclaOfficeTemp -u yh -q ./alnStatForFilter.2011.12.9T0207.tsv -G0 -K -A 100000 -a 524 -C 10
 		-S ./4HighCovVRC_inter_minMAC4_vs_LowPass_top7559Contigs_no12eVarFilter_inter.2011.12.9T0107/overlapPos.tsv
 	
 	#2011.12.19 run on hoffman2's condorpool
@@ -51,7 +51,7 @@ class OutputVCFSiteStat(FilterVCFPipeline):
 	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
 	option_default_dict.update({
 						('minGQ', 1, int): [50, 'G', 1, 'minimum GQ/GenotypeQuality for one genotype', ],\
-						('depthFoldChange', 1, float): [2.0, 'F', 1, 'a variant is retained if its depth within this fold change of meanDepth,', ],\
+						('depthFoldChange', 1, float): [2.0, 'A', 1, 'a variant is retained if its depth within this fold change of meanDepth,', ],\
 						('vcf1Dir', 0, ): ['', 'i', 1, 'main input folder that contains vcf or vcf.gz files', ],\
 						('vcf2Dir', 0, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz for SNP mismatch rate calculation', ],\
 						("onlyKeepBiAllelicSNP", 0, int): [0, 'K', 0, 'toggle this to remove all SNPs with >=3 alleles?'],\

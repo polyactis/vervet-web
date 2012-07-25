@@ -2330,7 +2330,60 @@ class VariantDiscovery(object):
 		VariantDiscovery.drawCoverageHistFromBAM(inputFname, outputFname)
 		sys.exit(2)
 	"""
-
+	
+	@classmethod
+	def beautifyMendelianInconsistencyOutput(cls, db_vervet, inputFname=None, outputFname=None):
+		"""
+		2012.5.4
+		
+		"""
+		sys.stderr.write("Beautifying the mendelian inconsistency output in %s ..."%(inputFname))
+		from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, figureOutDelimiter
+		import csv, VervetDB
+		delimiter = figureOutDelimiter(inputFname)
+		reader = csv.reader(open(inputFname), delimiter=delimiter)
+		writer = csv.writer(open(outputFname, 'w'), delimiter=delimiter)
+		
+		header = reader.next()
+		outputHeader = ['father', 'father-coverage', 'mother', 'mother-coverage', 'child', 'child-coverage'] + header[1:]
+		writer.writerow(outputHeader)
+		
+		colName2Index = utils.getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		trio_set_id_index = colName2Index.get('#trio_set')
+		counter = 0
+		for row in reader:
+			trio_set_id = row[trio_set_id_index]
+			trio_member_ls = trio_set_id.split(',')
+			newRow = []
+			for trio_member in trio_member_ls:
+				if trio_member == '0':
+					newRow += ['dummy', 0]
+				else:
+					compositeIDStruc = db_vervet.parseAlignmentCompositeID(trio_member)
+					individual_code = compositeIDStruc.individual_code
+					individual_sequence_id = compositeIDStruc.individual_sequence_id
+					individual_sequence = VervetDB.IndividualSequence.get(individual_sequence_id)
+					if individual_sequence:
+						coverage = individual_sequence.coverage
+					else:
+						coverage = '-'
+					newRow += [individual_code, coverage]
+			newRow += row[1:]
+			writer.writerow(newRow)
+			counter += 1
+		del writer
+		sys.stderr.write("%s families.\n"%(counter))
+		
+		"""
+		#2012.5.4
+		inputFname = '/Network/Data/vervet/vervetPipeline/TrioInconsistency_trioCall1st105_Top7559Contigs.n10.x1.2FoldMedianDepth.2012.5.2T1928/trioInconsistency/trio_inconsistency.tsv'
+		outputFname = '/Network/Data/vervet/vervetPipeline/TrioInconsistency_trioCall1st105_Top7559Contigs.n10.x1.2FoldMedianDepth.2012.5.2T1928/trioInconsistency/trio_inconsistency_beauti.tsv'
+		inputFname = os.path.expanduser('~/script/vervet/data/trio_inconsistency.tsv')
+		outputFname = os.path.expanduser('~/script/vervet/data/trio_inconsistency_beauti.tsv')
+		VariantDiscovery.beautifyMendelianInconsistencyOutput(db_vervet, inputFname=inputFname, outputFname=outputFname)
+		sys.exit(0)
+		"""
+		
 	@classmethod
 	def PCAContigByDistVectorFromOtherGenomes(cls, inputDir, outputFnamePrefix):
 		"""
@@ -4642,6 +4695,51 @@ class DBVervet(object):
 		
 		"""
 		
+	@classmethod
+	def replaceOldFilteredISQFilesWithNewOnes(cls, srcDir, dstDir):
+		"""
+		2012.4.22
+			This function is to rescue a bug of picard.src.java.net.sf.picard.sam.FilterRead, which didn't output quality scores
+				in Standard sanger format but same format as the input sequence.
+			Those sequences (sabaeus, aethiops) have been re-filterd by bug-fixed FilterRead and now need to move them to overwrite the old ones.
+			
+			srcDir is a folder containing the newly filtered sequence files.
+			dstDir is the folder (db-affliated folder) taht contains the old  non-Sanger format fastq sequences.
+			The filename of srcDir has a one-to-one correspondance to that of dstDir by adding a ISQF.id in the former's front.
+				dstFilename = ISQF.id_srcFilename.
+		"""
+		srcFilenameLs = os.listdir(srcDir)
+		dstFilenameLs = os.listdir(dstDir)
+		sys.stderr.write("Moving %s files from %s to cover %s files in %s ...\n"%(len(srcFilenameLs), srcDir, len(dstFilenameLs), dstDir))
+		srcFilename2dstFilename = {}
+		
+		for srcFilename in srcFilenameLs:
+			for dstFilename in dstFilenameLs:
+				if dstFilename.find(srcFilename)>=0:
+					srcFilename2dstFilename[srcFilename] = dstFilename
+					break
+		sys.stderr.write("%s entries in the one-to-one mapping.\n"%(len(srcFilename2dstFilename)))
+		
+		counter = 0
+		from pymodule.utils import getDateStampedFilename
+		for srcFilename, dstFilename in srcFilename2dstFilename.iteritems():
+			srcFullPath = os.path.join(srcDir, srcFilename)
+			dstFullPath = os.path.join(dstDir, dstFilename)
+			backupFullPath = getDateStampedFilename(dstFullPath)
+			os.rename(dstFullPath, backupFullPath)
+			os.rename(srcFullPath, dstFullPath)
+			counter += 1
+		sys.stderr.write("%s files moved.\n"%(counter))
+		"""
+		# 2012.4.22
+		for subFolderName in ['634_3_sabaeus_GA_0_1', '638_7_aethiops_GA_0_1']:
+			srcDir = os.path.join(os.path.expanduser('~/NetworkData/vervet/vervetPipeline/FilterISQ_ID4_8_sabaeus_aethiops.2012.4.19T1855/'), subFolderName)
+			dstDir = os.path.join(os.path.expanduser('~/NetworkData/vervet/db/individual_sequence/'), subFolderName)
+			DBVervet.replaceOldFilteredISQFilesWithNewOnes(srcDir, dstDir)
+		sys.exit(0)
+		
+		"""
+	
 	
 	@classmethod
 	def drawPedigree(cls, db_vervet, outputFnamePrefix=None, baseNodeSize=40, monkeyCoverageFname=None):
@@ -4799,6 +4897,64 @@ class DBVervet(object):
 		
 	"""
 	
+	@classmethod
+	def checkMonkeyCountryInWUSTLSpreadsheet(cls, db_vervet=None, inputFname=None):
+		"""
+		2012.5.29
+			
+			
+			the input looks like this:
+			#	FlowCell	Lane	Index Sequence	Library	Common Name	Bam Path	MD5
+			1	64J6AAAXX	1	VCAC-2007002-1-lib1	African	Green	Monkey	/gscmnt/sata755/production/csf_111215677/gerald_64J6AAAXX_1.bam	/gscmnt/sata755/production/csf_111215677/gerald_64J6AAAXX_1.bam.md5
+			2	64J6AAAXX	2	VCAC-2007006-1-lib1	African	Green	Monkey	/gscmnt/sata751/production/csf_111215675/gerald_64J6AAAXX_2.bam	/gscmnt/sata751/production/csf_111215675/gerald_64J6AAAXX_2.bam.md5
+			
+			library for the phylogeny monkey spreadsheet looks like this
+				VCAC-VZC1018-AGM0059-lib1
+		"""
+		sys.stderr.write("Getting bamBaseFname2MonkeyID dictionary ... \n")
+		import csv, re
+		from pymodule import getColName2IndexFromHeader
+		bamBaseFname2MonkeyID = {}
+		reader = csv.reader(open(inputFname), delimiter='\t')
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkeyIDIndex = col_name2index.get("Library")
+		bamFnameIndex = col_name2index.get("Bam Path")
+		if bamFnameIndex is None:	#2012.2.9
+			bamFnameIndex = col_name2index.get("BAM Path")
+		
+		monkeyIDPattern = re.compile(r'\w+-(\w+)-\w+-\w+')	# i.e. VCAC-VZC1018-AGM0059-lib1
+		#monkeyIDPattern = re.compile(r'\w+-(\w+)-\d+-\w+')	# i.e. VCAC-2007002-1-lib1
+		for row in reader:
+			monkeyID = row[monkeyIDIndex]
+			pa_search = monkeyIDPattern.search(monkeyID)
+			if pa_search:
+				monkeyID = pa_search.group(1)
+				individual = db_vervet.getIndividual(code=monkeyID)
+				if individual:
+					if individual.site:
+						sys.stdout.write("%s\t%s\n"%(monkeyID, individual.site.country.name))
+					else:
+						sys.stdout.write("%s\t%s\n"%(monkeyID, None))
+				else:
+					sys.stderr.write("monkeyID %s not in db.\n"%(monkeyID))
+			else:
+				sys.stderr.write("Warning: could not parse monkey ID from %s. Ignore.\n"%(monkeyID))
+				continue
+			bamFname = row[bamFnameIndex]
+			bamBaseFname = os.path.split(bamFname)[1]
+			bamBaseFname2MonkeyID[bamBaseFname] = monkeyID
+		sys.stderr.write("%s entries.\n"%(len(bamBaseFname2MonkeyID)))
+		return bamBaseFname2MonkeyID
+	
+	"""
+		#2012.5.29
+		inputFname = os.path.expanduser('~/mnt/hoffman2/u/home/eeskin2//polyacti/NetworkData/vervet/raw_sequence/wustl_86955197325824/Vervet_Subspecies_Phylogeny_README.tsv')
+		db_vervet.session.begin()
+		DBVervet.checkMonkeyCountryInWUSTLSpreadsheet(db_vervet, inputFname=inputFname)
+		db_vervet.session.rollback()
+		sys.exit(0)
+	"""
 	
 	class SequencingStrategy(object):
 		def __init__(self):
@@ -6078,6 +6234,205 @@ class DBVervet(object):
 		sys.exit(0)
 	"""
 	
+	@classmethod
+	def putVRCTargetCoverageIntoDB(cls, db_vervet=None, inputFname=None):
+		"""
+		2012.6.19
+			inputFname (exported from google sheet 723MonkeysForWGS and fill the last column where it is empty) format:
+				UCLAID	vervet-db-id	rank	increment	#direct children	pre-set or known coverage	sequenced	target coverage
+				1999026	5852	1	21	21		0	30
+				2000116	5965	2	20	20		0	30
+				1997004	5789	3	13	13	5	1	30
+		"""
+		sys.stderr.write("Importing VRC target coverage from %s into db ..."%(inputFname))
+		db_vervet.session.begin()
+		import csv, re
+		from datetime import datetime
+		from pymodule.utils import getColName2IndexFromHeader, figureOutDelimiter
+		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("UCLAID")
+		target_coverage_index = col_name2index.get("target coverage")
+		
+		counter = 0
+		for row in reader:
+			monkey_id = row[monkey_id_index].strip()
+			target_coverage = int(row[target_coverage_index].strip())
+			
+			individual = db_vervet.getIndividual(ucla_id=monkey_id)
+			individual.target_coverage = target_coverage
+			db_vervet.session.add(individual)
+			counter += 1
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		sys.stderr.write("%s individuals.\n"%(counter))
+	
+	"""
+		#2012.6.19
+		inputFname = '/tmp/723MonkeysForWGS.txt'
+		DBVervet.putVRCTargetCoverageIntoDB(db_vervet=db_vervet, inputFname=inputFname)
+		sys.exit(0)
+	"""
+
+	@classmethod
+	def putPopulationTargetCoverageIntoDB(cls, db_vervet=None, inputFname=None):
+		"""
+		2012.6.19
+			inputFname (exported from google sheet  and fill the last column where it is empty) format:
+				subspecies,Individual Name,Ania's comments,project,target coverage,sex,data availability,real coverage,country,sex (from db)
+				sabaeus from Barbados,A8518,,PopSeq at WashU,4x,M,,3.84,Barbados,M
+				pygerythrus from Tanzania,AG23,,PopSeq at WashU,4x,,,3.49,Tanzania,(null)
+		"""
+		sys.stderr.write("Importing population vervet target coverage from %s into db ..."%(inputFname))
+		db_vervet.session.begin()
+		import csv, re
+		from datetime import datetime
+		from pymodule.utils import getColName2IndexFromHeader, figureOutDelimiter
+		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("Individual Name")
+		target_coverage_index = col_name2index.get("target coverage")
+		
+		counter = 0
+		for row in reader:
+			monkey_id = row[monkey_id_index].strip()
+			target_coverage = int(row[target_coverage_index].strip()[:-1])	#remove the final x from 4x
+			
+			individual = db_vervet.getIndividual(ucla_id=monkey_id)
+			individual.target_coverage = target_coverage
+			db_vervet.session.add(individual)
+			counter += 1
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		sys.stderr.write("%s individuals.\n"%(counter))
+	
+	"""
+		#2012.6.19
+		inputFname = '/tmp/2012.6.1PopulationMonkeysForWGS.csv'
+		DBVervet.putPopulationTargetCoverageIntoDB(db_vervet=db_vervet, inputFname=inputFname)
+		sys.exit(0)
+	"""
+	
+	@classmethod
+	def outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(cls, db_vervet=None, outputFname=None, site_id=447,\
+											targetCoverageNotNull=True):
+		"""
+		2012.7.23
+			add argument targetCoverageNotNull, if True, means select individuals who has target coverage (to be sequenced)
+		2012.6.19
+		
+			1. select all monkeys from individual where site_id=447 and target_coverage is not null,
+			2. get their actual coverage from view_individual_sequence (filtered=1, match the individual_id)
+				if they have >1 sequence, output them all
+			3. get number of offspring given individual ID from db
+			animal ID, target coverage, actual coverage, no of offspring
+		"""
+		sys.stderr.write("Outputting VRC monkeys with target coverage, actual coverage, #offspring ...")
+		import VervetDB
+		import csv
+		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		header = ['UCLAID', 'targetCoverage', 'actualCoverage', 'noOfOffspring','batchNumberList','batchCoverageList']
+		writer.writerow(header)
+		query = VervetDB.Individual.query.filter_by(site_id=site_id)
+		if targetCoverageNotNull:
+			query = query.filter(VervetDB.Individual.target_coverage!=None)
+		counter = 0
+		for row in query:
+			offspringSet = db_vervet.getOffspringSet(row.id)
+			if offspringSet is not None:
+				no_of_offspring = len(offspringSet)
+			else:
+				no_of_offspring = None
+			actual_coverage_ls = []
+			sub_query = VervetDB.IndividualSequence.query.filter_by(individual_id=row.id).filter_by(filtered=1)
+			for isq in sub_query:
+				actual_coverage_ls.append('%.3f'%isq.coverage)
+			
+			batch_number_ls = [str(batch.id) for batch in row.sequence_batch_ls]	#2012.7.5
+			batch_coverage_ls = [str(batch.coverage) for batch in row.sequence_batch_ls]
+			if len(actual_coverage_ls)==0:	#nothing there for the filtered sequences. check the unfiltered ones.
+				sub_query = VervetDB.IndividualSequence.query.filter_by(individual_id=row.id).filter_by(filtered=0)
+				for isq in sub_query:
+					if isq.coverage:
+						actual_coverage_ls.append('%.3f'%isq.coverage)
+					else:
+						actual_coverage_ls.append("unknown")
+			data_row = [row.ucla_id, row.target_coverage, ','.join(actual_coverage_ls), no_of_offspring, \
+					','.join(batch_number_ls), ','.join(batch_coverage_ls)]
+			writer.writerow(data_row)
+			counter += 1
+		del writer
+		sys.stderr.write("%s monkeys.\n"%(counter))
+		
+	"""
+		#2012.6.19
+		outputFname = '/tmp/VRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447)
+		sys.exit(0)
+		
+		#2012.7.23
+		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447,\
+			targetCoverageNotNull=False)
+		sys.exit(0)
+	"""
+	
+	@classmethod
+	def updateSequenceBatch(cls, db_vervet=None, inputFname=None):
+		"""
+		2012.7.5
+		"""
+		sys.stderr.write("Updating sequence_batch info in the db ...")
+		counter = 0
+		db_vervet.session.begin()
+		import csv, re
+		from datetime import datetime
+		from pymodule.utils import getColName2IndexFromHeader, figureOutDelimiter
+		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		colIndex2Batch = {}
+		for i in range(1, len(header)):
+			batch = db_vervet.getSequenceBatch(short_name=header[i].strip())
+			colIndex2Batch[i] = batch
+		no_of_batches = len(colIndex2Batch)
+		sys.stderr.write(" %s batches.\n"%(no_of_batches))
+		
+		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		monkey_id_index = col_name2index.get("UCLAID")
+		
+		counter = 0
+		real_counter = 0
+		no_of_isq_entries = 0
+		import VervetDB
+		for row in reader:
+			monkey_id = row[monkey_id_index].strip()
+			individual = db_vervet.getIndividual(ucla_id=monkey_id)
+			batchColumnIndexList = []
+			for i in xrange(1, len(header)):
+				if row[i]=='1':
+					batchColumnIndexList.append(i)
+			if len(batchColumnIndexList)>0:
+				for batchColumn in batchColumnIndexList:
+					individual.sequence_batch_ls.append(colIndex2Batch[batchColumn])
+				db_vervet.session.add(individual)
+				real_counter += 1
+			else:	#do nothing
+				pass
+			counter += 1
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		
+		sys.stderr.write("%s/%s monkeys got batch updated.\n"%(real_counter, \
+														counter))
+	
+	"""
+		#2012.7.5
+		inputFname = '/Network/Data/vervet/raw_sequence/VRCSequenceBatches.txt'
+		DBVervet.updateSequenceBatch(db_vervet=db_vervet, inputFname=inputFname)
+		sys.exit(0)
+	"""
 	
 	@classmethod
 	def putDOCWalkerResultsIntoDB(cls, db_vervet, inputFname, commit=True):
@@ -6128,6 +6483,287 @@ class DBVervet(object):
 		sys.exit(0)
 	"""
 	
+	@classmethod
+	def addVacantISQFileRawEntryForISQFile(cls, db_vervet=None, raw_sequence_folder=None):
+		"""
+		2012.7.11 
+		"""
+		db_vervet.session.begin()
+		if not raw_sequence_folder:
+			sys.stderr.write("Error: raw_sequence_folder %s can't be nothing.\n"%(raw_sequence_folder))
+		
+		from pymodule import utils
+		import VervetDB, random
+		
+		rawBamFiles = utils.findFilesWithOneSuffixRecursively(inputDir=raw_sequence_folder, suffix='.bam')
+		library2bamPathList = {}
+		counter =0 
+		for filename in rawBamFiles:
+			folder, baseFilename = os.path.split(filename)
+			library = os.path.splitext(baseFilename)[0]
+			if library not in library2bamPathList:
+				library2bamPathList[library] = []
+			library2bamPathList[library].append(filename)
+			counter += 1
+		sys.stderr.write("%s files in %s libraries.\n"%(counter, len(library2bamPathList)))
+		
+		def addISQFileRawEntry(db_vervet=None, bamFilePath=None, library=None, isq_file_db_entry=None):
+			"""
+			2012.7.11
+			"""
+			from pymodule import utils
+			import VervetDB, random
+			if bamFilePath:
+				bamFilePath = os.path.realpath(bamFilePath)
+				md5sum = utils.get_md5sum(bamFilePath)
+			else:
+				md5sum = 'random_%s'%(repr(random.random())[2:])
+				bamFilePath = None
+				
+			db_entry = VervetDB.IndividualSequenceFileRaw.query.filter_by(md5sum=md5sum).first()
+			if db_entry:
+				sys.stderr.write("Warning: another file %s with the identical md5sum %s (library=%s) as this file %s is already in db.\n"%\
+								(db_entry.path, md5sum, library, bamFilePath))
+				#sys.exit(3)
+			else:
+				if isq_file_db_entry.parent_individual_sequence_file:	#use the parent's if available.
+					individual_sequence_id= isq_file_db_entry.parent_individual_sequence_file.individual_sequence_id
+				else:
+					individual_sequence_id = isq_file_db_entry.individual_sequence_id
+				db_entry = db_vervet.getIndividualSequenceFileRaw(individual_sequence_id, library=library, \
+														md5sum=md5sum, path=bamFilePath, mate_id=None)
+			return db_entry
+		
+		
+		library2ISQFileRawEntry = {}
+		TableClass =  VervetDB.IndividualSequenceFile
+		query = TableClass.query.filter(TableClass.individual_sequence_file_raw_id==None)
+		counter = 0
+		no_of_file_raw_entries_without_real_file = 0
+		for row in query:
+			individual_sequence_file_raw = library2ISQFileRawEntry.get(row.library)
+			if not individual_sequence_file_raw:
+				bamFilePathLs = library2bamPathList.get(row.library)
+				if bamFilePathLs is None:
+					bamFilePath = None
+				elif len(bamFilePathLs)>1:
+					sys.stderr.write("Error: library %s has %s files, %s.\n"%(library, len(bamFilePathLs), repr(bamFilePathLs)))
+					sys.exit(4)
+				elif len(bamFilePathLs)==1:
+					bamFilePath = bamFilePathLs[0]
+				else:
+					sys.stderr.write("Error: library %s shouldn't be here with bamFilePathLs=%s.\n"%(library, repr(bamFilePathLs)))
+					sys.exit(4)
+				individual_sequence_file_raw = addISQFileRawEntry(db_vervet=db_vervet, bamFilePath=bamFilePath, \
+												library=row.library, isq_file_db_entry=row)
+				library2ISQFileRawEntry[row.library] = individual_sequence_file_raw
+				if not individual_sequence_file_raw.path:
+					no_of_file_raw_entries_without_real_file += 1
+			row.individual_sequence_file_raw = individual_sequence_file_raw
+			db_vervet.session.add(row)
+			counter += 1
+		sys.stderr.write("added %s raw entries for %s individual sequence file entries. %s raw entries don't have real files.\n"%\
+						(len(library2ISQFileRawEntry), \
+						counter, no_of_file_raw_entries_without_real_file))
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+	
+	"""
+		#2012.7.11
+		raw_sequence_folder = '/Network/Data/vervet/raw_sequence'
+		DBVervet.addVacantISQFileRawEntryForISQFile(db_vervet=db_vervet, raw_sequence_folder=raw_sequence_folder)
+		sys.exit(0)
+	
+	"""
+	
+class OphoffMethylation(object):
+	"""
+	2012.5.23
+		related to Kun Zhang (UCSD)'s Bisulfite Padlock Probes. http://genome-tech.ucsd.edu/public/Gen2_BSPP/
+	"""
+	def __init__(self):
+		pass
+	
+	@classmethod
+	def outputPadLockArmSequencesInFastaFormat(cls, inputFname=None, outputFname=None):
+		"""
+		2012.5.23
+			prepare them for blasting (pymodule/pegasus/BlastWorkflow.py)
+		"""
+		from pymodule import utils, figureOutDelimiter, getColName2IndexFromHeader
+		inf = utils.openGzipFile(inputFname)
+		import csv
+		reader = csv.reader(inf, delimiter=figureOutDelimiter(inf))
+		outf = open(outputFname, 'w')
+		header = reader.next()
+		colName2ColIndex = getColName2IndexFromHeader(header)
+		for row in reader:
+			probeID = row[colName2ColIndex.get('Probe_ID')]
+			H1_seq = row[colName2ColIndex.get('H1_seq')]
+			H2_seq = row[colName2ColIndex.get('H2_seq')]
+			outf.write(">%s_H1_seq\n"%(probeID))
+			outf.write("%s\n"%(H1_seq))
+			outf.write(">%s_H2_seq\n"%(probeID))
+			outf.write("%s\n"%(H2_seq))
+		del outf
+		del reader
+	
+	"""
+		#2012.5.23
+		inputFname = os.path.expanduser('~/script/vervet/data/OphoffMethylation/DMR330K_ProbeAnnotated.txt.gz')
+		outputFname = os.path.expanduser('~/script/vervet/data/OphoffMethylation/DMR330K_ProbeSeq.fasta')
+		OphoffMethylation.outputPadLockArmSequencesInFastaFormat(inputFname=inputFname, outputFname=outputFname)
+		sys.exit(0)
+	"""
+	@classmethod
+	def checkPadLockArmBlastHitsOnVervetReference(cls, inputFname=None, outputFname=None, targetMedianSize=180, targetSizeDelta=40):
+		"""
+		2012.5.24
+			both arms on same strand, same contig, and within targetMedianSize +- targetSizeDelta of each other
+		"""
+		from pymodule import figureOutDelimiter, getColName2IndexFromHeader, utils, PassingData
+		import csv
+		sys.stderr.write("Checking vervet-genome blast hits of pad lock arms %s ... "%(inputFname))
+		inf = utils.openGzipFile(inputFname)
+		reader = csv.reader(inf, delimiter=figureOutDelimiter(inf))
+		header = reader.next()
+		colName2colIndex = getColName2IndexFromHeader(header)
+		probeID2armHitData = {}
+		counter = 0
+		for row in reader:
+			queryID = row[colName2colIndex.get("queryID")]
+			probeID = queryID[:-7]
+			if probeID not in probeID2armHitData:
+				probeID2armHitData[probeID] = PassingData(H1HitList=[], H2HitList=[])
+				
+			whichArm = queryID[-6:]
+			
+			queryStart = int(row[colName2colIndex.get('queryStart')])
+			queryEnd = int(row[colName2colIndex.get('queryEnd')])
+			noOfMismatches = int(row[colName2colIndex.get('noOfMismatches')])
+			targetChr = row[colName2colIndex.get('targetChr')]
+			targetStart = int(row[colName2colIndex.get("targetStart")])
+			targetStop = int(row[colName2colIndex.get("targetStop")])
+			if queryStart<queryEnd:	
+				strand = '+'
+			else:
+				strand = '-'
+			hitData = PassingData(strand=strand, targetChr=targetChr, targetStart=targetStart, \
+								targetStop=targetStop, noOfMismatches=noOfMismatches)
+			if whichArm=='H1_seq':
+				probeID2armHitData[probeID].H1HitList.append(hitData)
+			elif whichArm=='H2_seq':
+				probeID2armHitData[probeID].H2HitList.append(hitData)
+			else:
+				sys.stderr.write("Error, arm %s is not recognizable.\n"%(whichArm))
+				sys.exit(2)
+			counter += 1
+		del reader
+		inf.close()
+		sys.stderr.write("%s pad lock probes out of %s hits.\n"%(len(probeID2armHitData), counter))
+		
+		counter = 0 
+		real_counter =0
+		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		outputHeader = ['probeID', 'vervetChr', 'H1_start', 'H1_end', 'H1_noOfMismatches', 'H2_start', 'H2_end',\
+					'H2_noOfMismatches']
+		writer.writerow(outputHeader)
+		properProbeIDSet = set()
+		for probeID, armHitData in probeID2armHitData.iteritems():
+			for H1HitData in armHitData.H1HitList:
+				for H2HitData in armHitData.H2HitList:
+					if H1HitData.targetChr==H2HitData.targetChr and H1HitData.strand==H2HitData.strand:
+						if H1HitData.targetStop<H2HitData.targetStart:
+							span = H2HitData.targetStart - H1HitData.targetStop
+						else:
+							span = H1HitData.targetStart - H2HitData.targetStop
+						if span <0:
+							sys.stderr.write("Warning: %s has two arms overlapping on vervet genome. Negative span %s between two arms.\n"%(probeID, span))
+							#sys.exit(3)
+							continue
+						delta=abs(span-targetMedianSize)
+						if delta<=targetSizeDelta:
+							real_counter += 1
+							properProbeIDSet.add(probeID)
+							dataRow = [probeID, H1HitData.targetChr, H1HitData.targetStart, H1HitData.targetStop, \
+									H1HitData.noOfMismatches, \
+									H2HitData.targetStart, H2HitData.targetStop, H2HitData.noOfMismatches]
+							writer.writerow(dataRow)
+		sys.stderr.write("%s pad lock probes have arms in proper position in %s vervet regions.\n"%\
+						(len(properProbeIDSet), real_counter))
+		del writer
+		
+		"""
+		#2012.5.24
+		inputFname = os.path.expanduser('~/script/vervet/data/OphoffMethylation/DMR330K_ProbeSeqVsVervetISQ524_BlastHits.tsv.gz')
+		outputFname = os.path.expanduser('~/script/vervet/data/OphoffMethylation/DMR330K_ProbeSeqVsVervetISQ524_Proper.tsv')
+		
+		OphoffMethylation.checkPadLockArmBlastHitsOnVervetReference(inputFname=inputFname, outputFname=outputFname, \
+			targetMedianSize=180, targetSizeDelta=40)
+		sys.exit(0)
+		
+				
+		#2012.5.24
+		inputFname = os.path.expanduser('~/script/vervet/data/OphoffMethylation/DMR330K_ProbeSeqVsVervetISQ524_BlastHits.tsv.gz')
+		outputFname = os.path.expanduser('~/script/vervet/data/OphoffMethylation/DMR330K_ProbeSeqVsVervetISQ524_ProperDelta80.tsv')
+		
+		OphoffMethylation.checkPadLockArmBlastHitsOnVervetReference(inputFname=inputFname, outputFname=outputFname, \
+			targetMedianSize=180, targetSizeDelta=80)
+		sys.exit(0)
+		
+	
+		"""
+	
+	@classmethod
+	def outputIlluminaMethylation450KProbeSeqInFastaFormat(cls, inputFname=None, outputFname=None):
+		"""
+		2012.5.25
+			prepare them for blasting
+		
+			Infinium HumanMethylation450 BeadChip Kit - Illumina
+			http://www.illumina.com/products/methylation_450_beadchip_kits.ilmn
+		
+		"""
+		sys.stderr.write("Outputting illumina methylation-450k probe sequences, %s, in fasta format ..."%(inputFname))
+		from pymodule import getColName2IndexFromHeader, figureOutDelimiter, utils
+		import csv
+		inf = utils.openGzipFile(inputFname)
+		reader = csv.reader(inf, delimiter=figureOutDelimiter(inf))
+		outf = open(outputFname, 'w')
+		
+		colName2colIndex = None
+		counter = 0
+		real_counter = 0
+		for row in reader:
+			if row[0]=='[Assay]':	#probe stuff starts here. the next line is header.
+				header = reader.next()
+				colName2colIndex = getColName2IndexFromHeader(header)
+				IlmnIDIndex = colName2colIndex.get('IlmnID')
+				#NameIndex = colName2colIndex.get('Name')
+				AddressA_IDIndex = colName2colIndex.get("AddressA_ID")
+				SourceSeqIndex = colName2colIndex.get("SourceSeq")
+			elif row[0]=='[Controls]':	#after this line, no more 
+				break
+			if colName2colIndex is not None and row[0]!='[Assay]':
+				IlmnID = row[IlmnIDIndex]
+				AddressA_ID = row[AddressA_IDIndex]
+				SourceSeq = row[SourceSeqIndex].strip()
+				if SourceSeq:
+					outf.write('>%s_%s\n'%(IlmnID, AddressA_ID))
+					outf.write("%s\n"%(SourceSeq))
+					real_counter += 1
+				counter += 1
+		sys.stderr.write("%s (out of %s) sequences outputted.\n"%(real_counter, counter))
+		del outf
+		del reader
+	"""
+		#2012.5.25
+		inputFname = os.path.expanduser('~/script/vervet/data/OphoffMethylation/Meth 450/HumanMethylation450_15017482_v.1.1.csv.gz')
+		outputFname = os.path.expanduser('~/script/vervet/data/OphoffMethylation/Meth 450/HumanMethylation450_15017482_v.1.1.fasta')
+		OphoffMethylation.outputIlluminaMethylation450KProbeSeqInFastaFormat(inputFname=inputFname, outputFname=outputFname)
+		sys.exit(0)
+	"""
+
 class VervetGenome(object):
 	"""
 	2011-6-27
@@ -6135,6 +6771,31 @@ class VervetGenome(object):
 	"""
 	def __init__(self):
 		pass
+	
+	@classmethod
+	def outputLinesNotIn2ndFile(cls, inputFname1=None, inputFname2=None):
+		"""
+		2012.6.7
+		"""
+		inf1 = open(inputFname1)
+		inf2 = open(inputFname2)
+		bamFnameSet = set()
+		for line in inf2:
+			bamFnameSet.add(line.strip())
+		sys.stderr.write("%s files in %s.\n"%(len(bamFnameSet), inputFname2))
+		
+		for line in inf1:
+			bamFname = line.strip()
+			if bamFname not in bamFnameSet:
+				print bamFname
+	
+	"""
+		#2012.6.7
+		inputFname1 = os.path.expanduser('~/NetworkData/vervet/raw_sequence/wustl92017055240376AllBamFiles.txt')
+		inputFname2 = os.path.expanduser('~/NetworkData/vervet/raw_sequence/wustl_92017055240376_finished_downloads.txt')
+		VervetGenome.outputLinesNotIn2ndFile(inputFname1=inputFname1, inputFname2=inputFname2)
+		sys.exit(0)
+	"""
 	
 	@classmethod
 	def getContigID2SizeFromAGPFile(cls, contigAGPFname):
@@ -6666,7 +7327,213 @@ class VervetGenome(object):
 		sys.exit(0)
 		
 		"""
+	@classmethod
+	def extractGeneRoughLocationFromHumanExonBlastResult(cls, blastInputFname=None, outputFname=None):
+		"""
+		2012.5.10
+			blastInputFname is in psl format. Columns are:
+				matches	misMatches	repMatches	nCount	qNumInsert	qBaseInsert	tNumInsert	tBaseInsert	strand
+					qName	qSize	qStart	qEnd	tName	tSize	tStart	tEnd	blockCount	blockSizes	qStarts	tStarts
+			
+		"""
+		sys.stderr.write("Extracting rough locations of genes from human-exon blast result %s ..."%(blastInputFname))
+		from pymodule import figureOutDelimiter, getColName2IndexFromHeader
+		import csv
+		reader = csv.reader(open(blastInputFname, 'r'), delimiter=figureOutDelimiter(blastInputFname))
+		header = reader.next()
+		colName2Index = getColName2IndexFromHeader(header)
+		qNameIndex = colName2Index.get('qName')
+		qStartIndex = colName2Index.get("qStart")
+		qEndIndex = colName2Index.get("qEnd")
+		tNameIndex = colName2Index.get("tName")
+		tStartIndex = colName2Index.get("tStart")
+		tEndIndex = colName2Index.get("tEnd")
+		geneID2TargetStartStopLs = {}
+		for row in reader:
+			qName = row[qNameIndex]
+			geneName = qName.split('___')[0]
+			tName = row[tNameIndex]
+			contigName = tName.split('_')[2]
+			tStart = int(row[tStartIndex])
+			tEnd = int(row[tEndIndex])
+			if geneName not in geneID2TargetStartStopLs:
+				geneID2TargetStartStopLs[geneName] = []
+			targetPositionTuple = [contigName, tStart, tEnd]
+			geneID2TargetStartStopLs[geneName].append(targetPositionTuple)
+		del reader
+		sys.stderr.write("%s genes.\n"%(len(geneID2TargetStartStopLs)))
+		
+		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		header = ['geneID', 'chr', 'start', 'stop']
+		writer.writerow(header)
+		for geneID, targetStartStopLs in geneID2TargetStartStopLs.iteritems():
+			chr2boundary = {}
+			for targetChr, start, stop in targetStartStopLs:
+				if targetChr not in chr2boundary:
+					chr2boundary[targetChr] = [start, stop]
+				else:
+					if start<chr2boundary[targetChr][0]:
+						chr2boundary[targetChr][0] = start
+					if stop>chr2boundary[targetChr][1]:
+						chr2boundary[targetChr][1] = stop
+			data_row = [geneID]
+			for chr, boundary in chr2boundary.iteritems():
+				data_row.extend([chr, boundary[0], boundary[1]])
+			writer.writerow(data_row)
+		del writer
+		
+		"""
+		#2012.5.10
+		blastInputFname = os.path.expanduser('~/script/vervet/data/RNADevelopment_eQTL/hg19_Refseq_exons.psl')
+		outputFname =  os.path.expanduser('~/script/vervet/data/RNADevelopment_eQTL/hg19GenesOnVervetContigs.tsv')
+		VervetGenome.extractGeneRoughLocationFromHumanExonBlastResult(blastInputFname=blastInputFname, outputFname=outputFname)
+		sys.exit(0)
+		"""
+		
 	
+	@classmethod
+	def silicoBisulfiteConvertGenome(cls, inputFname=None, outputFname=None):
+		"""
+		2012.5.24
+		"""
+		from pymodule import utils
+		from Bio import SeqIO
+		inf = utils.openGzipFile(inputFname)
+		counter = 0 
+		real_counter = 0
+		outputHandle = open(outputFname, 'w')
+		
+		for seq_record in SeqIO.parse(inf, "fasta"):
+			counter += 1
+			mutable_seq = seq_record.seq.tomutable()
+			for i in xrange(len(mutable_seq)):
+				if mutable_seq[i]=='C':
+					mutable_seq[i] = 'T'
+					real_counter += 1
+			seq_record.seq = mutable_seq.toseq()
+			SeqIO.write([seq_record], outputHandle, "fasta")
+		
+		outputHandle.close()
+		sys.stderr.write("%s sequence records. %s Cs converted to T.\n"%(counter, real_counter))
+	
+	"""
+		#2012.5.24
+		inputFname = '/Network/Data/vervet/db/individual_sequence/524_superContigsMinSize2000.fasta'
+		outputFname = '/Network/Data/vervet/db/individual_sequence/524_superContigsMinSize2000_C2T.fasta'
+		VervetGenome.silicoBisulfiteConvertGenome(inputFname=inputFname, outputFname=outputFname)
+		sys.exit(0)
+		
+	"""
+
+class Mapping(object):
+	"""
+	2012.4.12
+	"""
+	def __init__(self):
+		pass
+	@classmethod
+	def drawNoOfPhenotypesPerIndividualHistogram(cls, inputFname=None, outputFname=None):
+		"""
+		2012.4.12
+		"""
+		import csv
+		from pymodule import figureOutDelimiter
+		reader = csv.reader(open(inputFname, ), delimiter=figureOutDelimiter(inputFname))
+		header = reader.next()
+		NoOfPhenotypesOfEachMonkeyLs = []
+		for row in reader:
+			no_of_phenotypes, no_of_monkeys = row[:2]
+			no_of_phenotypes = int(no_of_phenotypes)
+			no_of_monkeys = int(no_of_monkeys)
+			for i in xrange(no_of_monkeys):
+				NoOfPhenotypesOfEachMonkeyLs.append(no_of_phenotypes)
+		sys.stderr.write("%s monkeys.\n"%(len(NoOfPhenotypesOfEachMonkeyLs)))
+		
+		from pymodule import yh_matplotlib
+		yh_matplotlib.drawHist(NoOfPhenotypesOfEachMonkeyLs, title="Histogram of no of phenotypes per monkey", \
+							xlabel_1D="Number of phenotypes per monkey", xticks=None, outputFname=outputFname, min_no_of_data_points=50, needLog=False, \
+							dpi=300, min_no_of_bins=20)
+	"""
+		#2012.4.12
+		inputFname = "/tmp/NoOfPhenotypesPerMonkey.csv"
+		outputFname =  os.path.expanduser("~/script/vervet/data/HistofNoOfPhenotypesPerMonkey.png")
+		Mapping.drawNoOfPhenotypesPerIndividualHistogram(inputFname=inputFname, outputFname=outputFname)
+		sys.exit(0)
+		
+	"""
+
+class IRF7(object):
+	"""
+	2012.6.18
+		class to hold IRF7 related stuff,
+	"""
+	def __init__(self, ):
+		pass
+	
+	@classmethod
+	def run(cls):
+		# 2012.4.19 run misc.py like "~/script/vervet/src/misc.py -u yh -k genome"
+		from pymodule import GenomeDB
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
+						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
+		db_genome.setup(create_tables=False)
+		
+		#2012.6.18 output the bases of SNPs from IRF7 sequences of Sanger sequenced Caribbean (St. Kitts) + a few VRC animals.
+		SNP_position_ls = [4840080, 4840092, 4840117, 4840204]
+		chromosome = 'Contig103'
+		outf = open('/tmp/IRF7_SNPs_fromSangerSequencedCaribbeanVRCMonkeys.fa', 'w')
+		for position in SNP_position_ls:
+			outf.write(">Contig103_%s\n"%(position))
+			seq = db_genome.getSequenceSegment(tax_id=60711, chromosome=chromosome, start=position, \
+											stop=position+2, schema='genome')
+			outf.write(seq)
+			outf.write("\n")
+		del outf
+		sys.exit(0)
+		
+		#2012.6.11 output DNA sequence of gene IRF7 in lower and upper case.
+		chromosome = 'Contig103'
+		start = 4837992
+		stop = 4841222
+		outf = open('/tmp/IRF7_Contig103_%s_%s.fa'%(start, stop), 'w')
+		geneCommentary = GenomeDB.GeneCommentary.get(261215)
+		geneCommentary.outputSequenceInUpperLowerCase(outf)
+		del outf
+		print geneCommentary.getProteinSequence()
+		sys.exit(0)
+		
+		#2012-4.19 output DNA sequence of gene IRF7
+		chromosome = 'Contig103'
+		start = 4837992
+		stop = 4841222
+		seq = db_genome.getSequenceSegment(tax_id=60711, chromosome=chromosome, start=start, stop=stop, schema='genome')
+		outf = open('/tmp/IRF7_Contig103_%s_%s.fa'%(start, stop), 'w')
+		outf.write(">Contig103_%s_%s\n"%(start, stop))
+		outf.write(seq)
+		del outf
+		sys.exit(0)
+		
+		#2012.6.18 output vervet SNPs with flanking sequences (example output)
+		#>Contig103_4840950
+		#ACCAGTGGTCTGTGAATCATGACCCA[C/G]TGAAGTGGCCTAACCCGGAGAACTT
+		SNP_position_ls = [4839484, 4840460, 4840950]
+		chromosome = 'Contig103'
+		outf = open('/tmp/IRF7_SNPs.fa', 'w')
+		for position in SNP_position_ls:
+			outf.write(">Contig103_%s\n"%(position))
+			seq = db_genome.getSequenceSegment(tax_id=60711, chromosome=chromosome, start=position-26, \
+											stop=position, schema='genome')
+			outf.write(seq[:-1])
+			refAlleleBase = seq[-1]
+			outf.write('[%s]'%refAlleleBase)
+			seq = db_genome.getSequenceSegment(tax_id=60711, chromosome=chromosome, start=position+1, \
+											stop=position+26, schema='genome')
+			outf.write(seq)
+			outf.write("\n")
+		del outf
+		sys.exit(0)
+		
+
 class Main(object):
 	__doc__ = __doc__
 	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
@@ -6706,12 +7573,34 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
+		#2012.7.23
+		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447,\
+			targetCoverageNotNull=False)
+		sys.exit(0)
 		
-		#2011-7-7 output all the BACs in order
+		
+		#2012.7.14 update the md5sum for the existing db entries
+		TableClass = VervetDB.IndividualAlignment
+		TableClass = VervetDB.IndividualSequenceFile
+		for db_entry in TableClass.query.filter(TableClass.md5sum==None):
+			if db_entry.base_count>0:	#if md5sum for empty files are all same.
+				absPath = os.path.join(db_vervet.data_dir, db_entry.path)
+				if db_entry.path and os.path.isfile(absPath):
+					sys.stderr.write("md5sum on %s ... "%(db_entry.path))
+					db_vervet.updateDBEntryMD5SUM(db_entry=db_entry, absPath=absPath)
+					sys.stderr.write("\n")
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		sys.exit(0)
+		# 2012.4.19 run misc.py like "~/script/vervet/src/misc.py -u yh -k genome"
 		from pymodule import GenomeDB
 		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
 						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
 		db_genome.setup(create_tables=False)
+		
+		#2011-7-7 output all the BACs in order
+		
 		outputDir = os.path.expanduser("~/script/variation/bin/symap_3_3/data/pseudo/vervet176BAC/sequence/pseudo/")
 		db_genome.outputGenomeSequence(tax_id=60711, sequence_type_id=10, fastaTitlePrefix='BAC', outputDir=outputDir, chunkSize=70)
 		sys.exit(0)
