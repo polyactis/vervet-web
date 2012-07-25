@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #PBS -q cmb -j oe -S /bin/bash
 #PBS -l walltime=23:55:00,mem=2G
 #PBS -d /home/cmb-03/mn/yuhuang/qjob_output

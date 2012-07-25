@@ -63,8 +63,8 @@ fi
 #2011-11-04 from Vasily. lower threshold for sixth column (QUAL) in VCF.
 low_quality_thresh=5
 
-
-$samtoolsPath mpileup -S -D -q 30 -Q 20 -ug -r $interval -f $refFastaFname $bamFiles | $bcftoolsPath view $bcftoolsArguments - > $outputVCF.bcf
+# 2012.5.4 "-S -D" from mpileup increases running time significantly
+$samtoolsPath mpileup -q 30 -Q 20 -ug -r $interval -f $refFastaFname $bamFiles | $bcftoolsPath view $bcftoolsArguments - > $outputVCF.bcf
 exitCodeAll="${PIPESTATUS[0]} ${PIPESTATUS[1]}"
 exitCode=`echo $exitCodeAll|awk -F ' ' '{print $1}'`
 exitCode2=`echo $exitCodeAll|awk -F ' ' '{print $2}'`

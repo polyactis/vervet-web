@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # 2011-9-14 
 if test $# -lt 2
 then

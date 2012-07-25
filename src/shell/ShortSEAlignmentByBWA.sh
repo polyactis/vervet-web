@@ -30,5 +30,11 @@ then
 	#normal exit
 	exit
 else
-	exit $exitCodeAll
+	if test "$exitCode" = "0"
+	then
+		finalExitCode=$exitCode2
+	else
+		finalExitCode=$exitCode
+	fi
+	exit $finalExitCode
 fi

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 if test $# -lt 1 ; then
 	echo "$0 INPUT_VCF_Folder"

@@ -60,3 +60,12 @@ outputEmptyVCFWithInputHeader () {
 	echo "empty vcf with header from $vcfInputFname is created."
 }
 
+checkIfFileExists () {
+	fname=$1
+	if test -r $fname
+	then
+		echo 0;
+	else
+		echo 1;
+	fi
+}
