@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 """
 Examples:
-	# 2012.5.10
-	%s 
-	
 	#2012.5.11 convert alignment read group (sample id) into UCLAID
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/ 
 		-o workflow/SampleIDInUCLAID_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
@@ -20,20 +17,31 @@ Examples:
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 	
+	# 2012.7.16 convert a folder of VCF files into plink
+	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719/trioCaller_vcftoolsFilter/ 
+		-o workflow/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
+		-y 2 -x 200 -E
+		-l condorpool -j condorpool
+		-u yh -z uclaOffice  -C 4
 	
+	# 2012.7.25 calculate haplotype distance & majority call support stats
+	%s -I AlignmentToTrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicates/
+		-o workflow/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.xml
+		-y 5 -E -l condorpool -j condorpool -u yh -z uclaOffice  -C 1 -a 524
 	
 Description:
 	#2012.5.9
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import csv
 import VervetDB
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, figureOutDelimiter, getColName2IndexFromHeader
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, \
+	figureOutDelimiter, getColName2IndexFromHeader, utils
 from Pegasus.DAX3 import *
 from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 from pymodule.VCFFile import VCFFile
@@ -53,7 +61,8 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 							2: convert to plink format; \
 							3: subset + convert-2-plink. MAC & MAF & maxSNPMissingRate applied in the convert-to-plink step.\
 							4: ConvertAlignmentReadGroup2UCLAIDInVCF jobs.\
-							5: Combine VCF files from two input folder, chr by chr. (not done yet. check CheckTwoVCFOverlapPipeline.py for howto)', ],\
+							5: addMergeVCFReplicateHaplotypesJobs to get haplotype distance & majority call support stats.\
+							?: Combine VCF files from two input folder, chr by chr. (not done yet. check CheckTwoVCFOverlapPipeline.py for howto)', ],\
 						("minMAC", 0, int): [2, 'n', 1, 'minimum MinorAlleleCount (by chromosome)'],\
 						("minMAF", 0, float): [None, 'M', 1, 'minimum MinorAlleleFrequency (by chromosome)'],\
 						("maxSNPMissingRate", 0, float): [0, 'N', 1, 'maximum SNP missing rate in one vcf (denominator is #chromosomes)'],\
@@ -70,6 +79,10 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 						maxSNPMissingRate=None, transferOutput=True,\
 						maxContigID=None, outputDirPrefix=""):
 		"""
+		2012.7.19 
+			add a modifyTPEDJob that modify 2nd column (snp-id) of tped output from default 0 to chr_pos.
+			added a GzipSubworkflow in the end to gzip the final merged tped file
+			all previous intermediate files are not transferred.
 		2012.5.9
 		"""
 		sys.stderr.write("Adding VCF2plink jobs for %s vcf files ... "%(len(inputData.jobDataLs)))
@@ -84,12 +97,13 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		mergedTPEDFile = File(os.path.join(topOutputDir, 'merged.tped'))
 		#each input has no header
 		tpedFileMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-							outputF=mergedTPEDFile, transferOutput=transferOutput, parentJobLs=[topOutputDirJob], \
+							outputF=mergedTPEDFile, transferOutput=False, parentJobLs=[topOutputDirJob], \
 							extraArguments='-n')
 		no_of_jobs += 1
 		returnData = PassingData()
 		returnData.jobDataLs = []
-		for jobData in inputData.jobDataLs:
+		for i in xrange(len(inputData.jobDataLs)):
+			jobData = inputData.jobDataLs[i]
 			inputF = jobData.vcfFile
 			if maxContigID:
 				contig_id = self.getContigIDFromFname(inputF.name)
@@ -104,6 +118,10 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 			inputFBaseName = os.path.basename(inputF.name)
 			commonPrefix = inputFBaseName.split('.')[0]
 			outputFnamePrefix = os.path.join(topOutputDir, '%s'%(commonPrefix))
+			if i ==0:	#need at least one tfam file. 
+				transferOneContigPlinkOutput = True
+			else:
+				transferOneContigPlinkOutput = False
 			vcf2plinkJob = self.addFilterJobByvcftools(workflow, vcftoolsWrapper=workflow.vcftoolsWrapper, \
 						inputVCFF=inputF, \
 						outputFnamePrefix=outputFnamePrefix, \
@@ -111,17 +129,27 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 						snpMisMatchStatFile=None, \
 						minMAC=minMAC, minMAF=minMAF, \
 						maxSNPMissingRate=maxSNPMissingRate,\
-						extraDependentInputLs=[jobData.tbi_F], outputFormat='--plink-tped', transferOutput=transferOutput)
+						extraDependentInputLs=[jobData.tbi_F], outputFormat='--plink-tped', transferOutput=transferOneContigPlinkOutput)
+			#2012.7.20 modify the TPED 2nd column, to become chr_pos (rather than 0)
+			outputF = os.path.join(topOutputDir, '%s.tped.gz'%(commonPrefix))
+			modifyTPEDJob = self.addAbstractMapperLikeJob(workflow, executable=workflow.modifyTPED, \
+						inputF=vcf2plinkJob.outputF, outputF=outputF, \
+						parentJobLs=[vcf2plinkJob], transferOutput=transferOutput, job_max_memory=200,\
+						extraArguments=None, extraDependentInputLs=[])
+			
 			#add output to some reduce job
 			self.addInputToStatMergeJob(workflow, statMergeJob=tpedFileMergeJob, \
-								inputF=vcf2plinkJob.output, \
-								parentJobLs=[vcf2plinkJob])
+								inputF=modifyTPEDJob.output, \
+								parentJobLs=[modifyTPEDJob])
 			no_of_jobs += 1
 		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
 		#include the tfam (outputList[1]) into the fileList
 		returnData.jobDataLs.append(PassingData(jobLs=[tpedFileMergeJob], file=mergedTPEDFile, \
 											fileList=[mergedTPEDFile, vcf2plinkJob.outputList[1]]))
-		return returnData
+		#2012.7.21 gzip the final output
+		newReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
+						outputDirPrefix="")
+		return newReturnData
 	
 	def addVCFSubsetJobs(self, workflow, inputData=None, db_vervet=None, sampleIDFile=None, transferOutput=True,\
 						maxContigID=None, outputDirPrefix=""):
@@ -286,6 +314,85 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
 		return returnData
 	
+	def addMergeVCFReplicateHaplotypesJobs(self, workflow, inputData=None, db_vervet=None, transferOutput=True,\
+						maxContigID=None, outputDirPrefix="",replicateIndividualTag='copy', refFastaFList=None ):
+		"""
+		2012.7.25
+			input vcf is output of TrioCaller with replicates.
+			this workflow outputs extra debug statistics
+				1. replicate haplotype distance to the consensus haplotype
+				2. majority support for the consensus haplotype
+		"""
+		sys.stderr.write("Adding MergeVCFReplicateHaplotype jobs for %s vcf files ... "%(len(inputData.jobDataLs)))
+		no_of_jobs= 0
+		
+		
+		topOutputDir = "%sMergeVCFReplicateHaplotypeStat"%(outputDirPrefix)
+		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		no_of_jobs += 1
+		
+		
+		haplotypeDistanceMergeFile = File(os.path.join(topOutputDir, 'haplotypeDistanceMerge.tsv'))
+		haplotypeDistanceMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=haplotypeDistanceMergeFile, transferOutput=False, parentJobLs=[topOutputDirJob])
+		majoritySupportMergeFile = File(os.path.join(topOutputDir, 'majoritySupportMerge.tsv'))
+		majoritySupportMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=majoritySupportMergeFile, transferOutput=False, parentJobLs=[topOutputDirJob])
+		no_of_jobs += 2
+		
+		returnData = PassingData()
+		returnData.jobDataLs = []
+		for jobData in inputData.jobDataLs:
+			inputF = jobData.vcfFile
+			
+			inputFBaseName = os.path.basename(inputF.name)
+			commonPrefix = inputFBaseName.split('.')[0]
+			outputVCF = File(os.path.join(topOutputDir, '%s.vcf'%(commonPrefix)))
+			debugHaplotypeDistanceFile = File(os.path.join(topOutputDir, '%s.haplotypeDistance.tsv'%(commonPrefix)))
+			debugMajoritySupportFile = File(os.path.join(topOutputDir, '%s.majoritySupport.tsv'%(commonPrefix)))
+			#2012.4.2
+			fileSize = utils.getFileOrFolderSize(yh_pegasus.getAbsPathOutOfFile(inputF))
+			memoryRequest = 45000
+			memoryRequest = min(42000, max(4000, int(33000*(fileSize/950452059.0))) )
+				#extrapolates (33,000Mb memory for a ungzipped VCF file with size=950,452,059)
+				#upper bound is 42g. lower bound is 4g.
+			#mergeReplicateOutputF = File(os.path.join(trioCallerOutputDirJob.folder, '%s.noReplicate.vcf'%vcfBaseFname))
+			#noOfAlignments= len(alignmentDataLs)
+			#entireLength = stopPos - startPos + 1	#could be very small for shorter reference contigs
+			#memoryRequest = min(42000, max(4000, int(20000*(noOfAlignments/323.0)*(entireLength/2600000.0))) )
+				#extrapolates (20000Mb memory for a 323-sample + 2.6Mbase reference length/26K loci)
+				#upper bound is 42g. lower bound is 4g.
+			mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(workflow, \
+								executable=workflow.MergeVCFReplicateHaplotypesJava,\
+								genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+								inputF=inputF, outputF=outputVCF, \
+								replicateIndividualTag=replicateIndividualTag, \
+								refFastaFList=refFastaFList, \
+								debugHaplotypeDistanceFile=debugHaplotypeDistanceFile, \
+								debugMajoritySupportFile=debugMajoritySupportFile,\
+								parentJobLs=[topOutputDirJob]+jobData.jobLs, \
+								extraDependentInputLs=[], transferOutput=False, \
+								extraArguments=None, job_max_memory=memoryRequest)
+			
+			#add output to some reduce job
+			self.addInputToStatMergeJob(workflow, statMergeJob=haplotypeDistanceMergeJob, \
+								inputF=mergeVCFReplicateColumnsJob.outputLs[1] , \
+								parentJobLs=[mergeVCFReplicateColumnsJob])
+			self.addInputToStatMergeJob(workflow, statMergeJob=majoritySupportMergeJob, \
+								inputF=mergeVCFReplicateColumnsJob.outputLs[2] , \
+								parentJobLs=[mergeVCFReplicateColumnsJob])
+			no_of_jobs += 1
+		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		
+		returnData.jobDataLs.append(PassingData(jobLs=[haplotypeDistanceMergeJob], file=haplotypeDistanceMergeFile, \
+											fileList=[haplotypeDistanceMergeFile]))
+		returnData.jobDataLs.append(PassingData(jobLs=[majoritySupportMergeJob], file=majoritySupportMergeFile, \
+											fileList=[majoritySupportMergeFile]))
+		#2012.7.21 gzip the final output
+		newReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
+						outputDirPrefix="")
+		return newReturnData
+	
 	def generateVCFSampleIDFilenameFromIndividualUCLAIDFname(self, db_vervet=None, individualUCLAIDFname=None, \
 													vcfSampleIDFname=None, oneSampleVCFFname=None):
 		"""
@@ -316,10 +423,12 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		del writer, vcfFile
 		sys.stderr.write("%s vcf samples selected.\n"%(no_of_samples))
 	
-	def registerCustomExecutables(self, workflow):
+	def registerCustomExecutables(self, workflow=None):
 		"""
 		2011-11-28
 		"""
+		if workflow is None:
+			workflow = self
 		namespace = workflow.namespace
 		version = workflow.version
 		operatingSystem = workflow.operatingSystem
@@ -328,24 +437,34 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		site_handler = workflow.site_handler
 		vervetSrcPath = self.vervetSrcPath
 		
+		executableList = []
+		
 		ConvertAlignmentReadGroup2UCLAIDInVCF = Executable(namespace=namespace, name="ConvertAlignmentReadGroup2UCLAIDInVCF", \
 											version=version, \
 											os=operatingSystem, arch=architecture, installed=True)
 		ConvertAlignmentReadGroup2UCLAIDInVCF.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/ConvertAlignmentReadGroup2UCLAIDInVCF.py"), \
 														site_handler))
-		ConvertAlignmentReadGroup2UCLAIDInVCF.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(ConvertAlignmentReadGroup2UCLAIDInVCF)
-		workflow.ConvertAlignmentReadGroup2UCLAIDInVCF = ConvertAlignmentReadGroup2UCLAIDInVCF
+		executableList.append(ConvertAlignmentReadGroup2UCLAIDInVCF)
 	
 		SplitNamVCFIntoMultipleSingleChrVCF = Executable(namespace=namespace, name="SplitNamVCFIntoMultipleSingleChrVCF", \
 											version=version, \
 											os=operatingSystem, arch=architecture, installed=True)
 		SplitNamVCFIntoMultipleSingleChrVCF.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/SplitNamVCFIntoMultipleSingleChrVCF.py"), \
 														site_handler))
-		SplitNamVCFIntoMultipleSingleChrVCF.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(SplitNamVCFIntoMultipleSingleChrVCF)
-		workflow.SplitNamVCFIntoMultipleSingleChrVCF = SplitNamVCFIntoMultipleSingleChrVCF
+		executableList.append(SplitNamVCFIntoMultipleSingleChrVCF)
 	
+		ModifyTPED = Executable(namespace=namespace, name="ModifyTPED", \
+							version=version, \
+							os=operatingSystem, arch=architecture, installed=True)
+		ModifyTPED.addPFN(PFN("file://" + os.path.join(self.pymodulePath, "pegasus/mapper/ModifyTPED.py"), \
+							site_handler))
+		executableList.append(ModifyTPED)
+		
+		
+		for executable in executableList:
+			executable.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.clusters_size))
+			workflow.addExecutable(executable)
+			setattr(workflow, executable.name, executable)
 	
 	def run(self):
 		"""
@@ -360,6 +479,12 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
+		
+		if not self.dataDir:
+			self.dataDir = db_vervet.data_dir
+		
+		if not self.localDataDir:
+			self.localDataDir = db_vervet.data_dir
 		
 		# Create a abstract dag
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
@@ -407,6 +532,14 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		elif self.run_type==4:
 			self.addAlignmentReadGroup2UCLAIDJobs(workflow, inputData=inputData, db_vervet=db_vervet, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="")
+		elif self.run_type==5:
+			refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
+			refFastaFname = os.path.join(self.dataDir, refSequence.path)
+			refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+								input_site_handler=self.input_site_handler,\
+								checkAffiliateFileExistence=True)
+			self.addMergeVCFReplicateHaplotypesJobs(workflow, inputData=inputData, db_vervet=db_vervet, transferOutput=True,\
+						maxContigID=None, outputDirPrefix="",replicateIndividualTag='copy', refFastaFList=refFastaFList )
 		else:
 			sys.stderr.write("run_type %s not supported.\n"%(self.run_type))
 			sys.exit(0)

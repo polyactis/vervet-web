@@ -240,6 +240,8 @@ class PutAugustusGenePrediction2DB(AbstractVervetMapper):
 	
 	def constructGeneCommentaryFromTranscript(self, db_genome, gene=None, transcript=None, gene_commentary_type_id=3):
 		"""
+		2012.5.15
+			add argument commentary_type to db_genome.constructGeneSegments()
 		2012.4.26
 			gene is an instance of GenomeDB.Gene, not class GeneModel in this file.
 			gene_commentary_type_id 3 is mRNA. 8 is peptide.
@@ -249,12 +251,13 @@ class PutAugustusGenePrediction2DB(AbstractVervetMapper):
 						accession=None, version=None, gi=None, label=None, text=None, comment=None,
 						gene=gene)
 		transcriptGeneCommentary.gene_segments = db_genome.constructGeneSegments(box_ls=transcript.getExonLs(), \
-																			gene_commentary=transcriptGeneCommentary)
+																		gene_commentary=transcriptGeneCommentary,\
+																		commentary_type='exon')
 		
 		protein_gene_commentary = self.constructGeneCommentaryFromProtein(db_genome, gene=gene, \
 								transcriptGeneCommentary=transcriptGeneCommentary, protein=transcript.protein, gene_commentary_type_id=8)
 		protein_gene_commentary.gene_segments = db_genome.constructGeneSegments(box_ls=transcript.getCDSLs(), \
-																		gene_commentary=protein_gene_commentary)
+															gene_commentary=protein_gene_commentary, commentary_type='CDS')
 		transcriptGeneCommentary.gene_commentaries.append(protein_gene_commentary)
 		db_genome.session.add(transcriptGeneCommentary)
 		db_genome.session.flush()

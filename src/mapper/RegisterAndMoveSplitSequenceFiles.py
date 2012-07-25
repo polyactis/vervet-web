@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 """
-	%s
+	%s  -v postgresql -z 149.142.212.14 -d vervetdb -k public -u yh 
+		-i 3185_gerald_D14CGACXX_7_GCCAAT -o /Network/Data/vervet/db/individual_sequence/3185_6059_2002099_GA_0_0
+		-t individual_sequence/3185_6059_2002099_GA_0_0 -l gerald_D14CGACXX_7_GCCAAT -n 3185 -f fastq
+		-c
+		-m 1 -a  gerald_D14CGACXX_7_GCCAAT.bam  -g  3185_gerald_D14CGACXX_7_GCCAAT_1.register.log
 
 Description:
 	2012.1.27
@@ -15,12 +19,16 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 import csv, re
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
 from pymodule.VCFFile import VCFFile
-from pymodule.AbstractDBInteractingClass import AbstractDBInteractingClass
+from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
+
 from vervet.src import VervetDB
 
-class RegisterAndMoveSplitSequenceFiles(AbstractDBInteractingClass):
+class RegisterAndMoveSplitSequenceFiles(AbstractVervetMapper):
 	__doc__ = __doc__
-	option_default_dict = AbstractDBInteractingClass.option_default_dict.copy()
+	option_default_dict = AbstractVervetMapper.option_default_dict.copy()
+	option_default_dict.pop(('inputFname', 1, ))
+	option_default_dict.pop(('outputFname', 0, ))
+	option_default_dict.pop(('outputFnamePrefix', 0, ))
 	option_default_dict.update({
 						('inputDir', 1, ): ['', 'i', 1, 'input folder that contains split fastq files', ],\
 						('outputDir', 1, ): ['', 'o', 1, 'output folder to which split files from inputDir will be moved', ],\
@@ -32,17 +40,19 @@ class RegisterAndMoveSplitSequenceFiles(AbstractDBInteractingClass):
 						('mate_id', 0, ): [None, 'm', 1, '1: first end; 2: 2nd end. of paired-end or mate-paired libraries'],\
 						("sequence_format", 1, ): ["fastq", 'f', 1, 'fasta, fastq, etc.'],\
 						('logFilename', 0, ): [None, 'g', 1, 'file to contain logs. use it only if this program is at the end of pegasus workflow'],\
+						('mate_id_associated_with_bam', 0, int):[0, 'w', 0, 'toggle to make mate_id associated with bamFilePath as well'],\
 						})
 
 	def __init__(self,  **keywords):
 		"""
 		"""
-		from pymodule import ProcessOptions
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
+		AbstractVervetMapper.__init__(self, inputFnameLs=None, **keywords)	#connectDB(), and setup srcFilenameLs and dstFilenameLs
+
 	
-	def addBamFileToDB(self, db_vervet, bamFilePath, library=None, individual_sequence_id=None):
+	def addBamFileToDB(self, db_vervet, bamFilePath, library=None, individual_sequence_id=None, mate_id=None):
 		"""
+		2012.4.30
+			add mate_id
 		2012.1.27
 			1. run md5sum
 			2. check if it already exists in db
@@ -53,10 +63,12 @@ class RegisterAndMoveSplitSequenceFiles(AbstractDBInteractingClass):
 		md5sum = utils.get_md5sum(bamFilePath)
 		db_entry = VervetDB.IndividualSequenceFileRaw.query.filter_by(md5sum=md5sum).first()
 		if db_entry:
-			sys.stderr.write("Warning: another file %s with the identical md5sum %s is already in db.\n"%(db_entry.path, md5sum))
+			sys.stderr.write("Warning: another file %s with the identical md5sum %s (library=%s) as this file %s is already in db.\n"%\
+								(db_entry.path, md5sum, library, bamFilePath))
 			#sys.exit(3)
 		else:
-			db_entry = db_vervet.getIndividualSequenceFileRaw(individual_sequence_id, library=library, md5sum=md5sum, path=bamFilePath)
+			db_entry = db_vervet.getIndividualSequenceFileRaw(individual_sequence_id, library=library, md5sum=md5sum, \
+											path=bamFilePath, mate_id=mate_id)
 		realpath = os.path.realpath(bamFilePath)
 		if realpath!=db_entry.path:
 			db_entry.path = realpath
@@ -101,8 +113,13 @@ class RegisterAndMoveSplitSequenceFiles(AbstractDBInteractingClass):
 		return split_order
 	
 	def moveNewISQFileIntoDBStorage(self, session, individual_sequence_file=None, filename=None, inputDir=None, outputDir=None, \
-								relativeOutputDir=None):
+								relativeOutputDir=None, shellCommand='cp', srcFilenameLs=None, dstFilenameLs=None):
 		"""
+		2012.7.13 superceded by VervetDB.moveFileIntoDBAffiliatedStorage()
+		2012.7.4
+			add srcFilename and dstFilename into given arguments (srcFilenameLs, dstFilenameLs) for later undo
+		2012.6.8
+			return non-zero if failure in move or destinaion file already exists
 		2012.2.10
 			this function moves a file to a db-affiliated storage path
 		"""
@@ -113,15 +130,30 @@ class RegisterAndMoveSplitSequenceFiles(AbstractDBInteractingClass):
 			session.add(individual_sequence_file)
 			session.flush()
 		
-		#move the file
-		commandline = 'mv %s %s'%(os.path.join(inputDir, filename), os.path.join(outputDir, newfilename))
-		return_data = utils.runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-		if return_data.stderr_content:
-			#something wrong. abort
-			sys.stderr.write("commandline %s failed: %s\n"%(commandline, return_data.stderr_content))
-			#remove the db entry
-			session.delete(individual_sequence_file)
-			session.flush()
+		srcFilename = os.path.join(inputDir, filename)
+		dstFilename = os.path.join(outputDir, newfilename)
+		if os.path.isfile(dstFilename):
+			sys.stderr.write("Error: destination %s already exits.\n"%(dstFilename))
+			exitCode = 2
+		else:
+			#move the file
+			commandline = '%s %s %s'%(shellCommand, srcFilename, dstFilename)
+			return_data = utils.runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+			if srcFilenameLs is not None:
+				srcFilenameLs.append(srcFilename)
+			if dstFilenameLs is not None:
+				dstFilenameLs.append(dstFilename)
+			
+			if return_data.stderr_content:
+				#something wrong. abort
+				sys.stderr.write("commandline %s failed: %s\n"%(commandline, return_data.stderr_content))
+				#remove the db entry
+				session.delete(individual_sequence_file)
+				session.flush()
+				exitCode = 3
+			else:
+				exitCode = 0
+		return exitCode
 	
 	def run(self):
 		"""
@@ -138,15 +170,17 @@ class RegisterAndMoveSplitSequenceFiles(AbstractDBInteractingClass):
 							(self.relativeOutputDir, self.outputDir))
 			sys.exit(4)
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema,\
-					port=self.port)
-		db_vervet.setup(create_tables=False)
+		db_vervet = self.db_vervet
 		session = db_vervet.session
 		session.begin()
 		
 		if self.bamFilePath:
-			file_raw_db_entry = self.addBamFileToDB(db_vervet, self.bamFilePath, library=self.library, individual_sequence_id=self.individual_sequence_id)
+			if self.mate_id_associated_with_bam:
+				mate_id_passed = self.mate_id
+			else:
+				mate_id_passed = None
+			file_raw_db_entry = self.addBamFileToDB(db_vervet, self.bamFilePath, library=self.library, \
+										individual_sequence_id=self.individual_sequence_id, mate_id=mate_id_passed)
 		else:
 			file_raw_db_entry = None
 		
@@ -167,8 +201,21 @@ class RegisterAndMoveSplitSequenceFiles(AbstractDBInteractingClass):
 										individual_sequence_file_raw_id=individual_sequence_file_raw_id)
 				
 				#move the file
-				self.moveNewISQFileIntoDBStorage(session, individual_sequence_file=db_entry, filename=filename, inputDir=self.inputDir, \
-												outputDir=self.outputDir, relativeOutputDir=self.relativeOutputDir)
+				exitCode = db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=db_entry, filename=filename, \
+													inputDir=self.inputDir, outputDir=self.outputDir, \
+								relativeOutputDir=self.relativeOutputDir, shellCommand='cp -rL', \
+								srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs,\
+								constructRelativePathFunction=None)
+				"""
+				exitCode = self.moveNewISQFileIntoDBStorage(session, individual_sequence_file=db_entry, filename=filename, inputDir=self.inputDir, \
+										outputDir=self.outputDir, relativeOutputDir=self.relativeOutputDir,\
+										shellCommand='cp', srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs)
+				"""
+				if exitCode!=0:
+					sys.stderr.write("Error: moveNewISQFileIntoDBStorage() exits with %s code.\n"%(exitCode))
+					session.rollback()
+					#delete all recorded target files
+					self.cleanUpAndExitOnFailure(exitCode=exitCode)
 				real_counter += 1
 		
 		if self.logFilename:
@@ -177,9 +224,20 @@ class RegisterAndMoveSplitSequenceFiles(AbstractDBInteractingClass):
 			outf.close()
 		
 		if self.commit:
-			session.commit()
+			try:
+				session.commit()
+				#delete all source files
+				self.rmGivenFiles(filenameLs=self.srcFilenameLs)
+			except:
+				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+				import traceback
+				traceback.print_exc()
+				#delete all target files.
+				self.cleanUpAndExitOnFailure(exitCode=3)
 		else:
 			session.rollback()
+			#delete all target files
+			self.cleanUpAndExitOnFailure(exitCode=0)
 		
 if __name__ == '__main__':
 	main_class = RegisterAndMoveSplitSequenceFiles

@@ -17,17 +17,13 @@ Description:
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0])
 
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+#bit_number = math.log(sys.maxint)/math.log(2)
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-import VervetDB, csv
-from pymodule import ProcessOptions, getListOutOfStr, PassingData
+import csv, re
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, NextGenSeq
 from pymodule.VCFFile import VCFFile
 
 
@@ -60,9 +56,12 @@ class CalculateTrioInconsistency(object):
 		if self.trio_id:
 			self.trio_id = getListOutOfStr(self.trio_id, data_type=str)
 		
+		self.allNumberPattern = re.compile(r'^\d+')
 
 	def findTrioIndex(self, sample_id2index, trio_id):
 		"""
+		2012.5.2
+			bugfix. sample_id2index could contain "ref" (col_index=0) which doesn't have alignment_id embedded at all.
 		2012.1.25
 			trio_id is a coma-separated list of IndividualAlignment.getCompositeID().
 			Use alignment.id as primary member identifier.
@@ -85,7 +84,11 @@ class CalculateTrioInconsistency(object):
 		for sample_id, col_index in sample_id2index.iteritems():
 			multi_id_ls = sample_id.split('_')
 			if len(multi_id_ls)>=1:
-				aln_id = int(multi_id_ls[0])
+				aln_id_in_str = multi_id_ls[0]
+				if self.allNumberPattern.search(aln_id_in_str):
+					aln_id = int(aln_id_in_str)
+				else:
+					aln_id = aln_id_in_str
 				trio_member_index = aln_id2list_index.get(aln_id)
 				if trio_member_index==0:
 					father_index = col_index
@@ -172,11 +175,12 @@ class CalculateTrioInconsistency(object):
 			return False
 	
 	
-	def _calculateForDuo(self, vcfFile):
+	def _calculateForDuo(self, vcfFile, outputDStruc=None, trio_col_index_data=None):
 		"""
+		2012.5.4
+			make outputDStruc & trio_col_index_data an argument, rather than generate it within itself
 		2011-12.15
 		"""
-		trio_col_index_data = self.findTrioIndex(vcfFile.sample_id2index, self.trio_id)
 		father_index = trio_col_index_data.father_index
 		mother_index = trio_col_index_data.mother_index
 		child_index = trio_col_index_data.child_index
@@ -188,7 +192,6 @@ class CalculateTrioInconsistency(object):
 			sys.stderr.write("eith parent or child index (%s,%s) is not found in this vcf file.\n"%(parent_index, child_index))
 			sys.exit(3)
 		
-		outputDStruc = self.openOutputFiles(self.outputFnamePrefix, self.windowSize)
 		depthOutputWriter = outputDStruc.depthOutputWriter
 		summaryOutputWriter = outputDStruc.summaryOutputWriter
 		
@@ -215,9 +218,9 @@ class CalculateTrioInconsistency(object):
 			child_genotypeData = vcfRecord.data_row[child_index]
 			if pa_genotypeData  and child_genotypeData:
 				pa_genotype = pa_genotypeData['GT']
-				pa_depth = pa_genotypeData['DP']
+				pa_depth = pa_genotypeData.get('DP',None)
 				child_genotype = child_genotypeData['GT']
-				child_depth = child_genotypeData['DP']
+				child_depth = child_genotypeData.get('DP',None)
 				
 				if self.homoOnly and ( self.isGenotypeHet(pa_genotype) or \
 										self.isGenotypeHet(child_genotype) ):
@@ -266,12 +269,13 @@ class CalculateTrioInconsistency(object):
 		self.outputFrequencyKey2Data(outputDStruc.frequencyOutputFname, trio_set_str=self.trio_set_str, frequencyKey2data=frequencyKey2data)
 		
 	
-	def _calculateForTrio(self, vcfFile):
+	def _calculateForTrio(self, vcfFile, outputDStruc=None, trio_col_index_data=None):
 		"""
+		2012.5.4
+			make outputDStruc & trio_col_index_data an argument, rather than generate it within itself
 		2011.12.15
 			from run()
 		"""
-		trio_col_index_data = self.findTrioIndex(vcfFile.sample_id2index, self.trio_id)
 		father_index = trio_col_index_data.father_index
 		mother_index = trio_col_index_data.mother_index
 		child_index = trio_col_index_data.child_index
@@ -280,7 +284,6 @@ class CalculateTrioInconsistency(object):
 			sys.stderr.write("no complete trio (%s,%s,%s) found in this vcf file.\n"%(father_index, mother_index, child_index))
 			sys.exit(3)
 		
-		outputDStruc = self.openOutputFiles(self.outputFnamePrefix, self.windowSize)
 		depthOutputWriter = outputDStruc.depthOutputWriter
 		summaryOutputWriter = outputDStruc.summaryOutputWriter
 		
@@ -308,11 +311,11 @@ class CalculateTrioInconsistency(object):
 			child_genotypeData = vcfRecord.data_row[child_index]
 			if fa_genotypeData and mo_genotypeData and child_genotypeData:
 				fa_genotype = fa_genotypeData['GT']
-				fa_depth = fa_genotypeData['DP']
+				fa_depth = fa_genotypeData.get('DP',None)
 				mo_genotype = mo_genotypeData['GT']
-				mo_depth = mo_genotypeData['DP']
+				mo_depth = mo_genotypeData.get('DP', None)
 				child_genotype = child_genotypeData['GT']
-				child_depth = child_genotypeData['DP']
+				child_depth = child_genotypeData.get('DP',None)
 				
 				if self.homoOnly and ( self.isGenotypeHet(fa_genotype) or \
 						self.isGenotypeHet(mo_genotype) or \
@@ -371,25 +374,39 @@ class CalculateTrioInconsistency(object):
 		if self.debug:
 			import pdb
 			pdb.set_trace()
+		if NextGenSeq.isVCFFileEmpty(self.inputFname, checkContent=True):
+			sys.stderr.write("Input %s doesn't exist or no variants in it.\n"%(self.inputFname))
+			#make sure some output files will exist for downstream jobs.
+			self.openOutputFiles(self.outputFnamePrefix, self.windowSize)
+			sys.exit(0)
 		
-		try:	#inputFname could be missing, zero size, no loci even if it has a header
-			vcfFile = VCFFile(inputFname=self.inputFname, minDepth=self.minDepth)
-			trio_col_index_data = self.findTrioIndex(vcfFile.sample_id2index, self.trio_id)
-			father_index = trio_col_index_data.father_index
-			mother_index = trio_col_index_data.mother_index
-			child_index = trio_col_index_data.child_index
-	
-			if (father_index==-1 and mother_index!=-1) or (father_index!=-1 and mother_index==-1):
-				#one parent is missing. it's duo.
-				self._calculateForDuo(vcfFile)
-			else:
-				self._calculateForTrio(vcfFile)
+		vcfFile = VCFFile(inputFname=self.inputFname, minDepth=self.minDepth)
+		trio_col_index_data = self.findTrioIndex(vcfFile.sample_id2index, self.trio_id)
+		father_index = trio_col_index_data.father_index
+		mother_index = trio_col_index_data.mother_index
+		child_index = trio_col_index_data.child_index
+		outputDStruc = self.openOutputFiles(self.outputFnamePrefix, self.windowSize)
+		if (father_index==-1 and mother_index!=-1) or (father_index!=-1 and mother_index==-1):
+			#one parent is missing. it's duo.
+			self._calculateForDuo(vcfFile, outputDStruc=outputDStruc, trio_col_index_data=trio_col_index_data)
+		else:
+			self._calculateForTrio(vcfFile, outputDStruc=outputDStruc, trio_col_index_data=trio_col_index_data)
+		
+		"""
+		try:
+			pass
+		except ValueError:
+			sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+			import traceback
+			traceback.print_exc()
+			sys.exit(3)
 		except:
 			sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 			import traceback
 			traceback.print_exc()
 			#make sure some output files will exist for downstream jobs.
 			self.openOutputFiles(self.outputFnamePrefix, self.windowSize)
+		"""
 
 if __name__ == '__main__':
 	main_class = CalculateTrioInconsistency

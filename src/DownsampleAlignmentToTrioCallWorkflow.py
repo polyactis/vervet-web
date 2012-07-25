@@ -31,13 +31,8 @@ Description:
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
 import VervetDB, csv, random
@@ -50,10 +45,10 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 	__doc__ = __doc__
 	option_default_dict = AlignmentToTrioCallPipeline.option_default_dict.copy()
 	option_default_dict.update({
-						("probToSample", 1, float): [0.1, 'T', 1, 'probability for a read in a bam to be included in down-sampled bam, overridden by alnId2targetDepth'],\
+						("probToSample", 1, float): [0.1, '', 1, 'probability for a read in a bam to be included in down-sampled bam, overridden by alnId2targetDepth'],\
 						("no_of_sampling", 1, int): [50, 'f', 1, 'how many samplings to run'],\
-						("alnId2targetDepth", 1, ): [None, 'n', 1, 'a coma-separated list, in the form of alignment_id:targetDepth. 620:1,632:1,648:1'],\
-						('minDepth', 1, float): [1, 'm', 1, 'minimum depth for a call to regarded as non-missing', ],\
+						("alnId2targetDepth", 1, ): [None, 'K', 1, 'a coma-separated list, in the form of alignment_id:targetDepth. 620:1,632:1,648:1'],\
+						('minDepth', 1, float): [0, 'm', 1, 'minimum depth for a call to regarded as non-missing', ],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
@@ -208,15 +203,19 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 		#refName2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
 		refNameLs = refName2size.keys()
 		
-		alignmentLs = self.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										aln_method_id=2, dataDir=self.localDataDir)
-		alignmentLs = self.filterAlignments(alignmentLs, individual_site_id=self.site_id)
-		self.outputPedgreeOfAlignmentsInMerlinFormat(db_vervet, alignmentLs, self.pedigreeOutputFname)
+		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
+										aln_method_id=self.alignment_method_id, dataDir=self.localDataDir)
+		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
+												individual_site_id_set=set(self.site_id_ls))
+		sampleID2FamilyCount = self.outputPedgreeOfAlignmentsInMerlinFormat(db_vervet, alignmentLs, self.pedigreeOutputFname)
+		
+		self.outputSampleID2FamilyCount(sampleID2FamilyCount, outputFname=self.sampleID2FamilyCountFname)
 		
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
 		workflow = self.initiateWorkflow(workflowName)
 		
 		pedFile = yh_pegasus.registerFile(workflow, self.pedigreeOutputFname)
+		sampleID2FamilyCountF = self.registerOneInputFile(workflow, self.sampleID2FamilyCountFname, folderName="")
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.dataDir, refSequence.path)
@@ -265,16 +264,19 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools, \
 						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, pedFile=pedFile, \
+						sampleID2FamilyCountF=sampleID2FamilyCountF,\
+						replicateIndividualTag=self.replicateIndividualTag, 
 						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 						concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
 						refFastaFList=refFastaFList, \
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-						intervalSize=2000000, intervalOverlapSize=100000, site_type=self.site_type, dataDir=self.dataDir,\
+						intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, site_type=self.site_type, dataDir=self.dataDir,\
 						outputDirPrefix="downsampleBam_%s/"%(i+1))
 			
 			
-			trioInconsistencJobData = calculateTrioInconsistencyPipeline_ins.addJobs(workflow, inputData=genotypeCallJobData, trioLs=trioLs, db_vervet=db_vervet,\
+			trioInconsistencJobData = calculateTrioInconsistencyPipeline_ins.addJobs(workflow, inputData=genotypeCallJobData, trioLs=trioLs, \
+											db_vervet=db_vervet,\
 											addTrioContigSpecificPlotJobs=False,\
 											outputDirPrefix="downsampleBam_%s/"%(i+1))
 			#add trio inconsistency summary output to reduction job

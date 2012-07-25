@@ -2,8 +2,8 @@
 """
 Examples:
 	# 2011-9-29
-	%s  -a 524 -i ./AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/call/ 
-		-o TrioInconsistency92VRC_20110922T2216.xml -l condorpool -j condorpool  -u yh -z uclaOffice
+	%s -f ... -q ...
+		-o MummerBetweenTwoGenomes.xml -l condorpool -j condorpool  -u yh -z uclaOffice
 	
 Description:
 	2011-10-05
@@ -169,7 +169,7 @@ class MummerTwoGenomesPipeline(object):
 		
 		PostNucmer = Executable(namespace=namespace, name="PostNucmer", version=version, \
 										os=operatingSystem, arch=architecture, installed=True)
-		PostNucmer.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "PostNucmer.sh"), site_handler))
+		PostNucmer.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "shell/PostNucmer.sh"), site_handler))
 		#PostNucmer.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(PostNucmer)
 		

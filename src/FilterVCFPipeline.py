@@ -30,49 +30,49 @@ Examples:
 	dirPrefix=./AlignmentToCallLowPass_top7559Contigs_no12eVarFilter_2011.11.23T1620/
 	%s -i $dirPrefix\gatk -I $dirPrefix\call/ -l condorpool -j condorpool
 		-o Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4.xml
-		-z uclaOfficeTemp -u yh -q ./alnStatForFilter.2011.12.9T0207.tsv -G0 -N 1 -n 0 -x 1 -F 100000 -a 524 -C 50
+		-z uclaOfficeTemp -u yh -q ./alnStatForFilter.2011.12.9T0207.tsv -G0 -N 1 -n 0 -x 1 -A 100000 -a 524 -C 50
 		-S ./4HighCovVRC_inter_minMAC4_vs_LowPass_top7559Contigs_no12eVarFilter_inter.2011.12.9T0107/overlapPos.tsv
 	
 	#2011.12.19 run on hoffman2's condorpool
 	%s ....
 		-l hcondor -j hcondor -e /u/home/eeskin/polyacti/
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		
+	#2012.5.1 filter trioCaller output with total depth (no minGQ filter anymore), minMAC=10 (-n 10), maxSNPMismatchRate=1 (-x 1.0)
+	#
+	%s -i AlignmentToTrioCallPipeline_VRC_top7559Contigs.2011.12.15T0057/trioCaller/ -l condorpool -j condorpool
+		-z uclaOffice -u yh -q ./alnStatForFilter.2012.5.1T1430.tsv  -n 10 -x 1.0 -a 524 -C 50 -E
+		-o FilterVCF_trioCallerTop7559Contigs.xml
+
 	
 Description:
 	2011-11-7 pipeline that filters VCF by depth, GQ, MAC, SNP missing rate, mismatch rate between two input VCFs
 	
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 
-from sqlalchemy.types import LargeBinary
-
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
 import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
 from Pegasus.DAX3 import *
-from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
+from AbstractVervetWorkflow import AbstractVervetWorkflow
 
-class FilterVCFPipeline(AbstractNGSWorkflow):
+class FilterVCFPipeline(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
+	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
 	option_default_dict.update({
-						('minGQ', 1, int): [50, 'G', 1, 'minimum GQ/GenotypeQuality for one genotype', ],\
-						('depthFoldChange', 1, float): [2.0, 'F', 1, 'a variant is retained if its depth within this fold change of meanDepth,', ],\
+						('minGQ', 1, int): [50, 'G', 1, 'minimum GQ/GenotypeQuality for one genotype. 2012.5.1 no longer enforced in FilterVCFByDepth.java', ],\
+						('depthFoldChange', 1, float): [2.0, 'A', 1, 'a variant is retained if its depth within this fold change of meanDepth,', ],\
 						("maxSNPMismatchRate", 0, float): [0, 'N', 1, 'maximum SNP mismatch rate between two vcf calls'],\
 						("minMAC", 0, int): [2, 'n', 1, 'minimum MinorAlleleCount (by chromosome)'],\
-						("minMAF", 0, int): [None, 'm', 1, 'minimum MinorAlleleFrequency (by chromosome)'],\
-						("maxSNPMissingRate", 0, float): [0, 'x', 1, 'minimum SNP missing rate in one vcf (denominator is #chromosomes)'],\
-						('vcf1Dir', 0, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
-						('vcf2Dir', 0, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
+						("minMAF", 0, float): [None, 'm', 1, 'minimum MinorAlleleFrequency (by chromosome)'],\
+						("maxSNPMissingRate", 0, float): [0, 'x', 1, 'maximum SNP missing rate in one vcf (denominator is #chromosomes)'],\
+						('vcf1Dir', 1, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
+						('vcf2Dir', 0, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files. If not provided, filter vcf1Dir without applying maxSNPMismatchRate filter.', ],\
 						("onlyKeepBiAllelicSNP", 0, int): [0, 'K', 0, 'toggle this to remove all SNPs with >=3 alleles?'],\
 						('alnStatForFilterFname', 1, ): ['', 'q', 1, 'The alignment stat file for FilterVCFByDepthJava. tab-delimited: individual_alignment.id minCoverage maxCoverage minGQ'],\
 						('keepSNPPosFname', 0, ): ['', '', 1, 'a tab-delimited file (optional), chr pos 0, to pre-filter SNPs that are absent in this file.'],\
@@ -81,69 +81,9 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 	def __init__(self,  **keywords):
 		"""
 		"""
-		AbstractNGSWorkflow.__init__(self, **keywords)
+		AbstractVervetWorkflow.__init__(self, **keywords)
 	
 	
-	def outputAlignmentDepthAndOthersForFilter(self, outputFname, ref_ind_seq_id=524, foldChange=2, minGQ=30):
-		"""
-		2011-9-2
-		"""
-		sys.stderr.write("Outputting sequence coverage to %s ..."%outputFname)
-		import csv
-		counter = 0
-		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
-		writer.writerow(['aln.id', 'minDepth', 'maxDepth', 'minGQ'])
-		TableClass = VervetDB.IndividualAlignment
-		query = TableClass.query.filter(TableClass.median_depth!=None)
-		if ref_ind_seq_id:
-			query = query.filter(TableClass.ref_ind_seq_id==ref_ind_seq_id)
-		query = query.order_by(TableClass.id)
-		for row in query:
-			minDepth = row.median_depth/float(foldChange)
-			if abs(minDepth-0)<=0.001:	#if it's too close to 0, regard it as 0.
-				minDepth = 0
-			writer.writerow([row.getReadGroup(), minDepth, \
-							row.median_depth*float(foldChange), minGQ])
-			counter += 1
-		del writer
-		sys.stderr.write("%s entries fetched.\n"%(counter))
-	
-	
-	def addFilterJobByvcftools(self, workflow, vcftoolsWrapper=None, inputVCFF=None, outputFnamePrefix=None, \
-							parentJobLs=None, snpMisMatchStatFile=None, minMAC=2, minMAF=None, maxSNPMissingRate=0.9,\
-							namespace=None, version=None, extraDependentInputLs=[], transferOutput=False):
-		"""
-		2011-11-21
-			argument vcftools is replaced with a wrapper, which takes vcftools path as 1st argument
-		"""
-		# Add a mkdir job for any directory.
-		vcftoolsJob = Job(namespace=getattr(workflow, 'namespace', namespace), name=vcftoolsWrapper.name, \
-						version=getattr(workflow, 'version', version))
-		vcftoolsJob.addArguments(workflow.vcftoolsPath)	#2011-11-21
-		if inputVCFF.name[-2:]=='gz':
-			vcftoolsJob.addArguments("--gzvcf", inputVCFF)
-		else:
-			vcftoolsJob.addArguments("--vcf", inputVCFF)
-		vcftoolsJob.addArguments("--out", outputFnamePrefix, "--recode", "--positions", snpMisMatchStatFile)
-
-		if maxSNPMissingRate is not None:
-			vcftoolsJob.addArguments("--geno %s"%(1-maxSNPMissingRate))
-		if minMAF is not None:
-			vcftoolsJob.addArguments("--maf %s"%(minMAF))
-		if minMAC is not None:
-			vcftoolsJob.addArguments("--mac %s"%(minMAC))
-		
-		vcftoolsJob.uses(inputVCFF, transfer=True, register=True, link=Link.INPUT)
-		vcftoolsJob.uses(snpMisMatchStatFile, transfer=True, register=True, link=Link.INPUT)
-		for input in extraDependentInputLs:
-			vcftoolsJob.uses(input, transfer=True, register=True, link=Link.INPUT)
-		outputVCFF = File("%s.recode.vcf"%(outputFnamePrefix))
-		vcftoolsJob.uses(outputVCFF, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		vcftoolsJob.output = outputVCFF
-		workflow.addJob(vcftoolsJob)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=vcftoolsJob)
-		return vcftoolsJob
 	
 	def registerVCFAndItsTabixIndex(self, workflow, vcfF, input_site_handler='local'):
 		"""
@@ -187,6 +127,8 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 	def addJobsToFilterTwoVCFDir(self, workflow, vcf1Dir, vcf2Dir, refFastaFList, alnStatForFilterF, keepSNPPosF, onlyKeepBiAllelicSNP=True,\
 							minMAC=None, minMAF=None, maxSNPMissingRate=None):
 		"""
+		2012.5.10
+			add extraArguments="--recode-INFO-all" to addFilterJobByvcftools()
 		2012.1.14
 		"""
 		refFastaF = refFastaFList[0]
@@ -239,7 +181,7 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 								snpMisMatchStatFile=keepSNPPosF, \
 								minMAC=None, minMAF=None, \
 								maxSNPMissingRate=None,\
-								extraDependentInputLs=[vcf1.tbi_F])
+								extraDependentInputLs=[vcf1.tbi_F], extraArguments="--recode-INFO-all")
 						
 						vcf1KeepGivenSNPByvcftoolsGzip = File("%s.gz"%vcf1KeepGivenSNPByvcftoolsJob.output.name)
 						vcf1KeepGivenSNPByvcftoolsBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
@@ -255,7 +197,7 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 								snpMisMatchStatFile=keepSNPPosF, \
 								minMAC=None, minMAF=None, \
 								maxSNPMissingRate=None,\
-								extraDependentInputLs=[vcf2.tbi_F])
+								extraDependentInputLs=[vcf2.tbi_F], extraArguments="--recode-INFO-all")
 						vcf2KeepGivenSNPByvcftoolsGzip = File("%s.gz"%vcf2KeepGivenSNPByvcftoolsJob.output.name)
 						vcf2KeepGivenSNPByvcftoolsBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
 							parentJob=vcf2KeepGivenSNPByvcftoolsJob, inputF=vcf2KeepGivenSNPByvcftoolsJob.output, \
@@ -323,7 +265,7 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 							snpMisMatchStatFile=snpMisMatchStatFile, \
 							minMAC=minMAC, minMAF=minMAF, \
 							maxSNPMissingRate=maxSNPMissingRate,\
-							extraDependentInputLs=[vcf1FilterByDepthBGZipTabixJob.tbi_F])
+							extraDependentInputLs=[vcf1FilterByDepthBGZipTabixJob.tbi_F], extraArguments="--recode-INFO-all")
 					vcf1FilterByvcftoolsGzip = File("%s.gz"%vcf1FilterByvcftoolsJob.output.name)
 					vcf1FilterByvcftoolsBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
 							parentJob=vcf1FilterByvcftoolsJob, inputF=vcf1FilterByvcftoolsJob.output, outputF=vcf1FilterByvcftoolsGzip, \
@@ -337,7 +279,7 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 							snpMisMatchStatFile=snpMisMatchStatFile, \
 							minMAC=minMAC, minMAF=minMAF, \
 							maxSNPMissingRate=maxSNPMissingRate,\
-							extraDependentInputLs=[vcf2FilterByDepthBGZipTabixJob.tbi_F])
+							extraDependentInputLs=[vcf2FilterByDepthBGZipTabixJob.tbi_F], extraArguments="--recode-INFO-all")
 					
 					vcf2FilterByvcftoolsGzip = File("%s.gz"%vcf2FilterByvcftoolsJob.output.name)
 					vcf2FilterByvcftoolsBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
@@ -350,8 +292,11 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 	def addJobsToFilterOneVCFDir(self, workflow, vcf1Dir, refFastaFList, alnStatForFilterF, keepSNPPosF, onlyKeepBiAllelicSNP=True,\
 							minMAC=None, minMAF=None, maxSNPMissingRate=None):
 		"""
+		2012.5.10
+			add extraArguments="--recode-INFO-all" to addFilterJobByvcftools()
 		2012.1.14
 		"""
+		
 		refFastaF = refFastaFList[0]
 		
 		#a relative-path name for vcf1Dir
@@ -371,10 +316,15 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 		input_site_handler = self.input_site_handler
 		
 		counter = 0
+		no_of_vcf_files = 0
 		for inputFname in os.listdir(vcf1Dir):
 			vcf1AbsPath = os.path.join(os.path.abspath(vcf1Dir), inputFname)
-			if NextGenSeq.isFileNameVCF(inputFname, includeIndelVCF=False) and not NextGenSeq.isVCFFileEmpty(vcf1AbsPath):
+			if NextGenSeq.isFileNameVCF(inputFname, includeIndelVCF=False) and \
+					not NextGenSeq.isVCFFileEmpty(vcf1AbsPath, checkContent=self.checkEmptyVCFByReading):
 				#chr = chr_pattern.search(inputFname).group(1)
+				no_of_vcf_files += 1
+				if no_of_vcf_files%100==0:
+					sys.stderr.write("%s%s VCFs. "%('\x08'*40, no_of_vcf_files))
 				commonPrefix = inputFname.split('.')[0]
 				vcf1 = File(os.path.join(vcf1Name, inputFname))	#relative path
 				vcf1.absPath = vcf1AbsPath
@@ -390,7 +340,7 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 							snpMisMatchStatFile=keepSNPPosF, \
 							minMAC=None, minMAF=None, \
 							maxSNPMissingRate=None,\
-							extraDependentInputLs=[vcf1.tbi_F])
+							extraDependentInputLs=[vcf1.tbi_F], extraArguments="--recode-INFO-all")
 					
 					vcf1KeepGivenSNPByvcftoolsGzip = File("%s.gz"%vcf1KeepGivenSNPByvcftoolsJob.output.name)
 					vcf1KeepGivenSNPByvcftoolsBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
@@ -426,11 +376,12 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 				vcf1FilterByvcftoolsJob = self.addFilterJobByvcftools(workflow, vcftoolsWrapper=workflow.vcftoolsWrapper, \
 						inputVCFF=vcf1AfterDepthFilterGzip, \
 						outputFnamePrefix=outputFnamePrefix, \
-						parentJobLs=[vcf1FilterByDepthBGZipTabixJob, vcf1_vcftoolsFilterDirJob, calculateSNPMismatchRateOfTwoVCFJob], \
-						snpMisMatchStatFile=snpMisMatchStatFile, \
+						parentJobLs=[vcf1FilterByDepthBGZipTabixJob, vcf1_vcftoolsFilterDirJob], \
+						snpMisMatchStatFile=None, \
 						minMAC=minMAC, minMAF=minMAF, \
 						maxSNPMissingRate=maxSNPMissingRate,\
-						extraDependentInputLs=[vcf1FilterByDepthBGZipTabixJob.tbi_F])
+						extraDependentInputLs=[vcf1FilterByDepthBGZipTabixJob.tbi_F], extraArguments="--recode-INFO-all")
+				
 				vcf1FilterByvcftoolsGzip = File("%s.gz"%vcf1FilterByvcftoolsJob.output.name)
 				vcf1FilterByvcftoolsBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
 						parentJob=vcf1FilterByvcftoolsJob, inputF=vcf1FilterByvcftoolsJob.output, outputF=vcf1FilterByvcftoolsGzip, \
@@ -463,8 +414,7 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 		chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, sequence_type_id=9)
 		"""
 		
-		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = self.initiateWorkflow(workflowName)
+		workflow = self.initiateWorkflow()
 		
 		self.registerJars(workflow)
 		self.registerCommonExecutables(workflow)
@@ -477,12 +427,10 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 						input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
 		
-		self.outputAlignmentDepthAndOthersForFilter(self.alnStatForFilterFname, ref_ind_seq_id=self.ref_ind_seq_id, \
+		self.outputAlignmentDepthAndOthersForFilter(db_vervet=db_vervet, outputFname=self.alnStatForFilterFname, \
+												ref_ind_seq_id=self.ref_ind_seq_id, \
 												foldChange=self.depthFoldChange, minGQ=self.minGQ)
-		alnStatForFilterF = File(os.path.basename(self.alnStatForFilterFname))
-		alnStatForFilterF.addPFN(PFN("file://" + os.path.abspath(self.alnStatForFilterFname), \
-									self.input_site_handler))
-		workflow.addFile(alnStatForFilterF)
+		alnStatForFilterF = self.registerOneInputFile(inputFname=os.path.abspath(self.alnStatForFilterFname))
 		
 		if self.keepSNPPosFname:
 			keepSNPPosF = File(os.path.basename(self.keepSNPPosFname))	#relative path
@@ -492,10 +440,15 @@ class FilterVCFPipeline(AbstractNGSWorkflow):
 		else:
 			keepSNPPosF = None
 		
-		self.addJobsToFilterTwoVCFDir(workflow, self.vcf1Dir, self.vcf2Dir, refFastaFList, alnStatForFilterF, keepSNPPosF, \
+		if self.vcf1Dir and self.vcf2Dir:
+			self.addJobsToFilterTwoVCFDir(workflow, self.vcf1Dir, self.vcf2Dir, refFastaFList, alnStatForFilterF, keepSNPPosF, \
 						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, minMAC=self.minMAC, minMAF=self.minMAF, \
 						maxSNPMissingRate=self.maxSNPMissingRate)
-		
+		elif self.vcf1Dir:
+			# 2012.5.1 filter only on the 1st vcf folder
+			self.addJobsToFilterOneVCFDir(workflow, self.vcf1Dir, refFastaFList, alnStatForFilterF, keepSNPPosF, \
+									onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP,\
+									minMAC=self.minMAC, minMAF=self.minMAF, maxSNPMissingRate=self.maxSNPMissingRate)
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
 		workflow.writeXML(outf)

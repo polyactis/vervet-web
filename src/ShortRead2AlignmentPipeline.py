@@ -4,19 +4,22 @@ Examples:
 	# 2011-8-30 workflow on condor
 	%s -i 165-167 -o ShortRead2AlignmentPipeline_isq_id_165_167_vs_9.xml -u yh -a 9 -l condorpool -n1 -z dl324b-1.cmb.usc.edu -c
 	
-	# 2011-8-30 a workflow with 454 long-read and short-read PE 
+	# 2011-8-30 a workflow with 454 long-read and short-read PE. need a ref index job (-n1). 
 	%s -i 165-167 -o ShortRead2AlignmentPipeline_isq_id_165_167_vs_9.xml -u yh -a 9
 		-e /u/home/eeskin/polyacti -l hoffman2 -t /u/home/eeskin/polyacti/NetworkData/vervet/db -n1 -z dl324b-1.cmb.usc.edu -c
 		-x /work/
 	
 	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (-D changes localDataDir. -t changes dataDir.)
-	# 2012.3.20 use /work/ as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
-	%s  -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -z localhost 
-		-l hcondor -j hcondor -u yh -i 631-700 -o workflow/ShortRead2Alignment_Isq_631_700_vs_524_hcondor.xml  -a 524 -c 
-		-x /work/
+	# 2012.3.20 use /work/ or /u/scratch/p/polyacti/tmp as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
+	# 2012.5.4 cluster 10 alignment jobs (before merging) as a unit (-w 10), skip done alignment (-K)
+	%s  -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
+		-l hcondor -j hcondor 
+		-z localhost -u yh -c
+		-i 631-700 -o workflow/ShortRead2Alignment_Isq_631-700_vs_524_hcondor.xml  -a 524 
+		-x /work/ -e /u/home/eeskin/polyacti  -w 10 -K
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
-	# to enable symlink of input files.
+	# to enable symlink of input files. no ref index job (-n0).
 	# If input_site_handler is "local", pegasus will report error saying it doesn't know how to replica-transfer input files.
 	%s -i 176,178-183,207-211
 		-o ShortRead2AlignmentPipeline_8VWP_vs_9_condor_no_refIndex.xml
@@ -68,10 +71,13 @@ Examples:
 		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  -c -g stampy
 	
 Description:
-	2011-8-30
+	2012.5.3
 		a program which generates a pegasus workflow dag (xml file) which does the alignment for all available sequences.
 		The workflow will stage in (or symlink if site_handler and input_site_handler are same.) every input file.
 		It will also stage out every output file.
+		Be careful about -R, only toggle it if you know every input individual_sequence_file is not empty.
+			Empty read files would fail alignment jobs and thus no final alignment for a few indivdiuals.
+		Use "-w 10" to cluster the alignment jobs if the input read file is small enough (~1Million reads for bwa, ~300K for stampy). 
 """
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], \
@@ -91,9 +97,9 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 	__doc__ = __doc__
 	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
 	option_default_dict.update({
-						('sshTunnelCredential', 0, ): ['', 's', 1, 'a ssh credential to allow machine to access db server. \
-										polyacti@login3, yuhuang@hpc-login2. if empty or port is empty, no tunnel', ],\
-						
+						('noCheckEmptyReadFile', 0, int):[0, 'R', 0, "toggle to not check whether each read file is empty (if empty, exclude it). \
+							If IndividualSequenceFile.read_count is null, it'll try to count them on the fly and take a lot of time.\
+							however, only toggle it if you know every input individual_sequence_file is not empty. empty read file fails alignment jobs."],\
 						('ref_ind_seq_id', 1, int): [120, 'a', 1, 'IndividualSequence.id. To pick alignments with this sequence as reference', ],\
 						('ind_seq_id_ls', 1, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. \
 									non-fastq entries will be discarded.', ],\
@@ -104,7 +110,9 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 								used only when unable to guess based on individual_sequence.sequencer and individual_sequence.sequence_type'],\
 						("needRefIndexJob", 0, int): [0, 'n', 1, 'need to add a reference index job by bwa?'],\
 						('no_of_aln_threads', 1, int): [1, 'm', 1, 'number of threads during alignment'],\
+						('cluster_size_for_aln_jobs', 1, int): [1, 'w', 1, 'job cluster size for bwa/PEAlignmentByBWA/LongSEAlignmentByBWA/addOrReplaceReadGroupsJava/SortSamFilesJava/samtools jobs'],\
 						('notStageOutFinalOutput', 0, int):[0, 'O', 0, 'toggle to not stage out final output (bam + bam.bai)'],\
+						('skipDoneAlignment', 0, int):[0, 'K', 0, 'skip alignment whose path is a valid file'],\
 						("tmpDir", 1, ): ["/tmp/", 'x', 1, 'for MarkDuplicates.jar, default is /tmp/ but sometimes it is too small'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_alignment and/or individual_alignment.path'],\
 						})
@@ -128,6 +136,11 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			self.stageOutFinalOutput = False
 		else:
 			self.stageOutFinalOutput = True
+		
+		if self.noCheckEmptyReadFile:
+			self.ignoreEmptyReadFile = False
+		else:
+			self.ignoreEmptyReadFile = True
 	
 	def addAllAlignmentJobs(self, db_vervet, individualSequenceID2FilePairLs=None, \
 						dataDir=None, \
@@ -142,8 +155,13 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					alignment_method_name='bwa-short-read', alignment_format='bam',\
 					namespace='workflow', version='1.0', stageOutFinalOutput=False,\
 					PEAlignmentByBWA=None, ShortSEAlignmentByBWA=None, LongSEAlignmentByBWA=None, \
-					no_of_aln_threads=3, stampyExecutable=None):
+					no_of_aln_threads=3, stampyExecutable=None, skipDoneAlignment=False):
 		"""
+		2012.4.20
+			bugfix, pass alignment_method.short_name instead of alignment_method_name to db_vervet.getAlignment()
+				because alignment_method might be changed according to sequencer regardless of alignment_method_name.
+		2012.4.12
+			add argument skipDoneAlignment
 		2012.4.5
 			fetch the alignment_method directly based on the alignment_method_name, except for 454 sequences.
 				officially merges "bwa-short-read-SR" (single-read) into "bwa-short-read"
@@ -192,7 +210,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 								path_to_original_alignment=None, sequencer=individual_sequence.sequencer, \
 								sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
 								ref_individual_sequence_id=refSequence.id, \
-								alignment_method_name=alignment_method_name, alignment_format=alignment_format,\
+								alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
 								individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
 								dataDir=dataDir)	#read-group addition is part of pipeline
 					if not individual_alignment.path:
@@ -202,7 +220,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					
 					alignmentAbsPath= os.path.join(dataDir, individual_alignment.path)
 					#2012.3.29	check if the alignment exists or not. if it already exists, no alignment jobs.
-					if os.path.isfile(alignmentAbsPath):
+					if skipDoneAlignment and os.path.isfile(alignmentAbsPath):
 						break
 					if mkdirJob is None:	#now it's time to add the mkdirJob
 						# add a mkdir job
@@ -230,7 +248,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 										outputBamFile=mergedBamFile, \
 										samtools=samtools, java=java, \
 										mergeSamFilesJava=mergeSamFilesJava, mergeSamFilesJar=mergeSamFilesJar, \
-										BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+										BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 										mv=mv, namespace=namespace, version=version, \
 										stageOutFinalOutput=False)
 					#finalBamFileName = os.path.join(dataDir, individual_alignment.path)
@@ -240,7 +258,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					markDupJob, markDupBamIndexJob = self.addMarkDupJob(workflow, parentJobLs=[alignmentMergeJob, bamIndexJob], inputBamF=mergedBamFile, \
 							inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
 							MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=tmpDir,\
-							BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+							BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 							namespace=namespace, version=version, stageOutFinalOutput=self.stageOutFinalOutput)
 					no_of_merging_jobs += 1
 		sys.stderr.write("%s alignment jobs; %s merge alignment jobs.\n"%(no_of_alignment_jobs, no_of_merging_jobs))
@@ -477,7 +495,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		yh_pegasus.setJobProperRequirement(alignmentJob, job_max_memory=aln_job_max_memory, \
 										no_of_cpus=no_of_aln_threads, max_walltime=aln_job_max_walltime)
 		workflow.addJob(alignmentJob)
-		alignmentJob.addArguments(" -M ")
+		#add fastq files after "-M"
+		alignmentJob.addArguments(" -M ")	# -M FILE[,FILE] Map fastq file(s).  Use FILE.recaldata for recalibration if available
 		for fileObject in fileObjLs:
 			fastqF = fileObject.fastqF
 			relativePath = fastqF.name
@@ -517,6 +536,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		addRGJob_max_memory = 2500	#in MB
 		
 		aln_job_max_walltime= 4800	#80 hours, in minutes
+		aln_job_max_walltime = 1020	#22 hours, because all reads are stored in chunks of 5-million-read files
 		
 		javaMemRequirement = "-Xms128m -Xmx%sm"%addRGJob_max_memory
 		if len(fileObjectLs)==1:	#single end
@@ -693,7 +713,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 						dataDir=dataDir, refFastaFList=refFastaFList, bwa=bwa, \
 						additionalArguments=additionalArguments, samtools=samtools, refIndexJob=refIndexJob, mkdirJob=mkdirJob, \
 						alignment_method=alignment_method, \
-						outputDir=tmpOutputDir, namespace=namespace, version=version,\
+						outputDir=outputDir, namespace=namespace, version=version,\
 						PEAlignmentByBWA=PEAlignmentByBWA, ShortSEAlignmentByBWA=ShortSEAlignmentByBWA, \
 						LongSEAlignmentByBWA=LongSEAlignmentByBWA,\
 						java=java, SortSamFilesJava=SortSamFilesJava, SortSamFilesJar=SortSamFilesJar,\
@@ -928,6 +948,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
 					mv=None, namespace='workflow', version='1.0', stageOutFinalOutput=False):
 		"""
+		2012.7.4 bugfix. add job dependency between alignmentJob and merge_sam_job after all have been added to the workflow.
 		2012.3.29
 			no more threads (only 2 threads at maximum and increase only 20% performance anyway).
 			Some nodes' kernels can't handle threads properly and it leads to process hanging forever.
@@ -953,18 +974,19 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 				merge_sam_job.addArguments('INPUT=', alignmentOutput)
 				merge_sam_job.uses(alignmentOutput, transfer=True, register=True, link=Link.INPUT)
 				workflow.depends(parent=alignmentJob, child=merge_sam_job)
-		else:	#one input file, no samtools merge. use "mv" to rename it instead
+		else:	#one input file, no samtools merge. use "mv" to rename it instead. should use "cp", then the input would be cleaned by cleaning job.
 			alignmentJob, alignmentOutput = AlignmentJobAndOutputLs[0][:2]
 			merge_sam_job = Job(namespace=namespace, name=mv.name, version=version)
 			merge_sam_job.addArguments(alignmentOutput, outputBamFile)
-			workflow.depends(parent=alignmentJob, child=merge_sam_job)
 			merge_sam_job.uses(alignmentOutput, transfer=True, register=True, link=Link.INPUT)
 			merge_sam_job.uses(outputBamFile, transfer=stageOutFinalOutput, register=True, link=Link.OUTPUT)
 			workflow.addJob(merge_sam_job)
+			workflow.depends(parent=alignmentJob, child=merge_sam_job)	#2012.7.4
+			sys.stderr.write(" copy (no merge, only one alignment) from %s to %s.\n"%(alignmentOutput.name, outputBamFile.name))
 		
 		
 		# add the index job on the merged bam file
-		bamIndexJob = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+		bamIndexJob = self.addBAMIndexJob(BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					inputBamF=outputBamFile,\
 					parentJobLs=[merge_sam_job], namespace=namespace, version=version,\
 					stageOutFinalOutput=stageOutFinalOutput, javaMaxMemory=javaMaxMemory)
@@ -1002,7 +1024,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			workflow.addJob(merge_sam_job)
 		
 		# add the index job on the merged bam file
-		bamIndexJob = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, \
+		bamIndexJob = self.addBAMIndexJob(BuildBamIndexFilesJava=BuildBamIndexFilesJava, \
 						BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 						inputBamF=outputBamFile, parentJobLs=[merge_sam_job], \
 						stageOutFinalOutput=stageOutFinalOutput, javaMaxMemory=javaMaxMemory)
@@ -1047,10 +1069,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		
 		
 		# add the index job on the bam file
-		bamIndexJob = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, \
+		bamIndexJob = self.addBAMIndexJob(BuildBamIndexFilesJava=BuildBamIndexFilesJava, \
 								BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 								inputBamF=MarkDupOutputF,\
-								parentJob=MarkDupJob, namespace=namespace, version=version,\
+								parentJobLs=[MarkDupJob], namespace=namespace, version=version,\
 								stageOutFinalOutput=stageOutFinalOutput)
 		return MarkDupJob, bamIndexJob
 		
@@ -1080,9 +1102,9 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			workflow.depends(parent=parentJob, child=job)
 			
 		# add the index job on the bam
-		return self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+		return self.addBAMIndexJob(BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					inputBamF=outputBamF,\
-					parentJob=job, namespace=namespace, version=version,\
+					parentJobLs=[job], namespace=namespace, version=version,\
 					stageOutFinalOutput=stageOutFinalOutput)
 	
 	@classmethod
@@ -1127,7 +1149,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			
 		"""
 	
-	def registerCustomJars(self, workflow, ):
+	def registerCustomJars(self, workflow=None):
 		"""
 		2012.1.9
 		"""
@@ -1146,8 +1168,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		workflow.SamFormatConverterJar = SamFormatConverterJar
 		
 	
-	def registerCustomExecutables(self, workflow):
+	def registerCustomExecutables(self, workflow=None):
 		"""
+		2012.5.3
+			add clusters.size profile for alignment specific jobs (self.cluster_size_for_aln_jobs)
 		2012.1.3
 		"""
 		namespace = workflow.namespace
@@ -1161,30 +1185,40 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		stampy = Executable(namespace=namespace, name="stampy", version=version, os=operatingSystem, \
 						arch=architecture, installed=True)
 		stampy.addPFN(PFN("file://" + self.stampy_path, site_handler))
-		#splitReadFileJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		stampy.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
 		workflow.addExecutable(stampy)
 		workflow.stampy = stampy
 		
+		workflow.IndexMergedBamIndexJava = workflow.BuildBamIndexFilesJava #no clustering for this as this runs on merged/dup-marked big bams
+		#workflow.BuildBamIndexFilesJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
+		workflow.addOrReplaceReadGroupsJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
+		workflow.samtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
+		
+		
 		bwa = Executable(namespace=namespace, name="bwa", version=version, os=operatingSystem, arch=architecture, installed=True)
 		bwa.addPFN(PFN("file://" + self.bwa_path, site_handler))
+		bwa.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
 		workflow.addExecutable(bwa)
 		workflow.bwa = bwa
 		
 		PEAlignmentByBWA = Executable(namespace=namespace, name="PEAlignmentByBWA.sh", version=version, os=operatingSystem, \
 							arch=architecture, installed=True)
-		PEAlignmentByBWA.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "PEAlignmentByBWA.sh"), site_handler))
+		PEAlignmentByBWA.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "shell/PEAlignmentByBWA.sh"), site_handler))
+		PEAlignmentByBWA.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
 		workflow.addExecutable(PEAlignmentByBWA)
 		workflow.PEAlignmentByBWA = PEAlignmentByBWA
 		
 		ShortSEAlignmentByBWA = Executable(namespace=namespace, name="ShortSEAlignmentByBWA.sh", version=version, os=operatingSystem, \
 							arch=architecture, installed=True)
-		ShortSEAlignmentByBWA.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "ShortSEAlignmentByBWA.sh"), site_handler))
+		ShortSEAlignmentByBWA.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "shell/ShortSEAlignmentByBWA.sh"), site_handler))
+		ShortSEAlignmentByBWA.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
 		workflow.addExecutable(ShortSEAlignmentByBWA)
 		workflow.ShortSEAlignmentByBWA = ShortSEAlignmentByBWA
 		
 		LongSEAlignmentByBWA = Executable(namespace=namespace, name="LongSEAlignmentByBWA.sh", version=version, os=operatingSystem, \
 							arch=architecture, installed=True)
-		LongSEAlignmentByBWA.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "LongSEAlignmentByBWA.sh"), site_handler))
+		LongSEAlignmentByBWA.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "shell/LongSEAlignmentByBWA.sh"), site_handler))
+		LongSEAlignmentByBWA.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
 		workflow.addExecutable(LongSEAlignmentByBWA)
 		workflow.LongSEAlignmentByBWA = LongSEAlignmentByBWA
 		
@@ -1197,9 +1231,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		SortSamFilesJava = Executable(namespace=namespace, name="SortSamFilesJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
 		SortSamFilesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
+		SortSamFilesJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
 		workflow.addExecutable(SortSamFilesJava)
 		workflow.SortSamFilesJava = SortSamFilesJava
-	
+
 	def run(self):
 		"""
 		2011-7-11
@@ -1222,8 +1257,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			self.localDataDir = db_vervet.data_dir
 		
 		# Create a abstract dag
-		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = self.initiateWorkflow(workflowName)
+		workflow = self.initiateWorkflow()
 		
 		self.registerJars(workflow)
 		self.registerCustomJars(workflow)
@@ -1233,7 +1267,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		
 		#individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, dataDir=self.localDataDir)
 		isq_id2LibrarySplitOrder2FileLs = db_vervet.getISQ_ID2LibrarySplitOrder2FileLs(self.ind_seq_id_ls, dataDir=self.dataDir, \
-																					filtered=None)
+												filtered=None, ignoreEmptyReadFile=self.ignoreEmptyReadFile)
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		
 		
@@ -1259,7 +1293,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					refSequence=refSequence, refFastaFList=refFastaFList, refIndexJob=refIndexJob,
 					workflow=workflow, bwa=workflow.bwa, additionalArguments=self.additionalArguments, \
 					samtools=workflow.samtools, \
-					mkdirWrap=workflow.mkdirWrap, mv=workflow.mv, \
+					mkdirWrap=workflow.mkdirWrap, mv=workflow.cp, \
 					java=workflow.java, \
 					mergeSamFilesJava=workflow.mergeSamFilesJava, mergeSamFilesJar=workflow.mergeSamFilesJar, \
 					MarkDuplicatesJava=workflow.MarkDuplicatesJava, MarkDuplicatesJar=workflow.MarkDuplicatesJar, tmpDir=self.tmpDir,\
@@ -1270,11 +1304,11 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					namespace=workflow.namespace, version=workflow.version, stageOutFinalOutput=self.stageOutFinalOutput,\
 					PEAlignmentByBWA=workflow.PEAlignmentByBWA, ShortSEAlignmentByBWA=workflow.ShortSEAlignmentByBWA, \
 					LongSEAlignmentByBWA=workflow.LongSEAlignmentByBWA, no_of_aln_threads=self.no_of_aln_threads,\
-					stampyExecutable=workflow.stampy)
+					stampyExecutable=workflow.stampy, skipDoneAlignment=self.skipDoneAlignment)
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
-		workflow.writeXML(outf)
+		self.writeXML(outf)
 		
 		if self.commit:
 			session.commit()

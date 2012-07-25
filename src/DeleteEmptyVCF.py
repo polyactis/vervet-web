@@ -68,6 +68,8 @@ class DeleteEmptyVCF(object):
 						no_of_vcf += 1
 						if NextGenSeq.isVCFFileEmpty(inputFname, checkContent=self.checkEmptyVCFByReading):
 							if self.commit:
+								if self.report:
+									sys.stderr.write("file %s deleted.\n"%(inputFname))
 								commandline = 'rm %s'%(inputFname)
 								return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 							real_counter += 1

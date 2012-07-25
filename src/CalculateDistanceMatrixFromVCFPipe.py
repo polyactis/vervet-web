@@ -2,11 +2,18 @@
 """
 Examples:
 	# 2011-9-29
-	%s -a 525 -f 9 -i 8GenomeVsTop156Contigs_GATK_all_bases/call/ -n 8 -s 1 -m 0.0 -c 1
+	%s -a 525 -f 9 -i 8GenomeVsTop156Contigs_GATK_all_bases/call/ -N 0.0 -c 1
 		-o 8GenomeVsTop156Contigs_GATK_all_bases_maxNA0_minMAF0_het2NA.xml -j condorpool -l condorpool  -u yh -z uclaOffice
 	
-	%s  -a 525 -f 9 -i 8GenomeVsTop156Contigs_GATK_all_bases/call/ -n 8 -s 1 -m 0.8 -M0
+	%s  -a 525 -f 9 -i 8GenomeVsTop156Contigs_GATK_all_bases/call/ -N 0.8 -M0
 		-c 1 -o 8GenomeVsTop156Contigs_GATK_all_bases_maxNA0.8_minMAF0_het2NA.xml -j condorpool -l condorpool  -u yh -z uclaOffice
+	
+	#2012.5.11 on hoffman condor, no job clustering (-C1)
+	%s -a 524 -i Combine_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs_and_VariantsOf36RNA-SeqMonkeysFromNam_minDepth5/
+		-C 1
+		-j hcondor -l hcondor -D ~/NetworkData/vervet/db/ -t ~/NetworkData/vervet/db/ -u yh -z localhost
+		-o workflow/PairwiseDistance_Combine_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs_and_VariantsOf36RNA-SeqMonkeysFromNam_minDepth5.xml
+
 Description:
 	2011-10-14
 		a program which generates a pegasus workflow dag (xml file) to 
@@ -16,17 +23,10 @@ Description:
 	
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 
-from sqlalchemy.types import LargeBinary
-
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
 import VervetDB
@@ -37,46 +37,45 @@ from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 
 class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 	__doc__ = __doc__
-	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-						('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
-						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-						('aln_ref_ind_seq_id', 1, int): [120, 'a', 1, 'IndividualSequence.id. To pick alignments with this sequence as reference', ],\
+	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict.update({
 						('inputDir', 0, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
-						("vervetSrcPath", 1, ): ["%s/script/vervet/src", 'S', 1, 'vervet source code folder'],\
-						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
-						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
-									If not given, use the default stored in db.'],\
-						("site_handler", 1, ): ["condorpool", 'l', 1, 'which site to run the jobs: condorpool, hoffman2'],\
-						("input_site_handler", 1, ): ["local", 'j', 1, 'which site has all the input files: local, condorpool, hoffman2. \
-							If site_handler is condorpool, this must be condorpool and files will be symlinked. \
-							If site_handler is hoffman2, input_site_handler=local induces file transfer and input_site_handler=hoffman2 induces symlink.'],\
-						('numberOfReadGroups', 1, int): [None, 'n', 1, 'number of read groups/genomes in the inputFname', ],\
 						('min_MAF', 1, float): [0.0, 'M', 1, 'minimum MAF for SNP filter', ],\
-						('max_NA_rate', 1, float): [0.4, 'm', 1, 'maximum NA rate for SNP filter', ],\
+						('max_NA_rate', 1, float): [0.4, 'N', 1, 'maximum NA rate for SNP filter', ],\
 						('convertHetero2NA', 1, int):[0, 'c', 1, 'convertHetero2NA mode. 0: no conversion, 1: convert to NA.'],\
-						('defaultCoverage', 1, float): [9, 'f', 1, 'default coverage when coverage is not available for a read group'],\
-						('seqCoverageFname', 0, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
-						("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
-						('hetHalfMatchDistance', 1, float): [0.5, 'H', 1, 'distance between two half-matched genotypes. AG vs A or AG vs AC', ],\
-						("site_type", 1, int): [2, 's', 1, '1: all genome sites, 2: variants only'],\
-						('outputFname', 1, ): [None, 'o', 1, 'xml workflow output file'],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						('hetHalfMatchDistance', 1, float): [0.5, 'q', 1, 'distance between two half-matched genotypes. AG vs A or AG vs AC', ],\
+						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
 	def __init__(self,  **keywords):
 		"""
 		2011-7-11
 		"""
-		from pymodule import ProcessOptions
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
+		AbstractVCFWorkflow.__init__(self, **keywords)
 		
 		self.inputDir = os.path.abspath(self.inputDir)
-		self.vervetSrcPath = self.vervetSrcPath%self.home_path
+	
+	def registerCustomExecutables(self, workflow):
+		"""
+		2011-11-28
+		"""
+		namespace = workflow.namespace
+		version = workflow.version
+		operatingSystem = workflow.operatingSystem
+		architecture = workflow.architecture
+		clusters_size = workflow.clusters_size
+		site_handler = workflow.site_handler
+		vervetSrcPath = self.vervetSrcPath
+		
+		
+		AggregateAndHClusterDistanceMatrix = Executable(namespace=namespace, name="AggregateAndHClusterDistanceMatrix", \
+											version=version, \
+											os=operatingSystem, arch=architecture, installed=True)
+		AggregateAndHClusterDistanceMatrix.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "AggregateAndHClusterDistanceMatrix.py"), \
+													site_handler))
+		AggregateAndHClusterDistanceMatrix.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		workflow.addExecutable(AggregateAndHClusterDistanceMatrix)
+		workflow.AggregateAndHClusterDistanceMatrix = AggregateAndHClusterDistanceMatrix
 	
 	
 	def run(self):
@@ -95,59 +94,41 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir
 		
+		if not self.localDataDir:
+			self.localDataDir = db_vervet.data_dir
 		# Create a abstract dag
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = ADAG(workflowName)
-		vervetSrcPath = self.vervetSrcPath
-		site_handler = self.site_handler
+		workflow = self.initiateWorkflow(workflowName)
 		
+		self.registerJars(workflow)
+		self.registerExecutables(workflow)
+		self.registerCustomExecutables(workflow)
 		
-		# Add executables to the DAX-level replica catalog
-		# In this case the binary is keg, which is shipped with Pegasus, so we use
-		# the remote PEGASUS_HOME to build the path.
-		architecture = "x86_64"
-		operatingSystem = "linux"
-		namespace = "workflow"
-		version="1.0"
-		#clusters_size controls how many jobs will be aggregated as a single job.
-		clusters_size = 20
-		
-		#mkdirWrap is better than mkdir that it doesn't report error when the directory is already there.
-		mkdirWrap = Executable(namespace=namespace, name="mkdirWrap", version=version, os=operatingSystem, \
-							arch=architecture, installed=True)
-		mkdirWrap.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mkdirWrap.sh"), site_handler))
-		mkdirWrap.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(mkdirWrap)
-		
-		#mv to rename files and move them
-		mv = Executable(namespace=namespace, name="mv", version=version, os=operatingSystem, arch=architecture, installed=True)
-		mv.addPFN(PFN("file://" + "/bin/mv", site_handler))
-		mv.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(mv)
-		
-		genotypeCallByCoverage = Executable(namespace=namespace, name="GenotypeCallByCoverage", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		genotypeCallByCoverage.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "GenotypeCallByCoverage.py"), site_handler))
-		workflow.addExecutable(genotypeCallByCoverage)
-		
-		calcula = Executable(namespace=namespace, name="CalculatePairwiseDistanceOutOfSNPXStrainMatrix", \
-							version=version, os=operatingSystem, arch=architecture, installed=True)
-		calcula.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "CalculatePairwiseDistanceOutOfSNPXStrainMatrix.py"), site_handler))
-		workflow.addExecutable(calcula)
 		
 		callOutputDir = "call"
-		callOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=callOutputDir, namespace=namespace, version=version)
+		callOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=callOutputDir)
 		matrixDir = "pairwiseDistMatrix"
-		matrixDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=matrixDir, namespace=namespace, version=version)
+		matrixDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=matrixDir)
 		
-		inputFLs = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler,
-											checkEmptyVCFByReading=self.checkEmptyVCFByReading)
+		aggregateDistanceMatrixOutputF = File('aggregateDistanceMatrix.tsv')
+		figureFnamePrefix = 'aggregateDistanceMatrix'
+		aggregateAndHClusterDistanceMatrixJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.AggregateAndHClusterDistanceMatrix, \
+									outputF=aggregateDistanceMatrixOutputF, \
+									parentJobLs=[], \
+									extraDependentInputLs=[], transferOutput=True, extraArguments="-f %s"%(figureFnamePrefix))
+		aggregateAndHClusterDistanceMatrixJob.uses('%s.png'%(figureFnamePrefix), transfer=True, register=True, link=Link.OUTPUT)
+		aggregateAndHClusterDistanceMatrixJob.uses('%s.svg'%(figureFnamePrefix), transfer=True, register=True, link=Link.OUTPUT)
+		aggregateAndHClusterDistanceMatrixJob.uses('%s_PCA.tsv'%(figureFnamePrefix), transfer=True, register=True, link=Link.OUTPUT)
 		
-		refSequence = VervetDB.IndividualSequence.get(self.aln_ref_ind_seq_id)
+		inputData = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler,
+								checkEmptyVCFByReading=self.checkEmptyVCFByReading, pegasusFolderName=self.pegasusFolderName)
+		
+		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.dataDir, refSequence.path)
-		refFastaF = File(os.path.basename(refFastaFname))	#use relative path, otherwise, it'll go to absolute path.
-		refFastaF.addPFN(PFN("file://" + refFastaFname, self.input_site_handler))
-		workflow.addFile(refFastaF)
+		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+							input_site_handler=self.input_site_handler,\
+							checkAffiliateFileExistence=True)
+		refFastaF = refFastaFList[0]
 		
 		
 		"""
@@ -159,46 +140,30 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 		workflow.addFile(seqCoverageF)
 		"""
 		seqCoverageF = None
-		
-		for inputF in inputFLs:
+		for jobData in inputData.jobDataLs:
+			inputF = jobData.vcfFile
 			#add the cover filter (or filter+call) job after index is done
-			genotypeCallByCoverage_job = Job(namespace=namespace, name=genotypeCallByCoverage.name, version=version)
-			genotypeCallOutputFname = os.path.join(callOutputDir, '%s.call'%(inputF.name))
+			inputFBaseName = os.path.basename(inputF.name)
+			genotypeCallOutputFname = os.path.join(callOutputDir, '%s.call'%(inputFBaseName))
 			genotypeCallOutput = File(genotypeCallOutputFname)
-			genotypeCallByCoverage_job.addArguments("-i", inputF, "-n", str(self.numberOfReadGroups), \
-					"-o", genotypeCallOutput, '-e', refFastaF, '-y', str(self.genotypeCallerType), \
-					'-s', repr(self.site_type), "-f", str(self.defaultCoverage))
-			if seqCoverageF:
-				genotypeCallByCoverage_job.addArguments("-q", seqCoverageF)
-				genotypeCallByCoverage_job.uses(seqCoverageF, transfer=True, register=True, link=Link.INPUT)
-			genotypeCallByCoverage_job.uses(refFastaF, transfer=True, register=True, link=Link.INPUT)
-			genotypeCallByCoverage_job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
-			genotypeCallByCoverage_job.uses(genotypeCallOutput, transfer=False, register=True, link=Link.OUTPUT)
-			if self.site_type==1:	#all sites require additional memory
-				job_max_memory = 5000	#in MB
-			else:	#variants only, less memory
-				job_max_memory=1000	#in MB. 
-			genotypeCallByCoverage_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
-			genotypeCallByCoverage_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
-			workflow.addJob(genotypeCallByCoverage_job)
-			workflow.depends(parent=callOutputDirJob, child=genotypeCallByCoverage_job)
+			genotypeCallByCoverage_job = self.addVCF2MatrixJob(workflow, executable=workflow.genotypeCallByCoverage, \
+															inputVCF=inputF, outputFile=genotypeCallOutput, \
+						refFastaF=None, run_type=3, numberOfReadGroups=10, \
+						parentJobLs=[callOutputDirJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=False, \
+						extraArguments=None, job_max_memory=2000)
 			
-			
-			#add the pairwise distance matrix job after filter is done
-			calcula_job = Job(namespace=namespace, name=calcula.name, version=version)
-			
-			calculaOutputFname =os.path.join(matrixDir, '%s.pairwiseDist.convertHetero2NA%s.minMAF%.2f.maxNA%.2f.tsv'%(inputF.name, \
+			calculaOutputFname =os.path.join(matrixDir, '%s.pairwiseDist.convertHetero2NA%s.minMAF%.2f.maxNA%.2f.tsv'%(inputFBaseName, \
 								self.convertHetero2NA, self.min_MAF, self.max_NA_rate))
 			calculaOutput = File(calculaOutputFname)
-			calcula_job.addArguments("-i", genotypeCallOutput, "-n", str(self.min_MAF), \
-						"-o", calculaOutput, '-m', repr(self.max_NA_rate), '-c', str(self.convertHetero2NA),\
-						'-H', repr(self.hetHalfMatchDistance))
-			calcula_job.uses(genotypeCallOutput, transfer=False, register=False, link=Link.INPUT)
-			calcula_job.uses(calculaOutput, transfer=True, register=False, link=Link.OUTPUT)
+			calcula_job = self.addCalculatePairwiseDistanceFromSNPXStrainMatrixJob(workflow, executable=workflow.calcula, \
+															inputFile=genotypeCallOutput, outputFile=calculaOutput, \
+						min_MAF=self.min_MAF, max_NA_rate=self.max_NA_rate, convertHetero2NA=self.convertHetero2NA, \
+						hetHalfMatchDistance=self.hetHalfMatchDistance,\
+						parentJobLs=[genotypeCallByCoverage_job, matrixDirJob], extraDependentInputLs=[], transferOutput=True, \
+						extraArguments=None, job_max_memory=2000)
 			
-			workflow.addJob(calcula_job)
-			workflow.depends(parent=genotypeCallByCoverage_job, child=calcula_job)
-			workflow.depends(parent=matrixDirJob, child=calcula_job)
+			self.addInputToStatMergeJob(workflow, statMergeJob=aggregateAndHClusterDistanceMatrixJob, inputF=calculaOutput, \
+							parentJobLs=[calcula_job])
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')

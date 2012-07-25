@@ -125,23 +125,23 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 			samtoolsVCFAbsPath = vcfFileID2path_2.get(vcfFileID)
 			if not NextGenSeq.isVCFFileEmpty(gatkVCFAbsPath) and not NextGenSeq.isVCFFileEmpty(samtoolsVCFAbsPath, \
 									checkContent=self.checkEmptyVCFByReading):	#make sure the samtools vcf is not empty
-				inputFname = os.path.basename(gatkVCFAbsPath)
+				gatkVCFFileBaseName = os.path.basename(gatkVCFAbsPath)
 				chr = vcfFileID
 				chr_size = chr2size.get(chr)
 				if chr_size is None:
 					sys.stderr.write("size for chr %s is unknown. set it to 1000.\n"%(chr))
 					chr_size = 1000
 				
-				vcf1 = File(os.path.join('vcf1', inputFname))	#relative path
+				vcf1 = File(os.path.join('vcf1', gatkVCFFileBaseName))	#relative path
 				vcf1.addPFN(PFN("file://" + gatkVCFAbsPath, input_site_handler))
 				workflow.addFile(vcf1)
 				
-				vcf2 = File(os.path.join('vcf2', inputFname))	#relative path
+				vcf2 = File(os.path.join('vcf2', os.path.basename(samtoolsVCFAbsPath)))	#relative path
 				vcf2.addPFN(PFN("file://" + samtoolsVCFAbsPath, input_site_handler))
 				workflow.addFile(vcf2)
 				
 				
-				outputFnamePrefix = os.path.join(statOutputDir, os.path.splitext(inputFname)[0])
+				outputFnamePrefix = os.path.join(statOutputDir, os.path.splitext(gatkVCFFileBaseName)[0])
 				checkTwoVCFOverlapJob = self.addCheckTwoVCFOverlapJob(workflow, executable=workflow.checkTwoVCFOverlap, \
 						vcf1=vcf1, vcf2=vcf2, chromosome=chr, chrLength=chr_size, \
 						outputFnamePrefix=outputFnamePrefix, parentJobLs=[statOutputDirJob], \

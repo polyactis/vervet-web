@@ -28,25 +28,19 @@ Description:
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 
-from sqlalchemy.types import LargeBinary
-
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO, re, csv
 import VervetDB
 from pymodule import ProcessOptions, figureOutDelimiter
 from pymodule.utils import sortCMPBySecondTupleValue
+from pymodule.VCFFile import VCFFile
 
 class GenotypeCallByCoverage(object):
 	__doc__ = __doc__
 	option_default_dict = {('inputFname', 1, ): ['', 'i', 1, 'The input Bam file.', ],\
-						('refFastaFname', 1, ): [None, 'e', 1, 'the fasta file containing reference sequences.'],\
+						('refFastaFname', 0, ): [None, 'e', 1, 'the fasta file containing reference sequences.'],\
 						('numberOfReadGroups', 1, int): [None, 'n', 1, 'number of read groups/genomes in the inputFname', ],\
 						('minMinorAlleleCoverage', 1, float): [1/4., 'M', 1, 'minimum read depth multiplier for an allele to be called (heterozygous or homozygous)', ],\
 						('maxMinorAlleleCoverage', 1, float): [3/4., 'A', 1, 'maximum read depth multiplier for the minor allele of a heterozygous call', ],\
@@ -58,7 +52,7 @@ class GenotypeCallByCoverage(object):
 						('seqCoverageFname', 0, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
 						('defaultCoverage', 1, float): [5, 'f', 1, 'default coverage when coverage is not available for a read group'],\
 						('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
-						("run_type", 1, int): [1, 'y', 1, '1: discoverFromVCF (output of GATK), 2: discoverFromBAM'],\
+						("run_type", 1, int): [1, 'y', 1, '1: discoverFromVCF (output of GATK), 2: discoverFromBAM, 3: discoverFromVCFWithoutFilter'],\
 						("site_type", 1, int): [1, 's', 1, '1: all sites, 2: variants only'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
@@ -70,7 +64,7 @@ class GenotypeCallByCoverage(object):
 		"""
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
 														class_to_have_attr=self)
-		self.discoverFuncDict = {1: self.discoverFromVCF, 2: self.discoverFromBAM}
+		self.discoverFuncDict = {1: self.discoverFromVCF, 2: self.discoverFromBAM, 3:self.discoverFromVCFWithoutFilter}
 	
 	def get_isqID2coverage(self, seqCoverageFname, defaultCoverage=None):
 		"""
@@ -286,9 +280,11 @@ class GenotypeCallByCoverage(object):
 		cls.reportValueOfDictionaryByKeyLs(read_group2no_of_snps_with_penta_alleles, unique_read_group_ls, title="No of SNPs with 5-or-more alleles")
 	
 	@classmethod
-	def outputCallMatrix(cls, data_matrix, refFastaFname, outputFname=None, refNameSet=None, read_group2col_index=None, \
+	def outputCallMatrix(cls, data_matrix=None, refFastaFname=None, outputFname=None, refNameSet=None, read_group2col_index=None, \
 						locus_id2row_index=None):
 		"""
+		2012.5.8
+			if refNameSet is empty or None, stop reading the refFastaFname and outputting the ref base
 		2011-7-26
 			replace arguments refName2tid & tid2refName with refNameSet
 		2011-7-20
@@ -299,15 +295,16 @@ class GenotypeCallByCoverage(object):
 		"""
 		#2011-7-18 read in the reference sequences in order to find out the ref base
 		refName2Seq = {}
-		from Bio import SeqIO
-		handle = open(refFastaFname, "rU")
-		for record in SeqIO.parse(handle, "fasta"):
-			contig_id = record.id.split()[0]
-			if contig_id in refNameSet:
-				refName2Seq[contig_id] = record.seq
-			if len(refName2Seq)>=len(refNameSet):	#enough data, exit.
-				break
-		handle.close()
+		if refNameSet:	#2012.5.8 not empty
+			from Bio import SeqIO
+			handle = open(refFastaFname, "rU")
+			for record in SeqIO.parse(handle, "fasta"):
+				contig_id = record.id.split()[0]
+				if contig_id in refNameSet:
+					refName2Seq[contig_id] = record.seq
+				if len(refName2Seq)>=len(refNameSet):	#enough data, exit.
+					break
+			handle.close()
 		
 		# output the matrix in the end
 		#read_group2col_index.pop('ref', None)	#remove the "ref" item if "ref" is in read_group2col_index. None is for failsafe when "ref" is not present.
@@ -323,12 +320,13 @@ class GenotypeCallByCoverage(object):
 		locus_id_and_row_index_ls.sort(cmp=sortCMPBySecondTupleValue)
 		for i in xrange(len(locus_id_and_row_index_ls)):
 			locus_id, row_index = locus_id_and_row_index_ls[i]
-			refName, pos = locus_id.split('_')[:2]
-			refSeq = refName2Seq[refName]
-			pos = int(pos)
-			refBase = refSeq[pos-1]
 			data_row = data_matrix[i]
-			data_row[0] = refBase	#2011-7-18
+			if refNameSet:
+				refName, pos = locus_id.split('_')[:2]
+				refSeq = refName2Seq[refName]
+				pos = int(pos)
+				refBase = refSeq[pos-1]
+				data_row[0] = refBase	#2011-7-18
 			# if data_row is shorter than read_group_col_index_ls, add "NA" to fill it up
 			for j in xrange(len(data_row), len(read_group_col_index_ls)):
 				data_row.append('NA')
@@ -583,6 +581,22 @@ class GenotypeCallByCoverage(object):
 		
 		sys.stderr.write("%s\t%s\t%s.\n"%("\x08"*80, counter, real_counter))
 	
+	
+	def discoverFromVCFWithoutFilter(self, inputFname, outputFname, **keywords):
+		"""
+		2012.5.8
+		"""
+		vcfFile = VCFFile(inputFname=inputFname)
+		vcfFile.parseFile()
+		
+		read_group2col_index = vcfFile.sample_id2index
+		locus_id2row_index = vcfFile.locus_id2row_index
+		
+		data_matrix = vcfFile.genotype_call_matrix
+		
+		self.outputCallMatrix(data_matrix, refFastaFname=None, outputFname=outputFname, refNameSet=None, \
+					read_group2col_index=read_group2col_index, \
+					locus_id2row_index=locus_id2row_index)
 	
 	def run(self):
 		if self.debug:

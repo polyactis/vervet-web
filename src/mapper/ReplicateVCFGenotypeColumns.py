@@ -57,6 +57,8 @@ class ReplicateVCFGenotypeColumns(AbstractVCFMapper):
 	def replicateVCFGenotypeColumns(self, inputFname, outputFname=None, replicateIndividualTag=None, sampleID2FamilyCount=None,\
 								sampleStartingColumn=9, minDepth=0):
 		"""
+		2012.5.10
+			VCFFile has been changed considerably and can act as a writer now.
 		2012.3.29
 			
 		"""
@@ -64,36 +66,44 @@ class ReplicateVCFGenotypeColumns(AbstractVCFMapper):
 		from pymodule.VCFFile import VCFFile
 		vcfFile = VCFFile(inputFname=inputFname, minDepth=minDepth)
 		
+		outVCFFile = VCFFile(outputFname=outputFname)
+		outVCFFile.metaInfoLs = vcfFile.metaInfoLs
+		
+		"""
 		outf = open(outputFname, 'w')
 		writer = csv.writer(outf, delimiter='\t')
 		#write all the headers up till the last line (which describes the samples and etc.)
-		for headerContent in vcfFile.headerContentLs:
-			outf.write(headerContent)
+		for metaInfo in vcfFile.metaInfoLs:
+			outf.write(metaInfo)
+		"""
 		
 		#modify the sample-id header line 
 		sampleID2DataIndexLs = {}
-		oldSampleIDHeader = vcfFile.sampleIDHeader
-		oldHeaderLength = len(oldSampleIDHeader)
-		newHeader = oldSampleIDHeader[:sampleStartingColumn]	#anything before the samples are same
+		oldHeader = vcfFile.header
+		oldHeaderLength = len(oldHeader)
+		newHeader = oldHeader[:sampleStartingColumn]	#anything before the samples are same
 		no_of_samples = 0
 		for i in xrange(sampleStartingColumn, oldHeaderLength):
-			#for sample_id in vcfFile.headerContentLs[-1][sampleStartingColumn:]:
-			sample_id = oldSampleIDHeader[i].strip()
+			#for sample_id in vcfFile.metaInfoLs[-1][sampleStartingColumn:]:
+			sample_id = oldHeader[i].strip()
 			newHeader.append('%s%s%s'%(sample_id, replicateIndividualTag, 1))	#1 because it's the 1st copy
 			no_of_samples += 1
 			sampleID2DataIndexLs[sample_id] = [i]	#1st copy for this sample
+		
 		#add additional column headers based on each one's occurrence
 		extraColIndex2sampleID = {}
 		for sample_id, familyCount in sampleID2FamilyCount.iteritems():
 			for i in xrange(1, familyCount):
 			#if familyCount>1:
-				no_of_samples += 1
-				extraColIndex = len(newHeader)
-				extraColIndex2sampleID[extraColIndex] = sample_id
-				sampleID2DataIndexLs[sample_id].append(extraColIndex)
-				replicate_order = len(sampleID2DataIndexLs[sample_id])
-				newHeader.append("%s%s%s"%(sample_id, replicateIndividualTag, replicate_order))
-		writer.writerow(newHeader)
+				if sample_id in sampleID2DataIndexLs:
+					no_of_samples += 1
+					extraColIndex = len(newHeader)
+					extraColIndex2sampleID[extraColIndex] = sample_id
+					sampleID2DataIndexLs[sample_id].append(extraColIndex)
+					replicate_order = len(sampleID2DataIndexLs[sample_id])
+					newHeader.append("%s%s%s"%(sample_id, replicateIndividualTag, replicate_order))
+		outVCFFile.header = newHeader
+		outVCFFile.writeMetaAndHeader()
 		
 		newHeaderLength = len(newHeader)
 		no_of_snps = 0
@@ -103,10 +113,10 @@ class ReplicateVCFGenotypeColumns(AbstractVCFMapper):
 				sample_id = extraColIndex2sampleID.get(i)
 				sourceIndex = sampleID2DataIndexLs.get(sample_id)[0]
 				data_row.append(data_row[sourceIndex])
-			writer.writerow(data_row)
+			outVCFFile.writer.writerow(data_row)
 			no_of_snps += 1
-		del outf
-		del writer
+		outVCFFile.close()
+		vcfFile.close()
 		sys.stderr.write("%s samples X %s SNPs.\n"%(no_of_samples, no_of_snps))
 	
 	def run(self):
