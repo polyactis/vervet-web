@@ -98,7 +98,8 @@ class AddVCFFile2DB(AbstractVervetMapper):
 		
 		session.begin()
 		if not self.dataDir:
-			dataDir = self.db_vervet.data_dir
+			self.dataDir = self.db_vervet.data_dir
+		dataDir = self.dataDir
 		
 		realPath = os.path.realpath(self.inputFname)
 		logMessage = "file %s.\n"%(self.inputFname)
@@ -111,7 +112,7 @@ class AddVCFFile2DB(AbstractVervetMapper):
 			genotypeMethod = self.db_vervet.getGenotypeMethod(short_name=self.genotypeMethodShortName, \
 															individualAlignmentLs=individualAlignmentLs,\
 															no_of_individuals=len(individualAlignmentLs), no_of_loci=None,\
-															dataDir=dataDir)
+															dataDir=self.dataDir)
 			self.checkIfAlignmentListMatchDB(individualAlignmentLs, genotypeMethod, session)
 			
 			no_of_loci = self.getNoOfLociFromVCFFile(vcfFile)
@@ -130,17 +131,19 @@ class AddVCFFile2DB(AbstractVervetMapper):
 				sys.stderr.write("Warning: another file %s with the identical md5sum %s as this file %s is already in db.\n"%\
 									(db_entry.path, md5sum, realPath))
 				session.rollback()
-				self.cleanUpAndExitOnFailure(exitCode=3)
+				#2012.8.3 when the jobs are clustered into one merged job and it failed halfway
+				# and retried elsewhere, the redundancy check should not exit with non-zero. otherwise the merged job would fail again. 
+				self.cleanUpAndExitOnFailure(exitCode=0)
 			no_of_individuals = len(individualAlignmentLs)
 			chromosome = Genome.getChrFromFname(self.inputFname)
 			genotypeFile = self.db_vervet.getGenotypeFile(genotype_method=genotypeMethod,\
 										chromosome=chromosome, format=self.format, path=None, file_size=None, md5sum=md5sum,\
 										original_path=realPath, no_of_individuals=no_of_individuals, no_of_loci=no_of_loci,\
-										dataDir=dataDir)
+										dataDir=self.dataDir)
 			
 			#move the file and update the db_entry's path as well
 			exitCode = self.db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=genotypeFile, filename=os.path.basename(self.inputFname), \
-									inputDir=os.path.split(self.inputFname)[0], outputDir=os.path.join(dataDir, genotypeMethod.path), \
+									inputDir=os.path.split(self.inputFname)[0], outputDir=os.path.join(self.dataDir, genotypeMethod.path), \
 									relativeOutputDir=None, shellCommand='cp -rL', \
 									srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs,\
 									constructRelativePathFunction=genotypeFile.constructRelativePath)
@@ -148,13 +151,13 @@ class AddVCFFile2DB(AbstractVervetMapper):
 			tbiFilename = '%s.tbi'%(realPath)
 			if os.path.isfile(tbiFilename):
 				srcFilename = tbiFilename
-				dstFilename = os.path.join(dataDir, '%s.tbi'%(genotypeFile.path))
+				dstFilename = os.path.join(self.dataDir, '%s.tbi'%(genotypeFile.path))
 				utils.copyFile(srcFilename=srcFilename, dstFilename=dstFilename)
 				logMessage += "tbi file %s has been copied to %s.\n"%(srcFilename, dstFilename)
 			## 2012.7.17 commented out because md5sum is calcualted above
 			#db_vervet.updateDBEntryMD5SUM(db_entry=genotypeFile, data_dir=dataDir)
 			# #2012.7.17 record the size of db_entry.path (folder or file)
-			self.db_vervet.updateDBEntryPathFileSize(db_entry=genotypeFile, data_dir=dataDir)
+			self.db_vervet.updateDBEntryPathFileSize(db_entry=genotypeFile, data_dir=self.dataDir)
 			
 			if exitCode!=0:
 				sys.stderr.write("Error: moveFileIntoDBAffiliatedStorage() exits with %s code.\n"%(exitCode))
