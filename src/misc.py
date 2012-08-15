@@ -3283,6 +3283,112 @@ class VariantDiscovery(object):
 		sys.exit(0)
 		
 	"""
+	
+	@classmethod
+	def beautifyReplicateHaplotypeDistanceOutput(cls, db_vervet=None, inputFname=None, outputFname=None):
+		"""
+		2012.7.26
+			inputFname is one debug output of gatk.walkers.yh.MergeVCFReplicateHaplotypes.java
+			
+			1. add one 1st unique column: monkeyID_replicateIndex_contigID,
+			2. convert monkeyID to UCLAID
+			
+		"""
+		import csv
+		from pymodule import getColName2IndexFromHeader, figureOutDelimiter
+		delimiter = figureOutDelimiter(inputFname)
+		reader = csv.reader(open(inputFname), delimiter=delimiter)
+		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		header = reader.next()
+		colName2Index = getColName2IndexFromHeader(header)
+		
+		newHeader = ['rowID'] + header
+		writer.writerow(newHeader)
+		monkeyIDIndex = colName2Index.get('monkeyID')
+		
+		for row in reader:
+			read_group = row[monkeyIDIndex]
+			ucla_id = db_vervet.parseAlignmentReadGroup(read_group).individual_code
+			replicateIndex = row[colName2Index.get("replicateSampleIndex")]
+			contigID = row[colName2Index.get("chromosome")]
+			row[monkeyIDIndex] = ucla_id
+			row.insert(0, '%s_%s_%s'%(ucla_id, replicateIndex, contigID))
+			writer.writerow(row)
+		del reader, writer
+		"""
+		#2012.7.26
+		prefix = '/Network/Data/vervet/vervetPipeline/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.2012.725T0210/haplotypeDistance.merged'
+		inputFname='%s.tsv'%(prefix)
+		outputFname='%s.beautify.tsv'%(prefix)
+		VariantDiscovery.beautifyReplicateHaplotypeDistanceOutput(db_vervet=db_vervet, inputFname=inputFname, \
+			outputFname=outputFname)
+		sys.exit(0)
+		"""
+	
+	
+	@classmethod
+	def beautifyReplicateHaplotypeMajoritySupportOutput(cls, db_vervet=None, inputFname=None, outputFname=None):
+		"""
+		2012.7.26
+			inputFname is one debug output of gatk.walkers.yh.MergeVCFReplicateHaplotypes.java
+			
+			1. add one 1st unique column: monkeyID_haplotypeIndex_contigID_position,
+			2. convert monkeyID to UCLAID
+			3. calculate majority support percentage
+		"""
+		import csv
+		from pymodule import getColName2IndexFromHeader, figureOutDelimiter
+		delimiter = figureOutDelimiter(inputFname)
+		reader = csv.reader(open(inputFname), delimiter=delimiter)
+		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		header = reader.next()
+		colName2Index = getColName2IndexFromHeader(header)
+		
+		newHeader = ['rowID'] + header
+		monkeyIDIndex = colName2Index.get('monkeyID')
+		
+		base0PercentageIndex = colName2Index.get("count0")
+		base1PercentageIndex = colName2Index.get("count1")
+		newHeader.insert(base1PercentageIndex, 'majorityPercentage')
+		writer.writerow(newHeader)
+		x_ls = []
+		y_ls = []
+		C_ls = []
+		for row in reader:
+			read_group = row[monkeyIDIndex]
+			ucla_id = db_vervet.parseAlignmentReadGroupWithoutDB(read_group).individual_code
+			haplotypeIndex = row[colName2Index.get("haplotypeIndex")]
+			contigID = row[colName2Index.get("chromosome")]
+			position = row[colName2Index.get("position")]
+			base0Percentage = float(row[base0PercentageIndex])
+			base1Percentage = float(row[base1PercentageIndex])
+			replicateCount = int(row[colName2Index.get('replicateCount')])
+			
+			row[monkeyIDIndex] = ucla_id
+			row.insert(0, '%s_%s_%s_%s'%(ucla_id, haplotypeIndex, contigID, position))
+		
+			
+			majorityPercentage = max(base0Percentage, base1Percentage)
+			x_ls.append(replicateCount)
+			y_ls.append(majorityPercentage)
+			C_ls.append(1)
+			row.insert(base1PercentageIndex, majorityPercentage)
+			writer.writerow(row)
+		del reader, writer
+		
+		from pymodule import yh_matplotlib
+		yh_matplotlib.drawHexbin(x_ls, y_ls, C_ls, fig_fname='%s_2D_hist.png'%(os.path.splitext(outputFname)[0]), \
+								gridsize=10, title=None, xlabel='noOfReplicates', ylabel='majorityFraction',\
+			colorBarLabel=None, reduce_C_function=yh_matplotlib.logSum, dpi=300, mincnt=None, marginals=False, xscale='linear',\
+			scale='linear')
+		"""
+		#2012.7.26
+		prefix = '/Network/Data/vervet/vervetPipeline/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.2012.725T0210/Contig2802_1_55870_Contig1731_1_72833_Contig3687_1_29987.majoritySupport.merged'
+		inputFname='%s.tsv'%(prefix)
+		outputFname='%s.beautify.tsv'%(prefix)
+		beautifyReplicateHaplotypeMajoritySupportOutput(db_vervet=db_vervet, inputFname=inputFname, outputFname=outputFname)
+		sys.exit(0)
+		"""
 
 # 2011-4-29 a handy function to strip blanks around strings
 strip_func = lambda x: x.strip()
@@ -3509,22 +3615,26 @@ class DBVervet(object):
 	
 	
 	@classmethod
-	def putPedigreeIntoDB(cls, db_vervet, inputFname, monkeyIDPrefix="", \
+	def putPedigreeIntoDB(cls, db_vervet=None, inputFname=None, monkeyIDPrefix="", \
 						collector_name='Nelson B. Freimer', tax_id=60711, \
 						city='VRC', country_name='United States of America', latitude=36.090, longitude=-80.270,\
 						default_collection_date = '1970'):
 		"""
+		2012.1.23
+			add code to check whether a relationship is already in db or not
 		2011-4-27
 		"""
 		sys.stderr.write("Putting Pedigree monkeys (%s) into db ...\n"%(inputFname))
 		db_vervet.session.begin()
 		import csv, re
 		from datetime import datetime
-		from pymodule import PassingData
+		from pymodule import PassingData, utils
 		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
 		import VervetDB
 		
-		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
+		inf = utils.openGzipFile(inputFname)
+		delimiter = figureOutDelimiter(inf)
+		reader = csv.reader(inf, delimiter=delimiter)
 		header = reader.next()
 		
 		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
@@ -7572,6 +7682,36 @@ class Main(object):
 		#import MySQLdb
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
+		
+		#2012.8.14
+		inputFname = "/u/home/eeskin/sservice/Vervet/Expression/SolarPed.txt"	#supposedly similar to 
+		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
+		sys.exit(3)
+		
+		#2012.8.1
+		workflowName = 'VCFStat_LowPass_top7559Contigs_no12eVarFilter_inter_100kbwindow_2011.12.6T2342'
+		workflowName = 'VCFStat_Method8_L800000P4000000m1000000.2012.8.1T0331'
+		inputFname='/Network/Data/vervet/vervetPipeline/%s/AAC_tally.tsv'%(workflowName)
+		inputFname = '/usr/local/home_ubuntu/crocea/mnt/hoffman2/u/scratch/p/polyacti/pegasus/%s/11Contigs_AAC_tally.tsv'%(workflowName)
+		outputFnamePrefix = './AAC_distribution_of_11ContigsFromMethod8'
+		VariantDiscovery.drawAACHistogramFromAACFile(inputFname=inputFname, outputFnamePrefix=outputFnamePrefix, \
+				color_ls=['r', 'g', 'b', 'y','c', 'k'])
+		sys.exit(0)
+		
+		#2012.7.26
+		prefix = '/Network/Data/vervet/vervetPipeline/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.2012.725T0210/Contig2802_1_55870_Contig1731_1_72833_Contig3687_1_29987.majoritySupport.merged'
+		inputFname='%s.tsv'%(prefix)
+		outputFname='%s.beautify.tsv'%(prefix)
+		VariantDiscovery.beautifyReplicateHaplotypeMajoritySupportOutput(db_vervet=db_vervet, inputFname=inputFname, outputFname=outputFname)
+		sys.exit(0)
+		
+		#2012.7.26
+		prefix = '/Network/Data/vervet/vervetPipeline/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.2012.725T0210/sampleHaplotypeDistance'
+		inputFname='%s.csv'%(prefix)
+		outputFname='%s.beautify.tsv'%(prefix)
+		VariantDiscovery.beautifyReplicateHaplotypeDistanceOutput(db_vervet=db_vervet, inputFname=inputFname, \
+			outputFname=outputFname)
+		sys.exit(0)
 		
 		#2012.7.23
 		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'

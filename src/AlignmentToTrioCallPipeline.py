@@ -265,7 +265,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
 		return job
 	
-	def addGenotypeCallJobs(self, workflow=None, alignmentDataLs=None, refName2size=None, samtools=None, \
+	def addGenotypeCallJobs(self, workflow=None, alignmentDataLs=None, chr2size=None, samtools=None, \
 				genotyperJava=None, SelectVariantsJava=None, genomeAnalysisTKJar=None, \
 				addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
 				createSequenceDictionaryJava=None, createSequenceDictionaryJar=None, \
@@ -282,7 +282,8 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				needFastaIndexJob=False, needFastaDictJob=False, \
 				intervalSize=2000000, intervalOverlapSize=100000, site_type=1, dataDir=None, no_of_gatk_threads = 1, \
 				outputDirPrefix="", \
-				maxSNPMissingRate=None, alnStatForFilterF=None, onlyKeepBiAllelicSNP=True, **keywords):
+				maxSNPMissingRate=None, alnStatForFilterF=None, onlyKeepBiAllelicSNP=True, \
+				cumulativeMedianDepth=5000, **keywords):
 		"""
 		2012.6.12
 			add argument maxSNPMissingRate, alnStatForFilterF, onlyKeepBiAllelicSNP to filter SNPs after first round.
@@ -296,7 +297,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		2011-9-14
 			argument intervalSize determines how many sites gatk/samtools works on at a time
 		"""
-		sys.stderr.write("Adding genotype call jobs for %s chromosomes/contigs ..."%(len(refName2size)))
+		sys.stderr.write("Adding genotype call jobs for %s chromosomes/contigs ..."%(len(chr2size)))
 		job_max_memory = 2000	#in MB
 		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
 		vcf_job_max_memory = 1000
@@ -331,14 +332,14 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 					mv=mv, namespace=namespace, version=version, dataDir=dataDir)
 		
 		# add merge jobs for every reference
-		refName2mergedBamCallJob = {}
+		chr2mergedBamCallJob = {}
 		returnData = PassingData()
 		returnData.jobDataLs = []
-		for refName, refSize in refName2size.iteritems():
+		for chr, refSize in chr2size.iteritems():
 			no_of_intervals = max(1, int(math.ceil(refSize/float(intervalSize)))-1)
 			#reduce the number of chunks 1 below needed. last trunk to reach the end of contig
 			#however set it to 1 for contigs smaller than intervalSize 	
-			concatTrioCallerOutputFname = os.path.join(trioCallerOutputDirJob.folder, '%s.vcf'%refName)
+			concatTrioCallerOutputFname = os.path.join(trioCallerOutputDirJob.folder, '%s.vcf'%chr)
 			concatTrioCallerOutputF = File(concatTrioCallerOutputFname)
 			trioCallerWholeContigConcatJob = self.addLigateVcfJob(executable=ligateVcf, ligateVcfPerlPath=ligateVcfPerlPath, \
 										outputFile=concatTrioCallerOutputF, \
@@ -362,7 +363,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			#							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
 			
 			#2011-9-22 union of all 1st-rounding calling intervals for one contig
-			round1_VCFConcatOutputFname = os.path.join(round1CallDirJob.folder, '%s.vcf.gz'%refName)
+			round1_VCFConcatOutputFname = os.path.join(round1CallDirJob.folder, '%s.vcf.gz'%chr)
 			round1_VCFConcatOutputF = File(round1_VCFConcatOutputFname)
 			round1_VCFConcatJob = self.addVCFConcatJob(workflow, concatExecutable=concatGATK, parentDirJob=round1CallDirJob, \
 							outputF=round1_VCFConcatOutputF, namespace=namespace, version=version, transferOutput=True, \
@@ -382,10 +383,10 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				#to render adjacent intervals overlapping because trioCaller uses LD
 				stopPos = min(refSize, originalStopPos+intervalOverlapSize)
 				
-				nonOverlapInterval = "%s:%s-%s"%(refName, originalStartPos, originalStopPos)
-				interval = "%s:%s-%s"%(refName, startPos, stopPos)
-				nonOverlapVCFBaseFname = '%s_%s_%s'%(refName, originalStartPos, originalStopPos)
-				vcfBaseFname = '%s_%s_%s'%(refName, startPos, stopPos)
+				nonOverlapInterval = "%s:%s-%s"%(chr, originalStartPos, originalStopPos)
+				interval = "%s:%s-%s"%(chr, startPos, stopPos)
+				nonOverlapVCFBaseFname = '%s_%s_%s'%(chr, originalStartPos, originalStopPos)
+				vcfBaseFname = '%s_%s_%s'%(chr, startPos, stopPos)
 				
 				#1st-round genotype calling
 				round1CallOutputFname = os.path.join(round1CallDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
@@ -395,7 +396,8 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				preTrioCallerCallJob = self.addSAMtoolsCallJob(workflow, CallVariantBySamtools=CallVariantBySamtools, \
 					samtoolsOutputF=round1CallOutputF, indelVCFOutputF=indelVCFOutputF, \
 					refFastaFList=refFastaFList, parentJobLs=[round1CallDirJob], extraDependentInputLs=[], transferOutput=False, \
-					extraArguments=None, job_max_memory=vcf_job_max_memory, site_type=site_type, interval=interval)
+					extraArguments=None, job_max_memory=vcf_job_max_memory, site_type=site_type, interval=interval,\
+					maxDP=cumulativeMedianDepth*5)
 				
 				#2012.6.12 filter via depth
 				vcf1AfterDepthFilter = File(os.path.join(round1CallDirJob.folder, '%s.depthFiltered.vcf'%(vcfBaseFname)))
@@ -513,7 +515,6 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				memoryRequest = min(42000, max(4000, int(20000*(noOfAlignments/323.0)*(entireLength/2600000.0))) )
 					#extrapolates (20000Mb memory for a 323-sample + 2.6Mbase reference length/26K loci)
 					#upper bound is 42g. lower bound is 4g.
-					#the latter is almost worst case scenario. mostly far less than that.
 				mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(workflow, \
 									executable=workflow.MergeVCFReplicateHaplotypesJava,\
 									genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
@@ -626,15 +627,17 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		if not self.localDataDir:
 			self.localDataDir = db_vervet.data_dir
 		
-		refName2size = self.getTopNumberOfContigs(self.topNumberOfContigs, contigMinRankBySize=self.contigMinRankBySize)
-		#refName2size = set(['Contig149'])	#temporary when testing Contig149
-		#refName2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
-		refNameLs = refName2size.keys()
+		chr2size = self.getTopNumberOfContigs(self.topNumberOfContigs, contigMinRankBySize=self.contigMinRankBySize)
+		#chr2size = set(['Contig149'])	#temporary when testing Contig149
+		#chr2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
+		chrLs = chr2size.keys()
 		
 		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
 										aln_method_id=self.alignment_method_id, dataDir=self.localDataDir)
 		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
 												individual_site_id_set=set(self.site_id_ls))
+		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
+															defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
 		sampleID2FamilyCount = self.outputPedgreeOfAlignmentsInMerlinFormat(db_vervet, alignmentLs, self.pedigreeOutputFname)
 		
 		self.outputSampleID2FamilyCount(sampleID2FamilyCount, outputFname=self.sampleID2FamilyCountFname)
@@ -662,7 +665,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		
 		alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, dataDir=self.dataDir)
 		
-		self.addGenotypeCallJobs(workflow, alignmentDataLs, refName2size, samtools=workflow.samtools, \
+		self.addGenotypeCallJobs(workflow, alignmentDataLs, chr2size, samtools=workflow.samtools, \
 					genotyperJava=workflow.genotyperJava,  SelectVariantsJava=workflow.SelectVariantsJava, \
 					genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
 					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar, \
@@ -682,7 +685,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 					intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, \
 					site_type=self.site_type, dataDir=self.dataDir,\
 					onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, maxSNPMissingRate=self.maxSNPMissingRate,\
-					alnStatForFilterF=alnStatForFilterF)
+					alnStatForFilterF=alnStatForFilterF, cumulativeMedianDepth=cumulativeMedianDepth)
 		
 		
 		# Write the DAX to stdout

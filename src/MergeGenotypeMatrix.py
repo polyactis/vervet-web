@@ -8,7 +8,8 @@ Examples:
 	
 Description:
 	2011-7-12
-		This program merges any file with a header into one with one header.
+		This program merges all files with the same header into one while retaining the header.
+	2012.7.31 the input file could be gzipped as well.
 
 """
 import sys, os, math
@@ -51,9 +52,14 @@ class MergeGenotypeMatrix(object):
 		for inputFname in self.inputFnameLs:
 			if not os.path.isfile(inputFname):
 				continue
-			inf = open(inputFname)
+			suffix = os.path.splitext(inputFname)[1]
+			if suffix=='.gz':
+				import gzip
+				inf = gzip.open(inputFname, 'r')
+			else:
+				inf = open(inputFname, 'r')
 			if self.noHeader==0:	#in the case that every input has a common header
-				if header is None:
+				if not header:	#2012.7.26 bugfix: empty file will return an empty string, which "is not None". 
 					try:
 						header = inf.readline()
 						outf.write(header)

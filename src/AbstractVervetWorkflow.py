@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 2012.6.12
-	a NGS-workflow that derives from AbstractNGSWorkflow and specific for vervet repository
+	a NGS-workflow that derives from AbstractVCFWorkflow and specific for vervet repository
 """
 import sys, os, math
 
@@ -10,13 +10,13 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq
 from Pegasus.DAX3 import *
-from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
+from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 import VervetDB
 
-class AbstractVervetWorkflow(AbstractNGSWorkflow):
+class AbstractVervetWorkflow(AbstractVCFWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
-	option_default_dict.update(AbstractNGSWorkflow.db_option_dict)
+	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict.update(AbstractVCFWorkflow.db_option_dict)
 	
 	option_default_dict.update({
 						})
@@ -26,7 +26,7 @@ class AbstractVervetWorkflow(AbstractNGSWorkflow):
 		"""
 		2012.6.12
 		"""
-		AbstractNGSWorkflow.__init__(self, **keywords)
+		AbstractVCFWorkflow.__init__(self, **keywords)
 	
 	def outputAlignmentDepthAndOthersForFilter(self, db_vervet=None, outputFname=None, ref_ind_seq_id=524, \
 											foldChange=2, minGQ=30):

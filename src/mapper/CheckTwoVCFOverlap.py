@@ -6,6 +6,7 @@ Examples:
 	%s -i gatk/Contig799.vcf.gz -j samtools/Contig799.vcf.gz -l 1000000 -c Contig799 -o /tmp/output
 
 Description:
+	2012.7.29 add option perSampleMismatchFraction, default=0, which skips per-sample mismatch fraction caculation.
 	2011-11-7
 """
 
@@ -31,6 +32,7 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 	option_default_dict = AbstractVCFMapper.option_default_dict.copy()
 	option_default_dict.update({
 						('jnputFname', 1, ): ['', 'j', 1, '2nd VCF input file. either plain vcf or gzipped is ok. could be unsorted.', ],\
+						('perSampleMismatchFraction', 0, ): [0, 'p', 0, 'whether calculating per-sample mismatch fraction or not.', ],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
@@ -112,46 +114,52 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 			normalizingConstant = 1
 		noOfSegregatesSitesNormalized = no_of_overlapping_sites/(normalizingConstant*self.chrLength)
 		
-		sys.stderr.write("Finding matches for each sample at overlapping sites ...")
-		no_of_samples_to_compare = len(overlapping_sample_id_set)
+		if self.perSampleMismatchFraction:
+			sys.stderr.write("Finding matches for each sample at overlapping sites ...")
+			no_of_samples_to_compare = len(overlapping_sample_id_set)
+			
+			header_ls_for_no_of_matches = []
+			header_ls_for_no_of_non_NA_pairs = []
+			header_ls_for_matchFraction = []
+			overlapping_sample_id_list = list(overlapping_sample_id_set)
+			overlapping_sample_id_list.sort()
+			for sample_id in overlapping_sample_id_list:
+				header_ls_for_no_of_matches.append('no_of_matches_for_%s'%(sample_id))
+				header_ls_for_no_of_non_NA_pairs.append('no_of_non_NA_pairs_for_%s'%(sample_id))
+				header_ls_for_matchFraction.append('matchFraction_for_%s'%(sample_id))
+			
+			header = header + header_ls_for_no_of_matches + header_ls_for_no_of_non_NA_pairs + header_ls_for_matchFraction
+			no_of_matches_per_sample_ls = [0]*no_of_samples_to_compare
+			no_of_non_NA_pairs_per_sample_ls = [0]*no_of_samples_to_compare
+			
+			for locus_id in overlapping_sites_set:
+				row_index1 = vcfFile1.locus_id2row_index[locus_id]
+				row_index2 = vcfFile2.locus_id2row_index[locus_id]
+				for j in xrange(len(overlapping_sample_id_list)):
+					sample_id = overlapping_sample_id_list[j]
+					col_index1 = vcfFile1.sample_id2index.get(sample_id)
+					col_index2 = vcfFile2.sample_id2index.get(sample_id)
+					#2012.1.17 bugfix below. so that 'AG' and 'GA' are same.
+					call1 = SNP.nt2number[vcfFile1.genotype_call_matrix[row_index1][col_index1]]
+					call2 = SNP.nt2number[vcfFile2.genotype_call_matrix[row_index2][col_index2]]
+					if call1!=0 and call2!=0:
+						no_of_non_NA_pairs_per_sample_ls[j] += 1
+						if call1==call2:
+							no_of_matches_per_sample_ls[j] += 1
+						else:
+							#do nothing
+							pass
+			matchFractionLs = [-1]*no_of_samples_to_compare
+			for j in xrange(no_of_samples_to_compare):
+				if no_of_non_NA_pairs_per_sample_ls[j]>0:
+					matchFractionLs[j] = no_of_matches_per_sample_ls[j]/float(no_of_non_NA_pairs_per_sample_ls[j])
+			sys.stderr.write("Done.\n")
+		else:
+			no_of_matches_per_sample_ls = []
+			no_of_non_NA_pairs_per_sample_ls = []
+			matchFractionLs = []
 		
-		header_ls_for_no_of_matches = []
-		header_ls_for_no_of_non_NA_pairs = []
-		header_ls_for_matchFraction = []
-		overlapping_sample_id_list = list(overlapping_sample_id_set)
-		overlapping_sample_id_list.sort()
-		for sample_id in overlapping_sample_id_list:
-			header_ls_for_no_of_matches.append('no_of_matches_for_%s'%(sample_id))
-			header_ls_for_no_of_non_NA_pairs.append('no_of_non_NA_pairs_for_%s'%(sample_id))
-			header_ls_for_matchFraction.append('matchFraction_for_%s'%(sample_id))
-		writer.writerow(header + header_ls_for_no_of_matches + header_ls_for_no_of_non_NA_pairs + header_ls_for_matchFraction)
-		
-		no_of_matches_per_sample_ls = [0]*no_of_samples_to_compare
-		no_of_non_NA_pairs_per_sample_ls = [0]*no_of_samples_to_compare
-		
-		for locus_id in overlapping_sites_set:
-			row_index1 = vcfFile1.locus_id2row_index[locus_id]
-			row_index2 = vcfFile2.locus_id2row_index[locus_id]
-			for j in xrange(len(overlapping_sample_id_list)):
-				sample_id = overlapping_sample_id_list[j]
-				col_index1 = vcfFile1.sample_id2index.get(sample_id)
-				col_index2 = vcfFile2.sample_id2index.get(sample_id)
-				#2012.1.17 bugfix below. so that 'AG' and 'GA' are same.
-				call1 = SNP.nt2number[vcfFile1.genotype_call_matrix[row_index1][col_index1]]
-				call2 = SNP.nt2number[vcfFile2.genotype_call_matrix[row_index2][col_index2]]
-				if call1!=0 and call2!=0:
-					no_of_non_NA_pairs_per_sample_ls[j] += 1
-					if call1==call2:
-						no_of_matches_per_sample_ls[j] += 1
-					else:
-						#do nothing
-						pass
-		matchFractionLs = [-1]*no_of_samples_to_compare
-		for j in xrange(no_of_samples_to_compare):
-			if no_of_non_NA_pairs_per_sample_ls[j]>0:
-				matchFractionLs[j] = no_of_matches_per_sample_ls[j]/float(no_of_non_NA_pairs_per_sample_ls[j])
-		sys.stderr.write("Done.\n")
-		
+		writer.writerow(header)
 		"""
 		#reformat for output
 		no_of_matches_per_sample_ls = map(repr, no_of_matches_per_sample_ls)
@@ -162,6 +170,7 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 						overlapping_fraction, overlappingOverInput1, overlappingOverInput2, \
 						noOfSegregatesSitesNormalized] + no_of_matches_per_sample_ls + \
 						no_of_non_NA_pairs_per_sample_ls + matchFractionLs)
+		del writer
 
 if __name__ == '__main__':
 	main_class = CheckTwoVCFOverlap

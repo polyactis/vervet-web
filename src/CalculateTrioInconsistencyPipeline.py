@@ -10,10 +10,11 @@ Examples:
 		-o TrioInconsistency92VRC_20110922T2216.xml -l condorpool -j condorpool  -u yh -z uclaOffice -m 0
 	
 	# 2011.12.16 run on hoffman2 condor (site depth >=1, -m 1)  (turn on checkEmptyVCFByReading, -E)
+	# only contig ID<=100 (-x)
 	%s -a 524 -I AlignmentToTrioCallPipeline_VRC_Aln559_600_Trio620_632_648_top2Contigs.2011.12.14T1432/trioCaller/
 		-o TrioInconsistency_TrioCall_VRC_Aln559_600_Trio620_632_648_top2Contigs.xml -l hcondor -j hcondor  -u yh -z localhost
-		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/  -C 1 -E -m 1
+		-e /u/home/eeskin/polyacti/ -t ~/NetworkData/vervet/db/
+		-D ~/NetworkData/vervet/db/  -C 1 -E -m 1 -x 100
 	
 	
 Description:
@@ -50,7 +51,8 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 	__doc__ = __doc__
 	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
 	option_default_dict.update({
-						('addTrioContigSpecificPlotJobs', 0, ): [0, '', 0, 'whether to add mendelian-inconsistency plotting jobs for each trio and each contig', ],\
+						('addTrioContigSpecificPlotJobs', 0, ): [0, 'n', 0, 'whether to add mendelian-inconsistency plotting jobs for each trio and each contig', ],\
+						('addTrioSpecificPlotJobs', 0, ): [0, 'T', 0, 'whether to add mendelian-inconsistency plotting jobs for each trio', ],\
 						('inputDir', 0, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						('maxContigID', 1, int): [1000, 'x', 1, 'if contig ID is beyond this number, it will not be included', ],\
 						})
@@ -269,7 +271,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		
 		CalculateTrioInconsistency = Executable(namespace=namespace, name="CalculateTrioInconsistency", version=version, \
 										os=operatingSystem, arch=architecture, installed=True)
-		CalculateTrioInconsistency.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "CalculateTrioInconsistency.py"), site_handler))
+		CalculateTrioInconsistency.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/CalculateTrioInconsistency.py"), site_handler))
 		CalculateTrioInconsistency.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(CalculateTrioInconsistency)
 		workflow.CalculateTrioInconsistency = CalculateTrioInconsistency
@@ -361,58 +363,66 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 			trioReprInFilename = trio.replace(",", "_")
 			trioDir = "%strio_%s"%(outputDirPrefix, trioReprInFilename)
 			trioDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=trioDir)
+			no_of_jobs += 1
 			
-			homoOnlyDir = os.path.join(trioDir, "homoOnly")
-			homoOnlyDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=homoOnlyDir)
-			workflow.depends(parent=trioDirJob, child=homoOnlyDirJob)
+			#homoOnlyDir = os.path.join(trioDir, "homoOnly")
+			#homoOnlyDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=homoOnlyDir)
+			#workflow.depends(parent=trioDirJob, child=homoOnlyDirJob)
 			
 			allSitesDir = os.path.join(trioDir, "homoHet")
 			allSitesDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=allSitesDir)
 			workflow.depends(parent=trioDirJob, child=allSitesDirJob)
+			no_of_jobs += 1
 			
-			depthOutputDir = os.path.join(trioDir, "depth")
-			depthOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=depthOutputDir)
+			#depthOutputDir = os.path.join(trioDir, "depth")
+			#depthOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=depthOutputDir)
+			#no_of_jobs += 1
 			
-			positionOutputDir = os.path.join(trioDir, "position")
-			positionOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=positionOutputDir)
+			if addTrioContigSpecificPlotJobs:
+				positionOutputDir = os.path.join(trioDir, "position")
+				positionOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=positionOutputDir)
+				no_of_jobs += 1
 			
 			# no space in a single argument
 			title = "trio-%s-%s-contigs"%(trio, len(inputData.jobDataLs))
 			if addTrioSpecificPlotJobs:
+				"""
+				#2012.8.1 no more homo-site only jobs
+				
 				outputFname = os.path.join(topOutputDir, '%s_inconsistency_summary_hist_homo_only.png'%(trioReprInFilename))
 				summaryHomoOnlyPlotJob = self.addPlotJob(workflow, PlotExecutable=workflow.PlotTrioInconsistencySummaryHist, \
 							outputFname=outputFname, outputFnameToRegisterLs=[outputFname], \
 							parentJobLs=[topOutputDirJob],\
 							title=title)
-				
+				"""
 				outputFname = os.path.join(topOutputDir, '%s_inconsistency_summary_hist_homo_het.png'%(trioReprInFilename))
 				summaryAllSitesPlotJob = self.addPlotJob(workflow, PlotExecutable=workflow.PlotTrioInconsistencySummaryHist, \
 							outputFname=outputFname, outputFnameToRegisterLs=[outputFname], \
 							parentJobLs=[topOutputDirJob],\
 							title=title)
-				
+				"""
 				outputFname = os.path.join(topOutputDir, '%s_inconsistency_over_position_homo_only.png'%(trioReprInFilename))
 				inconsistencyOverPositionHomoOnlyJob = self.addPlotJob(workflow, PlotExecutable=workflow.PlotTrioInconsistencyOverPosition, \
 							outputFname=outputFname, outputFnameToRegisterLs=[outputFname], \
 							parentJobLs=[topOutputDirJob],\
 							title=title)
-				
+				"""
 				outputFname = os.path.join(topOutputDir, '%s_inconsistency_over_position_homo_het.png'%(trioReprInFilename))
 				inconsistencyOverPositionAllSitesJob = self.addPlotJob(workflow, PlotExecutable=workflow.PlotTrioInconsistencyOverPosition, \
 							outputFname=outputFname, outputFnameToRegisterLs=[outputFname], parentJobLs=[topOutputDirJob],\
 							title=title)
-				
+				"""
 				outputFname = os.path.join(topOutputDir, '%s_inconsistency_over_frequency_homo_only.png'%(trioReprInFilename))
 				inconsistencyOverFrequencyHomoOnlyJob = self.addPlotJob(workflow, PlotExecutable=workflow.PlotTrioInconsistencyOverFrequency, \
 							outputFname=outputFname, outputFnameToRegisterLs=[outputFname], parentJobLs=[topOutputDirJob],\
 							title=title)
-				
+				"""
 				outputFname = os.path.join(topOutputDir, '%s_inconsistency_over_frequency_homo_het.png'%(trioReprInFilename))
 				inconsistencyOverFrequencyAllSitesJob = self.addPlotJob(workflow, PlotExecutable=workflow.PlotTrioInconsistencyOverFrequency, \
 							outputFname=outputFname, outputFnameToRegisterLs=[outputFname], \
 							parentJobLs=[topOutputDirJob],\
 							title=title)
-				
+				no_of_jobs += 3
 				"""
 				outputFnamePrefix = '%s_homo_only_inconsistency_over'%(trioReprInFilename)
 				fa_mo_depth_Fname = '%s_fa_mo_depth.png'%(outputFnamePrefix)
@@ -441,7 +451,6 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 							namespace=namespace, version=version, parentJob=trioDirJob,\
 							title=title)
 				"""
-			no_of_jobs += 10
 			for jobData in inputData.jobDataLs:
 				inputF = jobData.vcfFile
 				contig_id = self.getContigIDFromFname(inputF.name)
@@ -458,6 +467,8 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 				
 				windowSize = 200000
 				calculateTrioInconsistencyCommonArgumentLs = ["-t", trio, "-w", repr(windowSize)]
+				"""
+				#2012.8.1 no more homo-site only jobs
 				
 				outputFnamePrefix  = os.path.join(homoOnlyDir, '%s.inconsistency.homoOnly'%(os.path.basename(inputF.name)))
 				trioInconsistencyCaculationHomoOnlyJob = self.addTrioInconsistencyCalculationJob(workflow, \
@@ -465,7 +476,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 							inputF=inputF, outputFnamePrefix=outputFnamePrefix, \
 							parentJobLs=[homoOnlyDirJob] + jobData.jobLs, additionalArgumentLs=calculateTrioInconsistencyCommonArgumentLs + ['-m'], \
 							windowSize=windowSize, minDepth=self.minDepth)	#homoOnly
-				
+				"""
 				outputFnamePrefix  = os.path.join(allSitesDir, '%s.inconsistency.homoHet'%(os.path.basename(inputF.name)))
 				trioInconsistencyCaculationAllSitesJob = self.addTrioInconsistencyCalculationJob(workflow, \
 							executable=workflow.CalculateTrioInconsistency, \
@@ -477,8 +488,11 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 				self.addInputToStatMergeJob(workflow, statMergeJob=trioInconsistencyByContigSummaryMergeJob, \
 								inputF=trioInconsistencyCaculationAllSitesJob.summaryOutputF, \
 								parentJobLs=[trioInconsistencyCaculationAllSitesJob])
+				no_of_jobs += 1
 				
 				if addTrioSpecificPlotJobs:
+					"""
+					#2012.8.1 no more homo-site only jobs
 					self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationHomoOnlyJob, \
 									parentOutputF=trioInconsistencyCaculationHomoOnlyJob.summaryOutputF, \
 									plotJob=summaryHomoOnlyPlotJob)
@@ -488,6 +502,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 					self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationHomoOnlyJob, \
 									parentOutputF=trioInconsistencyCaculationHomoOnlyJob.frequencyOutputF, \
 									plotJob=inconsistencyOverFrequencyHomoOnlyJob)
+					"""
 					"""
 					self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationHomoOnlyJob, \
 									parentOutputF=trioInconsistencyCaculationHomoOnlyJob.depthOutputF, \
@@ -510,6 +525,8 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 				
 				if addTrioContigSpecificPlotJobs:
 					newTitle = "trio-%s-contig-%s"%(trio, contig_id)
+					"""
+					#2012.8.1 no more homo-site only jobs
 					outputFname = os.path.join(positionOutputDir, '%s_contig_%s_inconsistency_over_position_homo_only.png'%(trioDir, contig_id))
 					contigInconsistencyOverPositionHomoOnlyJob = self.addPlotJob(workflow, PlotExecutable=workflow.PlotTrioInconsistencyOverPosition, \
 								outputFname=outputFname, outputFnameToRegisterLs=[outputFname], \
@@ -517,7 +534,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 					self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationHomoOnlyJob, \
 									parentOutputF=trioInconsistencyCaculationHomoOnlyJob.windowOutputF, \
 									plotJob=contigInconsistencyOverPositionHomoOnlyJob)
-					
+					"""
 					outputFname = os.path.join(positionOutputDir, '%s_contig_%s_inconsistency_over_position_homo_het.png'%(trioDir, contig_id))
 					contigInconsistencyOverPositionAllSitesJob = self.addPlotJob(workflow, PlotExecutable=workflow.PlotTrioInconsistencyOverPosition, \
 								outputFname=outputFname, outputFnameToRegisterLs=[outputFname], \
@@ -525,7 +542,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 					self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationAllSitesJob, \
 									parentOutputF=trioInconsistencyCaculationAllSitesJob.windowOutputF, \
 									plotJob=contigInconsistencyOverPositionAllSitesJob)
-				
+					no_of_jobs += 1
 					"""
 					outputFnamePrefix = os.path.join(depthOutputDir, '%s_contig_%s_homo_only_inconsistency_over'%(trioDir, contig_id))
 					fa_mo_depth_Fname = '%s_fa_mo_depth.png'%(outputFnamePrefix)
@@ -559,7 +576,6 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 									parentOutputF=trioInconsistencyCaculationAllSitesJob.depthOutputF, \
 									plotJob=contigInconsistencyOverDepthAllSitesJob)
 					"""
-				no_of_jobs += 2
 		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
 		
 		sys.stderr.write(" \t %s contig trio inconsistency calculation jobs are to be reduced ..."%(len(contig_id2trioInconsistencyJobLs)))
@@ -626,7 +642,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		inputData = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler, \
 											checkEmptyVCFByReading=self.checkEmptyVCFByReading)
 		
-		self.addJobs(workflow, inputData, db_vervet=db_vervet, addTrioSpecificPlotJobs=True, \
+		self.addJobs(workflow, inputData, db_vervet=db_vervet, addTrioSpecificPlotJobs=self.addTrioSpecificPlotJobs, \
 					addTrioContigSpecificPlotJobs=self.addTrioContigSpecificPlotJobs)
 		
 		# Write the DAX to stdout

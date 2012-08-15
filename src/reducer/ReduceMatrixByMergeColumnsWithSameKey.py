@@ -27,6 +27,7 @@ class ReduceMatrixByMergeColumnsWithSameKey(object):
 	__doc__ = __doc__
 	option_default_dict = {('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
 						("keyColumnLs", 1, ): [0, 'k', 1, 'rows are keyed by these column(s). comma/dash-separated. i.e. 0-2,4 '],\
+						('noHeader', 0, int): [0, 'n', 0, 'all input has no header'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
 
@@ -66,19 +67,24 @@ class ReduceMatrixByMergeColumnsWithSameKey(object):
 		key = tuple(keyLs)
 		return key
 	
-	def outputFinalData(self, outputFname, key2dataLs, delimiter, header=None):
+	def outputFinalData(self, outputFname, key2dataLs, delimiter=None, header=None):
 		"""
+		2012.7.30
+			open the outputFname regardless whether there is data or not.
 		2012.1.9
 		"""
+		outf = open(outputFname, 'w')
 		if key2dataLs and delimiter and header:
-			writer = csv.writer(open(outputFname, 'w'), delimiter=delimiter)
-			writer.writerow(header)
+			writer = csv.writer(outf, delimiter=delimiter)
+			if header:
+				writer.writerow(header)
 			keyLs = key2dataLs.keys()
 			keyLs.sort()
 			for key in keyLs:
 				dataLs = key2dataLs.get(key)
 				writer.writerow(list(key) + dataLs)
 			del writer
+		outf.close()
 	
 	def handleNewHeader(self, oldHeader, newHeader, keyColumnLs, valueColumnLs, keyColumnSet=None):
 		"""
@@ -108,6 +114,7 @@ class ReduceMatrixByMergeColumnsWithSameKey(object):
 
 	def traverse(self):
 		"""
+		self.noHeader:	#2012.8.10
 		2012.1.9
 		"""
 		newHeader = []
@@ -119,10 +126,11 @@ class ReduceMatrixByMergeColumnsWithSameKey(object):
 				continue
 			reader = None
 			try:
-				delimiter = figureOutDelimiter(inputFname)
+				inputFile = utils.openGzipFile(inputFname)
+				delimiter = figureOutDelimiter(inputFile)
 				if not delimiter:
 					delimiter='\t'
-				reader = csv.reader(open(inputFname), delimiter=delimiter)
+				reader = csv.reader(inputFile, delimiter=delimiter)
 			except:
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 				import traceback
@@ -132,6 +140,9 @@ class ReduceMatrixByMergeColumnsWithSameKey(object):
 			try:
 				header = reader.next()
 				self.handleNewHeader(header, newHeader, self.keyColumnLs, valueColumnLs, keyColumnSet=self.keyColumnSet)
+				if self.noHeader:	#2012.8.10
+					inputFile.seek(0)
+					reader = csv.reader(inputFile, delimiter=delimiter)
 			except:	#in case something wrong (i.e. file is empty)
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 				import traceback
@@ -157,6 +168,8 @@ class ReduceMatrixByMergeColumnsWithSameKey(object):
 					for i in valueColumnLs:
 						key2dataLs[key].append('')
 			noOfDataColumnsFromPriorFiles += len(valueColumnLs)
+		if self.noHeader:	#2012.8.10
+			newHeader = None
 		returnData = PassingData(key2dataLs=key2dataLs, delimiter=delimiter, header=newHeader)
 		return returnData
 	

@@ -3,26 +3,29 @@
 Examples:
 	#2012.5.11 
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/ 
-		-o workflow/SampleIDInUCLAID_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
+		-o workflow/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
 		-s ... -u yh -l hcondor -j hcondor  -z localhost 
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
-	# 2012.5.10 run on hoffman2 condor, (turn on checkEmptyVCFByReading, -E)
+	# 2012.5.10 run on hoffman2 condor, turn on checkEmptyVCFByReading (-E), require db connection (-H), no clustering (-C1)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/
-		-o workflow/SubsetTo36RNASamplesAndPlink_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
-		-s ... -E
+		-o workflow/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
+		-s ... -E -H -C1
 		-l hcondor -j hcondor  -u yh -z localhost 
-		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		-e /u/home/eeskin/polyacti/ 
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 	
 	# 2012.7.16 add a folder of VCF files to DB without checking zero-loci VCF
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719/trioCaller_vcftoolsFilter/ 
-		-o workflow/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
+		-o workflow/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
 		-s ... -l condorpool -j condorpool
-		-u yh -z uclaOffice
+		-u yh -z uclaOffice -C1
 	
 Description:
 	#2012.5.9
+		the usual -c (commit) is not here. All DB jobs are run with commit=True.
+	2012.8.3 if such a workflow with clustering on (several AddVCFFolder2DB jobs crammed into one) fails halfway,
+		you can safely re-run it. Already-imported files would be checked and not be imported again (MD5SUM).
 """
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
@@ -103,7 +106,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 	
 	
 	def addAddGenotypeMethod2DBJob(self, executable=None, inputFile=None, genotypeMethodShortName=None,\
-								logFile=None, commit=False, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+								logFile=None, dataDir=None, commit=False, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
 								extraArguments=None, job_max_memory=2000, **keywords):
 		"""
 		2012.6.27
@@ -111,6 +114,8 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		extraArgumentList = ['-s', genotypeMethodShortName]
 		if logFile:
 			extraArgumentList.extend(["-l", logFile])
+		if dataDir:
+			extraArgumentList.extend(['-t', dataDir])
 		if commit:
 			extraArgumentList.append('-c')
 		if extraArguments:
@@ -120,7 +125,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
 						extraOutputLs=[logFile],\
 						transferOutput=transferOutput, \
-						extraArgumentList=extraArgumentList, job_max_memory=job_max_memory)
+						extraArgumentList=extraArgumentList, job_max_memory=job_max_memory, **keywords)
 		self.addDBArgumentsToOneJob(job=job, objectWithDBArguments=self)
 		return job
 	
@@ -149,12 +154,12 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
 						extraOutputLs=[logFile],\
 						transferOutput=transferOutput, \
-						extraArgumentList=extraArgumentList, job_max_memory=job_max_memory)
+						extraArgumentList=extraArgumentList, job_max_memory=job_max_memory, **keywords)
 		self.addDBArgumentsToOneJob(job=job, objectWithDBArguments=self)
 		return job
 	
 	def addUpdateGenotypeMethodNoOfLociJob(self, executable=None, genotypeMethodShortName=None, genotypeMethodID=None,\
-								logFile=None, commit=False, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+								logFile=None, dataDir=None, commit=False, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
 								extraArguments=None, job_max_memory=2000, **keywords):
 		"""
 		2012.6.27
@@ -162,6 +167,8 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		extraArgumentList = []
 		if logFile:
 			extraArgumentList.extend(["-l", logFile])
+		if dataDir:
+			extraArgumentList.extend(['-t', dataDir])
 		if commit:
 			extraArgumentList.append('-c')
 		if genotypeMethodShortName:
@@ -175,13 +182,13 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
 						extraOutputLs=[logFile],\
 						transferOutput=transferOutput, \
-						extraArgumentList=extraArgumentList, job_max_memory=job_max_memory)
+						extraArgumentList=extraArgumentList, job_max_memory=job_max_memory, **keywords)
 		self.addDBArgumentsToOneJob(job=job, objectWithDBArguments=self)
 		return job
 	
 	def addJobs(self, workflow=None, inputData=None, db_vervet=None, genotypeMethodShortName=None, commit=None,\
 			dataDir=None, checkEmptyVCFByReading=False, transferOutput=True,\
-			maxContigID=None, outputDirPrefix=""):
+			maxContigID=None, outputDirPrefix="", needSSHDBTunnel=False):
 		"""
 		2012.5.9
 		"""
@@ -196,14 +203,14 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		firstVCFFile = inputData.jobDataLs[0].vcfFile
 		addGM2DBJob = self.addAddGenotypeMethod2DBJob(executable=self.AddGenotypeMethod2DB, inputFile=firstVCFFile, \
 												genotypeMethodShortName=genotypeMethodShortName,\
-								logFile=None, commit=commit, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
-								extraArguments=None, job_max_memory=10)
+								logFile=None, dataDir=dataDir, commit=commit, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+								extraArguments=None, job_max_memory=10, sshDBTunnel=needSSHDBTunnel)
 		updateGMlogFile = File(os.path.join(topOutputDir, 'updateGM.log'))
 		updateGMNoOfLociJob = self.addUpdateGenotypeMethodNoOfLociJob(executable=self.UpdateGenotypeMethodNoOfLoci, \
 																	genotypeMethodShortName=genotypeMethodShortName,\
-								logFile=updateGMlogFile, commit=commit, parentJobLs=[topOutputDirJob], \
+								logFile=updateGMlogFile, dataDir=dataDir, commit=commit, parentJobLs=[topOutputDirJob], \
 								extraDependentInputLs=[], transferOutput=True, \
-								extraArguments=None, job_max_memory=20)
+								extraArguments=None, job_max_memory=20, sshDBTunnel=needSSHDBTunnel)
 		
 		no_of_jobs += 2
 		returnData = PassingData()
@@ -223,7 +230,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 			addVCFJob = self.addAddVCFFile2DBJob(executable=self.AddVCFFile2DB, inputFile=inputF, genotypeMethodShortName=genotypeMethodShortName,\
 						logFile=None, format="VCF", dataDir=dataDir, checkEmptyVCFByReading=checkEmptyVCFByReading, commit=commit, \
 						parentJobLs=[addGM2DBJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=True, \
-						extraArguments=None, job_max_memory=1000)
+						extraArguments=None, job_max_memory=1000, sshDBTunnel=needSSHDBTunnel)
 			workflow.depends(parent=addVCFJob, child=updateGMNoOfLociJob)
 			no_of_jobs += 1
 		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
@@ -264,7 +271,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 			self.addJobs(workflow=workflow, inputData=inputData, db_vervet=db_vervet, genotypeMethodShortName=self.genotypeMethodShortName, \
 						commit=True,\
 						dataDir=self.dataDir, checkEmptyVCFByReading=self.checkEmptyVCFByReading, transferOutput=True,\
-						maxContigID=self.maxContigID, outputDirPrefix="")
+						maxContigID=self.maxContigID, outputDirPrefix="", needSSHDBTunnel=self.needSSHDBTunnel)
 		else:
 			sys.stderr.write("run_type %s not supported.\n"%(self.run_type))
 			sys.exit(0)

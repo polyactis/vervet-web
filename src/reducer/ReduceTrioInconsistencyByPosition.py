@@ -26,7 +26,7 @@ else:   #32bit
 import matplotlib; matplotlib.use("Agg")	#to disable pop-up requirement
 
 import csv
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2IndexFromHeader, figureOutDelimiter
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2IndexFromHeader, figureOutDelimiter, utils
 
 
 class ReduceTrioInconsistencyByPosition(object):
@@ -65,7 +65,9 @@ class ReduceTrioInconsistencyByPosition(object):
 			posIndex = None
 			isInconsistentIndex = None
 			try:
-				reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+				inputFile = utils.openGzipFile(inputFname)
+				delimiter = figureOutDelimiter(inputFile)
+				reader = csv.reader(inputFile, delimiter=delimiter)
 				header = reader.next()
 				col_name2index = getColName2IndexFromHeader(header)
 				
