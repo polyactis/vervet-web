@@ -17,14 +17,22 @@ create or replace view view_alignment as select i.id as individual_id, i.code, i
     order by individual_id, isq.sequencer, isq.sequence_type, ref_ind_seq_id, alignment_id;
     
 drop view view_individual_sequence;
-create or replace view view_individual_sequence as select newt.*, t.short_name as tissue 
-    from ( select isq.id as individual_sequence_id, isq.sequencer, 
+create or replace view view_individual_sequence as select ntt.*, t2.batch_id_list, t2.coverage_list
+    from (select newt.*, t.short_name as tissue  from ( select isq.id as individual_sequence_id, isq.sequencer, 
     isq.sequence_type, isq.format, i.target_coverage, isq.coverage, isq.path, isq.filtered, isq.quality_score_format, isq.tissue_id, 
     i.id as individual_id, i.code, i.name, i.ucla_id, i.tax_id, i.sex, i.age, i.age_cas, 
     i.approx_age_group_at_collection, i.collection_date, i.latitude, 
     i.longitude, s.id as site_id, s.short_name as site_name, s.city, c.name as country, isq.date_created, isq.date_updated
-    from individual i, individual_sequence isq, site s, country c where i.site_id=s.id and i.id=isq.individual_id and s.country_id=c.id) 
-    as newt left join tissue t on t.id=newt.tissue_id order by code;
+    from individual i, individual_sequence isq, site s, country c 
+    where i.site_id=s.id and i.id=isq.individual_id and s.country_id=c.id) 
+    as newt left join tissue t on t.id=newt.tissue_id) as ntt, 
+    (select i.id as individual_id, string_agg(cast(b.sequence_batch_id as text),',' order by sequence_batch_id) as batch_id_list,
+       string_agg(cast(b.coverage as text),',' order by coverage) as coverage_list 
+       from individual i left join 
+         (select ib.individual_id, ib.sequence_batch_id, b.coverage from individual2batch ib, sequence_batch b where ib.sequence_batch_id=b.id) as b
+         on i.id=b.individual_id group by i.id) as t2
+    where ntt.individual_id=t2.individual_id
+    order by code ;
 
 drop view view_individual_sequence_with_raw;
 create or replace view view_individual_sequence_with_raw as select v.*, isqr.id as isqr_id, isqr.library, 
@@ -66,11 +74,11 @@ create or replace view view_compare_seq_coverage as select i1.individual_id, i1.
     on i1.parent_individual_sequence_id=i2.id order by ratio;
 
 drop view view_sequence_before_after_filter;
-create or replace view view_sequence_before_after_filter as select i.code, i.ucla_id, t1.*
+create or replace view view_sequence_before_after_filter as select t2.*, visq.batch_id_list, visq.coverage_list from (select i.code, i.ucla_id, t1.*
     from (select s2.individual_id, s1.id as isq_id, s1.coverage, s1.tissue_id, s1.date_created, s2.id as unfilter_isq_id, s2.coverage as unfilter_coverage, 
     float8(s1.base_count)/s2.base_count as ratio, s2.date_created as unfilter_date_created from (select * from individual_sequence where filtered =1) as s1 right join 
     (select * from individual_sequence where filtered =0) as s2 on s1.parent_individual_sequence_id=s2.id) as t1,
-    individual i where i.id=t1.individual_id;
+    individual i where i.id=t1.individual_id) as t2, view_individual_sequence visq where t2.isq_id=visq.individual_sequence_id;
 
 drop view viewInd2Ind;
 create or replace view viewInd2Ind as select i1.code as i1_code, i2i.individual1_id, i2.code as i2_code , i2i.individual2_id, i2i.relationship_type_id
@@ -88,3 +96,10 @@ create or replace view check_isq_file_parity as select individual_sequence_id, l
  from (select distinct individual_sequence_id, library, split_order, mate_id from individual_sequence_file  )
  as newt group by individual_sequence_id, library, split_order 
  order by count, individual_sequence_id, library, split_order;
+
+-- 2012.8.6
+select t1.genotype_method_id, t1.chromosome, t1.no_of_loci, t1.file_size, 
+	t2.genotype_method_id, t2.chromosome, t2.no_of_loci, t2.file_size
+	from (select * from genotype_file where genotype_method_id =10) t1 full join 
+		(select * from genotype_file where genotype_method_id =12) t2 on t1.chromosome=t2.chromosome
+	order by t1.no_of_loci desc;

@@ -2,7 +2,7 @@
 """
 Examples:
 	#testing merge three identical genotype files
-	%s -o /tmp/ccc.tsv /tmp/call_1.tsv /tmp/call_1.tsv /tmp/call_1.tsv
+	%s -k 0 -v 4,5 -o /tmp/test.tsv trio_inconsistency_summary_hist_homo_het.tsv
 	
 	%s 
 	
@@ -80,19 +80,28 @@ class ReduceMatrixByChosenColumn(ReduceMatrixByMergeColumnsWithSameKey):
 				continue
 			reader = None
 			try:
-				delimiter = figureOutDelimiter(inputFname)
-				if not delimiter:
-					delimiter='\t'
-				reader = csv.reader(open(inputFname), delimiter=delimiter)
+				inputFile = utils.openGzipFile(inputFname)
+				delimiter = figureOutDelimiter(inputFile)
+				isCSVReader = True
+				if delimiter=='\t' or delimiter==',':
+					reader = csv.reader(inputFile, delimiter=delimiter)
+				else:
+					reader = inputFile
+					isCSVReader = False
 			except:
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 				import traceback
 				traceback.print_exc()
 			
 			try:
-				header = reader.next()
+				if isCSVReader:
+					header = reader.next()
+				else:
+					header = inputFile.readline().strip().split()	#whatever splits them
 				self.handleNewHeader(header, newHeader, self.keyColumnLs, self.valueColumnLs, keyColumnSet=self.keyColumnSet)
-			
+				if self.noHeader:	#2012.8.10
+					inputFile.seek(0)
+					reader = csv.reader(inputFile, delimiter=delimiter)
 			except:	#in case something wrong (i.e. file is empty)
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 				import traceback
@@ -100,6 +109,8 @@ class ReduceMatrixByChosenColumn(ReduceMatrixByMergeColumnsWithSameKey):
 			
 			if reader is not None:
 				for row in reader:
+					if not isCSVReader:
+						row = row.strip().split()
 					try:
 						self.handleValueColumns(row, key2dataLs=key2dataLs, keyColumnLs=self.keyColumnLs, valueColumnLs=self.valueColumnLs)
 					except:	#in case something wrong (i.e. file is empty)
@@ -108,7 +119,8 @@ class ReduceMatrixByChosenColumn(ReduceMatrixByMergeColumnsWithSameKey):
 						import traceback
 						traceback.print_exc()
 				del reader
-		
+		if self.noHeader:	#2012.8.10
+			newHeader = None
 		returnData = PassingData(key2dataLs=key2dataLs, delimiter=delimiter, header=newHeader)
 		return returnData
 	

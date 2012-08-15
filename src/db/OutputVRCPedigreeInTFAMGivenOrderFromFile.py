@@ -44,7 +44,23 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 		"""
 		AbstractVervetMapper.__init__(self, inputFnameLs=inputFnameLs, **keywords)
 	
-	
+	def getIndividual(self, db_vervet=None, individual_id=None, individual_id2individual=None):
+		"""
+		2012.8.14
+		"""
+		if individual_id2individual:
+			individual = individual_id2individual.get(individual_id)
+			if individual:
+				return individual
+			else:
+				individual = VervetDB.Individual.get(individual_id)
+				individual_id2individual[individual_id] = individual
+				return individual
+		else:
+			individual = VervetDB.Individual.get(individual_id)
+			return individual
+		
+		
 	def run(self):
 		"""
 		2012.7.13
@@ -61,46 +77,58 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 		for read_group in vcfFile.getSampleIDList():	#sample_id_ls is not good because its index 0 is "ref"
 			individualAlignment = db_vervet.parseAlignmentReadGroup(read_group).individualAlignment
 			alignmentLs.append(individualAlignment)
-		
+		"""
 		pedigreeGraphData = db_vervet.constructPedgreeGraphOutOfAlignments(alignmentLs)
 		DG = pedigreeGraphData.DG
 		individual_id2alignmentLs = pedigreeGraphData.individual_id2alignmentLs
+		"""
+		DG = db_vervet.constructPedgree()
+		individual_id2individual = {}
 		
 		writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
 		counter = 0
 		family_id= 1	#all in one family
 		for alignment in alignmentLs:
 			node_id = alignment.ind_sequence.individual_id
-			parents = DG.predecessors(node_id)
-			if len(parents)==2:
-				parent1Alignment = individual_id2alignmentLs.get(parents[0])[0]
-				parent2Alignment = individual_id2alignmentLs.get(parents[1])[0]
-				parent1Sex = parent1Alignment.ind_sequence.individual.codeSexInNumber()
-				if parent1Sex==2:
-					#swap the father and mother row
-					tmp = parent1Alignment
-					parent1Alignment = parent2Alignment
-					parent2Alignment = tmp
-				
-				father_id = parent1Alignment.ind_sequence.individual.ucla_id
-				mother_id = parent2Alignment.ind_sequence.individual.ucla_id
-			elif len(parents)==1:
-				parent1Alignment = individual_id2alignmentLs.get(parents[0])[0]
-				parent1Sex = parent1Alignment.ind_sequence.individual.codeSexInNumber()
-				if parent1Sex==2:
+			individual = self.getIndividual(db_vervet=db_vervet, individual_id=node_id, \
+										individual_id2individual=individual_id2individual)
+			if node_id in DG:
+				parents = DG.predecessors(node_id)
+				if len(parents)==2:
+					parent1 = self.getIndividual(db_vervet=db_vervet, individual_id=parents[0], \
+												individual_id2individual=individual_id2individual)
+					parent2 = self.getIndividual(db_vervet=db_vervet, individual_id=parents[1], \
+												individual_id2individual=individual_id2individual)
+					parent1Sex = parent1.codeSexInNumber()
+					if parent1Sex==2:
+						#swap the father and mother row
+						tmp = parent1
+						parent1 = parent2
+						parent2 = tmp
+					
+					father_id = parent1.ucla_id
+					mother_id = parent2.ucla_id
+				elif len(parents)==1:
+					parent1 = self.getIndividual(db_vervet=db_vervet, individual_id=parents[0], \
+										individual_id2individual=individual_id2individual)
+					parent1Sex = parent1.codeSexInNumber()
+					if parent1Sex==2:
+						father_id = 0
+						mother_id = parent1.ucla_id
+					else:
+						father_id = parent1.ucla_id
+						mother_id = 0
+				elif len(parents)==0:
 					father_id = 0
-					mother_id = parent1Alignment.ind_sequence.individual.ucla_id
-				else:
-					father_id = parent1Alignment.ind_sequence.individual.ucla_id
 					mother_id = 0
-			elif len(parents)==0:
+				else:
+					sys.stderr.write("Error: number of parents (%s) for %s is %s.\n"%(repr(parents), node_id, len(parents)))
+					sys.exit(3)
+			else:
 				father_id = 0
 				mother_id = 0
-			else:
-				sys.stderr.write("Error: number of parents (%s) for %s is %s.\n"%(repr(parents), node_id, len(parents)))
-				sys.exit(3)
-			data_row = [family_id, alignment.ind_sequence.individual.ucla_id, father_id, mother_id, \
-						alignment.ind_sequence.individual.codeSexInNumber(), 1]
+			data_row = [family_id, individual.ucla_id, father_id, mother_id, \
+					individual.codeSexInNumber(), 1]
 			writer.writerow(data_row)
 			counter += 1
 		sys.stderr.write("%s alignments outputted.\n"%(counter))

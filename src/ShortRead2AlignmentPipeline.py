@@ -7,7 +7,7 @@ Examples:
 	# 2011-8-30 a workflow with 454 long-read and short-read PE. need a ref index job (-n1). 
 	%s -i 165-167 -o ShortRead2AlignmentPipeline_isq_id_165_167_vs_9.xml -u yh -a 9
 		-e /u/home/eeskin/polyacti -l hoffman2 -t /u/home/eeskin/polyacti/NetworkData/vervet/db -n1 -z dl324b-1.cmb.usc.edu -c
-		-x /work/
+		-f /work/
 	
 	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (-D changes localDataDir. -t changes dataDir.)
 	# 2012.3.20 use /work/ or /u/scratch/p/polyacti/tmp as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
@@ -16,7 +16,7 @@ Examples:
 		-l hcondor -j hcondor 
 		-z localhost -u yh -c
 		-i 631-700 -o workflow/ShortRead2Alignment_Isq_631-700_vs_524_hcondor.xml  -a 524 
-		-x /work/ -e /u/home/eeskin/polyacti  -w 10 -K
+		-f /work/ -e /u/home/eeskin/polyacti  -w 10 -K
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files. no ref index job (-n0).
@@ -113,7 +113,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 						('cluster_size_for_aln_jobs', 1, int): [1, 'w', 1, 'job cluster size for bwa/PEAlignmentByBWA/LongSEAlignmentByBWA/addOrReplaceReadGroupsJava/SortSamFilesJava/samtools jobs'],\
 						('notStageOutFinalOutput', 0, int):[0, 'O', 0, 'toggle to not stage out final output (bam + bam.bai)'],\
 						('skipDoneAlignment', 0, int):[0, 'K', 0, 'skip alignment whose path is a valid file'],\
-						("tmpDir", 1, ): ["/tmp/", 'x', 1, 'for MarkDuplicates.jar, default is /tmp/ but sometimes it is too small'],\
+						("tmpDir", 1, ): ["/tmp/", 'f', 1, 'for MarkDuplicates.jar, default is /tmp/ but sometimes it is too small'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_alignment and/or individual_alignment.path'],\
 						})
 
@@ -960,14 +960,16 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			merge alignment
 			index it
 		"""
-		javaMaxMemory=2500
+		memRequirementObject = self.getJVMMemRequirment(job_max_memory=5000, minMemory=2000)
+		job_max_memory = memRequirementObject.memRequirement
+		javaMemRequirement = memRequirementObject.memRequirementInStr
 		if len(AlignmentJobAndOutputLs)>1:
 			merge_sam_job = Job(namespace=namespace, name=mergeSamFilesJava.name, version=version)
-			merge_sam_job.addArguments("-Xms128m", "-Xmx%sm"%(javaMaxMemory), "-jar", mergeSamFilesJar, 'SORT_ORDER=coordinate', \
+			merge_sam_job.addArguments(javaMemRequirement, "-jar", mergeSamFilesJar, 'SORT_ORDER=coordinate', \
 						'ASSUME_SORTED=true', 'OUTPUT=', outputBamFile, "VALIDATION_STRINGENCY=LENIENT")
 			# 'USE_THREADING=true', threading might be causing process hanging forever (sleep).
 			merge_sam_job.uses(outputBamFile, transfer=stageOutFinalOutput, register=True, link=Link.OUTPUT)
-			yh_pegasus.setJobProperRequirement(merge_sam_job, job_max_memory=javaMaxMemory)
+			yh_pegasus.setJobProperRequirement(merge_sam_job, job_max_memory=job_max_memory)
 			workflow.addJob(merge_sam_job)
 			for AlignmentJobAndOutput in AlignmentJobAndOutputLs:
 				alignmentJob, alignmentOutput = AlignmentJobAndOutput[:2]
@@ -989,7 +991,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		bamIndexJob = self.addBAMIndexJob(BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					inputBamF=outputBamFile,\
 					parentJobLs=[merge_sam_job], namespace=namespace, version=version,\
-					stageOutFinalOutput=stageOutFinalOutput, javaMaxMemory=javaMaxMemory)
+					stageOutFinalOutput=stageOutFinalOutput, javaMaxMemory=3000)
 		return merge_sam_job, bamIndexJob
 	
 	
@@ -1046,7 +1048,12 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		bamFnamePrefix = os.path.splitext(outputBamFile.name)[0]
 		MarkDupOutputF = outputBamFile
 		MarkDupOutputMetricF = '%s.metric'%(bamFnamePrefix)
-		MarkDupJob.addArguments("-Xms128m -Xmx%sm"%(MarkDupJobMaxMemory), '-jar', MarkDuplicatesJar, "MAX_FILE_HANDLES=500",\
+		
+		memRequirementObject = self.getJVMMemRequirment(job_max_memory=MarkDupJobMaxMemory, minMemory=2000)
+		job_max_memory = memRequirementObject.memRequirement
+		javaMemRequirement = memRequirementObject.memRequirementInStr
+		
+		MarkDupJob.addArguments(javaMemRequirement, '-jar', MarkDuplicatesJar, "MAX_FILE_HANDLES=500",\
 			"VALIDATION_STRINGENCY=LENIENT", "ASSUME_SORTED=true", "INPUT=", inputBamF, \
 			'OUTPUT=', MarkDupOutputF, "M=", MarkDupOutputMetricF, "MAX_RECORDS_IN_RAM=500000",\
 			"TMP_DIR=%s"%tmpDir)
@@ -1062,7 +1069,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			MarkDupJob.uses(MarkDupOutputMetricF, transfer=False, register=True, link=Link.OUTPUT)
 			#pass	#don't register the files so leave them there
 		workflow.addJob(MarkDupJob)
-		yh_pegasus.setJobProperRequirement(MarkDupJob, job_max_memory=MarkDupJobMaxMemory, no_of_cpus=no_of_cpus)
+		yh_pegasus.setJobProperRequirement(MarkDupJob, job_max_memory=job_max_memory, no_of_cpus=no_of_cpus)
 		for parentJob in parentJobLs:
 			if parentJob:
 				workflow.depends(parent=parentJob, child=MarkDupJob)

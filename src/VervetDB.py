@@ -395,6 +395,7 @@ class AlignmentMethod(Entity, TableClass):
 
 class IndividualAlignment(Entity, TableClass):
 	"""
+	2012.7.26 add column parent_individual_alignment, mask_genotype_method
 	2012.7.14 add md5sum
 	2012.6.13
 		add column outdated_index to accommodate old (incomplete or bad alignments) 
@@ -427,16 +428,21 @@ class IndividualAlignment(Entity, TableClass):
 	perc_singletons = Field(Float)	#2012.4.2
 	perc_mapped_to_diff_chrs = Field(Float)	#2012.4.2
 	perc_mapq5_mapped_to_diff_chrs = Field(Float)	#2012.4.2
-	total_no_of_reads = Field(Integer)	#2012.4.2
+	total_no_of_reads = Field(BigInteger)	#2012.4.2
 	outdated_index = Field(Integer, default=0)	#2012.6.13 any non-zero means outdated. to allow multiple outdated alignments
 	md5sum = Field(Text, unique=True)
+	#2012.7.26 the parent individual_alignment
+	parent_individual_alignment = ManyToOne('IndividualAlignment', colname='parent_individual_alignment_id', ondelete='CASCADE', onupdate='CASCADE')
+	#2012.7.26 mask loci of the alignment out for read-recalibration 
+	mask_genotype_method = ManyToOne('GenotypeMethod', colname='mask_genotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
 	date_updated = Field(DateTime)
 	using_options(tablename='individual_alignment', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-	using_table_options(UniqueConstraint('ind_seq_id', 'ref_ind_seq_id', 'aln_method_id', 'outdated_index'))
+	using_table_options(UniqueConstraint('ind_seq_id', 'ref_ind_seq_id', 'aln_method_id', 'outdated_index', \
+								'parent_individual_alignment_id', 'mask_genotype_method_id'))
 	
 	def getReadGroup(self):
 		"""
@@ -1176,8 +1182,10 @@ class VervetDB(ElixirDB):
 					sequence_type='SR', sequence_format='fastq', \
 					ref_individual_sequence_id=10, \
 					alignment_method_name='bwa-short-read', alignment_format='bam', subFolder='individual_alignment', \
-					createSymbolicLink=False, individual_sequence_filtered=0, read_group_added=None, dataDir=None, outdated_index=0):
+					createSymbolicLink=False, individual_sequence_filtered=0, read_group_added=None, dataDir=None, \
+					outdated_index=0, mask_genotype_method_id=None, parent_individual_alignment_id=None):
 		"""
+		2012.7.26 added argument mask_genotype_method_id & parent_individual_alignment_id
 		2012.6.13 add argument outdated_index
 		2012.2.24
 			add argument dataDir
@@ -1203,14 +1211,18 @@ class VervetDB(ElixirDB):
 		alignment_method = self.getAlignmentMethod(alignment_method_name=alignment_method_name)
 		query = IndividualAlignment.query.filter_by(ind_seq_id=individual_sequence.id).\
 				filter_by(ref_ind_seq_id=ref_individual_sequence_id).\
-				filter_by(aln_method_id=alignment_method.id).filter_by(outdated_index=outdated_index)
+				filter_by(aln_method_id=alignment_method.id).filter_by(outdated_index=outdated_index).\
+				filter_by(mask_genotype_method_id=mask_genotype_method_id).\
+				filter_by(parent_individual_alignment_id=parent_individual_alignment_id)
+		
 		if alignment_format:
 			query = query.filter_by(format=alignment_format)
 		db_entry = query.first()
 		if not db_entry:
 			db_entry = IndividualAlignment(ind_seq_id=individual_sequence.id, ref_ind_seq_id=ref_individual_sequence_id,\
 								aln_method_id=alignment_method.id, format=alignment_format, read_group_added=read_group_added,\
-								outdated_index=outdated_index)
+								outdated_index=outdated_index, mask_genotype_method_id=mask_genotype_method_id,\
+								parent_individual_alignment_id=parent_individual_alignment_id)
 			self.session.add(db_entry)
 			self.session.flush()
 			#copy the file over
@@ -1250,8 +1262,9 @@ class VervetDB(ElixirDB):
 	
 	
 	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], aln_method_id=None, \
-					dataDir=None, sequence_type=None, outdated_index=0):
+					dataDir=None, sequence_type=None, outdated_index=0, mask_genotype_method_id=None, parent_individual_alignment_id=None):
 		"""
+		2012.7.26 added argument mask_genotype_method_id & parent_individual_alignment_id
 		2012.6.13 add argument outdated_index
 		2012.4.13
 			moved from AlignmentToCallPipeline.py
@@ -1290,7 +1303,9 @@ class VervetDB(ElixirDB):
 		#order by TableClass.id is important because this is the order that gatk&samtools take input bams.
 		#Read group in each bam is beginned by alignment.id. GATK would arrange bams in the order of read groups.
 		# while samtools doesn't do that and vcf-isect could combine two vcfs with columns in different order.
-		query = query.filter_by(outdated_index=outdated_index).order_by(TableClass.id)
+		query = query.filter_by(outdated_index=outdated_index).\
+					filter_by(mask_genotype_method_id=mask_genotype_method_id).\
+					filter_by(parent_individual_alignment_id=parent_individual_alignment_id).order_by(TableClass.id)
 		for row in query:
 			if sequence_type is not None and row.sequence_type!=sequence_type:
 				continue
@@ -1303,8 +1318,9 @@ class VervetDB(ElixirDB):
 	
 	@classmethod
 	def filterAlignments(cls, alignmentLs, max_coverage=None, individual_site_id=None, sequence_filtered=None,\
-						individual_site_id_set=None):
+						individual_site_id_set=None, mask_genotype_method_id=None, parent_individual_alignment_id=None):
 		"""
+		2012.7.26 added argument mask_genotype_method_id & parent_individual_alignment_id
 		2012.5.8
 			bugfix, individual_site_id_set could be none. so no_of_sites is un-defined.
 		2012.4.13
@@ -1333,9 +1349,29 @@ class VervetDB(ElixirDB):
 			if individual_site_id_set and alignment.ind_sequence.individual.site_id not in individual_site_id_set:
 				#2012.4.13
 				continue
+			if mask_genotype_method_id is not None and alignment.mask_genotype_method_id!=mask_genotype_method_id:
+				continue
+			if parent_individual_alignment_id is not None and alignment.parent_individual_alignment_id!=parent_individual_alignment_id:
+				continue
 			newAlignmentLs.append(alignment)
 		sys.stderr.write(" kept %s alignments. Done.\n"%(len(newAlignmentLs)))
 		return newAlignmentLs
+	
+	@classmethod
+	def getCumulativeAlignmentMedianDepth(cls, alignmentLs=[], defaultSampleAlignmentDepth=10):
+		"""
+		2012.8.7
+		"""
+		sys.stderr.write("Getting cumulative median depth of %s alignments ..."%(len(alignmentLs)))
+		cumulativeDepth = 0
+		for alignment in alignmentLs:
+			if alignment and alignment.median_depth is not None:
+				medianDepth = alignment.median_depth
+			else:
+				medianDepth = defaultSampleAlignmentDepth
+			cumulativeDepth += medianDepth
+		sys.stderr.write("=%s.\n"%(cumulativeDepth))
+		return cumulativeDepth
 	
 	def getAlleleType(self, allele_type_name):
 		"""
@@ -1544,6 +1580,36 @@ class VervetDB(ElixirDB):
 									quality_score_format=quality_score_format)
 		return db_entry
 	
+	def copyParentIndividualAlignment(self, parent_individual_alignment=None, mask_genotype_method=None):
+		"""
+		2012.7.28
+		
+		"""
+		if individual_sequence.sequencer=='454':
+			alignment_method = db_vervet.getAlignmentMethod("bwa-long-read")
+		else:
+			alignment_method = db_vervet.getAlignmentMethod(alignment_method_name)
+		"""
+		#2012.4.5 have all this commented out
+		elif individual_sequence.sequencer=='GA':
+			if individual_sequence.sequence_type=='SR':	#single-end
+				alignment_method = db_vervet.getAlignmentMethod("bwa-short-read-SR")
+			else:	#default is PE
+				alignment_method = db_vervet.getAlignmentMethod("bwa-short-read")
+		"""
+		individual_alignment = db_vervet.getAlignment(individual_code=individual_sequence.individual.code, \
+								individual_sequence_id=ind_seq_id,\
+					path_to_original_alignment=None, sequencer=individual_sequence.sequencer, \
+					sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
+					ref_individual_sequence_id=refSequence.id, \
+					alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
+					individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
+					dataDir=dataDir)	#read-group addition is part of pipeline
+		if not individual_alignment.path:
+			individual_alignment.path = individual_alignment.constructRelativePath()
+			session.add(individual_alignment)
+			session.flush()
+
 	def moveFileIntoDBAffiliatedStorage(self, db_entry=None, filename=None, inputDir=None, outputDir=None, \
 								relativeOutputDir=None, shellCommand='cp -rL', srcFilenameLs=None, dstFilenameLs=None,\
 								constructRelativePathFunction=None):
@@ -1772,10 +1838,8 @@ class VervetDB(ElixirDB):
 		query = GenotypeFile.query.filter_by(genotype_method_id=genotype_method_id).filter_by(chromosome=chromosome)
 		if format:
 			query = query.filter_by(format=format)
-		if path:
-			query = query.filter_by(path=path)
-		if md5sum:
-			query = query.filter_by(md5sum=md5sum)
+		elif md5sum:	#2012.8.6 if format is not given, then use md5sum as the sole unique identifier 
+			query = GenotypeFile.query.filter_by(md5sum=md5sum)
 		db_entry = query.first()
 		if original_path:
 			original_path = os.path.realpath(original_path)

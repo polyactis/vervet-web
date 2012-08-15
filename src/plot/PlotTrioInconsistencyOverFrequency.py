@@ -27,18 +27,21 @@ import matplotlib; matplotlib.use("Agg")	#to disable pop-up requirement
 import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2IndexFromHeader, figureOutDelimiter
 from pymodule import yh_matplotlib
-import pylab
+import pylab, random
 
 
 class PlotTrioInconsistencyOverFrequency(object):
 	__doc__ = __doc__
 	option_default_dict = {('outputFname', 1, ): [None, 'o', 1, 'output file for the figure.'],\
-						('minNoOfTotal', 1, int): [100, '', 1, 'minimum no of total variants (denominator of inconsistent rate)'],\
-						('title', 1, ): [None, 't', 1, 'title for the figure.'],\
-						('figureDPI', 1, int): [200, '', 1, 'dpi for the output figures (png)'],\
+						('minNoOfTotal', 1, int): [100, 'i', 1, 'minimum no of total variants (denominator of inconsistent rate)'],\
+						('title', 0, ): [None, 't', 1, 'title for the figure.'],\
+						('figureDPI', 1, int): [200, 'f', 1, 'dpi for the output figures (png)'],\
 						('formatString', 1, ): ['-', '', 1, 'formatString passed to matplotlib plot'],\
+						('ylim_type', 1, int): [1, 'y', 1, 'y-axis limit type, 1: 0 to max. 2: min to max'],\
+						('samplingRate', 1, float): [0.001, 's', 1, 'how often you include the data'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']
+						}
 
 
 	def __init__(self, inputFnameLs, **keywords):
@@ -71,6 +74,10 @@ class PlotTrioInconsistencyOverFrequency(object):
 			inconsistent_rate_ls = []
 			x_ls = []
 			for row in reader:
+				if self.samplingRate<1 and self.samplingRate>=0:
+					r = random.random()
+					if r>self.samplingRate:
+						continue
 				no_of_total = int(float(row[index_of_no_of_total]))
 				if no_of_total<=minNoOfTotal:
 					continue

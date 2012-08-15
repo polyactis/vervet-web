@@ -42,7 +42,8 @@ class ReduceMatrixBySumSameKeyColsAndThenDivide(ReduceMatrixByChosenColumn):
 		sys.stderr.write("Averaging key2dataLs (%s entries ) ..."%(len(key2dataLs)))
 		keyColHeader = header[:no_of_key_columns]
 		valueColHeader = header[no_of_key_columns:]
-		header.append('%s_by_%s'%(valueColHeader[0], valueColHeader[1]))
+		if len(valueColHeader)>1:
+			header.append('%s_by_%s'%(valueColHeader[0], valueColHeader[1]))
 		for key, dataLs in key2dataLs.iteritems():
 			no_of_value_columns = len(dataLs)
 			if no_of_value_columns>1:

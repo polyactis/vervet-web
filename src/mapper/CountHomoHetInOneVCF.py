@@ -3,7 +3,7 @@
 Examples:
 	%s 
 	
-	%s -i gatk/Contig799.vcf.gz -j samtools/Contig799.vcf.gz -l 1000000 -c Contig799 -o /tmp/output
+	%s -i gatk/Contig799.vcf.gz -l 1000000 -c Contig799 -o /tmp/output
 
 Description:
 	2011-11-7

@@ -7,13 +7,19 @@ Examples:
 	%s -i $dirPrefix\gatk/ -I $dirPrefix\samtools/ -l condorpool -j condorpool
 		-o 4HighCovVRC_isq_15_18_vs_524_top804Contigs_gatk_vs_samtools_overlap_stat.xml -z uclaOffice -u yh -k genome
 		-C 100
+	#2012.8.3 compare two VCF on hcondor, do per-sample checking (-S)
+	%s -i AlignmentToCall_ISQ643_646_vs_524_Contig731.2012.8.2T1530/samtools/
+		-I AlignmentToCall_ISQ643_646_vs_524_method7Contig731Sites.2012.8.2T1610/samtools/
+		-l hcondor -j hcondor -o workflow/CheckTwoVCF_ISQ643_646_vs_524_MultiSample_vs_Method7ROICalling_Contig731.xml
+		-z localhost -u yh -k genome -C 1
+		-e /u/home/eeskin/polyacti/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -S
 	
 Description:
 	2011-11-7 pegasus workflow that compares overlap between two vcf files (mapper/CheckTwoVCFOverlap.py),
 			calculate mismatch rate, pi statistics based on the intersection
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 
 from sqlalchemy.types import LargeBinary
 
@@ -34,9 +40,11 @@ from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 	__doc__ = __doc__
 	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict.pop(('inputDir', 0, ))
 	option_default_dict.update({
 						('vcf1Dir', 1, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						('vcf2Dir', 1, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
+						('perSampleMismatchFraction', 0, ): [0, 'S', 0, 'whether calculating per-sample mismatch fraction or not.', ],\
 						})
 
 	def __init__(self,  **keywords):
@@ -56,12 +64,7 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 		site_handler = workflow.site_handler
 		vervetSrcPath = self.vervetSrcPath
 		
-		checkTwoVCFOverlap = Executable(namespace=namespace, name="CheckTwoVCFOverlap", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		checkTwoVCFOverlap.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/CheckTwoVCFOverlap.py"), site_handler))
-		checkTwoVCFOverlap.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(checkTwoVCFOverlap)
-		workflow.checkTwoVCFOverlap = checkTwoVCFOverlap
+		
 	
 	def run(self):
 		"""
@@ -110,7 +113,9 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 		overlapStatSumF = File('overlapStat.sum.tsv')
 		overlapStatSumJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 						outputF=overlapStatSumF, extraDependentInputLs=[], transferOutput=True, \
-						extraArguments='-k 1000000 -v 1-1000')	#1000 is a random big upper limit. 100 monkeys => 330 columns
+						extraArguments='-k 1000000 -v 1-25000')	#The key column (-k 1000000) doesn't exist.
+						# essentially merging every rows into one 
+						##25000 is a random big upper limit. 100 monkeys => 101*3 + 9 => 312 columns
 		self.addInputToStatMergeJob(workflow, statMergeJob=overlapStatSumJob, inputF=overlapStatF, \
 							parentJobLs=[overlapStatMergeJob])
 		
@@ -142,10 +147,12 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 				
 				
 				outputFnamePrefix = os.path.join(statOutputDir, os.path.splitext(gatkVCFFileBaseName)[0])
-				checkTwoVCFOverlapJob = self.addCheckTwoVCFOverlapJob(workflow, executable=workflow.checkTwoVCFOverlap, \
+				checkTwoVCFOverlapJob = self.addCheckTwoVCFOverlapJob(workflow, executable=workflow.CheckTwoVCFOverlap, \
 						vcf1=vcf1, vcf2=vcf2, chromosome=chr, chrLength=chr_size, \
 						outputFnamePrefix=outputFnamePrefix, parentJobLs=[statOutputDirJob], \
-						extraDependentInputLs=[], transferOutput=False, extraArguments=" -m %s "%(self.minDepth), job_max_memory=1000)
+						extraDependentInputLs=[], transferOutput=False, extraArguments=" -m %s "%(self.minDepth),\
+						perSampleMismatchFraction=self.perSampleMismatchFraction,\
+						job_max_memory=1000)
 				
 				self.addInputToStatMergeJob(workflow, statMergeJob=overlapStatMergeJob, inputF=checkTwoVCFOverlapJob.output, \
 							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])

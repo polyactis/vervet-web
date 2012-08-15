@@ -52,7 +52,8 @@ class AddGenotypeMethod2DB(AddVCFFile2DB):
 		
 		session.begin()
 		if not self.dataDir:
-			dataDir = self.db_vervet.data_dir
+			self.dataDir = self.db_vervet.data_dir
+		
 		
 		vcfFile = VCFFile(inputFname=self.inputFname)
 		
@@ -61,7 +62,7 @@ class AddGenotypeMethod2DB(AddVCFFile2DB):
 		genotypeMethod = self.db_vervet.getGenotypeMethod(short_name=self.genotypeMethodShortName, \
 												individualAlignmentLs=individualAlignmentLs,\
 												no_of_individuals=len(individualAlignmentLs), no_of_loci=None,\
-												dataDir=dataDir)
+												dataDir=self.dataDir)
 		self.checkIfAlignmentListMatchDB(individualAlignmentLs, genotypeMethod, session)
 		self.outputLogMessage(logMessage="genotypeMethod %s (%s) added into db.\n"%\
 							(genotypeMethod.id, self.genotypeMethodShortName))

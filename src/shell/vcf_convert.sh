@@ -12,6 +12,8 @@ then
 	echo "	$0 Contig0_1_2000000.vcf Contig0_1_2000000.4.vcf"
 exit
 fi
+shellDir=`dirname $0`
+source $shellDir/commonWrapper.sh
 
 bgzipPath=~/bin/bgzip
 tabixPath=~/bin/tabix
@@ -19,9 +21,14 @@ tabixPath=~/bin/tabix
 #export PERL5LIB="~/script/vcftools/lib/"
 vcfConverPath=~/bin/vcftools/vcf-convert
 
-referenceFasta=/Network/Data/vervet/db/individual_sequence/524_superContigsMinSize2000.fasta
+#referenceFasta=/Network/Data/vervet/db/individual_sequence/524_superContigsMinSize2000.fasta
 inputVCF=$1
 outputVCF=$2
+if [ -n "$inputVCF" ]
+then
+	isVCFEmpty=`checkVCFFileIfEmpty $inputVCF`
+fi
+echo isVCFEmpty: $isVCFEmpty
 
 #   -r, --refseq <file>              The reference sequence in samtools faindexed fasta file. (Not required with SNPs only.)
 #-r $referenceFasta

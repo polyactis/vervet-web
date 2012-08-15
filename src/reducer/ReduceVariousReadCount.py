@@ -58,7 +58,9 @@ class ReduceVariousReadCount(object):
 						'noOfPairsOnSameContigByLength',\
 						'meanInferInsertSize', 'noOfPairsOnDifferentContigsByLength'])
 		for inputFname in self.inputFnameLs:
-			reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+			inputFile = utils.openGzipFile(inputFname)
+			delimiter = figureOutDelimiter(inputFile)
+			reader = csv.reader(inputFile, delimiter=delimiter)
 			header = reader.next()
 			col_name2index = getColName2IndexFromHeader(header)
 			

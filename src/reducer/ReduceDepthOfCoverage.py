@@ -55,7 +55,9 @@ class ReduceDepthOfCoverage(object):
 		writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
 		writer.writerow(['#sampleID', 'chromosome', 'meanDepth', 'medianDepth'])
 		for inputFname in self.inputFnameLs:
-			reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+			inputFile = utils.openGzipFile(inputFname)
+			delimiter = figureOutDelimiter(inputFile)
+			reader = csv.reader(inputFile, delimiter=delimiter)
 			header = reader.next()
 			col_name2index = getColName2IndexFromHeader(header)
 			
