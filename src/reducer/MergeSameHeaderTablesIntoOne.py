@@ -1,1 +1,1 @@
-../MergeGenotypeMatrix.py
+MergeGenotypeMatrix.py
