@@ -513,11 +513,11 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 					outputFnamePrefix=self.outputFnamePrefix, minAbsDelta=0.1, kinshipMonkeyIDSet=kinshipMonkeyIDSet)
 		sys.exit(0)
 		"""
-		
+		"""
 		#2012.8.24 temporary
 		self.PCAOnAbsKinshipIBDDeltaMatrix(kinshipData=kinshipData,  ibdData=ibdData, outputFnamePrefix=self.outputFnamePrefix)
 		sys.exit(0)
-		
+		"""
 		monkey_id2plinkSex = SNP.getKey2ValueFromMatrixLikeFile(inputFname=self.plinkSexCheckOutputFname, \
 								keyHeaderLs=['IID'], valueHeaderLs=['SNPSEX'], keyIndexLs=None, valueIndexLs=None, \
 								hasHeader=True, valueDataType=int)
