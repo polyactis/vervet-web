@@ -24,11 +24,8 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 class CalculatePairwiseDistanceOutOfSNPXStrainMatrix(object):
 	__doc__ = __doc__
-	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-							('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-							('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
-							('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-							('inputFname', 1, ): ['', 'i', 1, 'common input file.', ],\
+	option_default_dict = {
+						('inputFname', 1, ): ['', 'i', 1, 'common input file.', ],\
 							('outputFname', 1, ): ['', 'o', 1, 'common output file', ],\
 							('min_MAF', 1, float): [0.0, 'n', 1, 'minimum MAF for SNP filter', ],\
 							('max_NA_rate', 1, float): [0.4, 'm', 1, 'maximum NA rate for SNP filter', ],\

@@ -146,7 +146,7 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 			inputFBaseName = os.path.basename(inputF.name)
 			genotypeCallOutputFname = os.path.join(callOutputDir, '%s.call'%(inputFBaseName))
 			genotypeCallOutput = File(genotypeCallOutputFname)
-			genotypeCallByCoverage_job = self.addVCF2MatrixJob(workflow, executable=workflow.genotypeCallByCoverage, \
+			genotypeCallByCoverage_job = self.addVCF2MatrixJob(workflow, executable=workflow.GenotypeCallByCoverage, \
 															inputVCF=inputF, outputFile=genotypeCallOutput, \
 						refFastaF=None, run_type=3, numberOfReadGroups=10, \
 						parentJobLs=[callOutputDirJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=False, \

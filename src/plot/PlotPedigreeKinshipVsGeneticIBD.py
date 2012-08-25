@@ -4,13 +4,15 @@ Examples:
 	%s 
 	
 	# 2012.8.21
-	%s -i ~/NetworkData/vervet/Kinx2Apr2012.txt -l LDPrunedMerged.genome  -o Kinx2Apr2012VsIBDPI.tsv -u yh 
+	%s -i ~/NetworkData/vervet/Kinx2Apr2012.txt -l LDPrunedMerged.genome  -O Kinx2Apr2012VsIBDPI -u yh
+		-D IBDCheckPIHat -x 2xKinship
 	
 
 Description:
 	2012.8.21
 		Program that plots kinship vs. PI_hat from plinkIBD result.
 		inputFname is the kinship file from Sue.
+		Besides the png scatterplot (_scatter.png), a tsv file (_table.tsv) will be created to hold pedigree kinship vs. IBD PI_HAT. 
 """
 
 import sys, os, math
@@ -31,7 +33,9 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2In
 from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
 from pymodule import yh_matplotlib, GenomeDB
 from pymodule.MatrixFile import MatrixFile
+from pymodule import SNP
 import numpy, random, pylab
+import numpy as np
 from pymodule.plot.AbstractPlot import AbstractPlot
 from vervet.src import VervetDB
 
@@ -40,22 +44,20 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 #						
 	option_default_dict = AbstractPlot.option_default_dict
 	option_default_dict.pop(('xColumnHeader', 1, ))
-	option_default_dict.pop(('xColumnPlotLabel', 0, ))
+	#option_default_dict.pop(('xColumnPlotLabel', 0, ))
 	option_default_dict.update({
-						('plinkIBDCheckFname', 1, ): ["", 'l', 1, 'file that contains IBD check result'], \
+						('plinkIBDCheckOutputFname', 1, ): ["", 'l', 1, 'file that contains IBD check result'], \
 						('drivername', 1,):['postgresql', '', 1, 'which type of database? mysql or postgresql', ],\
-							('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-							('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
-							('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-							('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-							('db_passwd', 1, ): [None, 'q', 1, 'database password', ],\
-							('port', 0, ):[None, '', 1, 'database port number'],\
-							('logFilename', 0, ): [None, '', 1, 'file to contain logs. use it only if this program is at the end of pegasus workflow \
-		and has no output file'],\
-							("dataDir", 0, ): ["", '', 1, 'the base directory where all db-affiliated files are stored. \
-									If not given, use the default stored in db.'],\
-							('commit', 0, int):[0, 'c', 0, 'commit db transaction'],\
-							})
+						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
+						('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
+						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
+						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
+						('db_passwd', 1, ): [None, 'q', 1, 'database password', ],\
+						('port', 0, ):[None, '', 1, 'database port number'],\
+						('doPairwiseLabelCheck', 0, int):[0, '', 0, 'toggle to output two more tsv files: \
+			_SumAbsDelta.tsv, _pairwiseCorOfKinshipIBDDelta.tsv'],\
+					})
+	
 	def __init__(self, inputFnameLs=None, **keywords):
 		"""
 		"""
@@ -65,13 +67,20 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 		
 		self.uclaID2monkeyDBEntry = {}
 		
-	def getMonkeyIDPair2Kinship(self, inputFname):
+	def getMonkeyKinshipData(self, inputFname=None):
 		"""
+		2012.8.22
+			use SNP.readAdjacencyListDataIntoMatrix(), and defaultValue=0
 		2012.2.10
 		"""
 		
 		sys.stderr.write("Reading kinship from %s ... "%(inputFname))
-		reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
+		kinshipData = SNP.readAdjacencyListDataIntoMatrix(inputFname=inputFname, rowIDHeader=None, colIDHeader=None, rowIDIndex=0, colIDIndex=1, \
+								dataHeader=None, dataIndex=2, hasHeader=False, defaultValue=0)
+		#set kinshipData diagonal to 1
+		for i in xrange(len(kinshipData.row_id_ls)):
+			kinshipData.data_matrix[i][i] = 1
+		return kinshipData
 		"""
 		header = reader.next()
 		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
@@ -79,6 +88,8 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 		monkey2_id_index = col_name2index.get("monkeyId2")
 		kinship_index = col_name2index.get("kinship")
 		"""
+		"""
+		#reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
 		monkey1_id_index = 0
 		monkey2_id_index = 1
 		kinship_index = 2
@@ -93,6 +104,7 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 		del reader
 		sys.stderr.write("%s pairs of monkeys.\n"%(len(monkey_id_pair2kinship)))
 		return monkey_id_pair2kinship
+		"""
 	
 	def getMonkeyIDPair2Correlation(self, smartpcaCorrelationFname=None):
 		"""
@@ -121,7 +133,7 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 		return monkey_id_pair2genotype_correlation
 	
 		
-	def getMonkeyIDPair2PIHAT(self, inputFname=None):
+	def getMonkeyIBDCheckData(self, inputFname=None):
 		"""
 		2012.8.21
 			inputFname is output of plink ibd check.
@@ -133,6 +145,10 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
    		
 		"""
 		sys.stderr.write("Reading PI_hat from %s ... "%(inputFname))
+		ibdData = SNP.readAdjacencyListDataIntoMatrix(inputFname=inputFname, rowIDHeader="IID1", colIDHeader="IID2", rowIDIndex=None, colIDIndex=None, \
+								dataHeader="PI_HAT", dataIndex=None, hasHeader=True)
+		return ibdData
+		"""
 		monkey_id_pair2genotype_correlation = {}
 		
 		reader = MatrixFile(inputFname=inputFname)
@@ -152,6 +168,7 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 			monkey_id_pair2genotype_correlation[pair_key] = PI_HAT
 		sys.stderr.write("%s pairs .\n"%(len(monkey_id_pair2genotype_correlation)))
 		return monkey_id_pair2genotype_correlation
+		"""
 	
 	def getMonkeyDBEntry(self, db_vervet=None, ucla_id=None):
 		"""
@@ -165,7 +182,8 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 			return monkey
 			
 	
-	def plotPairwiseKinshipFromPedigreeVsGenotype(self, db_vervet=None, kinshipFname=None, plinkIBDCheckFname=None, outputFnamePrefix=None):
+	def plotPairwiseKinshipFromPedigreeVsGenotype(self, db_vervet=None, kinshipFname=None, plinkIBDCheckOutputFname=None, \
+									outputFnamePrefix=None, doPairwiseLabelCheck=False):
 		"""
 		2012.8.17
 			do full join, output pairs with data in only one source
@@ -174,37 +192,118 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 			kinshipFname is from Sue (estimated by SOLAR based on pedigree)
 			
 		"""
-		monkey_id_pair2genotype_correlation = self.getMonkeyIDPair2PIHAT(plinkIBDCheckFname)
-		monkey_id_pair2pedigree_kinship = self.getMonkeyIDPair2Kinship(kinshipFname)
+		ibdData = self.getMonkeyIBDCheckData(plinkIBDCheckOutputFname)
+		kinshipData = self.getMonkeyKinshipData(kinshipFname)
 		
 		tableOutputWriter = csv.writer(open("%s_table.tsv"%(outputFnamePrefix), 'w'), delimiter='\t')
-		header = ['monkey_pair', 'pedigree_kinship', 'IBD_PI_HAT', 'age_difference']
+		header = ['monkey_pair', 'pedigree_kinship', 'IBD_PI_HAT', 'kinshipIBDDelta','age_difference']
 		tableOutputWriter.writerow(header)
 		
 		monkey_id_pair_ls = []
 		x_ls = []
 		y_ls = []
-		for monkey_id_pair, kinship in monkey_id_pair2pedigree_kinship.iteritems():
-			if monkey_id_pair in monkey_id_pair2genotype_correlation:
-				genotype_cor = monkey_id_pair2genotype_correlation.get(monkey_id_pair)
-				x_ls.append(kinship)
-				y_ls.append(genotype_cor)
-				monkey1 = self.getMonkeyDBEntry(db_vervet=db_vervet, ucla_id=monkey_id_pair[0])
-				monkey2 =  self.getMonkeyDBEntry(db_vervet=db_vervet, ucla_id=monkey_id_pair[1])
+		
+		monkey_id2index = {}	#2012.8.21
+		monkey_id_pair2kinship_ibd_delta = {}
+		shared_monkey_id_set = set(ibdData.row_id_ls)&set(kinshipData.row_id_ls)
+		shared_monkey_id_ls = list(shared_monkey_id_set)
+		no_of_monkeys = len(shared_monkey_id_ls)
+		for i in xrange(no_of_monkeys):
+			monkey1_id = shared_monkey_id_ls[i]
+			
+			for j in xrange(i+1, no_of_monkeys):
+				monkey2_id = shared_monkey_id_ls[j]
 				
-				if monkey1 and monkey2 and monkey1.getCurrentAge() and monkey2.getCurrentAge():
-					ageDelta = abs(monkey1.getCurrentAge() - monkey2.getCurrentAge())
-				else:
-					ageDelta = ''
-				data_row = ['_'.join(monkey_id_pair), kinship, genotype_cor, ageDelta]
-				tableOutputWriter.writerow(data_row)
+				ibd = ibdData.getCellDataGivenRowColID(monkey1_id, monkey2_id)
+				kinship = kinshipData.getCellDataGivenRowColID(monkey1_id, monkey2_id)
+				if (not hasattr(ibd, 'mask')) and not numpy.isnan(ibd) and (not hasattr(kinship, 'mask'))\
+						and (not numpy.isnan(kinship)):
+					x_ls.append(kinship)
+					y_ls.append(ibd)
+					monkey_id_pair = [monkey1_id, monkey2_id]
+					monkey_id_pair.sort()
+					monkey_id_pair  = tuple(monkey_id_pair)
+					monkey1 = self.getMonkeyDBEntry(db_vervet=db_vervet, ucla_id=monkey1_id)
+					if monkey1_id not in monkey_id2index:
+						monkey_id2index[monkey1_id] = len(monkey_id2index)
+					monkey2 =  self.getMonkeyDBEntry(db_vervet=db_vervet, ucla_id=monkey2_id)
+					if monkey2_id not in monkey_id2index:
+						monkey_id2index[monkey2_id] = len(monkey_id2index)
+					
+					if monkey1 and monkey2 and monkey1.getCurrentAge() and monkey2.getCurrentAge():
+						ageDelta = abs(monkey1.getCurrentAge() - monkey2.getCurrentAge())
+					else:
+						ageDelta = ''
+					data_row = ['_'.join(monkey_id_pair), kinship, ibd, kinship-ibd, ageDelta]
+					
+					tableOutputWriter.writerow(data_row)
+					monkey_id_pair2kinship_ibd_delta[monkey_id_pair] = kinship-ibd
 		del tableOutputWriter
 		
-		sys.stderr.write("%s pairs overlap between pedigree kinship and genotype correlation.\n"%(len(x_ls)))
+		sys.stderr.write("%s pairs overlap between pedigree kinship and genotype correlation, among %s monkeys.\n"%\
+						(len(x_ls), len(monkey_id2index)))
 		from pymodule import yh_matplotlib
 		fig_fname = '%s_scatter.png'%(outputFnamePrefix)
-		yh_matplotlib.drawScatter(x_ls, y_ls, fig_fname=fig_fname, title='%s pairs'%(len(x_ls)), xlabel='pedigree kinship', \
-								ylabel='IBD PI_HAT', dpi=300)
+		yh_matplotlib.drawScatter(x_ls, y_ls, fig_fname=fig_fname, title=None, xlabel=self.xColumnPlotLabel, \
+								ylabel=self.whichColumnPlotLabel, dpi=self.figureDPI)
+		
+		if doPairwiseLabelCheck:
+			sys.stderr.write("Pairwise calculation using kinship-ibdcheck ...")
+			no_of_monkeys = len(monkey_id2index)
+			kinship_ibd_deltaMatrix = numpy.zeros([no_of_monkeys, no_of_monkeys], dtype=numpy.float32)
+			kinship_ibd_deltaMatrix[:] = numpy.nan
+			for monkey_id_pair, kinship_ibd_delta in  monkey_id_pair2kinship_ibd_delta.iteritems():
+				monkey1_id = monkey_id_pair[0]
+				monkey2_id = monkey_id_pair[1]
+				monkey1_index = monkey_id2index.get(monkey1_id)
+				monkey2_index = monkey_id2index.get(monkey2_id)
+				kinship_ibd_deltaMatrix[monkey1_index][monkey2_index] = kinship_ibd_delta
+				kinship_ibd_deltaMatrix[monkey2_index][monkey1_index] = kinship_ibd_delta
+			
+			maskedMatrix = np.ma.array(kinship_ibd_deltaMatrix, mask=np.isnan(kinship_ibd_deltaMatrix))
+			outputFname = '%s_SumAbsDelta.tsv'%(outputFnamePrefix)
+			writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+			header = ['monkey_pair', 'index', 'sumAbsDelta', 'noOfNonMissing', 'avgAbsDelta', 'medianAbsDelta']
+			writer.writerow(header)
+			monkey_id2medianAbsDelta = {}
+			for monkey_id , index in monkey_id2index.iteritems():
+				
+				sumAbsDelta = numpy.ma.sum(numpy.ma.abs(maskedMatrix[index,:]))
+				noOfNonMissing = len(maskedMatrix[index,:]) - numpy.ma.sum(maskedMatrix[index,:].mask)
+				medianAbsDelta = numpy.ma.median(numpy.ma.abs(maskedMatrix[index,:]))
+				data_row = [monkey_id, index, sumAbsDelta, noOfNonMissing, sumAbsDelta/float(noOfNonMissing), medianAbsDelta]
+				monkey_id2medianAbsDelta[monkey_id] = medianAbsDelta
+				writer.writerow(data_row)
+			del writer
+			
+			outputFname = '%s_pairwiseCorOfKinshipIBDDelta.tsv'%(outputFnamePrefix)
+			writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+			header = ['monkey_pair', 'noOfValidPairs', 'corr', 'monkey1_medianAbsDelta', 'monkey2_medianAbsDelta']
+			writer.writerow(header)
+			monkey_id_ls = monkey_id2index.keys()
+			monkey_id_ls.sort()
+			no_of_monkeys = len(monkey_id_ls)
+			for i in xrange(no_of_monkeys):
+				monkey1_id =  monkey_id_ls[i]
+				monkey1_index = monkey_id2index.get(monkey1_id)
+				for j in xrange(i+1, no_of_monkeys):
+					monkey2_id =  monkey_id_ls[j]
+					monkey2_index = monkey_id2index.get(monkey2_id)
+					monkey1_vector = maskedMatrix[monkey1_index,:]
+					monkey2_vector = maskedMatrix[monkey2_index,:]
+					orMask = numpy.ma.mask_or(monkey1_vector.mask, monkey2_vector.mask)
+					noOfValidPairs = len(monkey1_vector) - numpy.sum(orMask)
+					corr = numpy.ma.corrcoef(monkey1_vector, monkey2_vector, \
+									rowvar=True)[0,1]
+					if not hasattr(corr, 'mask'):	#valid float correlation, not a masked array cell (which means not enough valid data) 
+					#	if (abs(corr)>0.2):
+							#output the plot
+						data_row = ['%s_%s'%(monkey1_id, monkey2_id), noOfValidPairs, corr, monkey_id2medianAbsDelta.get(monkey1_id),\
+							monkey_id2medianAbsDelta.get(monkey2_id)]
+						writer.writerow(data_row)
+			del writer
+			sys.stderr.write(".\n")
+		
 		"""
 		#2012.3.1
 		kinshipFname = "/Network/Data/vervet/Kinx2Jan2012.txt"
@@ -230,8 +329,10 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
 		
-		self.plotPairwiseKinshipFromPedigreeVsGenotype(db_vervet=db_vervet, kinshipFname=self.inputFname, plinkIBDCheckFname=self.plinkIBDCheckFname, \
-										outputFnamePrefix=self.outputFnamePrefix)
+		self.plotPairwiseKinshipFromPedigreeVsGenotype(db_vervet=db_vervet, kinshipFname=self.inputFname, \
+									plinkIBDCheckOutputFname=self.plinkIBDCheckOutputFname, \
+									outputFnamePrefix=self.outputFnamePrefix,\
+									doPairwiseLabelCheck=self.doPairwiseLabelCheck)
 	
 
 if __name__ == '__main__':

@@ -1357,6 +1357,26 @@ class VariantDiscovery(object):
 	"""
 		
 	"""
+	@classmethod
+	def turn194SNPOriginalDataIntoYuFormat(cls, inputFname=None, outputFname=None, distanceOutputFname=None):
+		"""
+		2012.8.24
+			inputFname is AllSNPData.txt from Sue.
+			
+		"""
+		from pymodule import SNP
+		import numpy
+		snpData = SNP.readAdjacencyListDataIntoMatrix(inputFname=inputFname, rowIDHeader='Sample', colIDHeader='SNP', \
+								rowIDIndex=None, colIDIndex=None, \
+								dataHeader='Geno', dataIndex=None, hasHeader=True, defaultValue=0, \
+								dataConvertDictionary=SNP.nt2number, matrixDefaultDataType=numpy.int, asymmetric=True)
+		snpData.tofile(outputFname)
+		
+		snpData.calRowPairwiseDist(ref_row_id=None, assumeBiAllelic=False,
+						outputFname=distanceOutputFname, hetHalfMatchDistance=0.5)
+	"""
+	
+	"""
 	
 	class GetBACEndHitsOnContigs(object):
 		"""
@@ -3722,6 +3742,11 @@ class DBVervet(object):
 		#2012.1.23
 		inputFname = "/tmp/VRCPedigree2012FromSue - Jan2012 Ped.csv"
 		DBVervet.putPedigreeIntoDB(db_vervet, inputFname, )
+		sys.exit(3)
+		
+		#2012.8.14
+		inputFname = "/u/home/eeskin/sservice/Vervet/Expression/SolarPed.txt"	#supposedly similar to 
+		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
 		sys.exit(3)
 	"""
 	
@@ -6487,6 +6512,13 @@ class DBVervet(object):
 		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447,\
 			targetCoverageNotNull=False)
 		sys.exit(0)
+		
+		#2012.8.20
+		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
+		outputFname = '/tmp/VRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447,\
+			targetCoverageNotNull=True)
+		sys.exit(0)
 	"""
 	
 	@classmethod
@@ -7683,10 +7715,13 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2012.8.14
-		inputFname = "/u/home/eeskin/sservice/Vervet/Expression/SolarPed.txt"	#supposedly similar to 
-		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
-		sys.exit(3)
+		inputFname = os.path.expanduser('~/script/vervet/data/194SNPData/AllSNPData.txt')
+		outputFname = os.path.expanduser('~/script/vervet/data/194SNPData/AllSNPData_yuFormat.tsv')
+		distanceOutputFname = os.path.expanduser("~/script/vervet/data/194SNPData/AllSNPData_yuFormat_rowPairwiseDistance.tsv")
+		VariantDiscovery.turn194SNPOriginalDataIntoYuFormat(inputFname=inputFname, outputFname=outputFname,\
+										distanceOutputFname=distanceOutputFname)
+		sys.exit(0)
+		
 		
 		#2012.8.1
 		workflowName = 'VCFStat_LowPass_top7559Contigs_no12eVarFilter_inter_100kbwindow_2011.12.6T2342'

@@ -104,6 +104,7 @@ from Pegasus.DAX3 import *
 class AlignmentToCallPipeline(AbstractVervetWorkflow):
 	__doc__ = __doc__
 	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
+	option_default_dict.pop(('inputDir', 0, ))
 	commonCallPipelineOptionDict= {
 						('ind_seq_id_ls', 0, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. alignments come from these', ],\
 						('ind_aln_id_ls', 0, ): ['', 'I', 1, 'a comma/dash-separated list of IndividualAlignment.id. This overrides ind_seq_id_ls.', ],\
@@ -144,14 +145,9 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 		AbstractVervetWorkflow.__init__(self, **keywords)
 		self.ligateVcfPerlPath =  self.insertHomePath(self.ligateVcfPerlPath, self.home_path)
 		
-		if self.ind_seq_id_ls:
-			self.ind_seq_id_ls = getListOutOfStr(self.ind_seq_id_ls, data_type=int)
-		if self.ind_aln_id_ls:
-			self.ind_aln_id_ls = getListOutOfStr(self.ind_aln_id_ls, data_type=int)
-		if self.site_id_ls:
-			self.site_id_ls = getListOutOfStr(self.site_id_ls, data_type=int)
-		else:
-			self.site_id_ls = []
+		listArgumentName_data_type_ls = [('ind_seq_id_ls', int), ("ind_aln_id_ls", int), \
+								("site_id_ls", int)]
+		listArgumentName2hasContent = self.processListArguments(listArgumentName_data_type_ls, emptyContent=[])
 	
 	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], aln_method_id=2, \
 					dataDir=None, sequence_type=None):
@@ -1240,6 +1236,7 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 		if not self.localDataDir:
 			self.localDataDir = db_vervet.data_dir
 		
+		workflow = self.initiateWorkflow()
 		
 		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
 										aln_method_id=self.alignment_method_id, dataDir=self.localDataDir)
@@ -1247,7 +1244,6 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 												individual_site_id_set=set(self.site_id_ls))
 		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
 															defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
-		workflow = self.initiateWorkflow()
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.dataDir, refSequence.path)

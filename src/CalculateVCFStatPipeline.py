@@ -262,7 +262,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[homoHetCountReduceOutputF], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="NoOfHet_by_NoOfTotal", whichColumnPlotLabel="HetFraction", \
-					logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=50,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, homoHetCountReduceJob], \
@@ -278,8 +278,8 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[siteGapOutputF], \
 							outputFile=outputFile, \
-					whichColumn=None, whichColumnHeader="distanceToNextSite", whichColumnPlotLabel="siteGap", \
-					logWhichColumn=True, positiveLog=True, valueForNonPositiveYValue=-1,\
+					whichColumn=None, whichColumnHeader="distanceToNextSite", whichColumnPlotLabel="log_distanceToNextSite", \
+					logWhichColumn=True, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=samplingRate,\
 					parentJobLs=[plotOutputDirJob, siteGapMergeJob], \
@@ -296,8 +296,8 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[largeSiteGapOutputF], \
 							outputFile=outputFile, \
-					whichColumn=None, whichColumnHeader="distanceToNextSite", whichColumnPlotLabel="siteGap", \
-					logWhichColumn=True, positiveLog=True, valueForNonPositiveYValue=-1,\
+					whichColumn=None, whichColumnHeader="distanceToNextSite", whichColumnPlotLabel="log_distanceToNextSite", \
+					logWhichColumn=True, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, largeSiteGapMergeJob], \
@@ -378,7 +378,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 							logWhichColumn=True,\
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHR", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
-							figureDPI=100, ylim_type=2, samplingRate=samplingRate,\
+							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
 							parentJobLs=[hweMergeJob, plotOutputDirJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput, sshDBTunnel=self.needSSHDBTunnel)
@@ -389,7 +389,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 							logWhichColumn=False,\
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHR", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
-							figureDPI=100, ylim_type=2, samplingRate=samplingRate,\
+							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
 							parentJobLs=[hweMergeJob, plotOutputDirJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput, sshDBTunnel=self.needSSHDBTunnel)
@@ -407,7 +407,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 							logWhichColumn=False,\
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHROM", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
-							figureDPI=100, ylim_type=2, samplingRate=samplingRate,\
+							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
 							parentJobLs=[siteMeanDepthMergeJob, plotOutputDirJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput, sshDBTunnel=self.needSSHDBTunnel)
@@ -418,7 +418,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 							logWhichColumn=False,\
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHROM", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
-							figureDPI=100, ylim_type=2, samplingRate=samplingRate,\
+							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
 							parentJobLs=[siteMeanDepthMergeJob, plotOutputDirJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput, sshDBTunnel=self.needSSHDBTunnel)
@@ -445,7 +445,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 							logWhichColumn=False,\
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHR", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
-							figureDPI=100, ylim_type=2, samplingRate=samplingRate,\
+							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
 							parentJobLs=[lmissingMergeJob, plotOutputDirJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput, sshDBTunnel=self.needSSHDBTunnel)
@@ -461,10 +461,10 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 			outputFile = File( os.path.join(plotOutputDir, 'LDPlot%s.png'%(LDWindowSize)))
 			#square the sampling rate
 			LDPlotJob = self.addPlotLDJob(executable=workflow.PlotLD, inputFileList=[LDMergeFile], outputFile=outputFile, \
-						whichColumn=None, whichColumnLabel="R^2", whichColumnPlotLabel="r2", \
+						whichColumn=None, whichColumnHeader="R^2", whichColumnPlotLabel="r2", \
 						logWhichColumn=False,\
-						posColumnPlotLabel="distance", chrLengthColumnLabel=None, chrColumnLabel="CHR", \
-						minChrLength=minChrLengthForPlot, pos1ColumnLabel="POS1", pos2ColumnLabel="POS2", minNoOfTotal=50,\
+						xColumnPlotLabel="distance", chrLengthColumnHeader=None, chrColumnHeader="CHR", \
+						minChrLength=minChrLengthForPlot, xColumnHeader="POS1", pos2ColumnHeader="POS2", minNoOfTotal=50,\
 						figureDPI=100, ylim_type=2, samplingRate=samplingRate*samplingRate*10,\
 						parentJobLs=[LDMergeJob, plotOutputDirJob], \
 						extraDependentInputLs=None, \
@@ -483,7 +483,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 							logWhichColumn=False,\
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHROM", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
-							figureDPI=100, ylim_type=2, samplingRate=samplingRate,\
+							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
 							parentJobLs=[siteQualityMergeJob, plotOutputDirJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput, sshDBTunnel=self.needSSHDBTunnel)
@@ -553,16 +553,16 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 			
 			outputFile = File(os.path.join(statOutputDir, "%s.laregSiteGapMin%s.tsv"%(commonPrefix, minSiteGap)))
 			#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
-			selectSiteGapJob = self.addDrawHistogramJob(workflow=workflow, executable=workflow.SelectRowsFromMatrix, \
+			selectSiteGapJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=workflow.SelectRowsFromMatrix, \
 								inputFileList=outputVCFSiteGapJob.outputLs, \
 								outputFile=outputFile, \
-						whichColumn=None, whichColumnHeader="distanceToNextSite", whichColumnPlotLabel="siteGap", \
+						whichColumn=None, whichColumnHeader="distanceToNextSite", \
 						logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=-1,\
 						minNoOfTotal=10,\
-						figureDPI=100, samplingRate=1,\
+						samplingRate=1,\
 						parentJobLs=[statOutputDirJob, outputVCFSiteGapJob], \
 						extraDependentInputLs=None, \
-						extraArguments="-V %s"%(minSiteGap), transferOutput=transferOutput,  job_max_memory=2000)
+						extraArguments="-V %s"%(minSiteGap), transferOutput=False,  job_max_memory=2000)
 			self.addInputToStatMergeJob(workflow, statMergeJob=largeSiteGapMergeJob, inputF=outputFile, \
 						parentJobLs=[selectSiteGapJob])
 			no_of_jobs += 1
