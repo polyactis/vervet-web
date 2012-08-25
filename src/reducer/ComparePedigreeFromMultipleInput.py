@@ -17,7 +17,7 @@ Description:
 		Doesn't mater which delimiter is used.
 		If first line's first cell contains characters [a-df-zA-DF-Z\-] in the end, 
 			#no 'e' or 'E', as could be used in scientific number,
-			first line is regarded as header and skipped.
+			it will be regarded as header and skipped.
 """
 
 import sys, os, math
@@ -31,6 +31,8 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, figure
 from pymodule import SNP
 from pymodule.pegasus.mapper.AbstractMapper import AbstractMapper
 import networkx as nx
+from pymodule.MatrixFile import MatrixFile
+
 
 class ComparePedigreeFromMultipleInput(AbstractMapper):
 	__doc__ = __doc__
@@ -43,7 +45,8 @@ class ComparePedigreeFromMultipleInput(AbstractMapper):
 						('motherColumnIndex', 1, int):[3, '', 1, 'index of the mother ID column, 0-based'],\
 						('run_type', 1, int):[1, 'y', 1, 'run type \
 		1: check parents of all individuals shared among all input pedigrees,\
-		2: check parents of only the children that are shared among all input pedigrees'],\
+		2: check parents of only the children that are shared among all input pedigrees,\
+		3: check parents of every node in 1st input graph'],\
 						
 						})
 	option_default_dict.pop(('outputFname', 0, ))	#pop after its value has been used above
@@ -58,39 +61,53 @@ class ComparePedigreeFromMultipleInput(AbstractMapper):
 		DG=nx.DiGraph()
 		reader = None
 		childNodeSet = set()
-		try:
-			inputFile = utils.openGzipFile(inputFname)
-			delimiter = figureOutDelimiter(inputFname)
-			isCSVReader = True
-			if delimiter=='\t' or delimiter==',':
-				reader = csv.reader(inputFile, delimiter=delimiter)
-			else:
-				reader = inputFile
-				isCSVReader = False
-		except:
-			sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-			import traceback
-			traceback.print_exc()
-			sys.exit(3)
+		reader = MatrixFile(inputFname)
 		
 		counter = 0
-		if reader is not None:
-			for row in reader:
-				if not isCSVReader:
-					row = row.strip().split()
-				if counter ==0 and self.p_char.search(row[0]):	#character in 1st cell of 1st line, it's header skip.
-					continue
-				childID = row[self.childColumnIndex]
-				DG.add_node(childID)	#in case this guy has no parents, then won't be added via add_edge()
-				childNodeSet.add(childID)
-				fatherID = row[self.fatherColumnIndex]
-				if fatherID!='0':
-					DG.add_edge(fatherID, childID)
-				motherID = row[self.motherColumnIndex]
-				if motherID!='0':
-					DG.add_edge(motherID, childID)
-				counter += 1
-			del reader
+		for row in reader:
+			if counter ==0 and self.p_char.search(row[0]):	#character in 1st cell of 1st line, it's header skip.
+				continue
+			childID = row[self.childColumnIndex]
+			DG.add_node(childID)	#in case this guy has no parents, then won't be added via add_edge()
+			childNodeSet.add(childID)
+			fatherID = row[self.fatherColumnIndex]
+			if fatherID!='0':
+				DG.add_edge(fatherID, childID)
+			motherID = row[self.motherColumnIndex]
+			if motherID!='0':
+				DG.add_edge(motherID, childID)
+			counter += 1
+		del reader
+		sys.stderr.write("%s children, %s nodes. %s edges. %s connected components.\n"%(\
+										len(childNodeSet), DG.number_of_nodes(), DG.number_of_edges(), \
+										nx.number_connected_components(DG.to_undirected())))
+		return PassingData(DG=DG, childNodeSet=childNodeSet)
+	
+		
+	def constructPedigreeGraphFromPOEdgeFile(self, inputFname=None):
+		"""
+		2012.8.23
+			inputFname is output of vervet/src/pedigree/DiscoverParentOffspringFromPlinkIBD.py
+		"""
+		sys.stderr.write("Constructing pedigree-graph out of %s ..."%(inputFname))
+		DG=nx.DiGraph()
+		reader = None
+		childNodeSet = set()
+		reader = MatrixFile(inputFname)
+		reader.constructColName2IndexFromHeader()
+		
+		parentIDIndex = reader.getColIndexGivenColHeader("parentID")
+		childIDIndex = reader.getColIndexGivenColHeader("childID")
+		distToPOVectorIndex = reader.getColIndexGivenColHeader("distToPOVector")
+		counter = 0
+		for row in reader:
+			childID = row[childIDIndex]
+			childNodeSet.add(childID)
+			parentID = row[parentIDIndex]
+			distToPOVector = float(row[distToPOVectorIndex])
+			DG.add_edge(parentID, childID, weight=distToPOVector)
+			counter += 1
+		del reader
 		sys.stderr.write("%s children, %s nodes. %s edges. %s connected components.\n"%(\
 										len(childNodeSet), DG.number_of_nodes(), DG.number_of_edges(), \
 										nx.number_connected_components(DG.to_undirected())))
@@ -104,11 +121,15 @@ class ComparePedigreeFromMultipleInput(AbstractMapper):
 		inputFname2DG = {}
 		
 		commonChildNodeSet = None
-		
-		for inputFname in self.inputFnameLs:
+		n = len(self.inputFnameLs)
+		for i in xrange(n):
+			inputFname = self.inputFnameLs[i]
 			if not os.path.isfile(inputFname):
 				sys.stderr.write("Warning: file %s doesn't exist.\n"%(inputFname))
 				continue
+			#if i==0:	#2012.8.23 temporary for analyzing the output of DiscoverParentOffspringFromPlinkIBD.py
+			#	graphData = self.constructPedigreeGraphFromPOEdgeFile(inputFname=inputFname)
+			#else:
 			graphData = self.constructPedigreeGraphFromOneFile(inputFname=inputFname)
 			inputFname2DG[inputFname] = graphData.DG
 			if commonChildNodeSet is None:
@@ -137,6 +158,10 @@ class ComparePedigreeFromMultipleInput(AbstractMapper):
 		elif self.run_type==2:
 			#only use the child node set
 			commonNodeSet = returnData.commonChildNodeSet
+		elif self.run_type==3:
+			fstInputFname = self.inputFnameLs[0]
+			DG = inputFname2DG[fstInputFname]
+			commonNodeSet = set(DG.nodes())
 		else:
 			sys.stderr.write("run_type %s  not supported.\n"%(self.run_type))
 			sys.exit(4)
