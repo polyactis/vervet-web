@@ -32,7 +32,6 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO, re, csv
-import VervetDB
 from pymodule import ProcessOptions, figureOutDelimiter
 from pymodule.utils import sortCMPBySecondTupleValue
 from pymodule.VCFFile import VCFFile
@@ -52,6 +51,7 @@ class GenotypeCallByCoverage(object):
 						('seqCoverageFname', 0, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
 						('defaultCoverage', 1, float): [5, 'f', 1, 'default coverage when coverage is not available for a read group'],\
 						('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
+						('outputDelimiter', 1, ): ['\t', 'u', 1, 'delimiter in the csv output file.'],\
 						("run_type", 1, int): [1, 'y', 1, '1: discoverFromVCF (output of GATK), 2: discoverFromBAM, 3: discoverFromVCFWithoutFilter'],\
 						("site_type", 1, int): [1, 's', 1, '1: all sites, 2: variants only'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction'],\
@@ -107,6 +107,7 @@ class GenotypeCallByCoverage(object):
 						maxNoOfReads=300, minNoOfReads=2, minMinorAlleleCoverage=3, maxMinorAlleleCoverage=7,\
 						maxNoOfReadsForGenotypingError=1, maxMajorAlleleCoverage=30, maxNoOfReadsForAllSamples=1000,\
 						nt_set = set(['a','c','g','t','A','C','G','T']), VCFOutputType=None, \
+						outputDelimiter='\t',\
 						isqID2coverage=None, defaultCoverage=10, report=0, site_type=1):
 		"""
 		2011-9-2
@@ -269,7 +270,7 @@ class GenotypeCallByCoverage(object):
 		samfile.close()
 		cls.outputCallMatrix(data_matrix, refFastaFname, outputFname=outputFname, \
 					refNameSet=refNameSet, read_group2col_index=read_group2col_index, \
-					locus_id2row_index=locus_id2row_index)
+					locus_id2row_index=locus_id2row_index, outputDelimiter=outputDelimiter)
 		
 		unique_read_group_ls = read_group2col_index.keys()
 		unique_read_group_ls.sort()
@@ -281,8 +282,10 @@ class GenotypeCallByCoverage(object):
 	
 	@classmethod
 	def outputCallMatrix(cls, data_matrix=None, refFastaFname=None, outputFname=None, refNameSet=None, read_group2col_index=None, \
-						locus_id2row_index=None):
+						locus_id2row_index=None, outputDelimiter='\t'):
 		"""
+		2012.8.20
+			add argument outputDelimiter
 		2012.5.8
 			if refNameSet is empty or None, stop reading the refFastaFname and outputting the ref base
 		2011-7-26
@@ -311,7 +314,7 @@ class GenotypeCallByCoverage(object):
 		read_group_col_index_ls = read_group2col_index.items()
 		read_group_col_index_ls.sort(cmp=sortCMPBySecondTupleValue)
 		header = ['locus_id', 'locus_id']+[row[0] for row in read_group_col_index_ls]
-		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		writer = csv.writer(open(outputFname, 'w'), delimiter=outputDelimiter)
 		#header = ['RG', 'chr', 'pos', 'MinorAlleleCoverage', 'MajorAlleleCoverage']
 		#writer.writerow(header)
 		writer.writerow(header)
@@ -363,7 +366,9 @@ class GenotypeCallByCoverage(object):
 					minMinorAlleleCoverage=1/4., maxMinorAlleleCoverage=3/4.,\
 					maxNoOfReads=2., minNoOfReads=1/4., \
 					maxNoOfReadsForGenotypingError=1, maxMajorAlleleCoverage=7/8., maxNoOfReadsForAllSamples=1000,\
-					nt_set = set(['a','c','g','t','A','C','G','T']), isqID2coverage=None, defaultCoverage=10, report=0, site_type=1):
+					nt_set = set(['a','c','g','t','A','C','G','T']), isqID2coverage=None, defaultCoverage=10, \
+					outputDelimiter='\t',\
+					report=0, site_type=1):
 		"""
 		2011-9-2
 			add argument isqID2coverage, defaultCoverage
@@ -577,26 +582,34 @@ class GenotypeCallByCoverage(object):
 		
 		cls.outputCallMatrix(data_matrix, refFastaFname, outputFname=outputFname, refNameSet=refNameSet, \
 					read_group2col_index=read_group2col_index, \
-					locus_id2row_index=locus_id2row_index)
+					locus_id2row_index=locus_id2row_index, outputDelimiter=outputDelimiter)
 		
 		sys.stderr.write("%s\t%s\t%s.\n"%("\x08"*80, counter, real_counter))
 	
 	
 	def discoverFromVCFWithoutFilter(self, inputFname, outputFname, **keywords):
 		"""
+		#2012.8.20 locus_id2row_index from VCFFile is using (chr, pos) as key, not chr_pos
+			need a conversion in between
 		2012.5.8
 		"""
 		vcfFile = VCFFile(inputFname=inputFname)
 		vcfFile.parseFile()
 		
 		read_group2col_index = vcfFile.sample_id2index
-		locus_id2row_index = vcfFile.locus_id2row_index
+		locus_id2row_index = vcfFile.locus_id2row_index	
+		#2012.8.20 locus_id2row_index from VCFFile is using (chr, pos) as key, not chr_pos
+		new_locus_id2row_index = {}
+		for locus_id, row_index  in locus_id2row_index.iteritems():
+			new_locus_id = '%s_%s'%(locus_id[0], locus_id[1])
+			new_locus_id2row_index[new_locus_id] = row_index
+		locus_id2row_index = new_locus_id2row_index
 		
 		data_matrix = vcfFile.genotype_call_matrix
 		
 		self.outputCallMatrix(data_matrix, refFastaFname=None, outputFname=outputFname, refNameSet=None, \
 					read_group2col_index=read_group2col_index, \
-					locus_id2row_index=locus_id2row_index)
+					locus_id2row_index=locus_id2row_index, outputDelimiter=self.outputDelimiter)
 	
 	def run(self):
 		if self.debug:
@@ -625,6 +638,7 @@ class GenotypeCallByCoverage(object):
 					maxNoOfReadsForGenotypingError=self.maxNoOfReadsForGenotypingError, \
 					maxMajorAlleleCoverage=self.maxMajorAlleleCoverage, \
 					maxNoOfReadsForAllSamples=maxNoOfReadsForAllSamples, VCFOutputType=2, \
+					outputDelimiter=self.outputDelimiter,\
 					isqID2coverage=isqID2coverage, defaultCoverage=self.defaultCoverage, \
 					report=self.report, site_type=self.site_type)
 		else:

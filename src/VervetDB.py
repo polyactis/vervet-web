@@ -1316,6 +1316,25 @@ class VervetDB(ElixirDB):
 		sys.stderr.write("%s alignments Done.\n"%(len(alignmentLs)))
 		return alignmentLs
 	
+	def getAlignmentsFromVCFSampleIDList(self, sampleIDList=None):
+		"""
+		2012.8.15
+			each sample ID is constructed through IndividualAlignment.getReadGroup()
+			use vcfFile.getSampleIDList() to generate sampleIDList. vcfFile is pymodule.VCFFile.
+				vcfFile.sample_id_ls is not good because its index 0 is "ref".
+		"""
+		no_of_samples = 0
+		if sampleIDList:
+			no_of_samples = len(sampleIDList)
+		sys.stderr.write("Getting alignments from %s samples ...\n"%(no_of_samples))
+		alignmentLs = []
+		if sampleIDList:
+			for read_group in sampleIDList:
+				individualAlignment = self.parseAlignmentReadGroup(read_group).individualAlignment
+				alignmentLs.append(individualAlignment)
+		sys.stderr.write("%s alignments.\n"%(len(alignmentLs)))
+		return alignmentLs
+	
 	@classmethod
 	def filterAlignments(cls, alignmentLs, max_coverage=None, individual_site_id=None, sequence_filtered=None,\
 						individual_site_id_set=None, mask_genotype_method_id=None, parent_individual_alignment_id=None):
@@ -2504,6 +2523,34 @@ class VervetDB(ElixirDB):
 						individual_id=individual_id, individual_code=individual_code, ref_ind_seq_id=ref_ind_seq_id,\
 						sequencer=sequencer, individualAlignment=individualAlignment)
 	
+	def parseDBEntryGivenDBAffiliatedFilename(self, filename=None, TableClass=None):
+		"""
+		2012.8.15
+			almost all db-affliated filenames are beginned with the db_entry's primary ID, separated by _.
+			this is a generic function, to be called by others with different TableClass
+		"""
+		baseFilename = os.path.basename(filename)
+		try:
+			dbID = int(baseFilename.split('_')[0])
+			db_entry = TableClass.get(dbID)
+		except:
+			sys.stderr.write("Warning: could not parse dbID from %s.\n"%(baseFilename))
+			db_entry = None
+		return db_entry
+	
+	def parseGenotypeFileGivenDBAffiliatedFilename(self, filename=None):
+		"""
+		2012.8.15
+			call parseDBEntryGivenDBAffiliatedFilename
+		"""
+		return self.parseDBEntryGivenDBAffiliatedFilename(filename=filename, TableClass=GenotypeFile)
+	
+	def parseIndividualAlignmentGivenDBAffiliatedFilename(self, filename=None):
+		"""
+		2012.8.15
+			call parseDBEntryGivenDBAffiliatedFilename
+		"""
+		return self.parseDBEntryGivenDBAffiliatedFilename(filename=filename, TableClass=IndividualAlignment)
 	
 	def findISQFoldersNotInDB(self, dataDir=None, subFolder='individual_sequence',):
 		"""
@@ -2613,14 +2660,25 @@ class VervetDB(ElixirDB):
 		self.session.add(db_entry)
 		self.session.flush()
 		
-	def updateGenotypeMethodNoOfLoci(self, db_entry=None, ):
+	def updateGenotypeMethodNoOfLoci(self, db_entry=None, format=None):
 		"""
+		2012.8.15
+			add argument format and aggregate the number of loci according to format
 		2012.7.17
 		"""
 		no_of_loci = 0
-		for genotype_file in db_entry.genotype_file_ls:
-			no_of_loci += genotype_file.no_of_loci
-		db_entry.no_of_loci = no_of_loci
+		format2NoOfLoci = {}
+		query = GenotypeFile.query.filter_by(genotype_method_id=db_entry.id)
+		if format:
+			query = query.filter_by(format=format)
+		
+		for genotype_file in query:
+			if genotype_file.format not in format2NoOfLoci:
+				format2NoOfLoci[genotype_file.format] = 0
+			format2NoOfLoci[genotype_file.format] += genotype_file.no_of_loci
+		noOfLociList = format2NoOfLoci.values()
+		#do some checking here to make sure every number in noOfLociList agrees with each other
+		db_entry.no_of_loci = noOfLociList[0]
 		self.session.add(db_entry)
 		self.session.flush()
 	

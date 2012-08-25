@@ -1,59 +1,66 @@
 #!/usr/bin/env python
 """
 Examples:
+	# 2012.8.15
+	%s -f ~/NetworkData/vervet/db/individual_sequence/10_hs_genome.fasta
+		-q ~/NetworkData/vervet/db/individual_sequence/12_mm_genome.fasta
+		-o workflow/MummerBetweenHumanAndMacaque.xml -l hcondor -j hcondor  -C 1
+	
 	# 2011-9-29
 	%s -f ... -q ...
-		-o MummerBetweenTwoGenomes.xml -l condorpool -j condorpool  -u yh -z uclaOffice
+		-o workflow/MummerBetweenTwoGenomes.xml -l condorpool -j condorpool -C 1
 	
 Description:
 	2011-10-05
 		grab two sequences (fasta format)
 		split one or both into single-fasta entries
 		run nucmer between the two (show-coords, show-aligns, draw plot)
-		
+		run PostNucmer (requiring gnumplot to generat png synteny figures)
+	
+	2012.8.15 ToDo (error in gnuplot script output by PostNucmer, remove "tiny", )
+	
+	polyacti@n6203:/u/scratch/p/polyacti/pegasus/MummerTwoGenomes/MummerBetweenHumanAndMacaque.2012.8.15T1531$ gnuplot plot/chr10_vs_10_hs_genome_chr10_plot.gp
+	
+	set terminal png tiny size 800,800
+	                 ^
+	"plot/chr10_vs_10_hs_genome_chr10_plot.gp", line 1: unrecognized terminal option
+	
+	polyacti@n6203:/u/scratch/p/polyacti/pegasus/MummerTwoGenomes/MummerBetweenHumanAndMacaque.2012.8.15T1531$ gnuplot plot/chr10_vs_10_hs_genome_chr10_plot.gp
+	
+	set ticscale 0 0
+	    ^
+	"plot/chr10_vs_10_hs_genome_chr10_plot.gp", line 7: warning: Deprecated syntax - please use 'set tics scale' keyword
+	
 		put the filter a bit more stringent so that only large synteny is displayed
 			run mummerplot only after delta-filter returns something
 			
 		group different results into different folders to reduce the number of files in one folder
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0])
 
-from sqlalchemy.types import LargeBinary
 
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+#bit_number = math.log(sys.maxint)/math.log(2)
+#if bit_number>40:	   #64bit
+#	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
+#	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
+#else:   #32bit
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
+from pymodule.pegasus.AbstractWorkflow import AbstractWorkflow
 
-
-class MummerTwoGenomesPipeline(object):
+class MummerTwoGenomesPipeline(AbstractWorkflow):
 	__doc__ = __doc__
-	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-						('dbname', 1, ): ['vervetdb', 'd', 1, 'stock_250k database name', ],\
-						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
+	option_default_dict = AbstractWorkflow.option_default_dict.copy()
+	option_default_dict.update({
 						('query_seq_fname', 1, ): ['', 'q', 1, 'the query sequence fasta file', ],\
 						('ref_seq_fname', 1, ): ['', 'f', 1, 'the reference sequence fasta file', ],\
-						("vervetSrcPath", 1, ): ["%s/script/vervet/src", '', 1, 'vervet source code folder'],\
-						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
-						("site_handler", 1, ): ["condorpool", 'l', 1, 'which site to run the jobs: condorpool, hoffman2'],\
-						("input_site_handler", 1, ): ["condorpool", 'j', 1, 'which site has all the input files: local, condorpool, hoffman2. \
-							If site_handler is condorpool, this must be condorpool and files will be symlinked. \
-							If site_handler is hoffman2, input_site_handler=local induces file transfer and input_site_handler=hoffman2 induces symlink.'],\
-						('outputFname', 1, ): [None, 'o', 1, 'xml workflow output file'],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						("mummer_path", 1, ): ["%s/bin/MUMmer", '', 1, 'path to mummer binary programs'],\
+						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 						#('ref_ind_seq_id', 1, int): [120, '', 1, 'IndividualSequence.id. the reference sequence in fasta', ],\
 						#('query_ind_seq_id', 1, int): [120, 'q', 1, 'IndividualSequence.id. the query sequence in fasta', ],\
@@ -62,11 +69,8 @@ class MummerTwoGenomesPipeline(object):
 		"""
 		2011-7-11
 		"""
-		from pymodule import ProcessOptions
-		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
-														class_to_have_attr=self)
-		
-		self.vervetSrcPath = self.vervetSrcPath%self.home_path
+		self.pathToInsertHomePathList.append('mummer_path')	#inserted before AbstractWorkflow.__init__()
+		AbstractWorkflow.__init__(self, **keywords)
 	
 	def getFastaRecordTitleLs(self, fastaFname=None):
 		"""
@@ -83,7 +87,7 @@ class MummerTwoGenomesPipeline(object):
 		sys.stderr.write("%s records. Done.\n"%(len(fastaTitleLs)))
 		return fastaTitleLs
 	
-	def addSplitFastaFileJobs(self, workflow, refFastaF, selectAndSplitFasta, fastaTitleLs, mkdirWrap=None, 
+	def addSplitFastaFileJobs(self, workflow, refFastaF, SelectAndSplitFastaRecords, fastaTitleLs, mkdirWrap=None, 
 								site_handler=None, namespace='workflow', version='1.0', fastaOutputDir = "fasta"):
 		"""
 		2011-7-25
@@ -95,7 +99,7 @@ class MummerTwoGenomesPipeline(object):
 		mkDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=fastaOutputDir, namespace=namespace, version=version)
 		
 		
-		selectAndSplitFastaJob = Job(namespace=namespace, name=selectAndSplitFasta.name, version=version)
+		selectAndSplitFastaJob = Job(namespace=namespace, name=SelectAndSplitFastaRecords.name, version=version)
 		selectAndSplitFastaJob.addArguments('-i', refFastaF, "-o", fastaOutputDir)
 		selectAndSplitFastaJob.uses(refFastaF, transfer=True, register=True, link=Link.INPUT)
 		workflow.addJob(selectAndSplitFastaJob)
@@ -115,6 +119,41 @@ class MummerTwoGenomesPipeline(object):
 		sys.stderr.write("Done.\n")
 		return PassingData(refName2jobDataLs=refName2jobDataLs, workflow=workflow)
 	
+	def registerCustomExecutables(self, workflow=None):
+		"""
+		2011-11-28
+		"""
+		AbstractWorkflow.registerCustomExecutables(self, workflow)
+		
+		namespace = workflow.namespace
+		version = workflow.version
+		operatingSystem = workflow.operatingSystem
+		architecture = workflow.architecture
+		clusters_size = workflow.clusters_size
+		site_handler = workflow.site_handler
+		vervetSrcPath = self.vervetSrcPath
+		
+		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
+		
+		
+		nucmer = Executable(namespace=namespace, name="nucmer", version=version, \
+						os=operatingSystem, arch=architecture, installed=True)
+		nucmer.addPFN(PFN("file://" + os.path.join(self.mummer_path, "nucmer"), site_handler))
+		executableClusterSizeMultiplierList.append((nucmer, 0))
+		
+		
+		PostNucmer = Executable(namespace=namespace, name="PostNucmer", version=version, \
+										os=operatingSystem, arch=architecture, installed=True)
+		PostNucmer.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "shell/PostNucmer.sh"), site_handler))
+		executableClusterSizeMultiplierList.append((PostNucmer, 0))
+		
+		SelectAndSplitFastaRecords = Executable(namespace=namespace, name="SelectAndSplitFastaRecords", version=version, \
+										os=operatingSystem, arch=architecture, installed=True)
+		SelectAndSplitFastaRecords.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/SelectAndSplitFastaRecords.py"), site_handler))
+		executableClusterSizeMultiplierList.append((SelectAndSplitFastaRecords, 0))
+		
+		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
+	
 	def run(self):
 		"""
 		2011-9-28
@@ -124,100 +163,52 @@ class MummerTwoGenomesPipeline(object):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
 		
+		workflow = self.initiateWorkflow()
 		
-		# Create a abstract dag
-		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = ADAG(workflowName)
-		vervetSrcPath = self.vervetSrcPath
-		site_handler = self.site_handler
+		self.registerJars()
+		self.registerExecutables()
+		self.registerCustomExecutables(workflow)
+		site_handler =self.site_handler
+		input_site_handler = self.input_site_handler
 		
+		ref_seq_f = self.registerOneInputFile(workflow, self.ref_seq_fname, folderName=self.pegasusFolderName)
 		
-		# Add executables to the DAX-level replica catalog
-		# In this case the binary is keg, which is shipped with Pegasus, so we use
-		# the remote PEGASUS_HOME to build the path.
-		architecture = "x86_64"
-		operatingSystem = "linux"
-		namespace = "workflow"
-		version="1.0"
-		#clusters_size controls how many jobs will be aggregated as a single job.
-		clusters_size = 20
-		
-		#mkdirWrap is better than mkdir that it doesn't report error when the directory is already there.
-		mkdirWrap = Executable(namespace=namespace, name="mkdirWrap", version=version, os=operatingSystem, \
-							arch=architecture, installed=True)
-		mkdirWrap.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mkdirWrap.sh"), site_handler))
-		mkdirWrap.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(mkdirWrap)
-		
-		#mv to rename files and move them
-		mv = Executable(namespace=namespace, name="mv", version=version, os=operatingSystem, arch=architecture, installed=True)
-		mv.addPFN(PFN("file://" + "/bin/mv", site_handler))
-		mv.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(mv)
-		
-		nucmer = Executable(namespace=namespace, name="nucmer", version=version, \
-						os=operatingSystem, arch=architecture, installed=True)
-		nucmer.addPFN(PFN("file://" + os.path.join(self.home_path, "bin/nucmer"), site_handler))
-		#nucmer.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(nucmer)
-		
-		
-		PostNucmer = Executable(namespace=namespace, name="PostNucmer", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		PostNucmer.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "shell/PostNucmer.sh"), site_handler))
-		#PostNucmer.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(PostNucmer)
-		
-		selectAndSplitFasta = Executable(namespace=namespace, name="SelectAndSplitFastaRecords", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		selectAndSplitFasta.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "SelectAndSplitFastaRecords.py"), site_handler))
-		workflow.addExecutable(selectAndSplitFasta)
-		
-		ref_seq_f = File(os.path.basename(self.ref_seq_fname))
-		ref_seq_f.addPFN(PFN("file://" + self.ref_seq_fname, self.input_site_handler))
-		workflow.addFile(ref_seq_f)
-		
-		query_seq_f = File(os.path.basename(self.query_seq_fname))
-		query_seq_f.addPFN(PFN("file://" + self.query_seq_fname, self.input_site_handler))
-		workflow.addFile(query_seq_f)
+		query_seq_f = self.registerOneInputFile(workflow, self.query_seq_fname, folderName=self.pegasusFolderName)
 		
 		# Add a mkdir job
 		deltaOutputDir = "delta"
-		deltaOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=deltaOutputDir, namespace=namespace, version=version)
+		deltaOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=self.mkdirWrap, outputDir=deltaOutputDir)
 		
 		coordsOutputDir = "coords"
-		coordsOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=coordsOutputDir, namespace=namespace, version=version)
+		coordsOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=self.mkdirWrap, outputDir=coordsOutputDir)
 		
 		filterOutputDir = "filter"
-		filterOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=filterOutputDir, namespace=namespace, version=version)
+		filterOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=self.mkdirWrap, outputDir=filterOutputDir)
 		
 		plotOutputDir = "plot"
-		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=plotOutputDir, namespace=namespace, version=version)
+		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=self.mkdirWrap, outputDir=plotOutputDir)
 		
 		#plotScriptOutputDir = "plotScript"
-		#plotScriptOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=plotScriptOutputDir, namespace=namespace, version=version)
+		#plotScriptOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=self.mkdirWrap, outputDir=plotScriptOutputDir)
 		
 		refNameLs = self.getFastaRecordTitleLs(self.ref_seq_fname)
-		returnData3 = self.addSplitFastaFileJobs(workflow, ref_seq_f, selectAndSplitFasta, refNameLs, mkdirWrap=mkdirWrap,\
-						site_handler=site_handler, namespace=namespace, version=version, fastaOutputDir='refFasta')
+		returnData3 = self.addSplitFastaFileJobs(workflow, ref_seq_f, self.SelectAndSplitFastaRecords, refNameLs, mkdirWrap=self.mkdirWrap,\
+						site_handler=site_handler, namespace=self.namespace, version=self.version, fastaOutputDir='refFasta')
 		refName2splitFastaJobDataLs = returnData3.refName2jobDataLs
 		
 		queryNameLs = self.getFastaRecordTitleLs(self.query_seq_fname)
-		returnData3 = self.addSplitFastaFileJobs(workflow, query_seq_f, selectAndSplitFasta, queryNameLs, mkdirWrap=mkdirWrap,\
-						site_handler=site_handler, namespace=namespace, version=version, fastaOutputDir='queryFasta')
+		returnData3 = self.addSplitFastaFileJobs(workflow, query_seq_f, self.SelectAndSplitFastaRecords, queryNameLs, mkdirWrap=self.mkdirWrap,\
+						site_handler=site_handler, namespace=self.namespace, version=self.version, fastaOutputDir='queryFasta')
 		queryName2splitFastaJobDataLs = returnData3.refName2jobDataLs
 		
-		ref_seq_prefix = os.path.splitext(ref_seq_f.name)[0]
+		noOfJobs = len(refName2splitFastaJobDataLs) + len(queryName2splitFastaJobDataLs)
+		ref_seq_prefix = os.path.splitext(os.path.basename(ref_seq_f.name))[0]
 		for queryName, jobDataLs in queryName2splitFastaJobDataLs.iteritems():
 			for refName, refJobDataLs in refName2splitFastaJobDataLs.iteritems():
 				refSelectAndSplitFastaJob, refFastaFile = refJobDataLs[:2]
 				selectAndSplitFastaJob, fastaFile = jobDataLs[:2]
-				nucmerJob = Job(namespace=namespace, name=nucmer.name, version=version)
+				nucmerJob = Job(namespace=self.namespace, name=self.nucmer.name, version=self.version)
 				outputPrefix = "%s_vs_%s_%s"%(queryName, ref_seq_prefix, refName)
 				deltaFnamePrefix = os.path.join(deltaOutputDir, outputPrefix)
 				nucmerJob.addArguments("--maxgap=500", "--mincluster=100", "--prefix", deltaFnamePrefix, \
@@ -229,9 +220,9 @@ class MummerTwoGenomesPipeline(object):
 				nucmerJob.uses(deltaFname, transfer=True, register=True, link=Link.OUTPUT)
 				#3000M for one nucmer job with human as ref
 				job_max_memory = 5000	#in MB
-				nucmerJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
-				nucmerJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
+				yh_pegasus.setJobProperRequirement(nucmerJob, job_max_memory=job_max_memory)
 				workflow.addJob(nucmerJob)
+				
 				workflow.depends(parent=refSelectAndSplitFastaJob, child=nucmerJob)
 				workflow.depends(parent=selectAndSplitFastaJob, child=nucmerJob)
 				workflow.depends(parent=deltaOutputDirJob, child=nucmerJob)
@@ -245,7 +236,7 @@ class MummerTwoGenomesPipeline(object):
 				gp_plotF = File("%s.gp"%plotPrefix)
 				fplot_plotF = File("%s.fplot"%plotPrefix)
 				rplot_plotF = File("%s.rplot"%plotPrefix)
-				postNucJob = Job(namespace=namespace, name=PostNucmer.name, version=version)
+				postNucJob = Job(namespace=self.namespace, name=self.PostNucmer.name, version=self.version)
 				postNucJob.addArguments(deltaF, coordsF, filterF, refFastaFile, fastaFile, plotPrefix)
 				postNucJob.uses(deltaF, transfer=True, register=True, link=Link.INPUT)
 				postNucJob.uses(refFastaFile, transfer=False, register=True, link=Link.INPUT)
@@ -259,13 +250,15 @@ class MummerTwoGenomesPipeline(object):
 				#postNucJob.uses(fplot_plotF, transfer=True, register=True, link=Link.OUTPUT)
 				#postNucJob.uses(rplot_plotF, transfer=True, register=True, link=Link.OUTPUT)
 				
+				yh_pegasus.setJobProperRequirement(postNucJob, job_max_memory=2000)
 				workflow.addJob(postNucJob)
 				workflow.depends(parent=nucmerJob, child=postNucJob)
 				workflow.depends(parent=coordsOutputDirJob, child=postNucJob)
 				workflow.depends(parent=filterOutputDirJob, child=postNucJob)
 				workflow.depends(parent=plotOutputDirJob, child=postNucJob)
 				#workflow.depends(parent=plotScriptOutputDirJob, child=postNucJob)
-				
+				noOfJobs += 2
+		sys.stderr.write(" %s jobs. \n"%(noOfJobs))
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
 		workflow.writeXML(outf)

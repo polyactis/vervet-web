@@ -26,7 +26,8 @@ import csv
 class ReduceMatrixByMergeColumnsWithSameKey(object):
 	__doc__ = __doc__
 	option_default_dict = {('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
-						("keyColumnLs", 1, ): [0, 'k', 1, 'rows are keyed by these column(s). comma/dash-separated. i.e. 0-2,4 '],\
+						("keyColumnLs", 1, ): [0, 'k', 1, 'index(es) of the key in each input file. must be same. comma/dash-separated. i.e. 0-2,4 '],\
+						("keyHeaderLs", 0, ): [0, '', 1, 'header(s) of the key. comma-separated'],\
 						('noHeader', 0, int): [0, 'n', 0, 'all input has no header'],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
 						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
@@ -42,6 +43,10 @@ class ReduceMatrixByMergeColumnsWithSameKey(object):
 			self.keyColumnLs = utils.getListOutOfStr(self.keyColumnLs, data_type=int)
 		else:
 			self.keyColumnLs = []
+		if self.keyHeaderLs:
+			self.keyHeaderLs = self.keyHeaderLs.split(',')
+		else:
+			self.keyHeaderLs = []
 		
 		self.keyColumnSet = set(self.keyColumnLs)
 	
@@ -86,7 +91,7 @@ class ReduceMatrixByMergeColumnsWithSameKey(object):
 			del writer
 		outf.close()
 	
-	def handleNewHeader(self, oldHeader, newHeader, keyColumnLs, valueColumnLs, keyColumnSet=None):
+	def handleNewHeader(self, oldHeader=None, newHeader=None, keyColumnLs=None, valueColumnLs=None, keyColumnSet=None):
 		"""
 		2012.1.9
 		"""

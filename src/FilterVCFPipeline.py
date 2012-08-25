@@ -84,15 +84,18 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 	common_filter_option_dict = {
 						("onlyKeepBiAllelicSNP", 0, int): [0, 'K', 0, 'toggle this to remove all SNPs with >=3 alleles?'],\
 						('alnStatForFilterFname', 0, ): ['', 'q', 1, 'The alignment stat file for FilterVCFByDepthJava. tab-delimited: individual_alignment.id minCoverage maxCoverage minGQ'],\
-						('keepSNPPosFname', 0, ): ['', 'S', 1, 'a tab-delimited file (optional) with 1st two columns as chr and pos. \
+						('keepSNPPosFname', 0, ): ['', 'S', 1, 'a tab-delimited file with 1st two columns as chr and pos.\
+			should have a header.\
 			to filter out SNPs that are absent in this file.\
-			this step will be applied before all other filter jobs.'],\
+			this step will be applied before all other filter jobs.\
+			extra columns are fine.'],\
 						}
 	option_default_dict.update(common_filter_option_dict)
+	option_default_dict.pop(('inputDir', 0, ))
 	option_default_dict.update({
 						('minGQ', 1, int): [50, 'G', 1, 'minimum GQ/GenotypeQuality for one genotype. 2012.5.1 no longer enforced in FilterVCFByDepth.java', ],\
-						('depthFoldChange', 1, float): [2.0, 'A', 1, 'a variant is retained if its depth within this fold change of meanDepth,\
-				set this to 0 or below to eliminate this step of filtering.', ],\
+						('depthFoldChange', 0, float): [0, 'A', 1, 'a variant is retained if its depth within this fold change of meanDepth,\
+		set this to 0 or below to eliminate this step of filtering.', ],\
 						("maxSNPMismatchRate", 0, float): [0, 'R', 1, 'maximum SNP mismatch rate between two vcf calls'],\
 						("minDepthPerGenotype", 0, int): [0, 'Z', 1, 'mask genotype with below this depth as ./. (other fields retained), \
 	esp. necessary for SAMtools, which output homozygous reference if no read for one sample.'],\
@@ -357,7 +360,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 								#column 2-4 are #sitesInInput1, #sitesInInput2, #overlapping
 			no_of_jobs += 1
 		if minDepthPerGenotype:
-			filterByMinDP1MergeFile = File(os.path.join(topOutputDir, 'filterByMinDP1.tsv_s2'))
+			filterByMinDP1MergeFile = File(os.path.join(topOutputDir, 'filterByMinDP1_s2.tsv'))
 			filterByMinDP1MergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 								outputF=filterByMinDP1MergeFile, transferOutput=transferOutput, parentJobLs=[topOutputDirJob],\
 								extraArguments="-k 1 -v 2-4")	#column 1 is the chromosome length, which are set to be all same.
@@ -414,6 +417,8 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			lastBGZipTabixJob = PassingData(output=inputF, tbi_F=tbi_F)	#2012.8.3 fake, not a job. only useful when all filtering jobs are skipped.
 			lastRoundExtraDependentInputLs =[]
 			
+			noTransferFlagJobSet = set()
+			
 			if keepSNPPosF:
 				#toss SNPs that are not in this keepSNPPosFname file
 				outputFnamePrefix = os.path.join(filterDir, '%s.keepGivenSNP'%(commonPrefix))
@@ -430,7 +435,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 				vcf1KeepGivenSNPByvcftoolsBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
 					parentJob=vcf1KeepGivenSNPByvcftoolsJob, inputF=vcf1KeepGivenSNPByvcftoolsJob.output, \
 					outputF=vcf1KeepGivenSNPByvcftoolsGzip, \
-					transferOutput=False)
+					transferOutput=None)
 				
 				currentBGZipTabixJob = vcf1KeepGivenSNPByvcftoolsBGZipTabixJob
 				#check how much sites got filtered
@@ -441,6 +446,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 									statMergeJob=filterByGivenSitesStatMergeJob, parentJobLs=[topOutputDirJob]+inputJobLs)
 			
 				lastBGZipTabixJob = currentBGZipTabixJob
+				noTransferFlagJobSet.add(currentBGZipTabixJob)
 				lastRoundJobLs=[vcf1DepthFilterDirJob, vcf1KeepGivenSNPByvcftoolsBGZipTabixJob]
 				lastRoundExtraDependentInputLs=[currentBGZipTabixJob.tbi_F]
 				no_of_jobs += 3
@@ -466,7 +472,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 				maskVCFGzipJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
 					parentJob=maskZeroDepthGenotypeAsMissingJob, inputF=maskZeroDepthGenotypeAsMissingJob.output, \
 					outputF=maskVCFGzipFile, \
-					transferOutput=False)
+					transferOutput=None)
 				
 				currentBGZipTabixJob = maskVCFGzipJob
 				#check how much sites got filtered
@@ -476,6 +482,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 									currentBGZipTabixJob=currentBGZipTabixJob,\
 									statMergeJob=filterByMinDP1MergeJob, parentJobLs=lastRoundJobLs)
 			
+				noTransferFlagJobSet.add(currentBGZipTabixJob)
 				lastBGZipTabixJob = currentBGZipTabixJob
 				lastRoundJobLs=[currentBGZipTabixJob]
 				lastRoundExtraDependentInputLs=[currentBGZipTabixJob.tbi_F]
@@ -495,7 +502,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 				vcf1AfterDepthFilterGzip_tbi_F = File("%s.gz.tbi"%vcf1AfterDepthFilter.name)
 				vcf1FilterByDepthBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
 						parentJob=vcf1FilterByDepthJob, inputF=vcf1FilterByDepthJob.output, outputF=vcf1AfterDepthFilterGzip, \
-						transferOutput=False)
+						transferOutput=None)
 				currentBGZipTabixJob = vcf1FilterByDepthBGZipTabixJob
 				#check how much sites got filtered by depth filter
 				outputF = File(os.path.join(vcf1DepthFilterDir, '%s.filterByDepthStat.tsv'%(commonPrefix)))
@@ -504,6 +511,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 										currentBGZipTabixJob=currentBGZipTabixJob,\
 										statMergeJob=filterByDepthStatMergeJob)
 				
+				noTransferFlagJobSet.add(currentBGZipTabixJob)
 				lastBGZipTabixJob = currentBGZipTabixJob
 				lastRoundJobLs = [currentBGZipTabixJob]
 				lastRoundExtraDependentInputLs=[currentBGZipTabixJob.tbi_F]
@@ -527,13 +535,14 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 				vcf1FilterByMinMACGzip = File("%s.gz"%vcf1FilterByMinMACJob.output.name)
 				vcf1FilterByMinMACBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
 						parentJob=vcf1FilterByMinMACJob, inputF=vcf1FilterByMinMACJob.output, outputF=vcf1FilterByMinMACGzip, \
-						transferOutput=False)
+						transferOutput=None)
 				currentBGZipTabixJob = vcf1FilterByMinMACBGZipTabixJob
 				outputF = File(os.path.join(filterDir, '%s.filterByMinMACStat.tsv'%(commonPrefix)))
 				self.addVCFBeforeAfterFilterStatJob(chromosome=chromosome, outputF=outputF, \
 									vcf1=lastBGZipTabixJob.output, currentBGZipTabixJob=currentBGZipTabixJob,\
 									parentJobLs=lastRoundJobLs, statMergeJob=filterByMinMACMergeJob)
 				
+				noTransferFlagJobSet.add(currentBGZipTabixJob)
 				lastBGZipTabixJob = currentBGZipTabixJob
 				lastRoundJobLs = [currentBGZipTabixJob]
 				lastRoundExtraDependentInputLs=[currentBGZipTabixJob.tbi_F]
@@ -555,7 +564,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 				vcf1FilterByMinMAFGzip = File("%s.gz"%vcf1FilterByMinMAFJob.output.name)
 				vcf1FilterByMinMAFBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
 						parentJob=vcf1FilterByMinMAFJob, inputF=vcf1FilterByMinMAFJob.output, outputF=vcf1FilterByMinMAFGzip, \
-						transferOutput=False)
+						transferOutput=None)
 				
 				currentBGZipTabixJob = vcf1FilterByMinMAFBGZipTabixJob
 				outputF = File(os.path.join(filterDir, '%s.filterByMinMAFStat.tsv'%(commonPrefix)))
@@ -563,6 +572,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 									vcf1=lastBGZipTabixJob.output, currentBGZipTabixJob=currentBGZipTabixJob,\
 									statMergeJob=filterByMinMAFMergeJob, parentJobLs=lastRoundJobLs)
 				
+				noTransferFlagJobSet.add(currentBGZipTabixJob)
 				lastBGZipTabixJob = currentBGZipTabixJob
 				lastRoundJobLs = [currentBGZipTabixJob]
 				lastRoundExtraDependentInputLs=[currentBGZipTabixJob.tbi_F]
@@ -584,20 +594,29 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 				vcf1FilterByMaxSNPMissingRateGzip = File("%s.gz"%vcf1FilterByMaxSNPMissingRateJob.output.name)
 				vcf1FilterByMaxSNPMissingRateGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
 						parentJob=vcf1FilterByMaxSNPMissingRateJob, inputF=vcf1FilterByMaxSNPMissingRateJob.output, outputF=vcf1FilterByMaxSNPMissingRateGzip, \
-						transferOutput=transferOutput)
+						transferOutput=None)
 				currentBGZipTabixJob = vcf1FilterByMaxSNPMissingRateGZipTabixJob
 				outputF = File(os.path.join(filterDir, '%s.filterByMaxSNPMissingRateStat.tsv'%(commonPrefix)))
 				self.addVCFBeforeAfterFilterStatJob(chromosome=chromosome, outputF=outputF, \
 										vcf1=lastBGZipTabixJob.output, currentBGZipTabixJob=currentBGZipTabixJob, \
 										statMergeJob=filterByMaxSNPMissingRateMergeJob, parentJobLs=lastRoundJobLs)
 				
+				noTransferFlagJobSet.add(currentBGZipTabixJob)
 				lastBGZipTabixJob = currentBGZipTabixJob
 				lastRoundJobLs = [currentBGZipTabixJob]
 				lastRoundExtraDependentInputLs=[currentBGZipTabixJob.tbi_F]
 				no_of_jobs += 3
 			
 			lastBGZipTabixJobOutputFile = getattr(lastBGZipTabixJob, 'output', None)	#could be None if all filter jobs are skipped
-			lastBGZipTabixJobTbiF = getattr(lastBGZipTabixJob, 'tbi_F', None) 
+			lastBGZipTabixJobTbiF = getattr(lastBGZipTabixJob, 'tbi_F', None)
+			
+			#2012.8.17 remove the lastBGZipTabixJob from noTransferFlagJobSet and set everyone's transfer flag to false
+			noTransferFlagJobSet.remove(lastBGZipTabixJob)
+			for job in noTransferFlagJobSet:
+					self.setJobOutputFileTransferFlag(job=job, transferOutput=False, outputLs=None)
+			#last job's transfer flag set to True
+			self.setJobOutputFileTransferFlag(job=lastBGZipTabixJob, transferOutput=True, outputLs=None)
+			
 			returnData.jobDataLs.append(PassingData(jobLs=lastRoundJobLs, vcfFile=lastBGZipTabixJobOutputFile, \
 									tbi_F=lastBGZipTabixJobTbiF, \
 									fileList=[lastBGZipTabixJobOutputFile, lastBGZipTabixJobTbiF]))
@@ -606,7 +625,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
 		return returnData
 	
-	def addVCFBeforeAfterFilterStatJob(self, chromosome=None, outputF=None, vcf1=None, vcf2=None,\
+	def addVCFBeforeAfterFilterStatJob(self, executable=None, chromosome=None, outputF=None, vcf1=None, vcf2=None,\
 									lastBGZipTabixJob=None, currentBGZipTabixJob=None,\
 									statMergeJob=None, parentJobLs=None):
 		"""
@@ -627,7 +646,9 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			parentJobLs.append(lastBGZipTabixJob)
 		if currentBGZipTabixJob:
 			parentJobLs.append(currentBGZipTabixJob)
-		vcfFilterStatJob = self.addCheckTwoVCFOverlapJob(executable=self.CheckTwoVCFOverlap, \
+		if executable is None:
+			executable = self.CheckTwoVCFOverlap
+		vcfFilterStatJob = self.addCheckTwoVCFOverlapJob(executable=executable, \
 										vcf1=vcf1, \
 						vcf2=vcf2, chromosome=chromosome, chrLength=None, \
 				outputF=outputF, parentJobLs=parentJobLs, \
@@ -676,7 +697,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 						input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
-		if self.depthFoldChange>0:
+		if self.depthFoldChange and self.depthFoldChange>0:
 			self.outputAlignmentDepthAndOthersForFilter(db_vervet=db_vervet, outputFname=self.alnStatForFilterFname, \
 												ref_ind_seq_id=self.ref_ind_seq_id, \
 												foldChange=self.depthFoldChange, minGQ=self.minGQ)

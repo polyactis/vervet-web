@@ -47,6 +47,7 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency):
 			('minChrLength', 1, int): [1000000, 'm', 1, 'minimum chromosome length for one chromosome to be included', ],\
 			('posColumnLabel', 1, ): ['BIN_START', 'l', 1, 'label of the position column, BIN_START for binned vcftools output. POS for others.', ],\
 			('outputFnamePrefix', 0, ): [None, 'O', 1, 'output filename prefix (optional).'],\
+			('logCount', 0, int): [0, '', 0, 'whether to take log on the y-axis of the histogram, the raw count'], \
 			})
 	option_for_DB_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgresql', ],\
 						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
@@ -214,7 +215,7 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency):
 		outputFname = '%s_hist.png'%(outputFnamePrefix)
 		yh_matplotlib.drawHist(value_ls, title='', \
 				xlabel_1D=self.whichColumnPlotLabel, xticks=None, outputFname=outputFname, min_no_of_data_points=self.minNoOfTotal, \
-				needLog=False, \
+				needLog=self.logCount, \
 				dpi=self.figureDPI, min_no_of_bins=40)
 
 if __name__ == '__main__':

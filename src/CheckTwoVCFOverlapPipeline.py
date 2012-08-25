@@ -44,7 +44,7 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 	option_default_dict.update({
 						('vcf1Dir', 1, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						('vcf2Dir', 1, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
-						('perSampleMismatchFraction', 0, ): [0, 'S', 0, 'whether calculating per-sample mismatch fraction or not.', ],\
+						('perSampleMatchFraction', 0, ): [0, 'S', 0, 'whether calculating per-sample mismatch fraction or not.', ],\
 						})
 
 	def __init__(self,  **keywords):
@@ -101,14 +101,41 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 		chr_pattern = re.compile(r'(\w+\d+).*')
 		input_site_handler = self.input_site_handler
 		
+		counter = 1
+		
+		
+		plotOutputDir = "%splot"%(self.pegasusFolderName)
+		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
+		counter += 1
+		
 		overlapStatF = File('overlapStat.tsv')
 		overlapStatMergeJob=self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 					outputF=overlapStatF, parentJobLs=[], \
 					extraDependentInputLs=[], transferOutput=True, extraArguments=None)
+		counter += 1
+		
 		overlapPosFile = File("overlapPos.tsv")
 		overlapPosMergeJob=self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 					outputF=overlapPosFile, parentJobLs=[], \
 					extraDependentInputLs=[], transferOutput=True, extraArguments=None)
+		counter += 1
+		
+		perSampleMatchFractionFile = File('perSampleMatchFraction.tsv')
+		perSampleMatchFractionReduceJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixBySumSameKeyColsAndThenDivide, \
+					outputF=perSampleMatchFractionFile, extraDependentInputLs=[], transferOutput=True, \
+					extraArguments='-k 0 -v 1-2')
+		outputFile = File( os.path.join(plotOutputDir, 'perSampleMatchFraction_Hist.png'))
+		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[perSampleMatchFractionFile], \
+							outputFile=outputFile, \
+					whichColumn=None, whichColumnHeader="no_of_matches_by_no_of_non_NA_pairs", whichColumnPlotLabel="matchFraction", \
+					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=50,\
+					minNoOfTotal=10,\
+					figureDPI=100, samplingRate=1,\
+					parentJobLs=[plotOutputDirJob, perSampleMatchFractionReduceJob ], \
+					extraDependentInputLs=None, \
+					extraArguments=None, transferOutput=True,  job_max_memory=2000)
+		counter += 2
 		
 		overlapStatSumF = File('overlapStat.sum.tsv')
 		overlapStatSumJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
@@ -116,10 +143,11 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 						extraArguments='-k 1000000 -v 1-25000')	#The key column (-k 1000000) doesn't exist.
 						# essentially merging every rows into one 
 						##25000 is a random big upper limit. 100 monkeys => 101*3 + 9 => 312 columns
+						#2012.8.17 the number of columns no longer expand as the number of samples because it's split into perSampleMatchFractionFile.
 		self.addInputToStatMergeJob(workflow, statMergeJob=overlapStatSumJob, inputF=overlapStatF, \
 							parentJobLs=[overlapStatMergeJob])
+		counter += 1
 		
-		counter = 0
 		vcfFileID2path_1 = self.getVCFFileID2path(self.vcf1Dir)
 		vcfFileID2path_2 = self.getVCFFileID2path(self.vcf2Dir)
 		sharedVCFFileIDSet = set(vcfFileID2path_1.keys())&set(vcfFileID2path_2.keys())
@@ -151,12 +179,14 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 						vcf1=vcf1, vcf2=vcf2, chromosome=chr, chrLength=chr_size, \
 						outputFnamePrefix=outputFnamePrefix, parentJobLs=[statOutputDirJob], \
 						extraDependentInputLs=[], transferOutput=False, extraArguments=" -m %s "%(self.minDepth),\
-						perSampleMismatchFraction=self.perSampleMismatchFraction,\
+						perSampleMatchFraction=self.perSampleMatchFraction,\
 						job_max_memory=1000)
 				
 				self.addInputToStatMergeJob(workflow, statMergeJob=overlapStatMergeJob, inputF=checkTwoVCFOverlapJob.output, \
 							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
-				self.addInputToStatMergeJob(workflow, statMergeJob=overlapPosMergeJob, inputF=checkTwoVCFOverlapJob.overlapSitePosF, \
+				self.addInputToStatMergeJob(workflow, statMergeJob=overlapPosMergeJob, inputF=checkTwoVCFOverlapJob.overlapSitePosFile, \
+							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
+				self.addInputToStatMergeJob(workflow, statMergeJob=perSampleMatchFractionReduceJob, inputF=checkTwoVCFOverlapJob.perSampleFile, \
 							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
 				counter += 1
 		sys.stderr.write("%s jobs.\n"%(counter+1))

@@ -99,16 +99,10 @@ class BootstrapFilterCalculateVCFWorkflow(FilterVCFPipeline, CalculateVCFStatPip
 		FilterVCFPipeline.__init__(self, **keywords)
 		self.inputDir = os.path.abspath(self.inputDir)
 		
-		listArgumentName2hasContent = {}
-		for listArgumentName, data_type in [('depthFoldChangeLs', int), ("minDepthPerGenotypeLs", int), \
-								("minMACLs", int), ("minMAFLs", float), ("maxSNPMissingRateLs", float)]:
-			listArgumentValue = getattr(self, listArgumentName, None)
-			if listArgumentValue:
-				setattr(self, listArgumentName, getListOutOfStr(listArgumentValue, data_type=data_type))
-				listArgumentName2hasContent[listArgumentName]=True
-			else:
-				setattr(self, listArgumentName, [None])
-				listArgumentName2hasContent[listArgumentName]=False
+		
+		listArgumentName_data_type_ls = [('depthFoldChangeLs', int), ("minDepthPerGenotypeLs", int), \
+								("minMACLs", int), ("minMAFLs", float), ("maxSNPMissingRateLs", float)]
+		listArgumentName2hasContent = self.processListArguments(listArgumentName_data_type_ls, emptyContent=[None])
 		if listArgumentName2hasContent['depthFoldChangeLs'] and not self.alnStatForFilterFname:
 			sys.stderr.write("Error: alnStatForFilterFname (%s) is nothing while depthFoldChangeLs=%s.\n"%\
 							(self.alnStatForFilterFname, repr(self.depthFoldChangeLs)))

@@ -19,7 +19,7 @@ refFname=$4
 qryFname=$5
 plotPrefix=$6
 
-mummerBinaryPath=~/bin/
+mummerBinaryPath=~/bin/MUMmer/
 
 #-c	Include percent coverage columns in the output
 #-r	Sort output lines by reference
@@ -48,6 +48,13 @@ numberOfLines=`wc $filterFname -l|awk -F ' ' '{print $1}'`
 if test $numberOfLines -gt 3
 then
 	$mummerBinaryPath/mummerplot $filterFname -R $refFname -Q $qryFname --prefix $plotPrefix -t png
+	gnuplotScript=$plotPrefix.gp
+	#2012.8.15 correct gnuplot script bugs
+	sed 's/set terminal png tiny/set terminal png /' $gnuplotScript > $gnuplotScript.tmp
+	mv $gnuplotScript.tmp $gnuplotScript
+	sed 's/set ticscale 0 0/set tics scale 0, 0/' $gnuplotScript > $gnuplotScript.tmp
+	mv $gnuplotScript.tmp $gnuplotScript
+	gnuplot $gnuplotScript
 else
 	echo "no synteny after filter."
 fi

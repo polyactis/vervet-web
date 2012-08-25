@@ -7,11 +7,13 @@ Examples:
 		-u yh -y4 -l hcondor -j hcondor  -z localhost
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
-	# 2012.8.10 IBD check
+	# 2012.8.10 IBD check, locusSamplingRate=0.01 (-c 0.01)
+	# add -s kinshipFile if you want comparison (table&figures) between IBD pi-hat and kinship 
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o workflow/PlinkIBDCheck_Method14.xml -C 1 
 		-H -l hcondor -j hcondor  -u yh -z localhost
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		 -z localhost  -y3 -c 0.01 -g ./aux/Method14_LDPrune_merge_list.2012.8.10T0441.txt
+		 #-s ~/NetworkData/vervet/Kinx2Apr2012.txt
 	
 	# 2012.8.9 LD-prune a folder of VCF files into plink, need the db tunnel (-H) for output pedigree in tfam
 	# "-V 90 -x 100" are used to restrict contig IDs between 90 and 100.
@@ -28,7 +30,7 @@ Examples:
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o workflow/PlinkMendelError_Method14.xml
 		-E -C 4  -H -l hcondor -j hcondor  -u yh -z localhost
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
-		-z localhost  -y2  -c 0.01 -g ./aux/Method14_LDPrune_merge_list.txt
+		-z localhost  -y1  -c 0.01 -g ./aux/Method14_LDPrune_merge_list.txt
 	
 	# 2012.8.13 sex check using the top 195 contigs (-x 195) (Contig 83, 149,193 are sex chromosomes)
 	# no clustering (-C 1)
@@ -77,6 +79,8 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							4: sex check,', ],\
 						('LDPruneWindowSize', 1, int): [500, 'W', 1, ' window size for plink LD pruning'],\
 						('LDPruneWindowShiftSize', 1, int): [100, 'Z', 1, 'adjacent window shift'],\
+						('kinshipFname', 1, ): ["", 's', 1, 'the kinship file from Sue (in turn from Solar, based on pedigree )'],\
+						
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
@@ -123,8 +127,8 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
 		self.addDrawHistogramJob(executable=workflow.DrawHistogram, inputFileList=[imendelMergeFile], \
 							outputFile=outputFile, \
-					whichColumn=None, whichColumnHeader="N", whichColumnPlotLabel="NoOfMendelErrors", \
-					logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+					whichColumn=None, whichColumnHeader="N", whichColumnPlotLabel="log_NoOfMendelErrors", \
+					logWhichColumn=True, positiveLog=True, logCount=True, valueForNonPositiveYValue=50,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, imendelMergeJob], \
@@ -143,15 +147,17 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							extraArguments='')
 		outputFile = File( os.path.join(plotOutputDir, 'locusMendelErrorHist.png'))
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+		# samplingRate=1 because plink doesn't output zero-mendel-error sites.
 		self.addDrawHistogramJob(executable=workflow.DrawHistogram, inputFileList=[lmendelMergeFile], \
 							outputFile=outputFile, \
 					whichColumn=2, whichColumnHeader=None, whichColumnPlotLabel="NoOfMendelErrors", \
-					logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=50,\
 					minNoOfTotal=10,\
-					figureDPI=100, samplingRate=locusSamplingRate,\
+					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, lmendelMergeJob], \
 					extraDependentInputLs=None, \
 					extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+		
 		no_of_jobs += 2
 		
 		returnData = PassingData()
@@ -330,9 +336,65 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		return returnData
 	
 	
-	def addPlinkIBDCheckJobs(self, workflow=None, inputData=None, transferOutput=True,\
+	def addPlotPedigreeKinshipVsGeneticIBDJob(self, workflow=None, executable=None, inputFile=None, \
+							plinkIBDCheckOutputFile=None, outputFile=None, outputFnamePrefix=None, \
+							whichColumnPlotLabel=None, xColumnPlotLabel=None, \
+							minNoOfTotal=100,\
+							figureDPI=300, samplingRate=1, doPairwiseLabelCheck=False, \
+							parentJobLs=None, \
+							extraDependentInputLs=None, \
+							extraArguments=None, transferOutput=True, job_max_memory=2000, sshDBTunnel=False, **keywords):
+		"""
+		2012.8.21
+			inputFile is the kinship file from Sue.
+		
+		"""
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		extraArgumentList = ['--minNoOfTotal %s'%(minNoOfTotal), \
+							'-f %s'%(figureDPI), '-s %s'%(samplingRate)]
+		key2ObjectForJob = {}
+		extraOutputLs = []
+		suffixAndNameTupleList = []	# a list of tuples , in each tuple, 1st element is the suffix. 2nd element is the proper name of the suffix.
+			#job.$nameFile will be the way to access the file.
+			#if 2nd element (name) is missing, suffix[1:].replace('.', '_') is the name (dot replaced by _) 
+		if outputFnamePrefix is None and outputFile:
+			outputFnamePrefix = os.path.splitext(outputFile.name)[0]
+		if outputFnamePrefix:
+			extraArgumentList.append("--outputFnamePrefix %s"%(outputFnamePrefix))
+			suffixAndNameTupleList.extend([['_scatter.png', 'scatter'], ['_table.tsv', 'table']])		#the file with kinship vs. PI_HAT
+			if doPairwiseLabelCheck:
+				extraArgumentList.append("--doPairwiseLabelCheck ")
+				suffixAndNameTupleList.extend([['_SumAbsDelta.tsv', 'sumAbsDelta'], \
+											['_pairwiseCorOfKinshipIBDDelta.tsv', 'pairwiseCorOfKinshipIBDDelta']])
+			
+		if whichColumnPlotLabel:
+			extraArgumentList.append("--whichColumnPlotLabel %s"%(whichColumnPlotLabel))
+		if xColumnPlotLabel:
+			extraArgumentList.append("--xColumnPlotLabel %s"%(xColumnPlotLabel))
+		if plinkIBDCheckOutputFile:
+			extraArgumentList.extend(["--plinkIBDCheckOutputFname", plinkIBDCheckOutputFile])
+			extraDependentInputLs.append(plinkIBDCheckOutputFile)
+		if extraArguments:
+			extraArgumentList.append(extraArguments)
+		if outputFnamePrefix:
+			self.setupMoreOutputAccordingToSuffixAndNameTupleList(outputFnamePrefix=outputFnamePrefix, suffixAndNameTupleList=suffixAndNameTupleList, \
+													extraOutputLs=extraOutputLs, key2ObjectForJob=key2ObjectForJob)
+		
+		job= self.addGenericJob(executable=executable, inputFile=inputFile, outputFile=outputFile, \
+				parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+				extraOutputLs=extraOutputLs,\
+				transferOutput=transferOutput, \
+				extraArgumentList=extraArgumentList, key2ObjectForJob=key2ObjectForJob, job_max_memory=job_max_memory, \
+				sshDBTunnel=sshDBTunnel, **keywords)
+		self.addDBArgumentsToOneJob(job=job, objectWithDBArguments=self)
+		return job
+	
+	def addPlinkIBDCheckJobs(self, workflow=None, inputData=None, kinshipFile=None, transferOutput=True,\
 						maxContigID=None, outputDirPrefix="", returnMode=1,):
 		"""
+		2012.8.21
+			add plinkIBDCheckOutputFile
 		2012.8.9
 		"""
 		if workflow is None:
@@ -375,11 +437,162 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 					extraDependentInputLs=None, transferOutput=transferOutput, \
 					extraArguments=None, job_max_memory=2000,\
 					parentJobLs =[topOutputDirJob]+ jobData.jobLs)
+			#2012.8.15 transform it to tab-delimited matrix
+			outputFile = File(os.path.join(topOutputDir, "%s_ibdCheck.tsv"%(commonPrefix)))
+			toTsvMatrixJob = self.addAbstractMatrixFileWalkerJob(executable=self.AbstractMatrixFileWalker, \
+					inputFile=plinkIBDCheckJob.genomeFile, outputFile=outputFile, \
+					outputFnamePrefix=None, whichColumn=None, whichColumnHeader=None, \
+					logWhichColumn=False, positiveLog=False, valueForNonPositiveYValue=-1, \
+					minNoOfTotal=10,\
+					samplingRate=1, \
+					parentJobLs=[topOutputDirJob, plinkIBDCheckJob], \
+					extraDependentInputLs=None, \
+					extraArguments=None, transferOutput=transferOutput, job_max_memory=2000)
+			no_of_jobs += 2
 			
+			outputFile = File( os.path.join(plotOutputDir, '%s_ibdCheck_PI_HAT_hist.png'%(commonPrefix)))
+			#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+			self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFile=toTsvMatrixJob.output, \
+								outputFile=outputFile, \
+						whichColumn=None, whichColumnHeader="PI_HAT", whichColumnPlotLabel="proportionIBD", \
+						logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+						minNoOfTotal=10,\
+						figureDPI=100, samplingRate=1, \
+						parentJobLs=[plotOutputDirJob, toTsvMatrixJob], \
+						extraDependentInputLs=None, \
+						extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+			no_of_jobs += 1
 			
-		
-			returnData.jobDataLs.append(PassingData(jobLs=[plinkIBDCheckJob], file=plinkIBDCheckJob.genomeFile, \
-											fileList=plinkIBDCheckJob.outputLs))
+			returnData.jobDataLs.append(PassingData(jobLs=[toTsvMatrixJob], file=toTsvMatrixJob.output, \
+											fileList=toTsvMatrixJob.outputLs))
+			if kinshipFile:
+				outputFnamePrefix = os.path.join(plotOutputDir, '%s_KinshipVsIBDPI'%(commonPrefix))
+				plotPedigreeKinshipVsIBDJob = self.addPlotPedigreeKinshipVsGeneticIBDJob(workflow=workflow, executable=self.PlotPedigreeKinshipVsGeneticIBD, \
+								inputFile=kinshipFile, \
+								plinkIBDCheckOutputFile=toTsvMatrixJob.output, outputFile=None, outputFnamePrefix=outputFnamePrefix, \
+								whichColumnPlotLabel="IBDCheckPIHat", xColumnPlotLabel="Kinship", \
+								minNoOfTotal=10,\
+								figureDPI=200, samplingRate=1, doPairwiseLabelCheck=True, \
+								parentJobLs=[toTsvMatrixJob, plotOutputDirJob], \
+								extraDependentInputLs=None, \
+								extraArguments=None, transferOutput=transferOutput, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
+				no_of_jobs += 1
+				
+				outputFile = File('%s_sumAbsDelta_hist.png'%(outputFnamePrefix))
+				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+				self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, \
+							inputFile=plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile, \
+							outputFile=outputFile, \
+							whichColumn=None, whichColumnHeader="sumAbsDelta", whichColumnPlotLabel="sumAbsDelta", \
+							logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+							minNoOfTotal=10,\
+							figureDPI=150, samplingRate=1, \
+							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+				no_of_jobs += 1
+				
+				outputFile = File('%s_avgAbsDelta_hist.png'%(outputFnamePrefix))
+				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+				self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, \
+							inputFile=plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile, \
+							outputFile=outputFile, \
+							whichColumn=None, whichColumnHeader="avgAbsDelta", whichColumnPlotLabel="avgAbsDelta", \
+							logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+							minNoOfTotal=10,\
+							figureDPI=150, samplingRate=1, \
+							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+				no_of_jobs += 1
+				
+				outputFile = File('%s_medianAbsDelta_hist.png'%(outputFnamePrefix))
+				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+				self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, \
+							inputFile=plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile, \
+							outputFile=outputFile, \
+							whichColumn=None, whichColumnHeader="medianAbsDelta", whichColumnPlotLabel="medianAbsDelta", \
+							logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+							minNoOfTotal=10,\
+							figureDPI=150, samplingRate=1, \
+							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+				no_of_jobs += 1
+				
+				outputFile = File('%s_sumAbsDelta_vs_medianAbsDelta.png'%(outputFnamePrefix))
+				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+				self.addAbstractPlotJob(workflow=workflow, executable=workflow.AbstractPlot, \
+							inputFileList=[plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile], \
+							outputFile=outputFile, \
+							whichColumn=None, whichColumnHeader="sumAbsDelta", whichColumnPlotLabel="sumAbsDelta", \
+							logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+							xColumnHeader="medianAbsDelta", xColumnPlotLabel="medianAbsDelta", \
+							minNoOfTotal=20,\
+							figureDPI=150, samplingRate=1,\
+							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+				no_of_jobs +=1
+				
+				outputFile = File('%s_noOfNonMissing_vs_medianAbsDelta.png'%(outputFnamePrefix))
+				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+				self.addAbstractPlotJob(workflow=workflow, executable=workflow.AbstractPlot, \
+							inputFileList=[plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile], \
+							outputFile=outputFile, \
+							whichColumn=None, whichColumnHeader="medianAbsDelta", whichColumnPlotLabel="medianAbsDelta", \
+							logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+							xColumnHeader="noOfNonMissing", xColumnPlotLabel="noOfNonMissing", \
+							minNoOfTotal=20,\
+							figureDPI=150, samplingRate=1,\
+							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+				no_of_jobs +=1
+				
+				outputFile = File('%s_pairwiseCorOfKinshipIBDDelta_hist.png'%(outputFnamePrefix))
+				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+				self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, \
+							inputFile=plotPedigreeKinshipVsIBDJob.pairwiseCorOfKinshipIBDDeltaFile, \
+							outputFile=outputFile, \
+							whichColumn=None, whichColumnHeader="corr", whichColumnPlotLabel="pairwiseCorOfKinshipIBDDelta", \
+							logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+							minNoOfTotal=10,\
+							figureDPI=150, samplingRate=1, \
+							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+				no_of_jobs += 1
+				
+				outputFile = File('%s_pairwiseCorOfKinshipIBDDelta_vs_monkey1_medianAbsDelta.png'%(outputFnamePrefix))
+				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+				self.addAbstractPlotJob(workflow=workflow, executable=workflow.AbstractPlot, \
+							inputFileList=[plotPedigreeKinshipVsIBDJob.pairwiseCorOfKinshipIBDDeltaFile], \
+							outputFile=outputFile, \
+							whichColumn=None, whichColumnHeader="corr", whichColumnPlotLabel="pairwiseCorOfKinshipIBDDelta", \
+							logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+							xColumnHeader="monkey1_medianAbsDelta", xColumnPlotLabel="monkey1_medianAbsDelta", \
+							minNoOfTotal=20,\
+							figureDPI=150, samplingRate=1,\
+							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+				no_of_jobs +=1
+				
+				outputFile = File('%s_pairwiseCorOfKinshipIBDDelta_vs_monkey2_medianAbsDelta.png'%(outputFnamePrefix))
+				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+				self.addAbstractPlotJob(workflow=workflow, executable=workflow.AbstractPlot, \
+							inputFileList=[plotPedigreeKinshipVsIBDJob.pairwiseCorOfKinshipIBDDeltaFile], \
+							outputFile=outputFile, \
+							whichColumn=None, whichColumnHeader="corr", whichColumnPlotLabel="pairwiseCorOfKinshipIBDDelta", \
+							logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+							xColumnHeader="monkey2_medianAbsDelta", xColumnPlotLabel="monkey2_medianAbsDelta", \
+							minNoOfTotal=20,\
+							figureDPI=150, samplingRate=1,\
+							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+				no_of_jobs +=1
 			
 		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
 		return returnData
@@ -444,10 +657,10 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			no_of_jobs +=2
 			
 			outputFile = File(os.path.join(topOutputDir, "%s.male.sexCheck"%(commonPrefix)))
-			selectMaleDataJob = self.addDrawHistogramJob(workflow=workflow, executable=workflow.SelectRowsFromMatrix, \
+			selectMaleDataJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=workflow.SelectRowsFromMatrix, \
 								inputFileList=[plinkJob.sexcheckFile], \
 								outputFile=outputFile, \
-						whichColumn=None, whichColumnHeader="PEDSEX", whichColumnPlotLabel="PEDSEX", \
+						whichColumn=None, whichColumnHeader="PEDSEX", \
 						logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=-1,\
 						minNoOfTotal=10,\
 						samplingRate=1,\
@@ -468,10 +681,10 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			no_of_jobs +=2
 
 			outputFile = File(os.path.join(topOutputDir, "%s.female.sexCheck"%(commonPrefix)))
-			selectFemaleDataJob = self.addDrawHistogramJob(workflow=workflow, executable=workflow.SelectRowsFromMatrix, \
+			selectFemaleDataJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=workflow.SelectRowsFromMatrix, \
 								inputFileList=[plinkJob.sexcheckFile], \
 								outputFile=outputFile, \
-						whichColumn=None, whichColumnHeader="PEDSEX", whichColumnPlotLabel="PEDSEX", \
+						whichColumn=None, whichColumnHeader="PEDSEX", \
 						logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=-1,\
 						minNoOfTotal=10,\
 						samplingRate=1,\
@@ -511,6 +724,14 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		vervetSrcPath = self.vervetSrcPath
 		
 		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
+		
+		
+		PlotPedigreeKinshipVsGeneticIBD = Executable(namespace=namespace, name="PlotPedigreeKinshipVsGeneticIBD", version=version, \
+							os=operatingSystem, arch=architecture, installed=True)
+		PlotPedigreeKinshipVsGeneticIBD.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "plot/PlotPedigreeKinshipVsGeneticIBD.py"), \
+							site_handler))
+		executableClusterSizeMultiplierList.append((PlotPedigreeKinshipVsGeneticIBD, 1))
+		
 		
 		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
@@ -605,7 +826,11 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						LDPruneWindowSize=self.LDPruneWindowSize, LDPruneWindowShiftSize=self.LDPruneWindowShiftSize, \
 						outputDirPrefix="ldPrune", returnMode=1, \
 						mergeListFile=mergeListFile)
-			self.addPlinkIBDCheckJobs(workflow=None, inputData=LDPruneJobData, transferOutput=True,\
+			if self.kinshipFname:
+				kinshipFile = self.registerOneInputFile(inputFname=self.kinshipFname, folderName=self.pegasusFolderName)
+			else:
+				kinshipFile = None
+			self.addPlinkIBDCheckJobs(workflow=None, inputData=LDPruneJobData, kinshipFile=kinshipFile, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="ibdCheck")
 		elif self.run_type==4:
 			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName)

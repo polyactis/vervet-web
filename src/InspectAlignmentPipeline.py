@@ -58,7 +58,6 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 						('ind_seq_id_ls', 0, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. alignments come from these', ],\
 						('ind_aln_id_ls', 0, ): ['', 'I', 1, 'a comma/dash-separated list of IndividualAlignment.id. This overrides ind_seq_id_ls.', ],\
 						("tmpDir", 1, ): ["/tmp/", 'm', 1, 'for MarkDuplicates.jar or AddOrReplaceReadGroups.jar, default is /tmp/ but sometimes too small'],\
-						("topNumberOfContigs", 1, int): [156, 'N', 1, 'max rank (by size) of contigs'],\
 						("needPerContigJob", 0, int): [0, 'P', 0, 'toggle to add DepthOfCoverage and VariousReadCount jobs for each contig.'],\
 						("skipAlignmentWithStats", 0, int): [0, 's', 0, 'If an alignment has depth stats filled, not DOC job will be run. similar for flagstat job.'],\
 						("fractionToSample", 0, float): [0.001, '', 1, 'fraction of loci to walk through for DepthOfCoverage walker.'],\
@@ -551,7 +550,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		site_handler = self.site_handler
 		
 		if self.needPerContigJob:
-			refName2size = self.getTopNumberOfContigs(self.topNumberOfContigs)
+			refName2size = self.getTopNumberOfContigs(self.contigMaxRankBySize)
 			#refName2size = set(['Contig149'])	#temporary when testing Contig149
 			#refName2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
 		else:
