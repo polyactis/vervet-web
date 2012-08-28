@@ -84,14 +84,29 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 			vcfFile = VCFFile(inputFname=filename)
 			sampleIDList = vcfFile.getSampleIDList()
 			writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
-			header = ['Chromosome', 'position']
-			for sampleID in sampleIDList:
-				header.append(sampleID)
+			header = ['Chromosome', 'position', 'ref']
+			columnIndexList = []
+			for i in xrange(len(sampleIDList)):
+				sampleID = sampleIDList[i]
+				individualAlignment = self.db_vervet.parseAlignmentReadGroup(sampleID).individualAlignment
+				site = individualAlignment.ind_sequence.individual.site
+				if individualAlignment.ind_sequence.individual.tax_id==60711 and (site.country_id!=144 and site.country_id!=135 \
+																				and site.country_id!=136 and site.country_id!=148): 
+					header.append(sampleID)
+					columnIndexList.append(i)
 			writer.writerow(header)
 			for vcfRecord in vcfFile:
 				data_row = [vcfRecord.chr, vcfRecord.pos]
-				for vcfCall in vcfRecord.data_row[1:]: #data_row is a list of dictionary {'GT': base-call, 'DP': depth}, or None if missing.
+				refCall = vcfRecord.data_row[0]
+				data_row.append(refCall['GT'])
+				#get alternative allele frequency
+				AF_list = vcfRecord.info_tag2value.get('AF')	#info_tag2value['AF']
+				AF_list = AF_list.split(',')
+				AF_list = map(float, AF_list)
+				for columnIndex in columnIndexList:
+					#for vcfCall in vcfRecord.data_row[1:]: #data_row is a list of dictionary {'GT': base-call, 'DP': depth}, or None if missing.
 					#it includes one extra sample in index 0, which is the reference individual (from the ref column of VCF).
+					vcfCall = vcfRecord.data_row[columnIndex+1]
 					if vcfCall:
 						data_row.append(vcfCall['GT'])
 					else:
