@@ -22,6 +22,8 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
 from pymodule.pegasus.mapper.AbstractMapper import AbstractMapper
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
 from vervet.src import VervetDB
+from pymodule import TaxonomyDB
+
 
 class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 	__doc__ = __doc__
@@ -56,6 +58,12 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 									hostname=self.hostname, database=self.dbname, schema=self.schema, port=self.port)
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
+		
+		db_taxonomy = TaxonomyDB.TaxonomyDB(drivername=self.drivername, username=self.db_user, password=self.db_passwd, \
+									hostname=self.hostname, database=self.dbname, schema="taxonomy", port=self.port)
+		db_taxonomy.setup(create_tables=False)
+		self.db_taxonomy = db_taxonomy
+	
 	
 	def run(self):
 		"""
@@ -72,8 +80,10 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 		dataDir = self.dataDir
 		
 		genotypeFile = self.db_vervet.getGenotypeFile(genotype_method_id=self.genotypeMethodID, chromosome=self.chromosome, format=self.format)
-		
+		#query = VervetDB.GenotypeFile.query.filter_by(genotype_method_id=self.genotypeMethodID).filter_by(format=self.format)
+		#for genotypeFile in query:
 		if not genotypeFile:
+			
 			sys.stderr.write("Error: genotype_method_id %s, chromosome %s does not exist.\n"%(self.genotypeMethodID, self.chromosome))
 			sys.exit(2)
 		filename = os.path.join(dataDir, genotypeFile.path)
@@ -90,10 +100,12 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 				sampleID = sampleIDList[i]
 				individualAlignment = self.db_vervet.parseAlignmentReadGroup(sampleID).individualAlignment
 				site = individualAlignment.ind_sequence.individual.site
-				if individualAlignment.ind_sequence.individual.tax_id==60711 and (site.country_id!=144 and site.country_id!=135 \
-																				and site.country_id!=136 and site.country_id!=148): 
-					header.append(sampleID)
-					columnIndexList.append(i)
+				#2012.8.29 get scientific name from the taxonomy db
+				scientifcName = self.db_taxonomy.returnScientificNameGivenTaxID(individualAlignment.ind_sequence.individual.tax_id)
+				#if individualAlignment.ind_sequence.individual.tax_id==60711 and (site.country_id!=144 and site.country_id!=135 \
+				#																and site.country_id!=136 and site.country_id!=148): 
+				header.append('%s %s'%(sampleID, scientifcName))
+				columnIndexList.append(i)
 			writer.writerow(header)
 			for vcfRecord in vcfFile:
 				data_row = [vcfRecord.chr, vcfRecord.pos]
@@ -116,7 +128,7 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 				counter += 1
 			sys.stderr.write("%s loci outputted.\n"%(counter))
 			del writer
-		
+	
 
 
 if __name__ == '__main__':
