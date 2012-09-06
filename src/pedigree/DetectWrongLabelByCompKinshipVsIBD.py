@@ -56,11 +56,12 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 	option_default_dict = AbstractVervetMapper.option_default_dict
 	option_default_dict.update({
 						('plinkIBDCheckOutputFname', 1, ): ["", 'l', 1, 'file that contains IBD check result'], \
-						('plinkSexCheckOutputFname', 1, ): ["", 'n', 1, 'file that contains plink sex check result'], \
+						('plinkSexCheckOutputFname', 0, ): ["", 'n', 1, 'file that contains plink sex check result'], \
 						('kinshipMonkeyIDSetFname', 0, ): ["", 's', 1, 'restrict j in the kinship(i,j)-ibd(i,j) comparison. \
 			j must be in this file. temporary 2012.8.24 four columns:monkeyID	noOfMismatches	noOfNonMissing	mismatchFraction.\
 			and only when noOfMismatches=0 and noOfNonMissing>=30, this monkey is included.'], \
-						('iterativeAlgorithm', 0, ): ["", 'A', 0, 'toggle to iteratively update chiSqStat once the top one is removed'], \
+						('iterativeAlgorithm', 0, ): ["", 'A', 0, 'toggle to iteratively update chiSqStat. keep removing the top one'], \
+						('minAbsDeltaForOutlier', 0, float): [0, 'm', 1, 'if not 0, this will be used as minAbsDelta in outlier frequency counting'], \
 						
 					})
 	def __init__(self, inputFnameLs=None, **keywords):
@@ -138,7 +139,7 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 		for i in xrange(no_of_monkeys):
 			monkey1_id = shared_monkey_id_ls[i]
 			if kinshipMonkeyIDSet is None:
-				kinshipMonkeyIDSet = shared_monkey_id_ls[i+1]
+				kinshipMonkeyIDSet = shared_monkey_id_ls[i+1:]
 			for monkey2_id in kinshipMonkeyIDSet:
 				monkey_id_pair = [monkey1_id, monkey2_id]
 				monkey_id_pair.sort()
@@ -147,8 +148,10 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 					continue
 				ibd = ibdData.getCellDataGivenRowColID(monkey1_id, monkey2_id)
 				kinship = kinshipData.getCellDataGivenRowColID(monkey1_id, monkey2_id)
-				if (not hasattr(ibd, 'mask')) and not numpy.isnan(ibd) and (not hasattr(kinship, 'mask'))\
-						and (not numpy.isnan(kinship)):
+				#if (not hasattr(ibd, 'mask')) and (not numpy.isnan(ibd)) and (not hasattr(kinship, 'mask'))\
+				#		and (not numpy.isnan(kinship)):
+				if ibd is not None and kinship is not None and (not numpy.isnan(ibd)) and (not numpy.isnan(kinship)) \
+						and (not hasattr(ibd, 'mask')) and (not hasattr(kinship, 'mask')):
 					delta = kinship-ibd
 					absDelta = abs(delta)
 					if absDelta>=minAbsDelta:
@@ -166,27 +169,85 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 						data_row = [monkey_id_pair[0], monkey_id_pair[1], kinship, ibd, delta, ageDelta]
 						tableOutputWriter.writerow(data_row)
 						monkey_id_pair2kinship_ibd_delta[monkey_id_pair] = kinship-ibd
-						for monkeyID in monkey_id_pair:
+						for j in xrange(len(monkey_id_pair)):
+							monkeyID = monkey_id_pair[j]
 							if monkeyID not in monkeyID2AbsDeltaVector:
 								monkeyID2AbsDeltaVector[monkeyID] = []
-							monkeyID2AbsDeltaVector[monkeyID].append(absDelta)
+							for k in xrange(len(monkey_id_pair)):	#2012.9.1 there is only one other monkey. but add them all.
+								monkey2ID = monkey_id_pair[k]
+								if monkeyID!=monkey2ID:
+									monkeyID2AbsDeltaVector[monkeyID].append([monkey2ID, absDelta])
+		
 		del tableOutputWriter
 		sys.stderr.write("  %s outlier pairs, covering %s monkeys.\n"%(len(monkey_id_pair2kinship_ibd_delta),\
 															len(monkeyID2AbsDeltaVector)))
 		
+		monkeyIDList = monkeyID2AbsDeltaVector.keys()
+		monkeyIDList.sort()
+		queue = []	#a heap queue by the number of outlier pairs one monkey appears in 
+		for monkeyID in monkeyIDList:
+			data_ls = monkeyID2AbsDeltaVector.get(monkeyID)
+			noOfOutliers = len(data_ls)
+			#create a one-row X multi-column SNPData-like matrix structure
+			row_id_ls = [monkeyID]
+			col_id_ls = []	#the IDs of monkeys in those outlier pairs
+			data_row = []	#store the absDelta value
+			for data in data_ls:
+				col_id_ls.append(data[0])
+				data_row.append(data[1])
+			
+			deltaData = SNP.SNPData(row_id_ls=row_id_ls, col_id_ls=col_id_ls, data_matrix=numpy.array([data_row]))
+			heapq.heappush(queue, [-noOfOutliers, monkeyID, deltaData])	#watch the -
+		#return queue
+		self.outputOutlierFrequencyQueueData(outputFnamePrefix=outputFnamePrefix, minAbsDelta=minAbsDelta, \
+											outlierMonkeyQueue=queue)
+	
+	def updateOutlierMonkeyQueue(self, queue=None, monkeyToRemove=None):
+		"""
+		2012.9.1
+		
+		"""
+		no_of_monkeys = len(queue)
+		sys.stderr.write("Updating a outlierMonkeyQueue for %s monkeys ..."%\
+						(no_of_monkeys))
+		newQueue = []
+		
+		while len(queue)>0:
+			minusNoOfOutliers, monkeyID, deltaData = heapq.heappop(queue)[:3]
+			#if monkeyToRemove in deltaData.col_id2col_index:
+			monkeyToRemoveIndex = deltaData.col_id2col_index.get(monkeyToRemove)
+			if monkeyToRemoveIndex is not None:
+				keptColIDLs = deltaData.col_id_ls[:monkeyToRemoveIndex] + deltaData.col_id_ls[monkeyToRemoveIndex+1:]
+				deltaData = deltaData.keepColsByColID(deltaData, col_id_ls=keptColIDLs, dataType=numpy.float)
+				minusNoOfOutliers += 1
+			heapq.heappush(newQueue, [minusNoOfOutliers, monkeyID, deltaData])
+		sys.stderr.write("  %s monkeys in the queue.\n"%(len(newQueue)))
+		return PassingData(queue=newQueue)
+		
+	
+	def outputOutlierFrequencyQueueData(self, outputFnamePrefix=None, minAbsDelta=None, outlierMonkeyQueue=None):
+		"""
+		2012.9.1
+		"""
+		sys.stderr.write("Outputting outlierMonkeyQueue ... \n")
 		monkeyFrequencyInOutlierWriter = csv.writer(open('%s_monkeyFrequencyInMinAbsDelta%sPairs.tsv'%(outputFnamePrefix, minAbsDelta), 'w'),\
 												delimiter='\t')
 		header = ['monkeyID', 'outlierFrequency', 'medianAbsDeltaAmongOutliers']
 		monkeyFrequencyInOutlierWriter.writerow(header)
-		monkeyIDList = monkeyID2AbsDeltaVector.keys()
-		monkeyIDList.sort()
-		for monkeyID in monkeyIDList:
-			absDeltaVector = monkeyID2AbsDeltaVector.get(monkeyID)
-			medianAbsDeltaAmongOutliers = numpy.median(absDeltaVector)
-			data_row = [monkeyID, len(absDeltaVector), medianAbsDeltaAmongOutliers]
+		i = 0
+		while len(outlierMonkeyQueue)>0:
+			minusNoOfOutliers, monkeyID, deltaData = heapq.heappop(outlierMonkeyQueue)[:3]
+			noOfOutliers = -minusNoOfOutliers
+			
+			medianAbsDeltaAmongOutliers = numpy.median(deltaData.data_matrix[0,:])
+			data_row = [monkeyID, noOfOutliers, medianAbsDeltaAmongOutliers]
 			monkeyFrequencyInOutlierWriter.writerow(data_row)
+			pdata = self.updateOutlierMonkeyQueue(outlierMonkeyQueue, monkeyToRemove=monkeyID)
+			outlierMonkeyQueue = pdata.queue
+			i+= 1
 		del monkeyFrequencyInOutlierWriter
-		
+		sys.stderr.write(" %s monkeys outputted.\n"%(i))
+	
 	
 	def createKinshipIBDDeltaQueue(self, kinshipIBDDeltaData=None):
 		"""
@@ -224,12 +285,12 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 			kinshipIBDDeltaVector[:] = numpy.nan
 			for monkeyID, kinship_index in kinshipData.col_id2col_index.iteritems():
 				kinship = kinshipVector[kinship_index]
-				if not hasattr(kinship, 'mask'):
+				if kinship is not None and not hasattr(kinship, 'mask'):
 					ibdIndex = ibdData.col_id2col_index.get(monkeyID)
 					if ibdIndex is not None:
 						try:
 							ibd = ibdVector[ibdIndex]
-							if not hasattr(ibd, 'mask') and not numpy.isnan(ibd):
+							if ibd is not None and not hasattr(ibd, 'mask') and not numpy.isnan(ibd):
 								kinshipIBDDeltaVector[kinship_index] = kinship-ibd
 						except:
 							sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
@@ -297,12 +358,12 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 					kinship_index = kinshipData.col_id2col_index.get(monkeyID)
 					#for monkeyID, kinship_index in kinshipData.col_id2col_index.iteritems():
 					kinship = kinshipVector[kinship_index]
-					if not hasattr(kinship, 'mask'):
+					if kinship is not None and not hasattr(kinship, 'mask'):
 						ibdIndex = ibdData.col_id2col_index.get(monkeyID)
 						if ibdIndex is not None:
 							try:
 								ibd = ibdVector[ibdIndex]
-								if not hasattr(ibd, 'mask') and not numpy.isnan(ibd):
+								if ibd is not None and not hasattr(ibd, 'mask') and not numpy.isnan(ibd):
 									delta = kinship-ibd	#2012.8.23 no abs
 									Z = abs((delta-mean)/std)	#2012.8.23 take absolute value, since it's always P(X>a), negative z-score gets wrong portion.
 									logPvalue = rpy.r.pnorm(Z, lower_tail = rpy.r.FALSE, log=rpy.r.TRUE)	#the latter log is natural log.
@@ -371,7 +432,7 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 			kinship_index = kinshipData.col_id2col_index.get(dropMonkeyID)
 			#for monkeyID, kinship_index in kinshipData.col_id2col_index.iteritems():
 			kinship = kinshipVector[kinship_index]
-			if not hasattr(kinship, 'mask'):
+			if kinship is not None and not hasattr(kinship, 'mask'):
 				ibdIndex = ibdData.col_id2col_index.get(dropMonkeyID)
 				if ibdIndex is not None:
 					try:
@@ -456,7 +517,7 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 			temporarily run PCA on abs(kinship-ibd) data matrix and then check clustering.
 		"""
 		#2012.8.24 temporarily doing something different
-		kinshipIBDDeltaData = self.createDeltaMatrix(kinshipData=kinshipData, ibdData=ibdData, takeAbs=False, \
+		kinshipIBDDeltaData = self.createDeltaMatrix(kinshipData=kinshipData, ibdData=ibdData, takeAbs=True, \
 											onlySharedMonkeys=True, defaultValue=0)	#default is 0, not numpy.nan
 		
 		outputFname = '%s_PCAOnAbsKinshipIBDDelta.tsv'%outputFnamePrefix
@@ -469,7 +530,7 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 			PC1_row_id_ls.append([PC1, row_id])
 		PC1_row_id_ls.sort()
 		row_id_sortedByPCLs = [row[1] for row in PC1_row_id_ls]
-		#reorder the columns & rows according to PC1
+		#reorder the columns & rows of kinshipIBDDeltaData according to PC1 and then output
 		kinshipIBDDeltaData = kinshipIBDDeltaData.reOrderRowsGivenNewRowIDList(row_id_ls=row_id_sortedByPCLs)
 		kinshipIBDDeltaData = kinshipIBDDeltaData.reOrderColsGivenNewCOlIDList(col_id_ls = row_id_sortedByPCLs)
 		
@@ -496,32 +557,32 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 										rowIDIndex=None, colIDIndex=None, \
 								dataHeader="PI_HAT", dataIndex=None, hasHeader=True)
 		
-		"""
-		#2012.8.23 cut data off for Sue
-		if self.kinshipMonkeyIDSetFname:
-			monkeyID2dataTuple = SNP.getKey2ValueFromMatrixLikeFile(inputFname=self.kinshipMonkeyIDSetFname, keyHeaderLs=['monkeyID'], \
-								valueHeaderLs=['noOfMismatches', 'noOfNonMissing'], keyIndexLs=None, valueIndexLs=None, \
-								hasHeader=True, valueDataType=float)
-			kinshipMonkeyIDSet = set()
-			for monkeyID, dataTuple in monkeyID2dataTuple.iteritems():
-				if dataTuple[0]==0 and dataTuple[1]>30:
-					kinshipMonkeyIDSet.add(monkeyID)
-			sys.stderr.write("%s monkeys in kinshipMonkeyIDSet.\n"%(len(kinshipMonkeyIDSet)))
-		else:
-			kinshipMonkeyIDSet = None
-		self.cutOffKinshipIBDDeltaAndOutput(db_vervet=db_vervet, kinshipData=kinshipData, ibdData=ibdData, \
-					outputFnamePrefix=self.outputFnamePrefix, minAbsDelta=0.1, kinshipMonkeyIDSet=kinshipMonkeyIDSet)
-		sys.exit(0)
-		"""
-		"""
-		#2012.8.24 temporary
+		if self.minAbsDeltaForOutlier>0:
+			#2012.8.23 cut data off for Sue
+			if self.kinshipMonkeyIDSetFname:
+				monkeyID2dataTuple = SNP.getKey2ValueFromMatrixLikeFile(inputFname=self.kinshipMonkeyIDSetFname, keyHeaderLs=['monkeyID'], \
+									valueHeaderLs=['noOfMismatches', 'noOfNonMissing'], keyIndexLs=None, valueIndexLs=None, \
+									hasHeader=True, valueDataType=float)
+				kinshipMonkeyIDSet = set()
+				for monkeyID, dataTuple in monkeyID2dataTuple.iteritems():
+					if dataTuple[0]==0 and dataTuple[1]>30:
+						kinshipMonkeyIDSet.add(monkeyID)
+				sys.stderr.write("%s monkeys in kinshipMonkeyIDSet.\n"%(len(kinshipMonkeyIDSet)))
+			else:
+				kinshipMonkeyIDSet = None
+			if self.outputFnamePrefix:
+				self.cutOffKinshipIBDDeltaAndOutput(db_vervet=db_vervet, kinshipData=kinshipData, ibdData=ibdData, \
+						outputFnamePrefix=self.outputFnamePrefix, minAbsDelta=self.minAbsDeltaForOutlier, kinshipMonkeyIDSet=kinshipMonkeyIDSet)
+		
+		#2012.8.24 output the delta matrix in PC1 order
 		self.PCAOnAbsKinshipIBDDeltaMatrix(kinshipData=kinshipData,  ibdData=ibdData, outputFnamePrefix=self.outputFnamePrefix)
-		sys.exit(0)
-		"""
-		monkey_id2plinkSex = SNP.getKey2ValueFromMatrixLikeFile(inputFname=self.plinkSexCheckOutputFname, \
+		
+		if self.plinkSexCheckOutputFname:
+			monkey_id2plinkSex = SNP.getKey2ValueFromMatrixLikeFile(inputFname=self.plinkSexCheckOutputFname, \
 								keyHeaderLs=['IID'], valueHeaderLs=['SNPSEX'], keyIndexLs=None, valueIndexLs=None, \
 								hasHeader=True, valueDataType=int)
-		
+		else:
+			monkey_id2plinkSex = {}
 		
 		kinshipIBDDeltaData = self.createDeltaMatrix(kinshipData=kinshipData, ibdData=ibdData, takeAbs=False)
 		
