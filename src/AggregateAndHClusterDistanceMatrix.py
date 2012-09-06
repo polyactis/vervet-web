@@ -46,13 +46,22 @@ class AggregateAndHClusterDistanceMatrix(object):
 		self.inputFnameLs = inputFnameLs
 	
 	def massageSampleId(self, col_id_ls):
+		"""
+		2012.9.5
+			added takeLastSplit further massage the sample ID
+		"""
+		
 		take1stSplit = lambda x: x.split("_GA_vs_")[0]
+		takeLastSplit = lambda x: x.split("_")[-1]
 		for i in range(len(col_id_ls)):
 			col_id = col_id_ls[i]
 			newXLabel = take1stSplit(col_id)
 			if newXLabel[:7] == 'VRC_ref':
 				newXLabel = col_id.split('_vs_')[0]	#a different split for VRC_ref to retain the sequencer
 				newXLabel = newXLabel[4:]
+			else:
+				newXLabel = takeLastSplit(newXLabel)
+			
 			col_id_ls[i] = newXLabel
 		return col_id_ls
 	
@@ -121,12 +130,12 @@ class AggregateAndHClusterDistanceMatrix(object):
 		PCA_writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
 		#T, P, explained_var = pca_module.PCA_svd(phenData_trans.data_matrix, standardize=True)
 		T, P, explained_var = PCA.eig(distanceMatrix, normalize=True)	#normalize=True causes missing value in the covariance matrix
-		header = ['MonkeyID', 'DummyTime', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6']
+		header = ['MonkeyID', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6']
 		PCA_writer.writerow(header)
 		for i in range(len(distanceMatrix)):
 			col_id = col_id_ls[i]
 			T[i,0] = -T[i,0]	#reverse the sign of PC1 to match geography better
-			data_row = [col_id, '2011'] + list(T[i,0:6])
+			data_row = [col_id] + list(T[i,0:6])
 			PCA_writer.writerow(data_row)
 		del PCA_writer
 		sys.stderr.write("Done.\n")
@@ -159,17 +168,19 @@ class AggregateAndHClusterDistanceMatrix(object):
 		if self.outputFname:
 			self.outputMismatchData(self.outputFname, samplePair2data, distanceMatrix, sampleId2index, sampleIdLs)
 		
-		col_id_ls = self.massageSampleId(sampleIdLs)
+		massagedSampleIDLs = self.massageSampleId(sampleIdLs)
 		
-		self.runPCAOnDistanceMatrix(distanceMatrix, col_id_ls=col_id_ls, outputFname='%s_PCA.tsv'%(self.figureFnamePrefix))
+		#2012.9-6 stop massaging sample IDs for PCA output. mapper/AppendInfo2SmartPCAOutput.py could be applied to this.
+		self.runPCAOnDistanceMatrix(distanceMatrix, col_id_ls=sampleIdLs, outputFname='%s_PCA.tsv'%(self.figureFnamePrefix))
 		
 		import pylab
 		from hcluster import pdist, linkage, dendrogram
 		pylab.clf()
 		Z=linkage(distanceMatrix, 'single')
-		dendrogram(Z, color_threshold=0.001, labels=col_id_ls,orientation='right')
+		yh_matplotlib.setFontAndLabelSize(base_size=3)
+		dendrogram(Z, color_threshold=0.001, labels=massagedSampleIDLs, orientation='right', leaf_font_size=None)	#leaf_font_size=1 or 5 has no effect
 		pylab.savefig('%s.svg'%self.figureFnamePrefix, dpi=200)
-		pylab.savefig('%s.png'%self.figureFnamePrefix, dpi=200)
+		pylab.savefig('%s.png'%self.figureFnamePrefix, dpi=300)
 		sys.exit(0)
 	
 	
