@@ -37,6 +37,7 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 	option_default_dict.pop(('outputFnamePrefix', 0, ))
 	option_default_dict.update({
 						('outputFname', 1, ):option_default_dict.get(('outputFname', 0, )),\
+						("treatEveryOneIndependent", 0, int): [0, '', 0, 'toggle this to treat everyone in the pedigree independent (parents=0)'],\
 						})
 	option_default_dict.pop(('outputFname', 0, ))	#pop after its value has been used above
 	def __init__(self, inputFnameLs=None, **keywords):
@@ -92,7 +93,10 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 			node_id = alignment.ind_sequence.individual_id
 			individual = self.getIndividual(db_vervet=db_vervet, individual_id=node_id, \
 										individual_id2individual=individual_id2individual)
-			if node_id in DG:
+			if self.treatEveryOneIndependent:
+				father_id = 0
+				mother_id = 0
+			elif node_id in DG:
 				parents = DG.predecessors(node_id)
 				if len(parents)==2:
 					parent1 = self.getIndividual(db_vervet=db_vervet, individual_id=parents[0], \
