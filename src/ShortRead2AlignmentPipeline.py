@@ -943,58 +943,6 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		
 		return sam_sort_job, sortBamF
 	
-	def addAlignmentMergeJob(self, workflow, AlignmentJobAndOutputLs=[], outputBamFile=None,samtools=None,\
-					java=None, mergeSamFilesJava=None, mergeSamFilesJar=None, \
-					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
-					mv=None, namespace='workflow', version='1.0', stageOutFinalOutput=False):
-		"""
-		2012.7.4 bugfix. add job dependency between alignmentJob and merge_sam_job after all have been added to the workflow.
-		2012.3.29
-			no more threads (only 2 threads at maximum and increase only 20% performance anyway).
-			Some nodes' kernels can't handle threads properly and it leads to process hanging forever.
-		2011-11-15
-			MarkDuplicates will be run after this step. So outputBamFile no longer needs to be transferred out.
-		2011-9-4
-			add argument stageOutFinalOutput, default=False, which means leave the output files where they are
-		2011-8-28
-			merge alignment
-			index it
-		"""
-		memRequirementObject = self.getJVMMemRequirment(job_max_memory=5000, minMemory=2000)
-		job_max_memory = memRequirementObject.memRequirement
-		javaMemRequirement = memRequirementObject.memRequirementInStr
-		if len(AlignmentJobAndOutputLs)>1:
-			merge_sam_job = Job(namespace=namespace, name=mergeSamFilesJava.name, version=version)
-			merge_sam_job.addArguments(javaMemRequirement, "-jar", mergeSamFilesJar, 'SORT_ORDER=coordinate', \
-						'ASSUME_SORTED=true', 'OUTPUT=', outputBamFile, "VALIDATION_STRINGENCY=LENIENT")
-			# 'USE_THREADING=true', threading might be causing process hanging forever (sleep).
-			merge_sam_job.uses(outputBamFile, transfer=stageOutFinalOutput, register=True, link=Link.OUTPUT)
-			yh_pegasus.setJobProperRequirement(merge_sam_job, job_max_memory=job_max_memory)
-			workflow.addJob(merge_sam_job)
-			for AlignmentJobAndOutput in AlignmentJobAndOutputLs:
-				alignmentJob, alignmentOutput = AlignmentJobAndOutput[:2]
-				merge_sam_job.addArguments('INPUT=', alignmentOutput)
-				merge_sam_job.uses(alignmentOutput, transfer=True, register=True, link=Link.INPUT)
-				workflow.depends(parent=alignmentJob, child=merge_sam_job)
-		else:	#one input file, no samtools merge. use "mv" to rename it instead. should use "cp", then the input would be cleaned by cleaning job.
-			alignmentJob, alignmentOutput = AlignmentJobAndOutputLs[0][:2]
-			merge_sam_job = Job(namespace=namespace, name=mv.name, version=version)
-			merge_sam_job.addArguments(alignmentOutput, outputBamFile)
-			merge_sam_job.uses(alignmentOutput, transfer=True, register=True, link=Link.INPUT)
-			merge_sam_job.uses(outputBamFile, transfer=stageOutFinalOutput, register=True, link=Link.OUTPUT)
-			workflow.addJob(merge_sam_job)
-			workflow.depends(parent=alignmentJob, child=merge_sam_job)	#2012.7.4
-			sys.stderr.write(" copy (no merge, only one alignment) from %s to %s.\n"%(alignmentOutput.name, outputBamFile.name))
-		
-		
-		# add the index job on the merged bam file
-		bamIndexJob = self.addBAMIndexJob(BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
-					inputBamF=outputBamFile,\
-					parentJobLs=[merge_sam_job], namespace=namespace, version=version,\
-					stageOutFinalOutput=stageOutFinalOutput, javaMaxMemory=3000)
-		return merge_sam_job, bamIndexJob
-	
-	
 	def addAlignmentMergeBySAMtoolsJob(self, workflow, AlignmentJobAndOutputLs=[], outputBamFile=None,samtools=None,\
 					java=None, mergeSamFilesJava=None, mergeSamFilesJar=None, \
 					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
