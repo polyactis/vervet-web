@@ -324,13 +324,17 @@ class Individual(Entity, TableClass):
 	
 	def codeSexInNumber(self):
 		"""
+		2012.9.4 if sex is empty or None, return 0
 		2011.12.4
 			represent male as 1. represent female as 2.
 		"""
-		if self.sex[0]=='M':
-			return 1
+		if self.sex:
+			if self.sex[0]=='M':
+				return 1
+			else:
+				return 2
 		else:
-			return 2
+			return 0
 	
 	def getCurrentAge(self):
 		"""
@@ -395,6 +399,8 @@ class AlignmentMethod(Entity, TableClass):
 
 class IndividualAlignment(Entity, TableClass):
 	"""
+	#2012.9.19 to distinguish alignments from different libraries/lanes/batches
+		add individual_sequence_file_raw
 	2012.7.26 add column parent_individual_alignment, mask_genotype_method
 	2012.7.14 add md5sum
 	2012.6.13
@@ -411,7 +417,7 @@ class IndividualAlignment(Entity, TableClass):
 	"""
 	ind_sequence = ManyToOne('IndividualSequence', colname='ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
 	ref_sequence = ManyToOne('IndividualSequence', colname='ref_ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
-	aln_method = ManyToOne('AlignmentMethod', colname='aln_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	alignment_method = ManyToOne('AlignmentMethod', colname='alignment_method_id', ondelete='CASCADE', onupdate='CASCADE')
 	genotype_method_ls = ManyToMany("GenotypeMethod",tablename='genotype_method2individual_alignment', local_colname='individual_alignment_id')
 	path = Field(Text)
 	format = Field(String(512))
@@ -435,23 +441,35 @@ class IndividualAlignment(Entity, TableClass):
 	parent_individual_alignment = ManyToOne('IndividualAlignment', colname='parent_individual_alignment_id', ondelete='CASCADE', onupdate='CASCADE')
 	#2012.7.26 mask loci of the alignment out for read-recalibration 
 	mask_genotype_method = ManyToOne('GenotypeMethod', colname='mask_genotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	#2012.9.19 to distinguish alignments from different libraries/lanes/batches
+	individual_sequence_file_raw = ManyToOne('IndividualSequenceFileRaw', colname='individual_sequence_file_raw_id', \
+											ondelete='CASCADE', onupdate='CASCADE')
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
 	date_updated = Field(DateTime)
 	using_options(tablename='individual_alignment', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-	using_table_options(UniqueConstraint('ind_seq_id', 'ref_ind_seq_id', 'aln_method_id', 'outdated_index', \
-								'parent_individual_alignment_id', 'mask_genotype_method_id'))
+	using_table_options(UniqueConstraint('ind_seq_id', 'ref_ind_seq_id', 'alignment_method_id', 'outdated_index', \
+								'parent_individual_alignment_id', 'mask_genotype_method_id',\
+								'individual_sequence_file_raw_id'))
 	
 	def getReadGroup(self):
 		"""
+		2012.9.19
+			add three more optional additions to the read group
 		2011-11-02
 			read group is this alignment's unique identifier in a sam/bam file.
 		"""
 		sequencer = self.ind_sequence.sequencer
 		read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, self.ind_sequence.individual.code, \
 								sequencer, self.ref_ind_seq_id)
+		if self.parent_individual_alignment_id:
+			read_group += '_p%s'%(self.parent_individual_alignment_id)
+		if self.mask_genotype_method_id:
+			read_group += '_m%s'%(self.mask_genotype_method_id)
+		if self.individual_sequence_file_raw_id:
+			read_group += '_r%s'%(self.individual_sequence_file_raw_id)
 		return read_group
 
 	def getCompositeID(self):
@@ -465,6 +483,8 @@ class IndividualAlignment(Entity, TableClass):
 	
 	def constructRelativePath(self, subFolder='individual_alignment', **keywords):
 		"""
+		2012.9.19
+			add three more optional additions to the path
 		2012.2.24
 			fix a bug
 		2012.2.10
@@ -474,8 +494,15 @@ class IndividualAlignment(Entity, TableClass):
 		"""
 		#'/' must not be put in front of the relative path.
 		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-		dst_relative_path = '%s/%s_%s_vs_%s_by_%s.%s'%(subFolder, self.id, self.ind_seq_id,\
-												self.ref_ind_seq_id, self.aln_method_id, self.format)
+		pathPrefix = '%s/%s_%s_vs_%s_by_%s'%(subFolder, self.id, self.ind_seq_id,\
+											self.ref_ind_seq_id, self.alignment_method_id)
+		if self.parent_individual_alignment_id:
+			pathPrefix += '_p%s'%(self.parent_individual_alignment_id)
+		if self.mask_genotype_method_id:
+			pathPrefix += '_m%s'%(self.mask_genotype_method_id)
+		if self.individual_sequence_file_raw_id:
+			pathPrefix += '_r%s'%(self.individual_sequence_file_raw_id)
+		dst_relative_path = '%s.%s'%(pathPrefix, self.format)
 		
 		return dst_relative_path
 	
@@ -926,6 +953,7 @@ class Genotype(Entity, TableClass):
 
 class GenotypeMethod(Entity, TableClass):
 	"""
+	2012.9.6 add column min_neighbor_distance
 	2012.7.12 add meta-columns: min_depth ... min_MAF
 	2012.7.11
 		get rid of all file-related columns, moved to GenotypeFile.
@@ -949,6 +977,7 @@ class GenotypeMethod(Entity, TableClass):
 	max_depth = Field(Float)
 	max_missing_rate = Field(Float)
 	min_maf = Field(Float)
+	min_neighbor_distance = Field(Integer)
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -977,6 +1006,7 @@ class GenotypeMethod(Entity, TableClass):
 	
 class GenotypeFile(Entity, TableClass):
 	"""
+	2012.8.30 add column no_of_chromosomes
 	2012.7.11
 		modify it so that this holds files, each of which corresponds to GenotypeMethod.
 	2011-2-4
@@ -986,9 +1016,10 @@ class GenotypeFile(Entity, TableClass):
 	#individual = ManyToOne('Individual', colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
 	path = Field(Text, unique=True)
 	original_path = Field(Text)
-	md5sum = Field(Text, unique=True)
+	md5sum = Field(Text)	# unique=True
 	file_size = Field(BigInteger)	#2012.7.12
 	chromosome = Field(Text)
+	no_of_chromosomes = Field(BigInteger, default=1)	#2012.8.30 BigInteger in case some huge number of contigs
 	no_of_individuals = Field(Integer)
 	no_of_loci = Field(BigInteger)
 	format = Field(Text)
@@ -1000,17 +1031,27 @@ class GenotypeFile(Entity, TableClass):
 	date_updated = Field(DateTime)
 	using_options(tablename='genotype_file', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-	using_table_options(UniqueConstraint('genotype_method_id', 'chromosome', 'format'))
+	using_table_options(UniqueConstraint('genotype_method_id', 'chromosome', 'format', 'no_of_chromosomes'))
 	
 	def constructRelativePath(self, subFolder='genotype_file', sourceFilename="", **keywords):
 		"""
+		2012.8.30
+			name differently when the no_of_chromosomes is >1
 		2012.7.12
 			path relative to self.data_dir
 		"""
 		folderRelativePath = self.genotype_method.constructRelativePath(subFolder=subFolder)
 		#'/' must not be put in front of the relative path.
 		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-		dst_relative_path = os.path.join(folderRelativePath, '%s_%s_%s'%(self.id, self.format, sourceFilename))
+		folderRelativePath = folderRelativePath.lstrip('/')
+		if self.no_of_chromosomes<=1:
+			dst_relative_path = os.path.join(folderRelativePath, '%s_%s_%s'%(self.id, self.format, sourceFilename))
+		else:	#files with more than 1 chromosome
+			# 2012.8.30
+			# it'll be something like genotype_file/method_6_$id_$format_#chromosomes_sourceFilename
+			# do not put it in genotype_file/method_6/ folder.
+			folderRelativePath= folderRelativePath.rstrip('/')
+			dst_relative_path = '%s_%s_%s_%schromosomes_%s'%(folderRelativePath, self.id, self.format, self.no_of_chromosomes, sourceFilename)
 		return dst_relative_path
 	
 	def getFileSize(self, data_dir=None):
@@ -1146,6 +1187,8 @@ class VervetDB(ElixirDB):
 			#my_logger.addHandler(handler)
 			my_logger.setLevel(logging.DEBUG)
 		self.setup_engine(metadata=__metadata__, session=__session__, entities=entities)
+		self.uclaID2monkeyDBEntry = {}	#2012.9.4
+		self.dbID2monkeyDBEntry = {}	#2012.9.6
 	
 	def setup(self, create_tables=True):
 		"""
@@ -1178,14 +1221,19 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
-	def getAlignment(self, individual_code=None, individual_sequence_id=None, path_to_original_alignment=None, sequencer='GA', \
+	def getAlignment(self, individual_code=None, individual_id=None, individual=None, individual_sequence_id=None, \
+					path_to_original_alignment=None, sequencer='GA', \
 					sequence_type='SR', sequence_format='fastq', \
 					ref_individual_sequence_id=10, \
-					alignment_method_name='bwa-short-read', alignment_format='bam', subFolder='individual_alignment', \
+					alignment_method_name='bwa-short-read', alignment_method_id=None, alignment_method=None,\
+					alignment_format='bam', subFolder='individual_alignment', \
 					createSymbolicLink=False, individual_sequence_filtered=0, read_group_added=None, dataDir=None, \
-					outdated_index=0, mask_genotype_method_id=None, parent_individual_alignment_id=None):
+					outdated_index=0, mask_genotype_method_id=None, parent_individual_alignment_id=None,\
+					individual_sequence_file_raw_id=None, md5sum=None):
 		"""
-		2012.7.26 added argument mask_genotype_method_id & parent_individual_alignment_id
+		2012.9.19 add argument individual_sequence_file_raw_id, individual_id, individual,
+			alignment_method_id, alignment_method, md5sum
+		2012.7.26 add argument mask_genotype_method_id & parent_individual_alignment_id
 		2012.6.13 add argument outdated_index
 		2012.2.24
 			add argument dataDir
@@ -1202,41 +1250,62 @@ class VervetDB(ElixirDB):
 		"""
 		if dataDir is None:
 			dataDir = self.data_dir
-		individual = self.getIndividual(individual_code)
+		if individual_code:
+			individual = self.getIndividual(individual_code)
+		elif individual_id:
+			individual = Individual.get(individual_id)
+		
 		if individual_sequence_id:
 			individual_sequence = IndividualSequence.get(individual_sequence_id)
-		else:
-			individual_sequence = self.getIndividualSequence(individual.id, sequencer=sequencer, sequence_type=sequence_type,\
+			if individual is None:
+				individual = individual_sequence.individual
+		elif individual:
+			individual_sequence = self.getIndividualSequence(individual_id=individual.id, sequencer=sequencer, \
+								sequence_type=sequence_type,\
 								sequence_format=sequence_format, filtered=individual_sequence_filtered)
-		alignment_method = self.getAlignmentMethod(alignment_method_name=alignment_method_name)
+		else:
+			sys.stderr.write("Error: not able to get individual_sequence cuz individual_sequence_id=%s; individual_code=%s; individual_id=%s .\n"%\
+							(individual_sequence_id, individual_code, individual_id))
+			return None
+		
+		if alignment_method_name:
+			alignment_method = self.getAlignmentMethod(alignment_method_name=alignment_method_name)
+		elif alignment_method_id:
+			alignment_method = AlignmentMethod.get(alignment_method_id)
+		elif alignment_method is None:
+			sys.stderr.write("Error: not able to get alignment_method cuz alignment_method_name=%s and alignment_method_id=%s.\n"%\
+							(alignment_method_name, alignment_method_id))
+			return None
+		
 		query = IndividualAlignment.query.filter_by(ind_seq_id=individual_sequence.id).\
 				filter_by(ref_ind_seq_id=ref_individual_sequence_id).\
-				filter_by(aln_method_id=alignment_method.id).filter_by(outdated_index=outdated_index).\
+				filter_by(alignment_method_id=alignment_method.id).filter_by(outdated_index=outdated_index).\
 				filter_by(mask_genotype_method_id=mask_genotype_method_id).\
-				filter_by(parent_individual_alignment_id=parent_individual_alignment_id)
+				filter_by(parent_individual_alignment_id=parent_individual_alignment_id).\
+				filter_by(individual_sequence_file_raw_id=individual_sequence_file_raw_id)
 		
 		if alignment_format:
 			query = query.filter_by(format=alignment_format)
 		db_entry = query.first()
 		if not db_entry:
 			db_entry = IndividualAlignment(ind_seq_id=individual_sequence.id, ref_ind_seq_id=ref_individual_sequence_id,\
-								aln_method_id=alignment_method.id, format=alignment_format, read_group_added=read_group_added,\
+								alignment_method_id=alignment_method.id, format=alignment_format, read_group_added=read_group_added,\
 								outdated_index=outdated_index, mask_genotype_method_id=mask_genotype_method_id,\
-								parent_individual_alignment_id=parent_individual_alignment_id)
+								parent_individual_alignment_id=parent_individual_alignment_id,\
+								individual_sequence_file_raw_id=individual_sequence_file_raw_id, md5sum=md5sum)
 			self.session.add(db_entry)
 			self.session.flush()
 			#copy the file over
 			
-			#'/' must not be put in front of the relative path.
-			# otherwise, os.path.join(dataDir, dst_relative_path) will only take the path of dst_relative_path.
-			dst_relative_path = db_entry.constructRelativePath(subFolder=subFolder)
-			
-			#update its path in db to the relative path
-			db_entry.path = dst_relative_path
-			
-			dst_pathname = os.path.join(dataDir, dst_relative_path)
-			from pymodule.utils import runLocalCommand
 			if path_to_original_alignment and (os.path.isfile(path_to_original_alignment) or os.path.isdir(path_to_original_alignment)):
+				from pymodule.utils import runLocalCommand
+				#'/' must not be put in front of the relative path.
+				# otherwise, os.path.join(dataDir, dst_relative_path) will only take the path of dst_relative_path.
+				dst_relative_path = db_entry.constructRelativePath(subFolder=subFolder)
+				#update its path in db to the relative path
+				db_entry.path = dst_relative_path
+				
+				dst_pathname = os.path.join(dataDir, dst_relative_path)
 				dst_dir = os.path.join(dataDir, subFolder)
 				if not os.path.isdir(dst_dir):	#the upper directory has to be created at this moment.
 					commandline = 'mkdir %s'%(dst_dir)
@@ -1256,14 +1325,19 @@ class VervetDB(ElixirDB):
 					else:
 						commandline = 'cp -r %s %s'%(indexFname, dstIndexPathname)
 					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-			self.session.add(db_entry)
-			self.session.flush()
+				
+				#since the .path has been updated, so add & flush
+				self.session.add(db_entry)
+				self.session.flush()
 		return db_entry
 	
 	
-	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], aln_method_id=None, \
-					dataDir=None, sequence_type=None, outdated_index=0, mask_genotype_method_id=None, parent_individual_alignment_id=None):
+	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], alignment_method_id=None, \
+					dataDir=None, sequence_type=None, outdated_index=0, mask_genotype_method_id=None, parent_individual_alignment_id=None,\
+					individual_sequence_file_raw_id=None):
 		"""
+		2012.9.20 rename aln_method_id to alignment_method_id
+		2012.9.19 add argument individual_sequence_file_raw_id
 		2012.7.26 added argument mask_genotype_method_id & parent_individual_alignment_id
 		2012.6.13 add argument outdated_index
 		2012.4.13
@@ -1295,8 +1369,9 @@ class VervetDB(ElixirDB):
 		if ref_ind_seq_id:
 			sys.stderr.write("Adding filter via the reference sequence ID %s ...\n"%(ref_ind_seq_id))
 			query = query.filter_by(ref_ind_seq_id=ref_ind_seq_id)
-		if aln_method_id:
-			query = query.filter_by(aln_method_id=aln_method_id)
+		if alignment_method_id:
+			query = query.filter_by(alignment_method_id=alignment_method_id)
+		
 		if not ind_aln_id_ls and not ind_seq_id_ls and not ref_ind_seq_id:
 			sys.stderr.write("Both ind_seq_id_ls and ind_aln_id_ls are empty and ref_ind_seq_id is None. no alignment to be fetched.\n")
 			sys.exit(3)
@@ -1305,7 +1380,9 @@ class VervetDB(ElixirDB):
 		# while samtools doesn't do that and vcf-isect could combine two vcfs with columns in different order.
 		query = query.filter_by(outdated_index=outdated_index).\
 					filter_by(mask_genotype_method_id=mask_genotype_method_id).\
-					filter_by(parent_individual_alignment_id=parent_individual_alignment_id).order_by(TableClass.id)
+					filter_by(parent_individual_alignment_id=parent_individual_alignment_id).\
+					filter_by(individual_sequence_file_raw_id=individual_sequence_file_raw_id).\
+					order_by(TableClass.id)
 		for row in query:
 			if sequence_type is not None and row.sequence_type!=sequence_type:
 				continue
@@ -1526,6 +1603,32 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
+	def getIndividualDBEntry(self, ucla_id=None):
+		"""
+		2012.9.4
+			copied from vervet/src/plot/PlotPedigreeKinshipVsGeneticIBD.py
+		2012.8.21
+			has a cache inside
+		"""
+		if ucla_id in self.uclaID2monkeyDBEntry:
+			return self.uclaID2monkeyDBEntry.get(ucla_id)
+		else:
+			monkey = Individual.query.filter_by(ucla_id=ucla_id).first()
+			self.uclaID2monkeyDBEntry[ucla_id] = monkey
+			return monkey
+
+	def getIndividualDBEntryViaDBID(self, db_id=None):
+		"""
+		2012.9.6
+			has a cache inside
+		"""
+		if db_id in self.dbID2monkeyDBEntry:
+			return self.dbID2monkeyDBEntry.get(db_id)
+		else:
+			monkey = Individual.get(db_id)
+			self.dbID2monkeyDBEntry[db_id] = monkey
+			return monkey
+	
 	def copyParentIndividualSequence(self, parent_individual_sequence=None, parent_individual_sequence_id=None,\
 									subFolder='individual_sequence', quality_score_format='Standard', filtered=1,\
 									dataDir=None):
@@ -1599,40 +1702,88 @@ class VervetDB(ElixirDB):
 									quality_score_format=quality_score_format)
 		return db_entry
 	
-	def copyParentIndividualAlignment(self, parent_individual_alignment=None, mask_genotype_method=None):
+	def copyParentIndividualAlignment(self, parent_individual_alignment=None, \
+									parent_individual_alignment_id=None, mask_genotype_method=None, \
+									mask_genotype_method_id=None, dataDir=None):
 		"""
 		2012.7.28
 		
 		"""
-		if individual_sequence.sequencer=='454':
-			alignment_method = db_vervet.getAlignmentMethod("bwa-long-read")
-		else:
-			alignment_method = db_vervet.getAlignmentMethod(alignment_method_name)
-		"""
-		#2012.4.5 have all this commented out
-		elif individual_sequence.sequencer=='GA':
-			if individual_sequence.sequence_type=='SR':	#single-end
-				alignment_method = db_vervet.getAlignmentMethod("bwa-short-read-SR")
-			else:	#default is PE
-				alignment_method = db_vervet.getAlignmentMethod("bwa-short-read")
-		"""
+		if parent_individual_alignment is None and parent_individual_alignment_id:
+			parent_individual_alignment = IndividualAlignment.get(parent_individual_alignment_id)
+		if mask_genotype_method is None and mask_genotype_method_id:
+			mask_genotype_method = GenotypeMethod.get(mask_genotype_method_id)
+		
+		individual_sequence = parent_individual_alignment.individual_sequence
+		ref_sequence = parent_individual_alignment.ref_sequence
+		alignment_method = parent_individual_alignment.alignment_method
 		individual_alignment = db_vervet.getAlignment(individual_code=individual_sequence.individual.code, \
-								individual_sequence_id=ind_seq_id,\
+								individual_sequence_id=individual_sequence.id,\
 					path_to_original_alignment=None, sequencer=individual_sequence.sequencer, \
 					sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
-					ref_individual_sequence_id=refSequence.id, \
-					alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
+					ref_individual_sequence_id=ref_sequence.id, \
+					alignment_method_name=alignment_method.short_name, alignment_format=parent_individual_alignment.format,\
 					individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
-					dataDir=dataDir)	#read-group addition is part of pipeline
-		if not individual_alignment.path:
-			individual_alignment.path = individual_alignment.constructRelativePath()
-			session.add(individual_alignment)
-			session.flush()
-
+					dataDir=dataDir, outdated_index=0, mask_genotype_method_id=mask_genotype_method.id,\
+					parent_individual_alignment_id=parent_individual_alignment.id,\
+					individual_sequence_file_raw_id=parent_individual_alignment.individual_sequence_file_raw_id)
+					#read-group addition is part of pipeline
+		#if not individual_alignment.path:
+		#	individual_alignment.path = individual_alignment.constructRelativePath()
+		#	session.add(individual_alignment)
+		#	session.flush()
+		return individual_alignment
+	
+	def isPathInDBAffiliatedStorage(self, db_entry=None, relativePath=None, inputFileBasename=None, dataDir=None, \
+								constructRelativePathFunction=None):
+		"""
+		2012.8.29
+			check whether one relative path already exists in db-affliated storage.
+				return -1 if db_entry.path is different from relativePath and could not be updated in db.
+				return 1 if relativePath exists in db already
+				return 0 if not.
+			Example:
+				# simplest
+				db_vervet.isPathInDBAffiliatedStorage(relativePath=relativePath, dataDir=self.dataDir)
+				# this will check if db_entry.path == relativePath, if not, update it in db with relativePath.
+				db_vervet.isPathInDBAffiliatedStorage(db_entry=db_entry, relativePath=relativePath)
+				# 
+				db_vervet.isPathInDBAffiliatedStorage(db_entry=db_entry, inputFileBasename=inputFileBasename, dataDir=None, \
+								constructRelativePathFunction=genotypeFile.constructRelativePath)
+		"""
+		if dataDir is None:
+			dataDir = self.data_dir
+		
+		exitCode = 0
+		if db_entry and (relativePath is None) and constructRelativePathFunction and inputFileBasename:
+			relativePath = constructRelativePathFunction(db_entry=db_entry, sourceFilename=inputFileBasename)
+		
+		if db_entry and relativePath:
+			if db_entry.path != relativePath:
+				db_entry.path = relativePath
+				try:
+					self.session.add(db_entry)
+					self.session.flush()
+				except:
+					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+					import traceback
+					traceback.print_exc()
+					exitCode = -1
+					return exitCode
+		
+		dstFilename = os.path.join(dataDir, relativePath)
+		if os.path.isfile(dstFilename):
+			exitCode = 1
+		else:
+			exitCode = 0
+		return exitCode
+	
 	def moveFileIntoDBAffiliatedStorage(self, db_entry=None, filename=None, inputDir=None, outputDir=None, \
+									dstFilename=None,\
 								relativeOutputDir=None, shellCommand='cp -rL', srcFilenameLs=None, dstFilenameLs=None,\
 								constructRelativePathFunction=None):
 		"""
+		2012.8.30 add argument dstFilename, which if given , overwrites outputDir
 		2012.7.18 -L of cp meant "always follow symbolic links in SOURCE".
 		2012.7.13 copied from RegisterAndMoveSplitSequenceFiles.moveNewISQFileIntoDBStorage()
 			filename could be a folder.
@@ -1664,7 +1815,8 @@ class VervetDB(ElixirDB):
 				return exitCode
 		
 		srcFilename = os.path.join(inputDir, filename)
-		dstFilename = os.path.join(outputDir, newfilename)
+		if dstFilename is None:	#2012.8.30
+			dstFilename = os.path.join(outputDir, newfilename)
 		if os.path.isfile(dstFilename):
 			sys.stderr.write("Error: destination %s already exits.\n"%(dstFilename))
 			exitCode = 2
@@ -1847,18 +1999,26 @@ class VervetDB(ElixirDB):
 		return db_entry
 		
 	def getGenotypeFile(self, genotype_method=None, genotype_method_id=None, chromosome=None, format=None, path=None, file_size=None, \
-					no_of_individuals=None, no_of_loci=None, md5sum=None, original_path=None, dataDir=None, subFolder='genotype_file'):
+					no_of_individuals=None, no_of_loci=None, md5sum=None, original_path=None, dataDir=None, subFolder='genotype_file',\
+					no_of_chromosomes=1):
 		"""
+		2012.8.30
+			add argument no_of_chromosomes
 		2012.7.13
 		"""
 		if genotype_method_id is None and genotype_method.id:
 			genotype_method_id = genotype_method.id
 			
-		query = GenotypeFile.query.filter_by(genotype_method_id=genotype_method_id).filter_by(chromosome=chromosome)
+		query = GenotypeFile.query.filter_by(genotype_method_id=genotype_method_id)
 		if format:
 			query = query.filter_by(format=format)
-		elif md5sum:	#2012.8.6 if format is not given, then use md5sum as the sole unique identifier 
-			query = GenotypeFile.query.filter_by(md5sum=md5sum)
+		if md5sum:	#2012.8.6 if format is not given, then use md5sum as the sole unique identifier 
+			query = query.filter_by(md5sum=md5sum)
+		if no_of_chromosomes:
+			query = query.filter_by(no_of_chromosomes=no_of_chromosomes)
+		if chromosome:
+			query = query.filter_by(chromosome=chromosome)
+		
 		db_entry = query.first()
 		if original_path:
 			original_path = os.path.realpath(original_path)
@@ -1867,7 +2027,7 @@ class VervetDB(ElixirDB):
 			
 			db_entry = GenotypeFile(format=format, path=path, no_of_individuals=no_of_individuals, no_of_loci=no_of_loci, \
 							chromosome=chromosome, md5sum=md5sum, file_size=file_size, \
-							original_path=original_path, genotype_method_id=genotype_method_id)
+							original_path=original_path, genotype_method_id=genotype_method_id, no_of_chromosomes=no_of_chromosomes)
 			if not dataDir:
 				dataDir = self.data_dir
 			if db_entry.file_size is None and db_entry.path:
@@ -2224,6 +2384,78 @@ class VervetDB(ElixirDB):
 		sys.stderr.write("%s individual sequence files from %s isq entries.\n"%(counter, len(isq_id2LibrarySplitOrder2FileLs)))
 		return isq_id2LibrarySplitOrder2FileLs
 	
+	def getISQDBEntryLsForAlignment(self, individualSequenceIDList=None, dataDir=None, filtered=None, ignoreEmptyReadFile=True):
+		"""
+		2012.9.19 similar to getISQ_ID2LibrarySplitOrder2FileLs()
+			isqLs
+				library2Data
+					isqFileRawID2Index
+					isqFileRawDBEntryLs
+					splitOrder2Index
+					fileObjectPairLs
+		"""
+		sys.stderr.write("Getting isqLs for %s isq entries ..."%(len(individualSequenceIDList)))
+		isqLs = []
+		if not dataDir:
+			dataDir = self.data_dir
+		counter = 0
+		from mapper.CountFastqReadBaseCount import CountFastqReadBaseCount
+		
+		for individualSequenceID in individualSequenceIDList:
+			individual_sequence = IndividualSequence.get(individualSequenceID)
+			if not individual_sequence:	#not present in db, ignore
+				continue
+			library2Data = {}	#2012.9.19
+			for individual_sequence_file in individual_sequence.individual_sequence_file_ls:
+				path = os.path.join(dataDir, individual_sequence_file.path)
+				if filtered is not None and individual_sequence_file.filtered!=filtered:	#skip entries that don't matched the filtered argument
+					continue
+				if ignoreEmptyReadFile:	#2012.3.19	ignore empty read files.
+					if individual_sequence_file.read_count is None:	#calculate it on the fly
+						baseCountData = CountFastqReadBaseCount.getReadBaseCount(path, onlyForEmptyCheck=True)
+						read_count = baseCountData.read_count
+					else:
+						read_count = individual_sequence_file.read_count
+					if read_count==0:
+						continue
+				isqFileRawID = individual_sequence_file.individual_sequence_file_raw_id
+				
+				
+				counter += 1
+				library = individual_sequence_file.library
+				split_order = individual_sequence_file.split_order
+				mate_id = individual_sequence_file.mate_id
+				if library not in library2Data:
+					library2Data[library] = PassingData(isqFileRawID2Index = {}, isqFileRawDBEntryLs=[], \
+											splitOrder2Index={}, fileObjectPairLs=[])
+				#for convenience
+				isqFileRawID2Index = library2Data[library].isqFileRawID2Index
+				isqFileRawDBEntryLs = library2Data[library].isqFileRawDBEntryLs
+				splitOrder2Index = library2Data[library].splitOrder2Index
+				fileObjectPairLs = library2Data[library].fileObjectPairLs
+				if isqFileRawID not in isqFileRawID2Index:
+					isqFileRawID2Index[isqFileRawID] = len(isqFileRawID2Index)
+					isqFileRawDBEntryLs.append(individual_sequence_file.individual_sequence_file_raw)
+				
+				if splitOrder not in splitOrder2Index:
+					splitOrder2Index[splitOrder] = len(splitOrder2Index)
+					fileObjectPairLs.append([])
+				fileObjectPairIndex = splitOrder2Index[splitOrder]
+				if mate_id is None:
+					mate_id = 1
+				noOfFileObjects = len(fileObjectPairLs[fileObjectPairIndex])
+				if noOfFileObjects<mate_id:
+					for i in xrange(mate_id-noOfFileObjects):	#expand the list to match the number of mates
+						fileObjectPairLs[fileObjectPairIndex].append(None)
+				isq_file_obj = PassingData(db_entry=individual_sequence_file, path=path)
+				fileObjectPairLs[fileObjectPairIndex][mate_id-1] = isq_file_obj
+			#add it to the individual_sequence db entry
+			individual_sequence.library2Data = library2Data
+			isqLs.append(individual_sequence)
+		sys.stderr.write("%s individual sequence files from %s isq entries.\n"%(counter, len(isqLs)))
+		return isqLs
+	
+	
 	@property
 	def data_dir(self, ):
 		"""
@@ -2294,16 +2526,26 @@ class VervetDB(ElixirDB):
 															nx.number_connected_components(DG.to_undirected())))
 		return PassingData(DG=DG, individual_id2alignmentLs=individual_id2alignmentLs)
 	
-	def constructPedgree(self):
+	def constructPedgree(self, directionType=1):
 		"""
+		2012.9.6 add argument directionType
+			1: parent -> child as edge
+			2: child -> parent as edge
+			3: undirected
 		2012.1.23
 		"""
-		sys.stderr.write("Constructing pedigree from db ...")
+		sys.stderr.write("Constructing pedigree from db directionType=%s..."%(directionType))
 		import networkx as nx
-		DG=nx.DiGraph()
+		if directionType==3:
+			DG = nx.Graph()
+		else:
+			DG=nx.DiGraph()
 		
 		for row in Ind2Ind.query:
-			DG.add_edge(row.individual1_id, row.individual2_id)
+			if directionType==2:
+				DG.add_edge(row.individual2_id, row.individual1_id)
+			else:
+				DG.add_edge(row.individual1_id, row.individual2_id)
 		
 		"""
 		#2012.6.19 initialization, but found unnecessary. increasePredecessorNoOfOffspringCount() can do it itself.
@@ -2660,25 +2902,29 @@ class VervetDB(ElixirDB):
 		self.session.add(db_entry)
 		self.session.flush()
 		
-	def updateGenotypeMethodNoOfLoci(self, db_entry=None, format=None):
+	def updateGenotypeMethodNoOfLoci(self, db_entry=None, format=None, no_of_chromosomes=None):
 		"""
+		2012.8.30
 		2012.8.15
 			add argument format and aggregate the number of loci according to format
 		2012.7.17
 		"""
 		no_of_loci = 0
-		format2NoOfLoci = {}
+		formatAndNoOfChromosomes2NoOfLoci = {}
 		query = GenotypeFile.query.filter_by(genotype_method_id=db_entry.id)
 		if format:
 			query = query.filter_by(format=format)
+		if no_of_chromosomes:	#2012.8.30
+			query = query.filter_by(no_of_chromosomes = no_of_chromosomes)
 		
 		for genotype_file in query:
-			if genotype_file.format not in format2NoOfLoci:
-				format2NoOfLoci[genotype_file.format] = 0
-			format2NoOfLoci[genotype_file.format] += genotype_file.no_of_loci
-		noOfLociList = format2NoOfLoci.values()
+			key = (genotype_file.format, genotype_file.no_of_chromosomes)
+			if key not in formatAndNoOfChromosomes2NoOfLoci:
+				formatAndNoOfChromosomes2NoOfLoci[key] = 0
+			formatAndNoOfChromosomes2NoOfLoci[key] += genotype_file.no_of_loci
+		noOfLociList = formatAndNoOfChromosomes2NoOfLoci.values()
 		#do some checking here to make sure every number in noOfLociList agrees with each other
-		db_entry.no_of_loci = noOfLociList[0]
+		db_entry.no_of_loci = max(noOfLociList)	#take the maximum
 		self.session.add(db_entry)
 		self.session.flush()
 	
