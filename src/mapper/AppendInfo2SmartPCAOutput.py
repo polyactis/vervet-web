@@ -50,6 +50,7 @@ class AppendInfo2SmartPCAOutput(AbstractVervetMapper):
 	__doc__ = __doc__
 	option_default_dict = AbstractVervetMapper.option_default_dict
 	option_default_dict.update({
+						('inversePCValue', 0, int):[0, '', 0, 'toggle to inverse PC values (match geography better usually)'],\
 						
 					})
 	def __init__(self, inputFnameLs=None, **keywords):
@@ -74,7 +75,7 @@ class AppendInfo2SmartPCAOutput(AbstractVervetMapper):
 		self.db_taxonomy = db_taxonomy
 	
 	
-	def appendInfo(self, inputFname=None, db_vervet=None, outputFname=None, defaultCollectionYear=1950, \
+	def appendInfo(self, inputFname=None, db_vervet=None, outputFname=None,\
 				inversePCValue=True):
 		"""
 		2012.9.5
@@ -95,7 +96,7 @@ class AppendInfo2SmartPCAOutput(AbstractVervetMapper):
 			row = row[:len(header)]	#don't take extra columns
 			sampleID = row[0]
 			individualAlignment = db_vervet.parseAlignmentReadGroup(sampleID).individualAlignment
-			individual = individualAlignment.ind_sequence.individual
+			individual = individualAlignment.individual_sequence.individual
 			data_row = [individual.code]
 			
 			floatValue_row = row[1:]
@@ -129,8 +130,8 @@ class AppendInfo2SmartPCAOutput(AbstractVervetMapper):
 			import pdb
 			pdb.set_trace()
 		
-		self.appendInfo(inputFname=self.inputFname, db_vervet=self.db_vervet, outputFname=self.outputFname, defaultCollectionYear=1950, \
-				inversePCValue=True)
+		self.appendInfo(inputFname=self.inputFname, db_vervet=self.db_vervet, outputFname=self.outputFname, \
+				inversePCValue=self.inversePCValue)
 		
 
 if __name__ == '__main__':
