@@ -91,7 +91,7 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 			counter= 0
 			from pymodule.VCFFile import VCFFile
 			
-			vcfFile = VCFFile(inputFname=filename)
+			vcfFile = VCFFile(inputFname=filename, minDepth=0)
 			sampleIDList = vcfFile.getSampleIDList()
 			writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
 			header = ['Chromosome', 'position', 'ref']
@@ -99,10 +99,10 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 			for i in xrange(len(sampleIDList)):
 				sampleID = sampleIDList[i]
 				individualAlignment = self.db_vervet.parseAlignmentReadGroup(sampleID).individualAlignment
-				site = individualAlignment.ind_sequence.individual.site
+				site = individualAlignment.individual_sequence.individual.site
 				#2012.8.29 get scientific name from the taxonomy db
-				scientifcName = self.db_taxonomy.returnScientificNameGivenTaxID(individualAlignment.ind_sequence.individual.tax_id)
-				#if individualAlignment.ind_sequence.individual.tax_id==60711 and (site.country_id!=144 and site.country_id!=135 \
+				scientifcName = self.db_taxonomy.returnScientificNameGivenTaxID(individualAlignment.individual_sequence.individual.tax_id)
+				#if individualAlignment.individual_sequence.individual.tax_id==60711 and (site.country_id!=144 and site.country_id!=135 \
 				#																and site.country_id!=136 and site.country_id!=148): 
 				header.append('%s %s'%(sampleID, scientifcName))
 				columnIndexList.append(i)
