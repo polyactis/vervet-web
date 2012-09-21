@@ -399,7 +399,7 @@ class AlignmentMethod(Entity, TableClass):
 
 class IndividualAlignment(Entity, TableClass):
 	"""
-	2012.9.21 rename ind_sequence to individual_sequence
+	2012.9.21 rename IndividualAlignment.ind_sequence to individual_sequence
 	#2012.9.19 to distinguish alignments from different libraries/lanes/batches
 		add individual_sequence_file_raw
 	2012.7.26 add column parent_individual_alignment, mask_genotype_method
