@@ -399,6 +399,7 @@ class AlignmentMethod(Entity, TableClass):
 
 class IndividualAlignment(Entity, TableClass):
 	"""
+	2012.9.21 rename ind_sequence to individual_sequence
 	#2012.9.19 to distinguish alignments from different libraries/lanes/batches
 		add individual_sequence_file_raw
 	2012.7.26 add column parent_individual_alignment, mask_genotype_method
@@ -415,7 +416,7 @@ class IndividualAlignment(Entity, TableClass):
 		add column median_depth, mode_depth
 	2011-3-3
 	"""
-	ind_sequence = ManyToOne('IndividualSequence', colname='ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
+	individual_sequence = ManyToOne('IndividualSequence', colname='ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
 	ref_sequence = ManyToOne('IndividualSequence', colname='ref_ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
 	alignment_method = ManyToOne('AlignmentMethod', colname='alignment_method_id', ondelete='CASCADE', onupdate='CASCADE')
 	genotype_method_ls = ManyToMany("GenotypeMethod",tablename='genotype_method2individual_alignment', local_colname='individual_alignment_id')
@@ -461,8 +462,8 @@ class IndividualAlignment(Entity, TableClass):
 		2011-11-02
 			read group is this alignment's unique identifier in a sam/bam file.
 		"""
-		sequencer = self.ind_sequence.sequencer
-		read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, self.ind_sequence.individual.code, \
+		sequencer = self.individual_sequence.sequencer
+		read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, self.individual_sequence.individual.code, \
 								sequencer, self.ref_ind_seq_id)
 		if self.parent_individual_alignment_id:
 			read_group += '_p%s'%(self.parent_individual_alignment_id)
@@ -477,8 +478,8 @@ class IndividualAlignment(Entity, TableClass):
 		2012.1.25
 			ID to be used to identify members of trios. almost same as getReadGroup()
 		"""
-		compositeID = '%s_%s_%s_%s'%(self.id, self.ind_seq_id, self.ind_sequence.individual.id, \
-								self.ind_sequence.individual.code)
+		compositeID = '%s_%s_%s_%s'%(self.id, self.ind_seq_id, self.individual_sequence.individual.id, \
+								self.individual_sequence.individual.code)
 		return compositeID
 	
 	def constructRelativePath(self, subFolder='individual_alignment', **keywords):
@@ -1436,13 +1437,13 @@ class VervetDB(ElixirDB):
 						(len(alignmentLs), max_coverage, individual_site_id, sequence_filtered, no_of_sites))
 		newAlignmentLs = []
 		for alignment in alignmentLs:
-			if max_coverage is not None and alignment.ind_sequence.coverage>max_coverage:
+			if max_coverage is not None and alignment.individual_sequence.coverage>max_coverage:
 				continue
-			if individual_site_id is not None and alignment.ind_sequence.individual.site_id!=individual_site_id:
+			if individual_site_id is not None and alignment.individual_sequence.individual.site_id!=individual_site_id:
 				continue
-			if sequence_filtered is not None and alignment.ind_sequence.filtered!=sequence_filtered:
+			if sequence_filtered is not None and alignment.individual_sequence.filtered!=sequence_filtered:
 				continue
-			if individual_site_id_set and alignment.ind_sequence.individual.site_id not in individual_site_id_set:
+			if individual_site_id_set and alignment.individual_sequence.individual.site_id not in individual_site_id_set:
 				#2012.4.13
 				continue
 			if mask_genotype_method_id is not None and alignment.mask_genotype_method_id!=mask_genotype_method_id:
@@ -2423,7 +2424,7 @@ class VervetDB(ElixirDB):
 				
 				counter += 1
 				library = individual_sequence_file.library
-				split_order = individual_sequence_file.split_order
+				splitOrder = individual_sequence_file.split_order
 				mate_id = individual_sequence_file.mate_id
 				if library not in library2Data:
 					library2Data[library] = PassingData(isqFileRawID2Index = {}, isqFileRawDBEntryLs=[], \
@@ -2506,7 +2507,7 @@ class VervetDB(ElixirDB):
 		
 		individual_id2alignmentLs = {}
 		for alignment in alignmentLs:
-			individual_id = alignment.ind_sequence.individual_id
+			individual_id = alignment.individual_sequence.individual_id
 			if individual_id not in individual_id2alignmentLs:
 				individual_id2alignmentLs[individual_id] = []
 			else:
@@ -2685,8 +2686,8 @@ class VervetDB(ElixirDB):
 			composite ID is used to designate members in trio, similar to read groups used in bam files but different.
 			It's generated via IndividualAlignment.getCompositeID()
 		
-				compositeID = '%s_%s_%s_%s'%(self.id, self.ind_seq_id, self.ind_sequence.individual.id, \
-								self.ind_sequence.individual.code)
+				compositeID = '%s_%s_%s_%s'%(self.id, self.ind_seq_id, self.individual_sequence.individual.id, \
+								self.individual_sequence.individual.code)
 		"""
 		split_id_ls = compositeID.split('_')
 		individual_alignment_id = int(split_id_ls[0])
@@ -2703,7 +2704,7 @@ class VervetDB(ElixirDB):
 			read-group is used to designate samples in alignment files and also in the ensuing multi-sample VCF files,
 				similar to compositeID used in trio-representations but different.
 			It's generated via IndividualAlignment.getReadGroup()
-				read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, self.ind_sequence.individual.code, \
+				read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, self.individual_sequence.individual.code, \
 								sequencer, self.ref_ind_seq_id)
 								
 		"""
@@ -2737,7 +2738,7 @@ class VervetDB(ElixirDB):
 			read-group is used to designate samples in alignment files and also in the ensuing multi-sample VCF files,
 				similar to compositeID used in trio-representations but different.
 			It's generated via IndividualAlignment.getReadGroup()
-				read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, self.ind_sequence.individual.code, \
+				read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, self.individual_sequence.individual.code, \
 								sequencer, self.ref_ind_seq_id)
 								
 		"""
@@ -2745,11 +2746,11 @@ class VervetDB(ElixirDB):
 			split_id_ls = read_group.split('_')
 			individual_alignment_id = int(split_id_ls[0])
 			individualAlignment = IndividualAlignment.get(individual_alignment_id)
-			ind_seq_id = individualAlignment.ind_sequence.id
-			individual_code = individualAlignment.ind_sequence.individual.code
-			sequencer = individualAlignment.ind_sequence.sequencer
+			ind_seq_id = individualAlignment.individual_sequence.id
+			individual_code = individualAlignment.individual_sequence.individual.code
+			sequencer = individualAlignment.individual_sequence.sequencer
 			ref_ind_seq_id = individualAlignment.ref_sequence.id
-			individual_id = individualAlignment.ind_sequence.individual.id
+			individual_id = individualAlignment.individual_sequence.individual.id
 		except:
 			sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 			import traceback
