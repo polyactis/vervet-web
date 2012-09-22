@@ -400,6 +400,7 @@ class AlignmentMethod(Entity, TableClass):
 class IndividualAlignment(Entity, TableClass):
 	"""
 	2012.9.21 rename IndividualAlignment.ind_sequence to individual_sequence
+		add file_size
 	#2012.9.19 to distinguish alignments from different libraries/lanes/batches
 		add individual_sequence_file_raw
 	2012.7.26 add column parent_individual_alignment, mask_genotype_method
@@ -438,6 +439,7 @@ class IndividualAlignment(Entity, TableClass):
 	total_no_of_reads = Field(BigInteger)	#2012.4.2
 	outdated_index = Field(Integer, default=0)	#2012.6.13 any non-zero means outdated. to allow multiple outdated alignments
 	md5sum = Field(Text, unique=True)
+	file_size = Field(BigInteger)	#2012.9.21
 	#2012.7.26 the parent individual_alignment
 	parent_individual_alignment = ManyToOne('IndividualAlignment', colname='parent_individual_alignment_id', ondelete='CASCADE', onupdate='CASCADE')
 	#2012.7.26 mask loci of the alignment out for read-recalibration 
@@ -1718,7 +1720,7 @@ class VervetDB(ElixirDB):
 		individual_sequence = parent_individual_alignment.individual_sequence
 		ref_sequence = parent_individual_alignment.ref_sequence
 		alignment_method = parent_individual_alignment.alignment_method
-		individual_alignment = db_vervet.getAlignment(individual_code=individual_sequence.individual.code, \
+		individual_alignment = self.getAlignment(individual_code=individual_sequence.individual.code, \
 								individual_sequence_id=individual_sequence.id,\
 					path_to_original_alignment=None, sequencer=individual_sequence.sequencer, \
 					sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
@@ -1778,6 +1780,24 @@ class VervetDB(ElixirDB):
 		else:
 			exitCode = 0
 		return exitCode
+	
+	def copyFileWithAnotherFilePrefix(self, inputFname=None, filenameWithPrefix=None, outputDir=None,\
+									logMessage=None, srcFilenameLs=None, dstFilenameLs=None):
+		"""
+		2012.9.20
+		"""
+		srcFilename = inputFname
+		prefix, suffix = os.path.splitext(os.path.basename(inputFname))
+		newPrefix = os.path.splitext(filenameWithPrefix)[0]
+		dstFilename = os.path.join(outputDir, '%s.%s'%(newPrefix, suffix))
+		utils.copyFile(srcFilename=srcFilename, dstFilename=dstFilename)
+		if logMessage:
+			logMessage += "file %s has been copied to %s.\n"%(srcFilename, dstFilename)
+		if srcFilenameLs:
+			srcFilenameLs.append(srcFilename)
+		if dstFilenameLs:
+			dstFilenameLs.append(dstFilename)
+		return logMessage
 	
 	def moveFileIntoDBAffiliatedStorage(self, db_entry=None, filename=None, inputDir=None, outputDir=None, \
 									dstFilename=None,\
