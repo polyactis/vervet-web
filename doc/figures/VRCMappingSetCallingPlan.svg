@@ -9,15 +9,15 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="1645.7142"
-   height="2957.1428"
+   width="1648.5714"
+   height="3102.8572"
    id="svg2"
    version="1.1"
    inkscape:version="0.48.3.1 r9886"
    sodipodi:docname="VRCMappingSetCallingPlan.svg"
-   inkscape:export-filename="/home/yh/script/vervet/doc/figures/VRCMappingSetCallingPlan.png"
-   inkscape:export-xdpi="70.010651"
-   inkscape:export-ydpi="70.010651">
+   inkscape:export-filename="/home/crocea/script/vervet/doc/figures/VRCMappingSetCallingPlan.png"
+   inkscape:export-xdpi="58.011047"
+   inkscape:export-ydpi="58.011047">
   <defs
      id="defs4">
     <marker
@@ -104,6 +104,20 @@
          style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt"
          transform="matrix(-0.8,0,0,-0.8,-10,0)" />
     </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-9-1"
+       style="overflow:visible">
+      <path
+         inkscape:connector-curvature="0"
+         id="path3842-3-4"
+         d="M 0,0 5,-5 -12.5,0 5,5 0,0 z"
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
   </defs>
   <sodipodi:namedview
      id="base"
@@ -113,8 +127,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.35"
-     inkscape:cx="922.6686"
-     inkscape:cy="2367.7277"
+     inkscape:cx="997.50898"
+     inkscape:cy="2127.0309"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -122,10 +136,10 @@
      fit-margin-left="0"
      fit-margin-right="0"
      fit-margin-bottom="0"
-     inkscape:window-width="1473"
+     inkscape:window-width="1158"
      inkscape:window-height="1085"
-     inkscape:window-x="133"
-     inkscape:window-y="48"
+     inkscape:window-x="11"
+     inkscape:window-y="24"
      inkscape:window-maximized="0"
      showguides="true"
      inkscape:guide-bbox="true" />
@@ -145,9 +159,9 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(757.26424,-44.136248)">
+     transform="translate(757.26423,-44.136234)">
     <g
-       transform="translate(-0.85713084,492.14284)"
+       transform="matrix(1.0017361,0,0,1.0492754,0.45607598,514.21853)"
        id="g5964-6">
       <rect
          style="fill:#ffffff;fill-opacity:1;stroke:none"
@@ -156,28 +170,6 @@
          height="2957.1428"
          x="-756.4071"
          y="-448.00659" />
-      <g
-         id="g4162"
-         transform="translate(-16,0)">
-        <flowRoot
-           xml:space="preserve"
-           id="flowRoot5775-0"
-           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
-           transform="translate(-658.69281,-17.7209)"><flowRegion
-             id="flowRegion5777-7"><rect
-               id="rect5779-0"
-               width="380.00003"
-               height="94.285645"
-               x="497.14285"
-               y="2388.5713" /></flowRegion><flowPara
-             id="flowPara5781-6">Round 3 variant calling (same as round 1)</flowPara></flowRoot>        <rect
-           style="fill:none;stroke:#ff0000;stroke-width:2;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:16, 16;stroke-dashoffset:0"
-           id="rect5773-5"
-           width="448.57144"
-           height="140"
-           x="-197.83566"
-           y="2345.1362" />
-      </g>
       <text
          xml:space="preserve"
          style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
@@ -212,7 +204,7 @@
          sodipodi:role="line"
          id="tspan2991"
          x="11.428571"
-         y="173.50504">SAMtools + Depth band and other filters</tspan></text>
+         y="173.50504">SAMtools + within 2-fold median depth</tspan></text>
     <text
        xml:space="preserve"
        style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
@@ -239,13 +231,13 @@
        xml:space="preserve"
        style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
        x="-255.42856"
-       y="1557.5051"
+       y="1417.5051"
        id="text3033"
        sodipodi:linespacing="125%"><tspan
          sodipodi:role="line"
          id="tspan3035"
          x="-255.42856"
-         y="1557.5051">SAMtools calls for 723 monkeys</tspan></text>
+         y="1417.5051">SAMtools calls for 723 monkeys</tspan></text>
     <text
        xml:space="preserve"
        style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
@@ -271,17 +263,6 @@
     <text
        xml:space="preserve"
        style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
-       x="-119.14285"
-       y="1960.3622"
-       id="text3049"
-       sodipodi:linespacing="125%"><tspan
-         sodipodi:role="line"
-         id="tspan3051"
-         x="-119.14285"
-         y="1960.3622">Final mapping set</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
        x="-494.28571"
        y="335.21933"
        id="text3053"
@@ -294,61 +275,35 @@
        xml:space="preserve"
        id="flowRoot3057"
        style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
-       transform="translate(596.85714,100.57143)"><flowRegion
+       transform="translate(594.85714,54.57143)"><flowRegion
          id="flowRegion3059"><rect
            id="rect3061"
-           width="505.71426"
-           height="120"
+           width="680"
+           height="202.85716"
            x="-571.42859"
            y="238.07646" /></flowRegion><flowPara
-         id="flowPara5446">base quality recalibration by GATK</flowPara></flowRoot>    <path
+         id="flowPara5446">Use round 0 calls to exclude know variant loci and carry out base quality recalibration to all 723 alingments (GATK)</flowPara></flowRoot>    <path
        style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend)"
        d="m -17.142857,103.79075 0,120"
        id="path3065"
        inkscape:connector-curvature="0" />
-    <g
-       id="g3850"
-       transform="translate(20.571443,2159.1429)">
-      <text
-         sodipodi:linespacing="125%"
-         id="text3007"
-         y="586.64789"
-         x="25.714287"
-         style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
-         xml:space="preserve"><tspan
-           id="tspan3011"
-           y="586.64789"
-           x="25.714287"
-           sodipodi:role="line" /></text>
-      <path
-         sodipodi:nodetypes="cc"
-         inkscape:connector-curvature="0"
-         id="path4279-1"
-         d="m -17.142857,512.6479 0,151.42857"
-         style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend)" />
-      <flowRoot
-         xml:space="preserve"
-         id="flowRoot5801"
-         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
-         transform="translate(-614.40711,-2114.8638)"><flowRegion
-           id="flowRegion5803"><rect
-             id="rect5805"
-             width="580"
-             height="117.14286"
-             x="640"
-             y="2654.2856" /></flowRegion><flowPara
-           id="flowPara5807">Find parents for 174 &quot;orphaned&quot; individuals via pairwise IBD sharing</flowPara></flowRoot>    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
+       x="46.285728"
+       y="2745.7908"
+       id="text3007"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         x="46.285728"
+         y="2745.7908"
+         id="tspan3011" /></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)"
-       d="m -2.8571414,1197.2193 -1.3e-6,311.4286"
+       d="m -2.8571414,1245.2193 -1.3e-6,134.2858"
        id="path5247"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cc" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)"
-       d="m 2.45005,1780.9336 0,120"
-       id="path5621"
-       inkscape:connector-curvature="0" />
     <text
        xml:space="preserve"
        style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
@@ -366,7 +321,7 @@
       <rect
          y="486.70761"
          x="-750.54993"
-         height="1505.7142"
+         height="1377.1429"
          width="1622.8577"
          id="rect3838"
          style="fill:none;stroke:#ff0000;stroke-width:2;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:16, 16;stroke-dashoffset:0" />
@@ -413,23 +368,24 @@
            y="941.79077"
            x="-589.71429"
            id="tspan3019"
-           sodipodi:role="line">Calls for 16 HC individuals</tspan></text>
+           sodipodi:role="line">Calls for 16 HC monkeys</tspan></text>
       <text
          sodipodi:linespacing="125%"
          id="text3025"
-         y="1170.3622"
+         y="1228.3622"
          x="-579.42859"
          style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
          xml:space="preserve"><tspan
-           y="1170.3622"
+           y="1228.3622"
            x="-579.42859"
            id="tspan3027"
            sodipodi:role="line">16HC High-Quality variants</tspan></text>
       <path
          inkscape:connector-curvature="0"
          id="path5055"
-         d="m -440,960.07647 0,154.28573"
-         style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)" />
+         d="m -440,960.07647 0,214.28573"
+         style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)"
+         sodipodi:nodetypes="cc" />
       <text
          sodipodi:linespacing="125%"
          id="text4048"
@@ -458,40 +414,50 @@
              width="488.57144"
              id="rect5442" /></flowRegion><flowPara
            style="font-size:36px"
-           id="flowPara5444">SAMtools + Depth band filter</flowPara></flowRoot>      <flowRoot
-         transform="translate(-608.69281,-17.720947)"
+           id="flowPara5444">SAMtools</flowPara></flowRoot>      <flowRoot
+         transform="translate(-608.69281,-39.720947)"
          style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
          id="flowRoot5452"
          xml:space="preserve"><flowRegion
            id="flowRegion5454"><rect
              y="1002.8571"
              x="188.57143"
-             height="105.71436"
-             width="494.28571"
+             height="191.42879"
+             width="785.71411"
              id="rect5456" /></flowRegion><flowPara
            style="font-size:36px"
-           id="flowPara5458">filters by HWE, allelic imbalance, strand bias, etc. </flowPara></flowRoot>    </g>
-    <path
-       style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)"
-       d="m 2.45005,1570.8505 0,105.7142"
-       id="path5487"
-       inkscape:connector-curvature="0" />
-    <text
-       xml:space="preserve"
-       style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
-       x="28.164307"
-       y="1627.9933"
-       id="text5675"
-       sodipodi:linespacing="125%"><tspan
-         sodipodi:role="line"
-         id="tspan5677"
+           id="flowPara3132">0. mark DP&lt;1 genotype as missing</flowPara><flowPara
+           style="font-size:36px"
+           id="flowPara3815">1. within 2 fold of median depth</flowPara><flowPara
+           style="font-size:36px"
+           id="flowPara4043">2. max missing fraction for one site=0</flowPara><flowPara
+           style="font-size:36px"
+           id="flowPara3901">3. MAC &gt;=8</flowPara></flowRoot>    </g>
+    <g
+       id="g3138"
+       transform="translate(0,98)">
+      <path
+         inkscape:connector-curvature="0"
+         id="path5487"
+         d="m 2.45005,1570.8505 0,105.7142"
+         style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)" />
+      <text
+         sodipodi:linespacing="125%"
+         id="text5675"
+         y="1627.9933"
          x="28.164307"
-         y="1627.9933">TrioCaller</tspan></text>
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+         xml:space="preserve"><tspan
+           y="1627.9933"
+           x="28.164307"
+           id="tspan5677"
+           sodipodi:role="line">TrioCaller</tspan></text>
+    </g>
     <text
        xml:space="preserve"
        style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
        x="-200.12138"
-       y="1733.7076"
+       y="1819.7076"
        id="text5679"
        sodipodi:linespacing="125%"
        inkscape:transform-center-x="-88.571429"
@@ -499,20 +465,21 @@
          sodipodi:role="line"
          id="tspan5681"
          x="-200.12138"
-         y="1733.7076">Phased calls for 723 monkeys</tspan></text>
+         y="1819.7076">Phased calls for 723 monkeys</tspan></text>
     <flowRoot
        xml:space="preserve"
        id="flowRoot5685"
        style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
-       transform="translate(-618.69281,-17.720947)"><flowRegion
+       transform="translate(-610.12138,-354.00667)"><flowRegion
          id="flowRegion5687"><rect
            id="rect5689"
-           width="757.14288"
-           height="125.71429"
+           width="831.42859"
+           height="165.71431"
            x="645.71429"
            y="1794.2856" /></flowRegion><flowPara
-         id="flowPara5693">MAF, Mendelian inconsistency filter</flowPara><flowPara
-         id="flowPara5697">thinning the variants by requiring r^2&lt;=0.8</flowPara></flowRoot>    <text
+         id="flowPara5697">mark DP&lt;1 genotype as missing</flowPara><flowPara
+         id="flowPara3819">2-fold median depth, &gt;50% having 1 read</flowPara><flowPara
+         id="flowPara4049">MAF&gt;=10%, Mendelian inconsistency </flowPara></flowRoot>    <text
        xml:space="preserve"
        style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
        x="44.092228"
@@ -523,12 +490,6 @@
          x="44.092228"
          y="2253.7075"
          id="tspan3001" /></text>
-    <path
-       sodipodi:nodetypes="cc"
-       style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend)"
-       d="m 2.949372,2187.9933 0,140"
-       id="path4279"
-       inkscape:connector-curvature="0" />
     <text
        sodipodi:linespacing="125%"
        id="text5737"
@@ -540,111 +501,10 @@
          x="-122.97852"
          id="tspan5739"
          sodipodi:role="line" /></text>
-    <g
-       id="g5909"
-       transform="translate(-18,0)">
-      <g
-         id="g5964">
-        <rect
-           y="2345.1362"
-           x="-197.83566"
-           height="140"
-           width="448.57144"
-           id="rect5773"
-           style="fill:none;stroke:#ff0000;stroke-width:2;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:16, 16;stroke-dashoffset:0" />
-        <flowRoot
-           transform="translate(-658.69281,-17.7209)"
-           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
-           id="flowRoot5775"
-           xml:space="preserve"><flowRegion
-             id="flowRegion5777"><rect
-               y="2388.5713"
-               x="497.14285"
-               height="94.285645"
-               width="380.00003"
-               id="rect5779" /></flowRegion><flowPara
-             id="flowPara5781">Round 2 variant calling (same as round 1)</flowPara></flowRoot>      </g>
-    </g>
-    <flowRoot
-       transform="translate(-618.69281,-17.7209)"
-       style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
-       id="flowRoot5809"
-       xml:space="preserve"><flowRegion
-         id="flowRegion5811"><rect
-           y="2217.1428"
-           x="645.71429"
-           height="114.2856"
-           width="788.57135"
-           id="rect5813" /></flowRegion><flowPara
-         id="flowPara5817">1. sex-check for each individual via plink</flowPara><flowPara
-         id="flowPara5821">2. correct labels/discard contaminated samples</flowPara></flowRoot>    <g
-       id="g5845"
-       transform="translate(-10,0)">
-      <text
-         xml:space="preserve"
-         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
-         x="39.878601"
-         y="2071.9932"
-         id="text5741"
-         sodipodi:linespacing="125%"><tspan
-           sodipodi:role="line"
-           id="tspan5743"
-           x="39.878601"
-           y="2071.9932">thinning the variants by requiring r^2&lt;=0.1</tspan></text>
-      <text
-         sodipodi:linespacing="125%"
-         id="text5745"
-         y="2159.4219"
-         x="-157.26425"
-         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
-         xml:space="preserve"><tspan
-           y="2159.4219"
-           x="-157.26425"
-           id="tspan5747"
-           sodipodi:role="line">Set of independent variants</tspan></text>
-      <path
-         inkscape:connector-curvature="0"
-         id="path5621-2"
-         d="m 12.45005,2001.9933 0,120"
-         style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)" />
-    </g>
-    <g
-       transform="translate(-7.6284743,495.63711)"
-       id="g5845-9">
-      <text
-         xml:space="preserve"
-         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
-         x="39.878601"
-         y="2071.9932"
-         id="text5741-8"
-         sodipodi:linespacing="125%"
-         inkscape:export-xdpi="70"
-         inkscape:export-ydpi="70"><tspan
-           sodipodi:role="line"
-           id="tspan5743-8"
-           x="39.878601"
-           y="2071.9932">thinning the variants by requiring r^2&lt;=0.1</tspan></text>
-      <text
-         sodipodi:linespacing="125%"
-         id="text5745-6"
-         y="2159.4219"
-         x="-157.26425"
-         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
-         xml:space="preserve"><tspan
-           y="2159.4219"
-           x="-157.26425"
-           id="tspan5747-6"
-           sodipodi:role="line">Set of independent variants</tspan></text>
-      <path
-         inkscape:connector-curvature="0"
-         id="path5621-2-9"
-         d="m 12.45005,2001.9933 0,120"
-         style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)" />
-    </g>
     <flowRoot
        xml:space="preserve"
        id="flowRoot6010"
-       style="fill:black;stroke:none;stroke-opacity:1;stroke-width:1px;stroke-linejoin:miter;stroke-linecap:butt;fill-opacity:1;font-family:Arial;font-style:normal;font-weight:normal;font-size:36px;line-height:125%;letter-spacing:0px;word-spacing:0px;-inkscape-font-specification:Arial;font-stretch:normal;font-variant:normal"><flowRegion
+       style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"><flowRegion
          id="flowRegion6012"><rect
            id="rect6014"
            width="360"
@@ -667,14 +527,14 @@
        xml:space="preserve"
        id="flowRoot3129"
        style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
-       transform="translate(-283.26424,21.279105)"><flowRegion
+       transform="translate(-277.54995,12.993391)"><flowRegion
          id="flowRegion3131"><rect
            id="rect3133"
-           width="771.42859"
-           height="157.14278"
+           width="774.28564"
+           height="117.14282"
            x="305.71429"
            y="1251.4286" /></flowRegion><flowPara
-         id="flowPara3135">genotype 723 alignments only at 16HCHQ variants by SAMtools</flowPara></flowRoot>    <g
+         id="flowPara3135">genotype 723 alignments only at 16HCHQ sites by SAMtools</flowPara></flowRoot>    <g
        id="g4157"
        transform="translate(4,0)">
       <path
@@ -695,5 +555,239 @@
            id="tspan4155"
            sodipodi:role="line">Select 16 high-coverage monkeys</tspan></text>
     </g>
+    <g
+       id="g3852"
+       transform="translate(0,138)">
+      <g
+         transform="translate(-16.85713,338.14284)"
+         id="g4162">
+        <flowRoot
+           transform="translate(-658.69281,-17.7209)"
+           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+           id="flowRoot5775-0"
+           xml:space="preserve"><flowRegion
+             id="flowRegion5777-7"><rect
+               y="2388.5713"
+               x="497.14285"
+               height="94.285645"
+               width="380.00003"
+               id="rect5779-0" /></flowRegion><flowPara
+             id="flowPara5781-6">Round 3 variant calling (same as round 1)</flowPara></flowRoot>        <rect
+           y="2345.1362"
+           x="-197.83566"
+           height="140"
+           width="448.57144"
+           id="rect5773-5"
+           style="fill:none;stroke:#ff0000;stroke-width:2;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:16, 16;stroke-dashoffset:0" />
+      </g>
+      <g
+         transform="translate(0,-151.42857)"
+         id="g3192">
+        <path
+           style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend)"
+           d="m 3.428586,2671.7908 0,151.4286"
+           id="path4279-1"
+           inkscape:connector-curvature="0"
+           sodipodi:nodetypes="cc" />
+        <flowRoot
+           transform="translate(-609.83567,44.2791)"
+           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+           id="flowRoot5801"
+           xml:space="preserve"><flowRegion
+             id="flowRegion5803"><rect
+               y="2654.2856"
+               x="640"
+               height="117.14286"
+               width="580"
+               id="rect5805" /></flowRegion><flowPara
+             id="flowPara5807">Find parents for 174 &quot;orphaned&quot; individuals via pairwise IBD sharing</flowPara></flowRoot>      </g>
+      <path
+         inkscape:connector-curvature="0"
+         id="path4279"
+         d="m 2.949372,2036.5647 0,140"
+         style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend)"
+         sodipodi:nodetypes="cc" />
+      <g
+         transform="translate(-18,-151.42857)"
+         id="g5909">
+        <g
+           id="g5964">
+          <rect
+             style="fill:none;stroke:#ff0000;stroke-width:2;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:16, 16;stroke-dashoffset:0"
+             id="rect5773"
+             width="448.57144"
+             height="140"
+             x="-197.83566"
+             y="2345.1362" />
+          <flowRoot
+             xml:space="preserve"
+             id="flowRoot5775"
+             style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+             transform="translate(-658.69281,-17.7209)"><flowRegion
+               id="flowRegion5777"><rect
+                 id="rect5779"
+                 width="380.00003"
+                 height="94.285645"
+                 x="497.14285"
+                 y="2388.5713" /></flowRegion><flowPara
+               id="flowPara5781">Round 2 variant calling (same as round 1)</flowPara></flowRoot>        </g>
+      </g>
+      <flowRoot
+         xml:space="preserve"
+         id="flowRoot5809"
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+         transform="translate(-618.69281,-183.14947)"><flowRegion
+           id="flowRegion5811"><rect
+             id="rect5813"
+             width="834.28564"
+             height="182.85707"
+             x="645.71429"
+             y="2217.1428" /></flowRegion><flowPara
+           id="flowPara5817">1. sex-check for each individual via plink</flowPara><flowPara
+           id="flowPara5821">2. IBD-check to find correct labels/discard contaminated samples</flowPara></flowRoot>      <g
+         transform="translate(-10,-151.42857)"
+         id="g5845">
+        <text
+           sodipodi:linespacing="125%"
+           id="text5741"
+           y="2037.9932"
+           x="39.878601"
+           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+           xml:space="preserve"><tspan
+             y="2037.9932"
+             x="39.878601"
+             id="tspan5743"
+             sodipodi:role="line">thinning the variants by requiring r^2&lt;=0.1</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+           x="-157.26425"
+           y="2159.4219"
+           id="text5745"
+           sodipodi:linespacing="125%"><tspan
+             sodipodi:role="line"
+             id="tspan5747"
+             x="-157.26425"
+             y="2159.4219">Set of independent variants</tspan></text>
+        <path
+           sodipodi:nodetypes="csssc"
+           style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)"
+           d="m 372.45005,1650.5648 c 0,0 16.30019,-10.1977 16.30019,87.9011 0,24.2858 -1.34786,88.1358 -1.34786,159.7413 0,65.8109 -296.069494,25.7978 -341.642274,73.2762 -45.63374424,47.542 -33.310056,150.5099 -33.310056,150.5099"
+           id="path5621-2"
+           inkscape:connector-curvature="0" />
+      </g>
+      <g
+         id="g5845-9"
+         transform="translate(-7.6284743,344.20854)">
+        <text
+           inkscape:export-ydpi="70"
+           inkscape:export-xdpi="70"
+           sodipodi:linespacing="125%"
+           id="text5741-8"
+           y="2071.9932"
+           x="39.878601"
+           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+           xml:space="preserve"><tspan
+             y="2071.9932"
+             x="39.878601"
+             id="tspan5743-8"
+             sodipodi:role="line">thinning the variants by requiring r^2&lt;=0.1</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+           x="-157.26425"
+           y="2159.4219"
+           id="text5745-6"
+           sodipodi:linespacing="125%"><tspan
+             sodipodi:role="line"
+             id="tspan5747-6"
+             x="-157.26425"
+             y="2159.4219">Set of independent variants</tspan></text>
+        <path
+           style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)"
+           d="m 12.45005,2001.9933 0,120"
+           id="path5621-2-9"
+           inkscape:connector-curvature="0" />
+      </g>
+      <g
+         transform="translate(6.571429,1070.5714)"
+         id="g3206">
+        <g
+           transform="translate(0,-10)"
+           id="g3216">
+          <text
+             sodipodi:linespacing="125%"
+             id="text3049"
+             y="1936.3622"
+             x="-119.14285"
+             style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
+             xml:space="preserve"><tspan
+               y="1936.3622"
+               x="-119.14285"
+               id="tspan3051"
+               sodipodi:role="line">Final mapping set</tspan></text>
+          <g
+             id="g3199">
+            <path
+               style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)"
+               d="m 2.45005,1780.9336 0,120"
+               id="path5621"
+               inkscape:connector-curvature="0" />
+            <flowRoot
+               xml:space="preserve"
+               id="flowRoot3145"
+               style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+               transform="translate(-779.26424,44.136248)"><flowRegion
+                 id="flowRegion3147"><rect
+                   id="rect3149"
+                   width="711.42847"
+                   height="62.85709"
+                   x="808.57141"
+                   y="1762.8571" /></flowRegion><flowPara
+                 id="flowPara3151">thinning the variants by requiring r^2&lt;=0.8</flowPara></flowRoot>          </g>
+        </g>
+      </g>
+    </g>
+    <flowRoot
+       xml:space="preserve"
+       id="flowRoot3153"
+       style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       transform="translate(-823.26424,102.13625)"><flowRegion
+         id="flowRegion3155"><rect
+           id="rect3157"
+           width="674.28571"
+           height="68.571396"
+           x="531.42859"
+           y="1508.5714" /></flowRegion><flowPara
+         id="flowPara3159">filtered SAMtools calls for 723 monkeys</flowPara></flowRoot>    <path
+       style="fill:none;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend-9)"
+       d="m -2.9785257,1437.8505 0,157.1429"
+       id="path5247-5"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc" />
+    <text
+       xml:space="preserve"
+       style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       x="-131.54997"
+       y="1069.8505"
+       id="text3903"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3905"
+         x="-131.54997"
+         y="1069.8505"
+         style="font-weight:bold;-inkscape-font-specification:Arial Bold">Filter</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       x="-127.13004"
+       y="1517.0957"
+       id="text3903-0"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3905-1"
+         x="-127.13004"
+         y="1517.0957"
+         style="font-weight:bold;-inkscape-font-specification:Arial Bold">Filter</tspan></text>
   </g>
 </svg>
