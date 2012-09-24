@@ -56,7 +56,6 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 		"""
 		"""
 		AbstractVervetMapper.__init__(self, inputFnameLs=inputFnameLs, **keywords)
-		self.commit = 1
 	
 	
 	def run(self):
