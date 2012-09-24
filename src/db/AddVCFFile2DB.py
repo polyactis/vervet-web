@@ -62,15 +62,21 @@ class AddVCFFile2DB(AbstractVervetMapper):
 	
 	def getNoOfLociFromVCFFile(self, vcfFile=None):
 		"""
+		2012.8.30
+			add chromosome info as well
 		2012.7.13
 		
 		"""
-		sys.stderr.write("Calculating no. of loci ... ")
+		sys.stderr.write("Calculating no. of loci & no. of chromosomes ... ")
 		no_of_loci = 0
+		chromosome2noOfLoci = {}
 		for vcfRecord in vcfFile.parseIter():
 			no_of_loci += 1
-		sys.stderr.write("%s loci in this file.\n"%(no_of_loci))
-		return no_of_loci
+			if vcfRecord.chr not in chromosome2noOfLoci:
+				chromosome2noOfLoci[vcfRecord.chr] =0
+			chromosome2noOfLoci[vcfRecord.chr] += 1
+		sys.stderr.write("%s loci & %s chromosomes in this file.\n"%(no_of_loci, len(chromosome2noOfLoci)))
+		return PassingData(no_of_loci=no_of_loci, chromosome2noOfLoci=chromosome2noOfLoci)
 	
 	def checkIfAlignmentListMatchDB(self, individualAlignmentLs=[], genotypeMethod=None, session=None):
 		"""
@@ -115,7 +121,9 @@ class AddVCFFile2DB(AbstractVervetMapper):
 															dataDir=self.dataDir)
 			self.checkIfAlignmentListMatchDB(individualAlignmentLs, genotypeMethod, session)
 			
-			no_of_loci = self.getNoOfLociFromVCFFile(vcfFile)
+			pdata = self.getNoOfLociFromVCFFile(vcfFile)
+			chromosome2noOfLoci = pdata.chromosome2noOfLoci
+			no_of_loci = pdata.no_of_loci
 			if no_of_loci>0:	#file with zero loci could have identical md5sum
 				try:
 					md5sum = utils.get_md5sum(realPath)
@@ -126,6 +134,7 @@ class AddVCFFile2DB(AbstractVervetMapper):
 					self.cleanUpAndExitOnFailure(exitCode=4)
 			else:
 				md5sum = None
+			"""
 			db_entry = VervetDB.GenotypeFile.query.filter_by(md5sum=md5sum).first()
 			if db_entry:
 				sys.stderr.write("Warning: another file %s with the identical md5sum %s as this file %s is already in db.\n"%\
@@ -134,19 +143,43 @@ class AddVCFFile2DB(AbstractVervetMapper):
 				#2012.8.3 when the jobs are clustered into one merged job and it failed halfway
 				# and retried elsewhere, the redundancy check should not exit with non-zero. otherwise the merged job would fail again. 
 				self.cleanUpAndExitOnFailure(exitCode=0)
+			"""
 			no_of_individuals = len(individualAlignmentLs)
-			chromosome = Genome.getChrFromFname(self.inputFname)
+			no_of_chromosomes = len(chromosome2noOfLoci)
+			if no_of_chromosomes == 1:	#2012.8.30 use 1st chromosome
+				chromosome = chromosome2noOfLoci.keys()[0]
+			else:
+				chromosome = None
 			genotypeFile = self.db_vervet.getGenotypeFile(genotype_method=genotypeMethod,\
 										chromosome=chromosome, format=self.format, path=None, file_size=None, md5sum=md5sum,\
 										original_path=realPath, no_of_individuals=no_of_individuals, no_of_loci=no_of_loci,\
-										dataDir=self.dataDir)
-			
+										dataDir=self.dataDir, no_of_chromosomes=no_of_chromosomes)
+			if genotypeFile.id and genotypeFile.path:
+				isPathInDB = self.db_vervet.isPathInDBAffiliatedStorage(relativePath=genotypeFile.path, dataDir=self.dataDir)
+				if isPathInDB==-1:
+					sys.stderr.write("Error while updating genotypeFile.path with the new path, %s.\n"%(genotypeFile.path))
+					self.cleanUpAndExitOnFailure(exitCode=isPathInDB)
+				elif isPathInDB==1:	#successful exit, entry already in db
+					sys.stderr.write("Warning: file %s is already in db.\n"%\
+										(genotypeFile.path))
+					session.rollback()
+					self.cleanUpAndExitOnFailure(exitCode=0)
+				else:	#not in db affiliated storage, keep going.
+					pass
 			#move the file and update the db_entry's path as well
-			exitCode = self.db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=genotypeFile, filename=os.path.basename(self.inputFname), \
-									inputDir=os.path.split(self.inputFname)[0], outputDir=os.path.join(self.dataDir, genotypeMethod.path), \
+			inputFileBasename = os.path.basename(self.inputFname)
+			relativePath = genotypeFile.constructRelativePath(sourceFilename=inputFileBasename)
+			exitCode = self.db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=genotypeFile, filename=inputFileBasename, \
+									inputDir=os.path.split(self.inputFname)[0], dstFilename=os.path.join(self.dataDir, relativePath), \
 									relativeOutputDir=None, shellCommand='cp -rL', \
 									srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs,\
 									constructRelativePathFunction=genotypeFile.constructRelativePath)
+			
+			if exitCode!=0:
+				sys.stderr.write("Error: moveFileIntoDBAffiliatedStorage() exits with %s code.\n"%(exitCode))
+				session.rollback()
+				self.cleanUpAndExitOnFailure(exitCode=exitCode)
+			
 			#copy the tbi (tabix) index file if it exists
 			tbiFilename = '%s.tbi'%(realPath)
 			if os.path.isfile(tbiFilename):
@@ -158,11 +191,6 @@ class AddVCFFile2DB(AbstractVervetMapper):
 			#db_vervet.updateDBEntryMD5SUM(db_entry=genotypeFile, data_dir=dataDir)
 			# #2012.7.17 record the size of db_entry.path (folder or file)
 			self.db_vervet.updateDBEntryPathFileSize(db_entry=genotypeFile, data_dir=self.dataDir)
-			
-			if exitCode!=0:
-				sys.stderr.write("Error: moveFileIntoDBAffiliatedStorage() exits with %s code.\n"%(exitCode))
-				session.rollback()
-				self.cleanUpAndExitOnFailure(exitCode=exitCode)
 			
 			vcfFile.close()
 			logMessage += "%s individuals, %s loci, md5sum=%s.\n"%(no_of_individuals, no_of_loci, md5sum)
