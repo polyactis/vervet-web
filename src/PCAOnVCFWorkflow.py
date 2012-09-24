@@ -6,14 +6,15 @@ Examples:
 	# 2011-9-29 (including depth=0 sites, -m 0), all files should stay in "pca" folder (-F pca)
 	# clustering jobs in unit of 5
 	%s -I ./AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/call/ 
-		-o workflow/PCAOnVCFWorkflow_VRC105_Top1000Contigs.xml  -P ./PCAOnVCFWorkflow_VRC105_Top1000Contigs.par
+		-o workflow/PCAOnVCF/PCAOnVCFWorkflow_VRC105_Top1000Contigs.xml  -P ./PCAOnVCFWorkflow_VRC105_Top1000Contigs.par
 		-l condorpool -j condorpool  -u yh -z uclaOffice -C 10 -m 0 -F pca
 	
 	# 2011.12.16 run on hoffman2 condor  (site depth >=1, -m 1) (turn on checkEmptyVCFByReading, -E)
-	%s -I .. -o ... -P ... -l hcondor -j hcondor  -u yh -z uclaOffice
+	# add "--missingCallAsRefBase" to assign missing call as reference base
+	%s -I .. -o ... -P ... -l hcondor -j hcondor  -u yh -z localhost
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/  -C 5 -E -m 1
-	
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/  -C 5 -E -H -m 1
+		## --missingCallAsRefBase
 	
 Description:
 	2012.2.27
@@ -44,13 +45,9 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 	__doc__ = __doc__
 	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
 	option_default_dict.update({
-						('inputDir', 0, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						('smartpca_path', 1, ): ['%s/script/polyactis/EIG3.0/bin/smartpca', '', 1, 'path to smartpca binary', ],\
-						('pegasusFolderName', 0, ): ['', 'F', 1, 'the folder relative to pegasus workflow root to contain input & output.\
-								It will be created during the pegasus staging process. It is useful to separate multiple workflows.\
-								If empty, everything is in the pegasus root.', ],\
-						('maxContigID', 1, int): [1000, 'x', 1, 'if contig ID is beyond this number, it will not be included', ],\
 						('smartpcaParameterFname', 1, ): ['', 'P', 1, 'file to store the smartpca parameters', ],\
+						('missingCallAsRefBase', 0, int):[0, '', 0, 'toggle to regard all missing calls as homozygous reference'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
@@ -75,30 +72,39 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 		site_handler = workflow.site_handler
 		vervetSrcPath = self.vervetSrcPath
 		
+		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
+		#noClusteringExecutableSet = set()	#2012.8.2 you don't want to cluster for some jobs.
+		
+		
 		ConvertVCF2EigenStrat = Executable(namespace=namespace, name="ConvertVCF2EigenStrat", version=version, \
 										os=operatingSystem, arch=architecture, installed=True)
 		ConvertVCF2EigenStrat.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/ConvertVCF2EigenStrat.py"), site_handler))
-		ConvertVCF2EigenStrat.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(ConvertVCF2EigenStrat)
-		workflow.ConvertVCF2EigenStrat = ConvertVCF2EigenStrat
+		executableClusterSizeMultiplierList.append((ConvertVCF2EigenStrat, 1))
+		
 		
 		
 		smartpca = Executable(namespace=namespace, name="smartpca", version=version, \
 										os=operatingSystem, arch=architecture, installed=True)
 		smartpca.addPFN(PFN("file://" + self.smartpca_path, site_handler))
-		smartpca.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(smartpca)
-		workflow.smartpca = smartpca
+		executableClusterSizeMultiplierList.append((smartpca, 0))
+		#smartpca.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
+		
+		
+		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 	
 	
 	def addConvertVCF2EigenStratJob(self, workflow, executable=None, inputF=None, outputFnamePrefix=None, \
+								missingCallAsRefBase=None, \
 					parentJobLs=[], extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
 					job_max_memory=100, **keywords):
 		"""
+		2012.9.11 add argument missingCallAsRefBase
 		2012.3.1
 		"""
 		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
 		job.addArguments('-i', inputF, "-O", outputFnamePrefix)
+		if missingCallAsRefBase:
+			job.addArguments("--missingCallAsRefBase")
 		if extraArguments:
 			job.addArguments(extraArguments)
 		job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
@@ -113,10 +119,14 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 		job.locusOutputF = locusOutputF
 		workflow.addJob(job)
 		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=job)
-		for input in extraDependentInputLs:
-			job.uses(input, transfer=True, register=True, link=Link.INPUT)
+		if parentJobLs:
+			for parentJob in parentJobLs:
+				if parentJob:
+					workflow.depends(parent=parentJob, child=job)
+		if extraDependentInputLs:
+			for input in extraDependentInputLs:
+				if input:
+					job.uses(input, transfer=True, register=True, link=Link.INPUT)
 		return job
 
 	def addSmartpcaJob(self, workflow, executable=None, smartpcaParameterFile=None, \
@@ -132,7 +142,8 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 		if extraArguments:
 			job.addArguments(extraArguments)
 		for outputF in outputFileList:
-			job.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
+			if outputF:
+				job.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		workflow.addJob(job)
 		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
 		for parentJob in parentJobLs:
@@ -145,6 +156,8 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 	def outputSmartpcaParameters(self, smartpcaParameterFname=None, smartpcaGenotypeInputFile=None, smartpcaLocusInputFile=None,\
 						smartpcaIndFile=None, smartpcaCorFile=None, smartpcaEvecFile=None, smartpcaEvalFile=None):
 		"""
+		2012.9.5
+			smartpcaCorFile is optional.
 		2012.3.1
 			smartpcaCorFile stores the correlation output of smartpca.
 			smartpcaEvecFile stores different principle component values for each individual.
@@ -160,17 +173,20 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 						"indivname: %s"%(smartpcaIndFile.name),\
 						"evecoutname: %s"%(smartpcaEvecFile.name),\
 						"evaloutname: %s"%(smartpcaEvalFile.name),\
-						"cor_outfilename: %s"%(smartpcaCorFile.name),\
 						'altnormstyle: NO', 'numoutevec: 40', 'numoutlieriter: 5', 'numoutlierevec: 2', \
 						'outliersigmathresh: 15.0', 'qtmode: 0']
+		if smartpcaCorFile:
+			parameterList.append("cor_outfilename: %s"%(smartpcaCorFile.name))
 		for parameter in parameterList:
 			outf.write("%s\n"%parameter)
 		del outf
 		return smartpcaParameterFname
 	
 	def addJobs(self, workflow, inputData=None, db_vervet=None,\
-			smartpcaParameterFname="", pegasusFolderName="", maxContigID=None):
+			smartpcaParameterFname="", pegasusFolderName="", maxContigID=None, missingCallAsRefBase=0, transferOutput=True):
 		"""
+		2012.9.11
+			add argument missingCallAsRefBase
 		2011.1.8
 			add outputDirPrefix to differentiate one run from another if multiple trio call workflows are run simultaneously
 			outputDirPrefix could contain "/" to denote sub-folders.
@@ -188,9 +204,9 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 		smartpcaLocusInputFile = File(os.path.join(topOutputDir, 'smartpca.snp'))
 		
 		smartpcaGenotypeMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.MergeFiles, \
-						outputF=smartpcaGenotypeInputFile, transferOutput=True, extraArguments='', parentJobLs=[topOutputDirJob])
+						outputF=smartpcaGenotypeInputFile, transferOutput=transferOutput, extraArguments='', parentJobLs=[topOutputDirJob])
 		smartpcaLocusMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.MergeFiles, \
-						outputF=smartpcaLocusInputFile, transferOutput=True, extraArguments='', parentJobLs=[topOutputDirJob])
+						outputF=smartpcaLocusInputFile, transferOutput=transferOutput, extraArguments='', parentJobLs=[topOutputDirJob])
 		
 		smartpcaIndFile = None
 		smartpcaIndJob = None
@@ -210,7 +226,8 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 				traceback.print_exc()
 			outputFnamePrefix = os.path.join(topOutputDir, 'Contig%s'%(contig_id))
 			convertJob = self.addConvertVCF2EigenStratJob(workflow, executable=workflow.ConvertVCF2EigenStrat, inputF=inputF, \
-								outputFnamePrefix=outputFnamePrefix, parentJobLs=[topOutputDirJob] + jobData.jobLs, \
+								outputFnamePrefix=outputFnamePrefix, missingCallAsRefBase=missingCallAsRefBase,\
+								parentJobLs=[topOutputDirJob] + jobData.jobLs, \
 								extraDependentInputLs=[], transferOutput=False, extraArguments=None, \
 								job_max_memory=100)
 			if smartpcaIndFile is None:	#every VCF has the same order of individuals
@@ -222,21 +239,31 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 								inputF=convertJob.locusOutputF, parentJobLs=[convertJob])
 			no_of_jobs += 1
 		
-		smartpcaCorFile = File(os.path.join(topOutputDir, 'smartpca.cor'))
+		#smartpcaCorFile = File(os.path.join(topOutputDir, 'smartpca.cor'))
 		smartpcaEvecFile = File(os.path.join(topOutputDir, 'smartpca.evec'))
 		smartpcaEvalFile = File(os.path.join(topOutputDir, 'smartpca.eval'))
 		self.outputSmartpcaParameters(smartpcaParameterFname=smartpcaParameterFname, smartpcaGenotypeInputFile=smartpcaGenotypeInputFile, \
 								smartpcaLocusInputFile=smartpcaLocusInputFile,\
-								smartpcaIndFile=smartpcaIndFile, smartpcaCorFile=smartpcaCorFile, \
+								smartpcaIndFile=smartpcaIndFile, smartpcaCorFile=None, \
 								smartpcaEvecFile=smartpcaEvecFile, smartpcaEvalFile=smartpcaEvalFile)
 		smartpcaParameterFile = self.registerOneInputFile(workflow, smartpcaParameterFname, folderName=pegasusFolderName)
 		
 		smartpcaJob = self.addSmartpcaJob(workflow, executable=workflow.smartpca, smartpcaParameterFile=smartpcaParameterFile, \
 					parentJobLs=[smartpcaGenotypeMergeJob, smartpcaLocusMergeJob, smartpcaIndJob], \
 					extraDependentInputLs=[smartpcaGenotypeInputFile, smartpcaLocusInputFile, smartpcaIndFile], \
-					transferOutput=True, extraArguments=None, \
-					outputFileList=[smartpcaCorFile, smartpcaEvecFile, smartpcaEvalFile], \
-					job_max_memory=1000)
+					transferOutput=transferOutput, extraArguments=None, \
+					outputFileList=[None, smartpcaEvecFile, smartpcaEvalFile], \
+					job_max_memory=18000)
+		
+		#2012.9.5 add the job to append meta info (country, sex, latitude, etc. of each monkey)
+		outputF = File(os.path.join(topOutputDir, 'smartpca_evec_withMetaInfo.tsv'))
+		appendInfo2SmartPCAOutputJob = self.addGenericJob(executable=self.AppendInfo2SmartPCAOutput, inputFile=smartpcaEvecFile, \
+				outputFile=outputF, \
+				parentJobLs=[smartpcaJob], extraDependentInputLs=None, \
+				extraOutputLs=None,\
+				transferOutput=transferOutput, \
+				extraArgumentList=None, extraArguments='--inversePCValue', key2ObjectForJob=None, job_max_memory=2000)
+		self.addDBArgumentsToOneJob(job=appendInfo2SmartPCAOutputJob, objectWithDBArguments=self)
 		
 		no_of_jobs += 1
 		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
@@ -271,7 +298,8 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 							checkEmptyVCFByReading=self.checkEmptyVCFByReading, pegasusFolderName=self.pegasusFolderName)
 		
 		self.addJobs(workflow, inputData, db_vervet=db_vervet, smartpcaParameterFname=self.smartpcaParameterFname, \
-					pegasusFolderName=self.pegasusFolderName, maxContigID=self.maxContigID)
+					pegasusFolderName=self.pegasusFolderName, maxContigID=self.maxContigID,\
+					missingCallAsRefBase=self.missingCallAsRefBase)
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')

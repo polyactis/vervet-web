@@ -33,7 +33,12 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 						("sequence_filtered", 0, int): [None, 'Q', 1, 'To filter alignments. None: whatever; 0: unfiltered sequences, 1: filtered sequences: 2: ...'],\
 						("alignment_method_id", 0, int): [None, 'G', 1, 'To filter alignments. None: whatever; integer: AlignmentMethod.id'],\
 						("site_id_ls", 0, ): ["", 'S', 1, 'comma/dash-separated list of site IDs. individuals must come from these sites.'],\
+						("country_id_ls", 0, ): ["", '', 1, 'comma/dash-separated list of country IDs. individuals must come from these countries.'],\
+						("tax_id_ls", 0, ): ["", '', 1, 'comma/dash-separated list of country IDs. individuals must come from these countries.'],\
 						('defaultSampleAlignmentDepth', 1, int): [10, '', 1, "when database doesn't have median_depth info for one alignment, use this number instead.", ],\
+						('individual_sequence_file_raw_id_type', 1, int): [1, '', 1, "1: only all-library-fused libraries,\n\
+		2: only library-specific alignments,\n\
+		3: both all-library-fused and library-specific alignments", ],\
 						}
 	partitionWorkflowOptionDict= {
 						("needFastaIndexJob", 0, int): [0, 'A', 0, 'need to add a reference index job by samtools?'],\
@@ -62,10 +67,10 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 			self.ligateVcfPerlPath =  self.insertHomePath(self.ligateVcfPerlPath, self.home_path)
 		
 		listArgumentName_data_type_ls = [('ind_seq_id_ls', int), ("ind_aln_id_ls", int), \
-								("site_id_ls", int)]
+								("site_id_ls", int), ('country_id_ls', int), ('tax_id_ls', int)]
 		listArgumentName2hasContent = self.processListArguments(listArgumentName_data_type_ls, emptyContent=[])
 	
-	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], aln_method_id=2, \
+	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], alignment_method_id=2, \
 					dataDir=None, sequence_type=None):
 		"""
 		2012.4.13
@@ -85,7 +90,7 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		2011-7-12
 		
 		"""
-		return self.db_vervet.getAlignments(ref_ind_seq_id=ref_ind_seq_id, ind_seq_id_ls=ind_seq_id_ls, ind_aln_id_ls=ind_aln_id_ls, aln_method_id=aln_method_id, \
+		return self.db_vervet.getAlignments(ref_ind_seq_id=ref_ind_seq_id, ind_seq_id_ls=ind_seq_id_ls, ind_aln_id_ls=ind_aln_id_ls, alignment_method_id=alignment_method_id, \
 					dataDir=dataDir, sequence_type=sequence_type)
 	
 	def filterAlignments(self, alignmentLs, max_coverage=None, individual_site_id=447, sequence_filtered=0):
@@ -97,7 +102,7 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		2011-11-22
 			447 in "individual_site_id=447" is VRC.
 		"""
-		return VervetDB.filterAlignments(alignmentLs, max_coverage=max_coverage, individual_site_id=individual_site_id, \
+		return self.db_vervet.filterAlignments(alignmentLs, max_coverage=max_coverage, individual_site_id=individual_site_id, \
 								sequence_filtered=sequence_filtered)
 	
 	def preReduce(self, workflow=None, passingData=None, transferOutput=True, **keywords):
@@ -108,9 +113,8 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		returnData.jobDataLs = []
 		return returnData
 	
-	
-	def map(self, workflow=None, alignmentData=None, intervalData=None,\
-				VCFFile=None, passingData=None, transferOutput=True, **keywords):
+	def mapEachChromosome(self, workflow=None, alignmentData=None, chromosome=None,\
+				VCFFile=None, passingData=None, reduceBeforeEachAlignmentData=None, transferOutput=True, **keywords):
 		"""
 		2012.9.17
 		"""
@@ -118,14 +122,50 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		returnData.jobDataLs = []
 		return returnData
 	
-	def linkMapToReduce(self, workflow=None, mapReturnData=None, preReduceReturnData=None, passingData=None, transferOutput=True, **keywords):
+	def map(self, workflow=None, alignmentData=None, intervalData=None,\
+		VCFFile=None, passingData=None, mapEachChromosomeData=None, transferOutput=True, **keywords):
+		"""
+		2012.9.17
+		"""
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		return returnData
+	
+	def mapEachInterval(self, **keywords):
+		"""
+		2012.9.22 link to map()
+		"""
+		return self.map(**keywords)
+	
+	def reduceAfterEachChromosome(self, workflow=None, chromosome=None, passingData=None, transferOutput=True, \
+								mapEachIntervalDataLs=None, **keywords):
 		"""
 		"""
-		
-		pass
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		return returnData
+	
+	def linkMapToReduce(self, workflow=None, mapEachIntervalData=None, preReduceReturnData=None, passingData=None, transferOutput=True, **keywords):
+		"""
+		"""
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		return returnData
+
+	def mapEachAlignment(self, workflow=None, passingData=None, transferOutput=True, **keywords):
+		"""
+		2012.9.22
+			similar to reduceBeforeEachAlignmentData() but for mapping programs that run on one alignment each.
+		"""
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		return returnData
 
 	def reduceBeforeEachAlignment(self, workflow=None, passingData=None, transferOutput=True, **keywords):
 		"""
+		2012.9 setup some reduce jobs before loop over all intervals of one alignment begins.
+			these reduce jobs will collect stuff from each map() job.
+			the link will be established in linkMapToReduce().
 		"""
 		returnData = PassingData(no_of_jobs = 0)
 		returnData.jobDataLs = []
@@ -196,12 +236,33 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		returnData = PassingData()
 		returnData.jobDataLs = []
 		
+		#2012.9.22 AlignmentJobAndOutputLs is a relic.
+		#	but it's similar to mapEachIntervalDataLs but designed for addAlignmentMergeJob(),
+		#	so AlignmentJobAndOutputLs gets re-set for every alignment.
+		# 	mapEachAlignmentDataLs is never reset.
+		#	mapEachChromosomeDataLs is reset right after a new alignment is chosen.
+		#	mapEachIntervalDataLs is reset right after each chromosome is chosen.
+		#	all reduce dataLs never gets reset.
 		passingData = PassingData(AlignmentJobAndOutputLs=[], bamFnamePrefix=None, topOutputDirJob=topOutputDirJob,\
-								outputDirPrefix=outputDirPrefix, refFastaFList=refFastaFList)
+					outputDirPrefix=outputDirPrefix, refFastaFList=refFastaFList, \
+					mapEachAlignmentData = None,\
+					mapEachChromosomeData=None, \
+					mapEachIntervalData=None,\
+					reduceBeforeEachAlignmentData = None, \
+					reduceAfterEachAlignmentData=None,\
+					reduceAfterEachChromosomeData=None,\
+					mapEachAlignmentDataLs = [],\
+					mapEachChromosomeDataLs=[], \
+					mapEachIntervalDataLs=[],\
+					reduceBeforeEachAlignmentDataLs = [], \
+					reduceAfterEachAlignmentDataLs=[],\
+					reduceAfterEachChromosomeDataLs=[],\
+					)
 		preReduceReturnData = self.preReduce(workflow=workflow, passingData=passingData, transferOutput=False,\
 											**keywords)
-		
+		passingData.preReduceReturnData = preReduceReturnData
 		no_of_jobs += preReduceReturnData.no_of_jobs
+		
 		for alignmentData in alignmentDataLs:
 			alignment = alignmentData.alignment
 			parentJobLs = alignmentData.jobLs
@@ -212,9 +273,23 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 			
 			passingData.AlignmentJobAndOutputLs = []
 			passingData.bamFnamePrefix = bamFnamePrefix
+			passingData.individual_alignment = alignment
+			
+			mapEachAlignmentData = self.mapEachAlignment(workflow=workflow, passingData=passingData, transferOutput=False, \
+												preReduceReturnData=preReduceReturnData, **keywords)
+			mapEachAlignmentDataLs.append(mapEachAlignmentData)
+			passingData.mapEachAlignmentData = mapEachAlignmentData
+			no_of_jobs += mapEachAlignment.no_of_jobs
+			
 			reduceBeforeEachAlignmentData = self.reduceBeforeEachAlignment(workflow=workflow, passingData=passingData, \
 													preReduceReturnData=preReduceReturnData, transferOutput=False, \
 													**keywords)
+			passingData.reduceBeforeEachAlignmentData = reduceBeforeEachAlignmentData
+			passingData.reduceBeforeEachAlignmentDataLs.append(reduceBeforeEachAlignmentData)
+			no_of_jobs += reduceBeforeEachAlignmentData.no_of_jobs
+			
+			mapEachChromosomeDataLs = passingData.mapEachChromosomeDataLs
+			mapEachChromosomeDataLs = []
 			
 			for chr in chrIDSet:
 				intervalDataLs = chr2IntervalDataLs.get(chr)
@@ -222,6 +297,17 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 				if VCFFile is None:
 					sys.stderr.write("WARNING: no VCFFile for chromosome %s. skipped.\n"%(chr))
 					continue
+				mapEachChromosomeData = self.mapEachChromosome(workflow=workflow, alignmentData=alignmentData, chromosome=chr, \
+									VCFFile=VCFFile, passingData=passingData, reduceBeforeEachAlignmentData=reduceBeforeEachAlignmentData,\
+									mapEachAlignmentData=mapEachAlignmentData,\
+									transferOutput=False, **keywords)
+				mapEachChromosomeDataLs.append(mapEachChromosomeData)
+				passingData.mapEachChromosomeData = mapEachChromosomeData
+				no_of_jobs += mapEachChromosomeData.no_of_jobs
+				
+				mapEachIntervalDataLs = passingData.mapEachIntervalDataLs
+				mapEachIntervalDataLs = []
+				
 				for intervalData in intervalDataLs:
 					if intervalData.file:
 						mpileupInterval = intervalData.interval
@@ -233,22 +319,49 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 					overlapInterval = intervalData.overlapInterval
 					overlapFilenameSignature = intervalData.overlapIntervalFnameSignature
 					
-					mapReturnData = self.map(workflow=workflow, alignmentData=alignmentData, intervalData=intervalData,\
+					mapEachIntervalData = self.mapEachInterval(workflow=workflow, alignmentData=alignmentData, intervalData=intervalData,\
 										VCFFile=VCFFile, passingData=passingData, reduceBeforeEachAlignmentData=reduceBeforeEachAlignmentData,\
-										transferOutput=False, **keywords)
+										mapEachAlignmentData=mapEachAlignmentData,\
+										mapEachChromosomeData=mapEachChromosomeData, transferOutput=False, **keywords)
+					mapEachIntervalDataLs.append(mapEachIntervalData)
+					passingData.mapEachIntervalData = mapEachIntervalData
+					no_of_jobs += mapEachIntervalData.no_of_jobs
 					
-					no_of_jobs += mapReturnData.no_of_jobs
-					self.linkMapToReduce(workflow=workflow, mapReturnData=mapReturnData, preReduceReturnData=preReduceReturnData, \
-										passingData=passingData, reduceBeforeEachAlignmentData=reduceBeforeEachAlignmentData,\
+					linkMapToReduceData = self.linkMapToReduce(workflow=workflow, mapEachIntervalData=mapEachIntervalData, preReduceReturnData=preReduceReturnData, \
+										reduceBeforeEachAlignmentData=reduceBeforeEachAlignmentData,\
+										mapEachAlignmentData=mapEachAlignmentData,\
+										passingData=passingData, \
 										**keywords)
-			reduceAfterEachAlignmentData = self.reduceAfterEachAlignment(workflow=workflow, passingData=passingData, \
-																		transferOutput=False, **keywords)
+				
+				reduceAfterEachChromosomeData = self.reduceAfterEachChromosome(workflow=workflow, chromosome=chr, passingData=passingData, \
+									mapEachIntervalDataLs=mapEachIntervalDataLs,\
+									transferOutput=False, dataDir=dataDir, \
+									**keywords)
+				passingData.reduceAfterEachChromosomeData = reduceAfterEachChromosomeData
+				passingData.reduceAfterEachChromosomeDataLs.append(reduceAfterEachChromosomeData)
+				no_of_jobs += reduceAfterEachChromosomeData.no_of_jobs
+				
+				gzipReduceAfterEachChromosomeData = self.addGzipSubWorkflow(workflow=workflow, \
+						inputData=reduceAfterEachChromosomeData, transferOutput=transferOutput,\
+						outputDirPrefix="%sreduceAfterEachChromosome"%(outputDirPrefix))
+			reduceAfterEachAlignmentData = self.reduceAfterEachAlignment(workflow=workflow, \
+													mapEachAlignmentData=mapEachAlignmentData,\
+													passingData=passingData, \
+													transferOutput=False, dataDir=dataDir, **keywords)
+			passingData.reduceAfterEachAlignmentData = reduceAfterEachAlignmentData
+			passingData.reduceAfterEachAlignmentDataLs.append(reduceAfterEachAlignmentData)
 			no_of_jobs += reduceAfterEachAlignmentData.no_of_jobs
-			self.addGzipSubWorkflow(workflow=workflow, inputData=reduceBeforeEachAlignmentData, transferOutput=transferOutput,\
+			
+			gzipReduceBeforeEachAlignmentData = self.addGzipSubWorkflow(workflow=workflow, \
+						inputData=reduceBeforeEachAlignmentData, transferOutput=transferOutput,\
 						outputDirPrefix="%sreduceBeforeEachAlignment"%(outputDirPrefix))
-			self.addGzipSubWorkflow(workflow=workflow, inputData=reduceAfterEachAlignmentData, transferOutput=transferOutput,\
+			gzipReduceAfterEachAlignmentData = self.addGzipSubWorkflow(workflow=workflow, \
+						inputData=reduceAfterEachAlignmentData, transferOutput=transferOutput,\
 						outputDirPrefix="%sreduceAfterEachAlignment"%(outputDirPrefix))
-		reduceReturnData = self.reduce(workflow=workflow, passingData=passingData, **keywords)
+		reduceReturnData = self.reduce(workflow=workflow, passingData=passingData, \
+							mapEachAlignmentData=mapEachAlignmentData,\
+							**keywords)
+		passingData.reduceReturnData = reduceReturnData
 		no_of_jobs += reduceReturnData.no_of_jobs
 		
 		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
@@ -288,6 +401,28 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		return returnData
 	
 	
+	def registerCustomExecutables(self, workflow=None):
+		
+		"""
+		2011-11-28
+		"""
+		AbstractVervetWorkflow.registerCustomExecutables(self, workflow=workflow)
+		
+		if workflow is None:
+			workflow = self
+		namespace = workflow.namespace
+		version = workflow.version
+		operatingSystem = workflow.operatingSystem
+		architecture = workflow.architecture
+		clusters_size = workflow.clusters_size
+		site_handler = workflow.site_handler
+		vervetSrcPath = self.vervetSrcPath
+		
+		#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
+		executableClusterSizeMultiplierList = []
+		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
+	
+	
 	def run(self):
 		"""
 		2011-9-28
@@ -317,9 +452,13 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 													intervalOverlapSize=self.intervalOverlapSize)
 		
 		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										aln_method_id=self.alignment_method_id, dataDir=self.localDataDir)
+										alignment_method_id=self.alignment_method_id, dataDir=self.localDataDir,\
+										individual_sequence_file_raw_id_type=self.individual_sequence_file_raw_id_type,\
+										country_id_ls=self.country_id_ls, tax_id_ls=self.tax_id_ls)
 		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
-												individual_site_id_set=set(self.site_id_ls))
+									individual_site_id_set=set(self.site_id_ls),\
+									mask_genotype_method_id=None, parent_individual_alignment_id=None,\
+									country_id_set=set(self.country_id_ls), tax_id_set=set(self.tax_id_ls))
 		
 		workflow = self.initiateWorkflow()
 		

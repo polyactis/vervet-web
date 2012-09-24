@@ -53,7 +53,7 @@ import rpy
 class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 	__doc__ = __doc__
 #						
-	option_default_dict = AbstractVervetMapper.option_default_dict
+	option_default_dict = AbstractVervetMapper.option_default_dict.copy()
 	option_default_dict.update({
 						('plinkIBDCheckOutputFname', 1, ): ["", 'l', 1, 'file that contains IBD check result'], \
 						('plinkSexCheckOutputFname', 0, ): ["", 'n', 1, 'file that contains plink sex check result'], \
@@ -68,6 +68,7 @@ class DetectWrongLabelByCompKinshipVsIBD(PlotPedigreeKinshipVsGeneticIBD):
 		"""
 		"""
 		PlotPedigreeKinshipVsGeneticIBD.__init__(self, inputFnameLs=inputFnameLs, **keywords)
+	
 	
 	def createDeltaMatrix(self, kinshipData=None, ibdData=None, takeAbs=False, onlySharedMonkeys=False, defaultValue=None):
 		"""

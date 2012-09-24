@@ -99,7 +99,7 @@ class AlignmentToCallPipelineForLowPass(AlignmentToCallPipeline):
 		refNameLs = refName2size.keys()
 		
 		alignmentLs = self.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										aln_method_id=2, dataDir=self.localDataDir)
+										alignment_method_id=2, dataDir=self.localDataDir)
 		
 		#site id 447 is the VRC site
 		alignmentLs = self.filterAlignments(alignmentLs, max_coverage=self.max_coverage, individual_site_id=self.site_id)

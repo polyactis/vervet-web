@@ -52,14 +52,19 @@ from AbstractVCFMapper import AbstractVCFMapper
 class ConvertVCF2EigenStrat(AbstractVCFMapper):
 	__doc__ = __doc__
 	option_default_dict = AbstractVCFMapper.option_default_dict.copy()
-
-	def __init__(self,  **keywords):
+	option_default_dict.update({
+							('missingCallAsRefBase', 0, int):[0, '', 0, 'toggle to regard all missing calls as homozygous reference'],\
+						})
+	def __init__(self, **keywords):
 		"""
 		"""
 		AbstractVCFMapper.__init__(self, **keywords)
 		import re
 		self.chr_pattern = re.compile(r'(\w+\d+).*')
 		self.contig_id_pattern = re.compile(r'Contig(\d+).*')
+		
+		#2012.9.11 temporary to assign all missing calls to homozygous reference.
+		#self.missingCallAsRefBase = 1
 
 	def convertVCF2EigenStrat(self, inputFname, outputFnamePrefix, chromosome=None, chrLength=None, minDepth=1):
 		"""
@@ -83,21 +88,27 @@ class ConvertVCF2EigenStrat(AbstractVCFMapper):
 			ind_writer.writerow([sample_id, 'U', 'Case'])
 			
 		no_of_snps = 0
-		for vcfRecord in vcfFile.parseIter():
+		for vcfRecord in vcfFile:
 			chr = vcfRecord.chr
 			contig_id_pattern_result = self.contig_id_pattern.search(vcfRecord.chr)
 			if contig_id_pattern_result:
 				chr = contig_id_pattern_result.group(1)
 			pos = vcfRecord.pos
 			pos = int(pos)
-			refBase = vcfRecord.data_row[0].get("GT")[0]
+			refBase = vcfRecord.refBase
 			
 			snp_id = '%s_%s'%(chr, pos)
 			snp_writer.writerow([snp_id, chr, 0.0, pos, vcfRecord.alleleLs[0], vcfRecord.alleleLs[1]])
 			no_of_snps += 1
 			geno_line = ''
 			for callData in vcfRecord.data_row[1:]:	#[0] is the ref base
-				callForThisSample = callData['GT']
+				if callData:
+					callForThisSample = callData['GT']
+				else:
+					if self.missingCallAsRefBase:
+						callForThisSample = "NA"
+					else:
+						callForThisSample = '%s%s'%(refBase, refBase)
 				if not callForThisSample or callForThisSample=='NA':
 					#missing
 					geno_line += '9'

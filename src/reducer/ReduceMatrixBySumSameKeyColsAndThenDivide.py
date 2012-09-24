@@ -25,7 +25,9 @@ from ReduceMatrixByChosenColumn import ReduceMatrixByChosenColumn
 class ReduceMatrixBySumSameKeyColsAndThenDivide(ReduceMatrixByChosenColumn):
 	__doc__ = __doc__
 	option_default_dict = ReduceMatrixByChosenColumn.option_default_dict.copy()
-
+	option_default_dict.update({
+						("operatorType", 1, int): [1, 'p', 1, 'For the last column, 1: firstValue/2ndValue. 2: 1stValue-2ndValue.'],\
+						})
 	def __init__(self, inputFnameLs, **keywords):
 		"""
 		2011-7-12
@@ -47,7 +49,10 @@ class ReduceMatrixBySumSameKeyColsAndThenDivide(ReduceMatrixByChosenColumn):
 		for key, dataLs in key2dataLs.iteritems():
 			no_of_value_columns = len(dataLs)
 			if no_of_value_columns>1:
-				ratio = dataLs[0]/float(dataLs[1])
+				if self.operatorType==2:
+					ratio = float(dataLs[0]) - float(dataLs[1])
+				else:
+					ratio = dataLs[0]/float(dataLs[1])
 				key2dataLs[key].append(ratio)
 		sys.stderr.write("Done.\n")
 		return PassingData(key2dataLs= key2dataLs, header=header)

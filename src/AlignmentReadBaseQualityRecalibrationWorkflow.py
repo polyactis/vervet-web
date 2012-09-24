@@ -82,6 +82,15 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		#AlignmentToCallPipeline.__init__(self, **keywords)
 		#self.inputDir = os.path.abspath(self.inputDir)
 	
+	def mapEachAlignment(self, workflow=None, passingData=None, transferOutput=True, **keywords):
+		"""
+		2012.9.22
+			similar to reduceBeforeEachAlignmentData() but for mapping programs that run on one alignment each.
+		"""
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		return returnData
+	
 	def mapEachChromosome(self, workflow=None, alignmentData=None, chromosome=None,\
 				VCFFile=None, passingData=None, reduceBeforeEachAlignmentData=None, transferOutput=True, **keywords):
 		"""
@@ -130,7 +139,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		
 		return returnData
 	
-	def map(self, workflow=None, alignmentData=None, intervalData=None,\
+	def mapEachInterval(self, workflow=None, alignmentData=None, intervalData=None,\
 							VCFFile=None, passingData=None, reduceBeforeEachAlignmentData=None,\
 							mapEachChromosomeData=None, transferOutput=False, **keywords):
 		"""
@@ -210,6 +219,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		returnData.jobDataLs = []
 		if workflow is None:
 			workflow = self
+		getattr(passingData, 'mapEach', [])
 		AlignmentJobAndOutputLs = getattr(passingData, 'AlignmentJobAndOutputLs', [])
 		bamFnamePrefix = passingData.bamFnamePrefix
 		topOutputDirJob = passingData.topOutputDirJob
@@ -328,34 +338,6 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		else:
 			bamIndexJob = None
 		return job, bamIndexJob
-	
-	def addAddAlignment2DBJob(self, executable=None, inputFile=None, \
-							logFile=None, dataDir=None, commit=None, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
-							extraArguments=None, job_max_memory=2000, sshDBTunnel=None, **keywords):
-		"""
-		2012.7.28
-		"""
-		extraArgumentList = []
-		if logFile:
-			extraArgumentList.extend(["-l", logFile])
-		if dataDir:
-			extraArgumentList.extend(['-t', dataDir])
-		if commit:
-			extraArgumentList.append('-c')
-		if genotypeMethodShortName:
-			extraArgumentList.extend(['-s', genotypeMethodShortName, ])
-		if genotypeMethodID:
-			extraArgumentList.extend(['-i', genotypeMethodID, ])
-		if extraArguments:
-			extraArgumentList.append(extraArguments)
-		
-		job= self.addGenericJob(executable=executable, inputFile=None, outputFile=None, \
-						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
-						extraOutputLs=[logFile],\
-						transferOutput=transferOutput, \
-						extraArgumentList=extraArgumentList, job_max_memory=job_max_memory, **keywords)
-		self.addDBArgumentsToOneJob(job=job, objectWithDBArguments=self)
-		return job
 	
 	def registerCustomExecutables(self, workflow=None):
 		

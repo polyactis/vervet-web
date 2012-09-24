@@ -150,8 +150,8 @@ class DiscoverSNPsFromChosenAlignment(MPI4pywrapper):
 				
 				
 				# add RG to this bam
-				sequencer = alignment.ind_sequence.sequencer
-				read_group = '%s_%s'%(alignment.ind_sequence.individual.code, sequencer)
+				sequencer = alignment.individual_sequence.sequencer
+				read_group = '%s_%s'%(alignment.individual_sequence.individual.code, sequencer)
 				if sequencer=='454':
 					platform_id = 'LS454'
 				elif sequencer=='GA':

@@ -45,14 +45,16 @@ class AggregateAndHClusterDistanceMatrix(object):
 		
 		self.inputFnameLs = inputFnameLs
 	
-	def massageSampleId(self, col_id_ls):
+	def massageSampleId(self, col_id_ls=None):
 		"""
+		2012.9.11
+			return a separate new_col_id_ls, rather than modify col_id_ls in place
 		2012.9.5
 			added takeLastSplit further massage the sample ID
 		"""
-		
 		take1stSplit = lambda x: x.split("_GA_vs_")[0]
 		takeLastSplit = lambda x: x.split("_")[-1]
+		new_col_id_ls = []
 		for i in range(len(col_id_ls)):
 			col_id = col_id_ls[i]
 			newXLabel = take1stSplit(col_id)
@@ -61,9 +63,9 @@ class AggregateAndHClusterDistanceMatrix(object):
 				newXLabel = newXLabel[4:]
 			else:
 				newXLabel = takeLastSplit(newXLabel)
-			
-			col_id_ls[i] = newXLabel
-		return col_id_ls
+			new_col_id_ls.append(newXLabel)
+			#col_id_ls[i] = newXLabel
+		return new_col_id_ls
 	
 	def outputMismatchData(self, outputFname, samplePair2data, distanceMatrix, sampleId2index, sampleIdLs=None):
 		"""

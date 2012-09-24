@@ -163,7 +163,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 									probToSample=probToSample, outputF=outputBamF, parentJobLs=parentJobLs+[downsampleDirJob], \
 									job_max_memory=downsamplerMaxMemory, extraDependentInputLs=[baiF], transferOutput=False)
 					index_sam_job = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
-						inputBamF=outputBamF, parentJobLs=[downsampleJob], stageOutFinalOutput=False, javaMaxMemory=2500)
+						inputBamF=outputBamF, parentJobLs=[downsampleJob], transferOutput=False, javaMaxMemory=2500)
 					newAlignmentData = PassingData(alignment=alignment)
 					#don't modify the old alignmentData as it will affect the original alignmentDataLs, which should remain same across different samplings
 					newAlignmentData.jobLs = [downsampleJob, index_sam_job]	#downsampleJob has to be included otherwise its output (bamF) will be wiped out after index_sam_job is done
@@ -204,7 +204,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 		refNameLs = refName2size.keys()
 		
 		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										aln_method_id=self.alignment_method_id, dataDir=self.localDataDir)
+										alignment_method_id=self.alignment_method_id, dataDir=self.localDataDir)
 		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
 												individual_site_id_set=set(self.site_id_ls))
 		sampleID2FamilyCount = self.outputPedgreeOfAlignmentsInMerlinFormat(db_vervet, alignmentLs, self.pedigreeOutputFname)

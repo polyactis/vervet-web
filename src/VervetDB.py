@@ -1336,11 +1336,17 @@ class VervetDB(ElixirDB):
 	
 	
 	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], alignment_method_id=None, \
-					dataDir=None, sequence_type=None, outdated_index=0, mask_genotype_method_id=None, parent_individual_alignment_id=None,\
-					individual_sequence_file_raw_id=None):
+					dataDir=None, sequence_type=None, outdated_index=0, mask_genotype_method_id=None, \
+					parent_individual_alignment_id=None, individual_sequence_file_raw_id_type=1,\
+					country_id_ls=None, tax_id_ls=None):
 		"""
+		2012.9.23 add argument country_id_ls and tax_id_ls
 		2012.9.20 rename aln_method_id to alignment_method_id
-		2012.9.19 add argument individual_sequence_file_raw_id
+		2012.9.19 & 2012.9.22 add argument individual_sequence_file_raw_id_type:
+			1: only all-library-fused libraries, (individual_sequence_file_raw_id is null)
+			2: only library-specific alignments, (individual_sequence_file_raw_id is non-null)
+			3 or else: both all-library-fused and library-specific alignments, 
+				(no filter based on individual_sequence_file_raw_id)
 		2012.7.26 added argument mask_genotype_method_id & parent_individual_alignment_id
 		2012.6.13 add argument outdated_index
 		2012.4.13
@@ -1364,27 +1370,42 @@ class VervetDB(ElixirDB):
 		TableClass = IndividualAlignment
 		query = TableClass.query
 		if ind_aln_id_ls:
-			sys.stderr.write("Adding filter via %s alignment IDs ...\n"%(len(ind_aln_id_ls)) )
+			sys.stderr.write("Adding filter via %s alignment IDs ... \n"%(len(ind_aln_id_ls)) )
 			query = query.filter(TableClass.id.in_(ind_aln_id_ls))
 		if ind_seq_id_ls:
-			sys.stderr.write("Adding filter via %s sequence IDs  ...\n"%(len(ind_seq_id_ls)))
+			sys.stderr.write("Adding filter via %s sequence IDs  ... \n"%(len(ind_seq_id_ls)))
 			query = query.filter(TableClass.ind_seq_id.in_(ind_seq_id_ls))
 		if ref_ind_seq_id:
-			sys.stderr.write("Adding filter via the reference sequence ID %s ...\n"%(ref_ind_seq_id))
+			sys.stderr.write("Adding filter via the reference sequence ID %s ... \n"%(ref_ind_seq_id))
 			query = query.filter_by(ref_ind_seq_id=ref_ind_seq_id)
 		if alignment_method_id:
+			sys.stderr.write("Adding filter via the alignment_method_id=%s ... \n"%(alignment_method_id))
 			query = query.filter_by(alignment_method_id=alignment_method_id)
-		
+		"""
+		if country_id_ls:	#2012.9.23 not sure whether it'll work
+			sys.stderr.write("Adding filter country_id_ls=%s ... \n"%(getattr(country_id_ls, '__len__', self.returnZeroFunc)()))
+			query = query.filter(TableClass.individual_sequence.individual.site.has(Site.country_id.in_(country_id_ls)))
+		if tax_id_ls:
+			sys.stderr.write("Adding filter tax_id_ls=%s ... \n"%(getattr(tax_id_ls, '__len__', self.returnZeroFunc)()))
+			query = query.filter(TableClass.individual_sequence.individual.has(Individual.tax_id.in_(tax_id_ls)))
+		"""
 		if not ind_aln_id_ls and not ind_seq_id_ls and not ref_ind_seq_id:
 			sys.stderr.write("Both ind_seq_id_ls and ind_aln_id_ls are empty and ref_ind_seq_id is None. no alignment to be fetched.\n")
 			sys.exit(3)
+		if individual_sequence_file_raw_id_type==1:	#only all-library-fused alignments
+			query = query.filter(TableClass.individual_sequence_file_raw_id==None)
+		elif individual_sequence_file_raw_id_type==2:	#only library-specific alignments
+			query = query.filter(TableClass.individual_sequence_file_raw_id!=None)
+		else:
+			#2012.9.22 do nothing = include both 
+			pass
+
 		#order by TableClass.id is important because this is the order that gatk&samtools take input bams.
 		#Read group in each bam is beginned by alignment.id. GATK would arrange bams in the order of read groups.
 		# while samtools doesn't do that and vcf-isect could combine two vcfs with columns in different order.
 		query = query.filter_by(outdated_index=outdated_index).\
 					filter_by(mask_genotype_method_id=mask_genotype_method_id).\
 					filter_by(parent_individual_alignment_id=parent_individual_alignment_id).\
-					filter_by(individual_sequence_file_raw_id=individual_sequence_file_raw_id).\
 					order_by(TableClass.id)
 		for row in query:
 			if sequence_type is not None and row.sequence_type!=sequence_type:
@@ -1415,10 +1436,14 @@ class VervetDB(ElixirDB):
 		sys.stderr.write("%s alignments.\n"%(len(alignmentLs)))
 		return alignmentLs
 	
-	@classmethod
-	def filterAlignments(cls, alignmentLs, max_coverage=None, individual_site_id=None, sequence_filtered=None,\
-						individual_site_id_set=None, mask_genotype_method_id=None, parent_individual_alignment_id=None):
+	#used in getattr(individual_site_id_set, '__len__', returnZeroFunc)()
+	returnZeroFunc = lambda: 0
+	
+	def filterAlignments(self, alignmentLs, max_coverage=None, individual_site_id=None, sequence_filtered=None,\
+						individual_site_id_set=None, mask_genotype_method_id=None, parent_individual_alignment_id=None,\
+						country_id_set=None, tax_id_set=None):
 		"""
+		2012.9.22 add argument country_id_set, tax_id_set
 		2012.7.26 added argument mask_genotype_method_id & parent_individual_alignment_id
 		2012.5.8
 			bugfix, individual_site_id_set could be none. so no_of_sites is un-defined.
@@ -1431,14 +1456,17 @@ class VervetDB(ElixirDB):
 		2011-11-22
 			447 in "individual_site_id=447" is VRC.
 		"""
-		if individual_site_id_set:
-			no_of_sites = len(individual_site_id_set)
-		else:
-			no_of_sites = 0
-		sys.stderr.write("Filter %s alignments to select individual_sequence.coverage <=%s & site-id=%s & sequence_filtered=%s & from %s sites..."%\
-						(len(alignmentLs), max_coverage, individual_site_id, sequence_filtered, no_of_sites))
+		sys.stderr.write("Filter %s alignments to select individual_sequence.coverage <=%s & site-id=%s & sequence_filtered=%s & from %s sites & %s countries & %s taxonomies ..."%\
+							(len(alignmentLs), max_coverage, individual_site_id, sequence_filtered, \
+							getattr(individual_site_id_set, '__len__', self.returnZeroFunc)(),\
+							getattr(country_id_set, '__len__', self.returnZeroFunc)(),\
+							getattr(tax_id_set, '__len__', self.returnZeroFunc)(),\
+							)
+						)
 		newAlignmentLs = []
 		for alignment in alignmentLs:
+			if not alignment:
+				continue
 			if max_coverage is not None and alignment.individual_sequence.coverage>max_coverage:
 				continue
 			if individual_site_id is not None and alignment.individual_sequence.individual.site_id!=individual_site_id:
@@ -1452,6 +1480,21 @@ class VervetDB(ElixirDB):
 				continue
 			if parent_individual_alignment_id is not None and alignment.parent_individual_alignment_id!=parent_individual_alignment_id:
 				continue
+			if country_id_set:
+				if alignment.individual_sequence.individual.site is None:
+					sys.stderr.write("Warning: alignment (id=%s, path=%s, %s) has no site.\n"%(alignment.id, alignment.path,\
+																			alignment.individual_sequence.individual.code))
+					continue
+				elif (alignment.individual_sequence.individual.site is None or \
+									alignment.individual_sequence.individual.site.country_id not in country_id_set):
+					continue
+			if tax_id_set:
+				if alignment.individual_sequence.individual.tax_id is None:
+					sys.stderr.write("Warning: alignment (id=%s, path=%s, %s) has no tax_id.\n"%(alignment.id, alignment.path,\
+																	alignment.individual_sequence.individual.code))
+					continue
+				elif alignment.individual_sequence.individual.tax_id not in tax_id_set:
+					continue
 			newAlignmentLs.append(alignment)
 		sys.stderr.write(" kept %s alignments. Done.\n"%(len(newAlignmentLs)))
 		return newAlignmentLs

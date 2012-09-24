@@ -42,7 +42,7 @@ from vervet.src import VervetDB
 class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 	__doc__ = __doc__
 #						
-	option_default_dict = AbstractPlot.option_default_dict
+	option_default_dict = AbstractPlot.option_default_dict.copy()
 	option_default_dict.pop(('xColumnHeader', 1, ))
 	#option_default_dict.pop(('xColumnPlotLabel', 0, ))
 	option_default_dict.update({
@@ -65,7 +65,6 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 		if self.outputFname and not self.outputFnamePrefix:
 			self.outputFnamePrefix = os.path.splitext(self.outputFname)[0]
 		
-		self.uclaID2monkeyDBEntry = {}
 		
 	def getMonkeyKinshipData(self, inputFname=None):
 		"""
@@ -174,13 +173,8 @@ class PlotPedigreeKinshipVsGeneticIBD(AbstractPlot):
 		"""
 		2012.8.21
 		"""
-		if ucla_id in self.uclaID2monkeyDBEntry:
-			return self.uclaID2monkeyDBEntry.get(ucla_id)
-		else:
-			monkey = VervetDB.Individual.query.filter_by(code=ucla_id).first()
-			self.uclaID2monkeyDBEntry[ucla_id] = monkey
-			return monkey
-			
+		return db_vervet.getIndividualDBEntry(ucla_id=ucla_id)
+		
 	
 	def plotPairwiseKinshipFromPedigreeVsGenotype(self, db_vervet=None, kinshipFname=None, plinkIBDCheckOutputFname=None, \
 									outputFnamePrefix=None, doPairwiseLabelCheck=False):

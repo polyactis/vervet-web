@@ -7,7 +7,8 @@ Examples:
 		-u yh -y4 -l hcondor -j hcondor  -z localhost
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
-	# 2012.5.10 run on hoffman2 condor, minMAC=1 (-n 1), minMAF=0.1 (-f 0.1), maxSNPMissingRate=0 (-L 0)   (turn on checkEmptyVCFByReading, -E)
+	# 2012.5.10 subset + convert-2-plink.
+	# run on hoffman2 condor, minMAC=1 (-n 1), minMAF=0.1 (-f 0.1), maxSNPMissingRate=0 (-L 0)   (turn on checkEmptyVCFByReading, -E)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/
 		-o workflow/SubsetTo36RNASamplesAndPlink_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
 		-i ~/script/vervet/data/RNADevelopment_eQTL/36monkeys.phenotypes.txt
@@ -33,15 +34,22 @@ Examples:
 	
 	# 2012.8.20 convert method 16 to yu format (-y 6 works for generic VCF, -y 7 adds sample ID conversion first)
 	%s -I ~/NetworkData/vervet/db/genotype_file/method_16/
-		-o workflow/VCF2YuFormat_Method16.xml
+		-o workflow/VCF2YuFormat/VCF2YuFormat_Method16.xml
 		-y 7 -E  -l hcondor -j hcondor  -u yh -z localhost -H -C 2
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 
+	# 2012.8.30 combine multiple VCF into one
+	# -s .. is optional. if given, the combined VCF will be added into db.
+	%s -I ~/NetworkData/vervet/db/genotype_file/method_10/ -o workflow/GenericVCFWorkflow/MultiVCF2OneFile_Method10.xml
+		-y 9  -l hcondor -j hcondor -u yh -z localhost -H -C 1
+		-s 16HCSAMtoolsMinDP1_2FoldDepth_minMAC8_maxSNPMissing0
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
+	
 Description:
 	#2012.5.9
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
@@ -60,7 +68,9 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 	option_default_dict.update({
 						('individualUCLAIDFname', 0, ): [None, 'i', 1, 'a file containing individual ucla_id in each row. one column with header UCLAID. ', ],\
 						('vcfSampleIDFname', 0, ): [None, 'w', 1, 'a file containing the sample ID (a composite ID including ucla_id) each row. \
-						if not present, infer it from individualUCLAIDFname + first VCF file header.', ],\
+		any samples not in this file will be removed in subset VCF run_type (1, 3)\
+		You can also use individualUCLAIDFname to specify the sample IDs (UCLAID). \
+		Their composite IDs will be inferred from individualUCLAIDFname + first VCF file header.', ],\
 						('vcf2Dir', 0, ): ['', '', 1, 'the 2nd input folder that contains vcf or vcf.gz files.', ],\
 						('run_type', 1, int): [1, 'y', 1, 'which run_type to run. \
 							1: subset VCF based on input file containing sample IDs;\
@@ -71,10 +81,14 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 							6: VCF2YuFormatJobs, \
 							7: ConvertAlignmentReadGroup2UCLAIDInVCF + VCF2YuFormatJobs, \
 							8: ConvertAlignmentReadGroup2UCLAIDInVCF + convert to plink format, \
+							9: combine all single-chromsome VCF into one. \
 							?: Combine VCF files from two input folder, chr by chr. (not done yet. check CheckTwoVCFOverlapPipeline.py for howto)', ],\
 						("minMAC", 0, int): [None, 'n', 1, 'minimum MinorAlleleCount (by chromosome)'],\
 						("minMAF", 0, float): [None, 'f', 1, 'minimum MinorAlleleFrequency (by chromosome)'],\
 						("maxSNPMissingRate", 0, float): [1.0, 'L', 1, 'maximum SNP missing rate in one vcf (denominator is #chromosomes)'],\
+						('genotypeMethodShortName', 0, ):[None, 's', 1, 'column short_name of GenotypeMethod table,\
+	will be created if not present in db.\
+	for run_type 9, if given the file would be added into db.'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
@@ -86,8 +100,11 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 	def addVCF2PlinkJobs(self, workflow=None, inputData=None, db_vervet=None, minMAC=None, minMAF=None,\
 						maxSNPMissingRate=None, transferOutput=True,\
 						maxContigID=None, outputDirPrefix="", outputPedigreeAsTFAM=False, outputPedigreeAsTFAMInputJobData=None, \
+						treatEveryOneIndependent=False,\
 						returnMode=3, ModifyTPEDRunType=1, chr_id2cumu_chr_start=None):
 		"""
+		2012.9.13
+			add argument treatEveryOneIndependent for OutputVRCPedigreeInTFAMGivenOrderFromFile.
 		2012.8.20 add outputPedigreeAsTFAMInputJobData, split from input_data.
 			outputPedigreeAsTFAMInputJobData.vcfFile must use individual_alignment.read_group as sample ID.
 			useful in the case of that VCF files have been converted into UCLA IDs.
@@ -138,7 +155,7 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 			inputF = jobData.vcfFile
 			outputFile = File(os.path.join(mergedOutputDir, 'pedigree.tfam'))
 			outputPedigreeInTFAMJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
-								inputFile=inputF, outputFile=outputFile,\
+								inputFile=inputF, outputFile=outputFile, treatEveryOneIndependent=treatEveryOneIndependent,\
 								parentJobLs=[mergedOutputDirJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=transferOutput, \
 								extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
 			no_of_jobs += 1
@@ -232,8 +249,12 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
 		##2012.8.9 gzip workflow is not needed anymore as binary bed is used instead.
 		##2012.7.21 gzip the final output
-		#newReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
-		#				outputDirPrefix="")
+		gzipInputData = PassingData()
+		gzipInputData.jobDataLs = []
+		gzipInputData.jobDataLs.append(PassingData(jobLs=[tpedFileMergeJob], file=tpedFileMergeJob.output, \
+												fileList=tpedFileMergeJob.outputLs))
+		newReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=gzipInputData, transferOutput=transferOutput,\
+						outputDirPrefix="gzipMergedTPED")
 		return returnData
 	
 	def addVCF2YuFormatJobs(self, workflow=None, inputData=None, transferOutput=True,\
@@ -605,6 +626,85 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		del writer, vcfFile
 		sys.stderr.write("%s vcf samples selected.\n"%(no_of_samples))
 	
+	def addCombineVCFIntoOneJobs(self, workflow=None, inputData=None, dataDir=None, \
+						maxContigID=None, outputDirPrefix="", genotypeMethodShortName=None, needSSHDBTunnel=False,\
+						transferOutput=True):
+		"""
+		2012.8.30
+		"""
+		sys.stderr.write("Adding jobs to combine all VCF files into one VCF for %s vcf files ... "%(len(inputData.jobDataLs)))
+		no_of_jobs= 0
+		if workflow==None:
+			workflow = self
+		
+		topOutputDir = "%sVCFIntoOne"%(outputDirPrefix)
+		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		no_of_jobs += 1
+		
+		
+		
+		#2011-9-22 union of all samtools intervals for one contig
+		if genotypeMethodShortName:	#if this is available, output goes to db-affiliated storage.
+			transferUnionOutput = False
+		else:
+			transferUnionOutput = transferOutput
+		unionOutputFname = os.path.join(topOutputDir, '%sVCFIntoOne.vcf.gz'%(len(inputData.jobDataLs)))
+		unionOutputF = File(unionOutputFname)
+		unionJob = self.addVCFConcatJob(workflow, concatExecutable=self.concatSamtools, parentDirJob=topOutputDirJob, \
+						outputF=unionOutputF, transferOutput=transferUnionOutput, \
+						vcf_job_max_memory=2000)
+		
+		no_of_jobs += 1
+		
+		returnData = PassingData()
+		returnData.jobDataLs = []
+		returnData.jobDataLs.append(PassingData(jobLs=[unionJob], file=unionJob.output, \
+											fileList=unionJob.outputLs))
+		
+		for i in xrange(len(inputData.jobDataLs)):
+			jobData = inputData.jobDataLs[i]
+			inputF = jobData.vcfFile
+			inputFBaseName = os.path.basename(inputF.name)
+			chr_id = self.getChrFromFname(inputFBaseName)
+			if maxContigID:
+				contig_id = self.getContigIDFromFname(inputFBaseName)
+				try:
+					contig_id = int(contig_id)
+					if contig_id>maxContigID:	#skip the small contigs
+						continue
+				except:
+					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+					import traceback
+					traceback.print_exc()
+			commonPrefix = inputFBaseName.split('.')[0]
+			outputFnamePrefix = os.path.join(topOutputDir, '%s'%(commonPrefix))
+			if i ==0:	#need at least one tfam file. 
+				transferOneContigPlinkOutput = True
+			else:
+				transferOneContigPlinkOutput = False
+			i += 1
+			
+			#add this output to a union job
+			self.addInputToStatMergeJob(workflow, statMergeJob=unionJob, \
+								inputF=inputF, \
+								parentJobLs=jobData.jobLs, extraDependentInputLs=[jobData.tbi_F])
+			
+		if genotypeMethodShortName:
+			logFile = File(os.path.join(topOutputDir, 'addVCF2DB.log'))
+			addVCFJob = self.addAddVCFFile2DBJob(executable=self.AddVCFFile2DB, inputFile=unionJob.output, \
+						genotypeMethodShortName=genotypeMethodShortName,\
+						logFile=logFile, format="VCF", dataDir=dataDir, checkEmptyVCFByReading=True, commit=True, \
+						parentJobLs=[unionJob], extraDependentInputLs=[unionJob.tbi_F], transferOutput=transferOutput, \
+						extraArguments=None, job_max_memory=1000, sshDBTunnel=needSSHDBTunnel)
+			no_of_jobs += 1
+		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		##2012.8.9 gzip workflow is not needed anymore as binary bed is used instead.
+		##2012.7.21 gzip the final output
+		#newReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
+		#				outputDirPrefix="")
+		return returnData
+		
+	
 	def registerCustomExecutables(self, workflow=None):
 		"""
 		2011-11-28
@@ -645,34 +745,23 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 							site_handler))
 		executableClusterSizeMultiplierList.append((OutputVRCPedigreeInTFAMGivenOrderFromFile, 1))
 		
-		#2012.8.10 different plinks so that you can differentiate between different types of plink jobs
-		plinkMerge =  Executable(namespace=namespace, name="plinkMerge", \
-						version=version, os=operatingSystem, arch=architecture, installed=True)
-		plinkMerge.addPFN(PFN("file://" + self.plinkPath, site_handler))
-		executableClusterSizeMultiplierList.append((plinkMerge, 1))
-		
-		plinkIBD =  Executable(namespace=namespace, name="plinkIBD", \
-						version=version, os=operatingSystem, arch=architecture, installed=True)
-		plinkIBD.addPFN(PFN("file://" + self.plinkPath, site_handler))
-		executableClusterSizeMultiplierList.append((plinkIBD, 1))
-
-		plinkConvert =  Executable(namespace=namespace, name="plinkConvert", \
-						version=version, os=operatingSystem, arch=architecture, installed=True)
-		plinkConvert.addPFN(PFN("file://" + self.plinkPath, site_handler))
-		executableClusterSizeMultiplierList.append((plinkConvert, 1))
-		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 		
 	
 	def addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(self, executable=None, inputFile=None, outputFile=None,\
+													treatEveryOneIndependent=False,\
 						parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
 						extraArguments=None, job_max_memory=2000, sshDBTunnel=False, **keywords):
 		"""
+		2012.9.13
+			add argument treatEveryOneIndependent for OutputVRCPedigreeInTFAMGivenOrderFromFile.
 		2012.8.9
 		"""
 		extraArgumentList = []
 		if extraArguments:
 			extraArgumentList.append(extraArguments)
+		if treatEveryOneIndependent:
+			extraArgumentList.append("--treatEveryOneIndependent")
 		
 		job= self.addGenericJob(executable=executable, inputFile=inputFile, outputFile=outputFile, \
 						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
@@ -779,7 +868,11 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 						maxSNPMissingRate=self.maxSNPMissingRate, transferOutput=True,\
 						outputPedigreeAsTFAM=True, outputPedigreeAsTFAMInputJobData=inputData.jobDataLs[0], \
 						maxContigID=self.maxContigID, outputDirPrefix="", returnMode=3)
-
+		elif self.run_type==9:
+			self.addCombineVCFIntoOneJobs(inputData=inputData, dataDir=self.dataDir,\
+						maxContigID=self.maxContigID, outputDirPrefix="", genotypeMethodShortName=self.genotypeMethodShortName, \
+						needSSHDBTunnel=self.needSSHDBTunnel, \
+						transferOutput=True)
 		else:
 			sys.stderr.write("run_type %s not supported.\n"%(self.run_type))
 			sys.exit(0)

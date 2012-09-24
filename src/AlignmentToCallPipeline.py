@@ -66,12 +66,17 @@ Examples:
 	# 2012.8.2 part of the test above, now run multi-sample on Contig731 on all sites
 	# use -x 731 (maxContigID) -V 731 (minContigID) to restrict the top 1000 contigs to only Contig731.
 	# run on intervals of 200kb (-Z), with both GATK (-T) and SAMtools
-	%s -a 524 -i 643-646 -S 447
+	# add --individual_sequence_file_raw_id_type 2 (library-specific alignments, different libraries of one individual_sequence) 
+	# add --individual_sequence_file_raw_id_type 3 (both all-library-fused and library-specific alignments)
+	# add "--country_id_ls 135,136,144,148,151" to limit individuals from US,Barbados,StKitts,Nevis,Gambia (AND with -S, )
+	%s -a 524 -i 643-646
+		#-S 447
 		-u yh -z localhost -Q1 -G2
 		-l hcondor -j hcondor
 		-e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java -O 1 -C1
-		-o workflow/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml -T -N 1000 -x 731 -V 731 -Z 200000
+		-o workflow/AlignmentToCall/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml -T -N 1000 -x 731 -V 731 -Z 200000
+		#--individual_sequence_file_raw_id_type 2 --country_id_ls 135,136,144,148,151 --tax_id_ls 60711 #sabaeus
 	
 Description:
 	2011-7-12
@@ -99,38 +104,25 @@ import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from AbstractVervetWorkflow import AbstractVervetWorkflow
 from Pegasus.DAX3 import *
+from AbstractAlignmentAndVCFWorkflow import AbstractAlignmentAndVCFWorkflow
 
-
-class AlignmentToCallPipeline(AbstractVervetWorkflow):
+parentClass = AbstractAlignmentAndVCFWorkflow
+class AlignmentToCallPipeline(parentClass):
 	__doc__ = __doc__
-	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
+	option_default_dict = parentClass.option_default_dict.copy()
 	option_default_dict.pop(('inputDir', 0, ))
+	
+	
 	commonCallPipelineOptionDict= {
-						('ind_seq_id_ls', 0, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. alignments come from these', ],\
-						('ind_aln_id_ls', 0, ): ['', 'I', 1, 'a comma/dash-separated list of IndividualAlignment.id. This overrides ind_seq_id_ls.', ],\
 						#('seqCoverageFname', 0, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
-						("needFastaIndexJob", 0, int): [0, 'A', 0, 'need to add a reference index job by samtools?'],\
-						("needFastaDictJob", 0, int): [0, 'B', 0, 'need to add a reference dict job by picard CreateSequenceDictionary.jar?'],\
 						("site_type", 1, int): [2, 's', 1, '1: all genome sites, 2: variants only'],\
-						("sequence_filtered", 0, int): [None, 'Q', 1, 'To filter alignments. None: whatever; 0: unfiltered sequences, 1: filtered sequences'],\
-						("alignment_method_id", 0, int): [None, 'G', 1, 'To filter alignments. None: whatever; integer: AlignmentMethod.id'],\
 						("noOfCallingJobsPerNode", 1, int): [1, 'O', 1, 'this parameter controls how many genotype calling jobs should be clustered together to run on one node. \
 									Increase it to above 1 only when your average genotyping job is short and the number of input bam files are short.'],\
-						('intervalOverlapSize', 1, int): [300000, 'U', 1, 'overlap size between adjacent intervals from one contig/chromosome,\
-				only used for TrioCaller, not for SAMtools/GATK', ],\
-						('intervalSize', 1, int): [3000000, 'Z', 1, 'size for adjacent intervals from one contig/chromosome', ],\
-						("site_id_ls", 0, ): ["", 'S', 1, 'comma/dash-separated list of site IDs. individuals must come from these sites.'],\
-						("ligateVcfPerlPath", 1, ): ["%s/bin/umake/scripts/ligateVcf.pl", '', 1, 'path to ligateVcf.pl'],\
-						("selectedRegionFname", 0, ): ["", 'R', 1, 'the file is in bed format, tab-delimited, chr start stop.\
-		used to restrict SAMtools/GATK to only make calls at this region. \
-		start and stop are 0-based. i.e. start=0, stop=100 means bases from 0-99.\
-		This overrides the contig/chromosome selection approach defined by --contigMaxRankBySize and --contigMinRankBySize. \
-		This file would be split into maxNoOfRegionsPerJob lines.'],\
-						('maxNoOfRegionsPerJob', 1, int): [5000, 'K', 1, 'Given selectedRegionFname, this dictates the maximum number of regions each job would handle,\
-		The actual number could be lower because the regions are first grouped into chromosomes. If one chromosome has <maxNoOfRegionsPerJob, then that job handles less.', ],\
-						('defaultSampleAlignmentDepth', 1, int): [10, '', 1, "when database doesn't have median_depth info for one alignment, use this number instead.", ],\
 						}
-	option_default_dict.update(commonCallPipelineOptionDict)
+	
+	commonCallPipelineOptionDict.update(parentClass.partitionWorkflowOptionDict.copy())
+	commonCallPipelineOptionDict.update(parentClass.commonAlignmentWorkflowOptionDict.copy())
+	option_default_dict.update(commonCallPipelineOptionDict.copy())
 	option_default_dict.update({
 						("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
 						("run_type", 1, int): [1, 'n', 1, '1: multi-sample calling, 2: single-sample one by one'],\
@@ -140,49 +132,11 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 
 	def __init__(self,  **keywords):
 		"""
+		2012.9.17 call parentClass.__init__() directly
 		2011-7-11
 		"""
-		AbstractVervetWorkflow.__init__(self, **keywords)
-		self.ligateVcfPerlPath =  self.insertHomePath(self.ligateVcfPerlPath, self.home_path)
-		
-		listArgumentName_data_type_ls = [('ind_seq_id_ls', int), ("ind_aln_id_ls", int), \
-								("site_id_ls", int)]
-		listArgumentName2hasContent = self.processListArguments(listArgumentName_data_type_ls, emptyContent=[])
+		parentClass.__init__(self, **keywords)
 	
-	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], aln_method_id=2, \
-					dataDir=None, sequence_type=None):
-		"""
-		2012.4.13
-			moved to VervetDB.py
-		2012.4.5
-			select alignment using AND between all input arguments
-		2011-11-27
-			add argument sequence_type
-		2011-9-16
-			order each alignment by id. It is important because this is the order that gatk&samtools take input bams.
-			#Read group in each bam is beginned by alignment.id. GATK would arrange bams in the order of read groups.
-			# while samtools doesn't do that and vcf-isect could combine two vcfs with columns in different order.
-		2011-9-13
-			add argument dataDir, to filter out alignments that don't exist on file storage
-		2011-8-31
-			add argument aln_method_id
-		2011-7-12
-		
-		"""
-		return self.db_vervet.getAlignments(ref_ind_seq_id=ref_ind_seq_id, ind_seq_id_ls=ind_seq_id_ls, ind_aln_id_ls=ind_aln_id_ls, aln_method_id=aln_method_id, \
-					dataDir=dataDir, sequence_type=sequence_type)
-	
-	def filterAlignments(self, alignmentLs, max_coverage=None, individual_site_id=447, sequence_filtered=0):
-		"""
-		2012.4.13
-			moved to VervetDB.py
-		2012.4.2
-			add argument sequence_filtered
-		2011-11-22
-			447 in "individual_site_id=447" is VRC.
-		"""
-		return VervetDB.filterAlignments(alignmentLs, max_coverage=max_coverage, individual_site_id=individual_site_id, \
-								sequence_filtered=sequence_filtered)
 	
 	def addRefFastaFileSplitJobs(self, workflow, refFastaF, selectAndSplitFasta, chrLs, mkdir=None, samtools=None,
 								java=None, createSequenceDictionaryJar=None,\
@@ -268,9 +222,8 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 			
 			
 			# add RG to this bam
-			sequencer = alignment.ind_sequence.sequencer
-			read_group = '%s_%s_%s_%s_vs_%s'%(alignment.id, alignment.ind_seq_id, alignment.ind_sequence.individual.code, \
-									sequencer, alignment.ref_ind_seq_id)
+			sequencer = alignment.individual_sequence.sequencer
+			read_group = alignment.getReadGroup()
 			if sequencer=='454':
 				platform_id = 'LS454'
 			elif sequencer=='GA':
@@ -556,31 +509,6 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 		sys.stderr.write(".Done\n")
 		return PassingData(chr2mergedBamCallJob=chr2mergedBamCallJob)
 	
-	def registerAlignmentAndItsIndexFile(self, workflow=None, alignmentLs=None, dataDir=None, checkFileExistence=True):
-		"""
-		2012.6.12
-			add argument checkFileExistence
-		2012.1.9
-			register the input alignments and return in a data structure usd by several other functions
-		"""
-		sys.stderr.write("Registering %s alignments ..."%(len(alignmentLs)))
-		returnData = []
-		for alignment in alignmentLs:
-			inputFname = os.path.join(dataDir, alignment.path)
-			input = File(alignment.path)	#relative path, induces symlinking or stage-in
-			baiFilepath = '%s.bai'%(inputFname)
-			if checkFileExistence and (not os.path.isfile(inputFname) or not os.path.isfile(baiFilepath)):
-				continue
-			input.addPFN(PFN("file://" + inputFname, workflow.input_site_handler))
-			workflow.addFile(input)
-			baiF = File('%s.bai'%alignment.path)
-			baiF.addPFN(PFN("file://" + baiFilepath, workflow.input_site_handler))
-			workflow.addFile(baiF)
-			alignmentData = PassingData(alignment=alignment, jobLs = [], bamF=input, baiF=baiF)
-			returnData.append(alignmentData)
-		sys.stderr.write("Done.\n")
-		return returnData
-	
 	def addAddRG2BamJobsAsNeeded(self, workflow, alignmentDataLs, site_handler, input_site_handler=None, \
 							addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
 							BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
@@ -617,8 +545,8 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 					addRG2BamDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=addRG2BamDir)
 				
 				# add RG to this bam
-				sequencer = alignment.ind_sequence.sequencer
-				#read_group = '%s_%s_%s_%s_vs_%s'%(alignment.id, alignment.ind_seq_id, alignment.ind_sequence.individual.code, \
+				sequencer = alignment.individual_sequence.sequencer
+				#read_group = '%s_%s_%s_%s_vs_%s'%(alignment.id, alignment.ind_seq_id, alignment.individual_sequence.individual.code, \
 				#						sequencer, alignment.ref_ind_seq_id)
 				read_group = alignment.getReadGroup()	##2011-11-02
 				if sequencer=='454':
@@ -652,7 +580,7 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 				
 				
 				index_sam_job = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
-					inputBamF=outputRGSAM, parentJobLs=[addRGJob], stageOutFinalOutput=True, javaMaxMemory=2000)
+					inputBamF=outputRGSAM, parentJobLs=[addRGJob], transferOutput=True, javaMaxMemory=2000)
 				newAlignmentData = PassingData(alignment=alignment)
 				newAlignmentData.jobLs = [index_sam_job, addRGJob]
 				newAlignmentData.bamF = index_sam_job.bamFile
@@ -729,7 +657,7 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 		no_of_jobs = 0
 		if needFastaDictJob:	# the .dict file is required for GATK
 			fastaDictJob = self.addRefFastaDictJob(workflow, createSequenceDictionaryJava=createSequenceDictionaryJava, \
-												refFastaF=refFastaF)
+												createSequenceDictionaryJar=createSequenceDictionaryJar, refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
 			no_of_jobs += 1
 		else:
@@ -812,7 +740,7 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 							parentJobLs=[gatkDirJob]+intervalData.jobLs, \
 							extraDependentInputLs=[], transferOutput=False, extraArguments=None, \
 							job_max_memory=job_max_memory*max(1, len(alignmentDataLs)/100), no_of_gatk_threads=no_of_gatk_threads, site_type=site_type, \
-							interval=interval)
+							interval=bcftoolsInterval)
 					
 					vcf4_gatkOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf'%vcfBaseFname)
 					vcf4_gatkOutputF = File(vcf4_gatkOutputFname)
@@ -1079,7 +1007,7 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 		job = Job(namespace=workflow.namespace, name=genotyperJava.name, version=workflow.version)
 		job.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "UnifiedGenotyper",\
 			"-mbq 20", "-R", refFastaF, "--out", gatkOutputF,\
-			'-U', '-S SILENT', "-nt %s"%no_of_gatk_threads, "--baq CALCULATE_AS_NECESSARY")
+			self.defaultGATKArguments, "-nt %s"%no_of_gatk_threads, "--baq CALCULATE_AS_NECESSARY")
 		# 2011-11-22 "-mmq 30",  is no longer included
 		if site_type==1:
 			job.addArguments('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
@@ -1155,6 +1083,8 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 			self has become a workflow. added MergeVCFReplicateHaplotypesJava, ligateVcf
 		2011-11-28
 		"""
+		parentClass.registerCustomExecutables(self, workflow=workflow)
+		
 		namespace = self.namespace
 		version = self.version
 		operatingSystem = self.operatingSystem
@@ -1166,39 +1096,39 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 		executableList = []
 		genotypingExecutableSet = set([self.genotyperJava, self.samtools, self.CallVariantBySamtools, self.MergeVCFReplicateHaplotypesJava])
 		
+		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
+		
 		trioCallerWrapper = Executable(namespace=namespace, name="trioCallerWrapper", version=version, os=operatingSystem,\
 									arch=architecture, installed=True)
 		trioCallerWrapper.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "shell/trioCallerWrapper.sh"), site_handler))
-		executableList.append(trioCallerWrapper)
+		executableClusterSizeMultiplierList.append((trioCallerWrapper, 0))
 		genotypingExecutableSet.add(trioCallerWrapper)
 		
 		MergeVCFReplicateGenotypeColumnsJava = Executable(namespace=namespace, name="MergeVCFReplicateGenotypeColumnsJava", \
 											version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
 		MergeVCFReplicateGenotypeColumnsJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		executableList.append(MergeVCFReplicateGenotypeColumnsJava)
+		executableClusterSizeMultiplierList.append((MergeVCFReplicateGenotypeColumnsJava, 0))
 		genotypingExecutableSet.add(MergeVCFReplicateGenotypeColumnsJava)
 		
 		ligateVcf = Executable(namespace=namespace, name="ligateVcf", \
 							version=version, os=operatingSystem, arch=architecture, installed=True)
 		ligateVcf.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "shell/ligateVcf.sh"), site_handler))
-		executableList.append(ligateVcf)
+		executableClusterSizeMultiplierList.append((ligateVcf, 1))
 		
 		ReplicateVCFGenotypeColumns = Executable(namespace=namespace, name="ReplicateVCFGenotypeColumns", version=version, os=operatingSystem,\
 									arch=architecture, installed=True)
 		ReplicateVCFGenotypeColumns.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/ReplicateVCFGenotypeColumns.py"), site_handler))
-		executableList.append(ReplicateVCFGenotypeColumns)
+		executableClusterSizeMultiplierList.append((ReplicateVCFGenotypeColumns, 1))
 	
-		for executable in executableList:
-			if executable not in genotypingExecutableSet and self.clusters_size and self.clusters_size>1:	#only the ones not in the latter set. profile couldn't be set twice
-				executable.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.clusters_size))
-			self.addExecutable(executable)
-			setattr(self, executable.name, executable)
+		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
+		
 		
 		if self.noOfCallingJobsPerNode>1:
 			for executable in genotypingExecutableSet:
-				executable.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", \
-										value="%s"%self.noOfCallingJobsPerNode))
+				clusterinProf = Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.noOfCallingJobsPerNode)
+				if not executable.hasProfile(clusterinProf):
+					executable.addProfile(clusterinProf)
 	
 	def addLigateVcfJob(self, executable=None, ligateVcfPerlPath=None, outputFile=None, \
 						parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
@@ -1239,11 +1169,15 @@ class AlignmentToCallPipeline(AbstractVervetWorkflow):
 		workflow = self.initiateWorkflow()
 		
 		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										aln_method_id=self.alignment_method_id, dataDir=self.localDataDir)
+										alignment_method_id=self.alignment_method_id, dataDir=self.localDataDir,\
+										individual_sequence_file_raw_id_type=self.individual_sequence_file_raw_id_type)
 		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
-												individual_site_id_set=set(self.site_id_ls))
+									individual_site_id_set=set(self.site_id_ls),\
+									mask_genotype_method_id=None, parent_individual_alignment_id=None,\
+									country_id_set=set(self.country_id_ls), tax_id_set=set(self.tax_id_ls))
+		
 		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
-															defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
+										defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.dataDir, refSequence.path)

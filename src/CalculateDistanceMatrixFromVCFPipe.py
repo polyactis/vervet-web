@@ -2,17 +2,17 @@
 """
 Examples:
 	# 2011-9-29
-	%s -a 525 -f 9 -i 8GenomeVsTop156Contigs_GATK_all_bases/call/ -N 0.0 -c 1
+	%s -a 525 -f 9 -I 8GenomeVsTop156Contigs_GATK_all_bases/call/ -N 0.0 -c 1
 		-o 8GenomeVsTop156Contigs_GATK_all_bases_maxNA0_minMAF0_het2NA.xml -j condorpool -l condorpool  -u yh -z uclaOffice
 	
-	%s  -a 525 -f 9 -i 8GenomeVsTop156Contigs_GATK_all_bases/call/ -N 0.8 -M0
+	%s  -a 525 -f 9 -I 8GenomeVsTop156Contigs_GATK_all_bases/call/ -N 0.8 -M0
 		-c 1 -o 8GenomeVsTop156Contigs_GATK_all_bases_maxNA0.8_minMAF0_het2NA.xml -j condorpool -l condorpool  -u yh -z uclaOffice
 	
 	#2012.5.11 on hoffman condor, no job clustering (-C1)
-	%s -a 524 -i Combine_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs_and_VariantsOf36RNA-SeqMonkeysFromNam_minDepth5/
+	%s -a 524 -I Combine_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs_and_VariantsOf36RNA-SeqMonkeysFromNam_minDepth5/
 		-C 1
 		-j hcondor -l hcondor -D ~/NetworkData/vervet/db/ -t ~/NetworkData/vervet/db/ -u yh -z localhost
-		-o workflow/PairwiseDistance_Combine_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs_and_VariantsOf36RNA-SeqMonkeysFromNam_minDepth5.xml
+		-o workflow/PairwiseDistance/PairwiseDistance_Combine_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs_and_VariantsOf36RNA-SeqMonkeysFromNam_minDepth5.xml
 
 Description:
 	2011-10-14
@@ -39,9 +39,8 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 	__doc__ = __doc__
 	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
 	option_default_dict.update({
-						('inputDir', 0, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
-						('min_MAF', 1, float): [0.0, 'M', 1, 'minimum MAF for SNP filter', ],\
-						('max_NA_rate', 1, float): [0.4, 'N', 1, 'maximum NA rate for SNP filter', ],\
+						('min_MAF', 1, float): [0.0, '', 1, 'minimum MAF for SNP filter', ],\
+						('max_NA_rate', 1, float): [1, '', 1, 'maximum NA rate for SNP filter', ],\
 						('convertHetero2NA', 1, int):[0, 'c', 1, 'convertHetero2NA mode. 0: no conversion, 1: convert to NA.'],\
 						('hetHalfMatchDistance', 1, float): [0.5, 'q', 1, 'distance between two half-matched genotypes. AG vs A or AG vs AC', ],\
 						})
@@ -71,7 +70,7 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 		AggregateAndHClusterDistanceMatrix = Executable(namespace=namespace, name="AggregateAndHClusterDistanceMatrix", \
 											version=version, \
 											os=operatingSystem, arch=architecture, installed=True)
-		AggregateAndHClusterDistanceMatrix.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "AggregateAndHClusterDistanceMatrix.py"), \
+		AggregateAndHClusterDistanceMatrix.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "reducer/AggregateAndHClusterDistanceMatrix.py"), \
 													site_handler))
 		AggregateAndHClusterDistanceMatrix.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(AggregateAndHClusterDistanceMatrix)
@@ -110,15 +109,29 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 		matrixDir = "pairwiseDistMatrix"
 		matrixDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=matrixDir)
 		
-		aggregateDistanceMatrixOutputF = File('aggregateDistanceMatrix.tsv')
-		figureFnamePrefix = 'aggregateDistanceMatrix'
+		topOutputDir = "aggregateData"
+		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		
+		figureFnamePrefix = os.path.join(topOutputDir, 'aggregateDistanceMatrix')
+		aggregateDistanceMatrixOutputF = File('%s.tsv'%(figureFnamePrefix))
 		aggregateAndHClusterDistanceMatrixJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.AggregateAndHClusterDistanceMatrix, \
 									outputF=aggregateDistanceMatrixOutputF, \
-									parentJobLs=[], \
+									parentJobLs=[topOutputDirJob], \
 									extraDependentInputLs=[], transferOutput=True, extraArguments="-f %s"%(figureFnamePrefix))
 		aggregateAndHClusterDistanceMatrixJob.uses('%s.png'%(figureFnamePrefix), transfer=True, register=True, link=Link.OUTPUT)
 		aggregateAndHClusterDistanceMatrixJob.uses('%s.svg'%(figureFnamePrefix), transfer=True, register=True, link=Link.OUTPUT)
-		aggregateAndHClusterDistanceMatrixJob.uses('%s_PCA.tsv'%(figureFnamePrefix), transfer=True, register=True, link=Link.OUTPUT)
+		PCAFile = File('%s_PCA.tsv'%(figureFnamePrefix))
+		aggregateAndHClusterDistanceMatrixJob.uses(PCAFile, transfer=True, register=True, link=Link.OUTPUT)
+		
+		#2012.9.5 add the job to append meta info (country, sex, latitude, etc. of each monkey)
+		outputF = File('%s_withMetaInfo.tsv'%(figureFnamePrefix))
+		appendInfo2PCAOutputJob = self.addGenericJob(executable=self.AppendInfo2SmartPCAOutput, inputFile=PCAFile, \
+				outputFile=outputF, \
+				parentJobLs=[aggregateAndHClusterDistanceMatrixJob, topOutputDirJob], extraDependentInputLs=None, \
+				extraOutputLs=None,\
+				transferOutput=True, \
+				extraArgumentList=None, extraArguments=None, key2ObjectForJob=None, job_max_memory=2000)
+		self.addDBArgumentsToOneJob(job=appendInfo2PCAOutputJob, objectWithDBArguments=self)
 		
 		inputData = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler,
 								checkEmptyVCFByReading=self.checkEmptyVCFByReading, pegasusFolderName=self.pegasusFolderName)
@@ -150,7 +163,7 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 															inputVCF=inputF, outputFile=genotypeCallOutput, \
 						refFastaF=None, run_type=3, numberOfReadGroups=10, \
 						parentJobLs=[callOutputDirJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=False, \
-						extraArguments=None, job_max_memory=2000)
+						extraArguments=" --minDepth %s "%(self.minDepth), job_max_memory=2000)
 			
 			calculaOutputFname =os.path.join(matrixDir, '%s.pairwiseDist.convertHetero2NA%s.minMAF%.2f.maxNA%.2f.tsv'%(inputFBaseName, \
 								self.convertHetero2NA, self.min_MAF, self.max_NA_rate))

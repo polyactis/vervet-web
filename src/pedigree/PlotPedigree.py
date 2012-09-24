@@ -5,12 +5,14 @@ Examples:
 	%s -i
 	
 	#2012.8.22 greedily removes the worst contaminant
-	%s -i wrongLabelChiSq_greedy_4_minAbsDelta0.2.tsv -O ~/script/vervet/doc/figures/labelContaminationChecking/pedigreeWithOutlier/method22Outlier
+	%s -i ~/NetworkData/vervet/Kinx2Aug2012.txt.gz -l LDPrunedMerged_ibdCheck.tsv
+		-O ~/script/vervet/doc/figures/labelContaminationChecking/pedigreeWithOutlier/method22Outlier
 		-u yh -z uclaOffice
 		
 
 Description:
-	2012.9.4 program that plots whole pedigree with the addition of outlier edges, colored by IBD-kinsip. 
+	2012.9.4 program that draws co-ancestry pedigree graph of two individuals with extra edges describing (IBD-kinship) difference.
+		outlier edges will be colored according to IBD-kinsip.
 """
 
 import sys, os, math
@@ -26,6 +28,11 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import matplotlib; matplotlib.use("Agg")	#to disable pop-up requirement
+#set in the very beginning , otherwise, no effect.
+from pymodule import yh_matplotlib
+yh_matplotlib.setDefaultFigureSize((100,60))
+yh_matplotlib.setFontAndLabelSize(70)
+
 import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2IndexFromHeader, figureOutDelimiter, SNPData
 from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
@@ -38,22 +45,32 @@ from vervet.src import VervetDB
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
 import networkx as nx
 import matplotlib as mpl
+from DetectWrongLabelByCompKinshipVsIBD import DetectWrongLabelByCompKinshipVsIBD
 
-
-class PlotPedigree(AbstractVervetMapper):
+class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 	__doc__ = __doc__
-	option_default_dict = AbstractVervetMapper.option_default_dict
+	option_default_dict = AbstractVervetMapper.option_default_dict.copy()
 	option_default_dict.pop(('inputFname', 1, ))
 	option_default_dict.update({
-						('kinshipIBDOutlierFname', 1, ): [None, 'i', 1, 'tsv file containing the outlier pairs,\
-	output of DetectWrongLabelByCompKinshipVsIBD.py.'], \
-						('minAbsDeltaForOutlier', 1, float): [0.2, 'm', 1, 'if not 0, this will be used as minAbsDelta in outlier frequency counting'], \
+						('plinkIBDCheckOutputFname', 1, ): ["", 'l', 1, 'file that contains IBD check result, output of plink IBD'], \
+						('kinshipFname', 1, ): [None, 'i', 1, 'the header-less 3-column tab/coma-delimited kinship filename.'], \
+						('minAbsDeltaForOutlier', 1, float): [0.2, 'm', 1, 'if not 0, used to identify abs(kinship-IBD) outliers'], \
+						('monkey1ID', 0, ): [None, 'M', 1, 'if both monkey1ID and monkey2ID are given, only plot ancestry graph for these two'], \
+						('monkey2ID', 0, ): [None, 'N', 1, 'if both monkey1ID and monkey2ID are given, only plot ancestry graph for these two'], \
 						
 					})
 	def __init__(self, inputFnameLs=None, **keywords):
 		"""
 		"""
 		AbstractVervetMapper.__init__(self, inputFnameLs=inputFnameLs, **keywords)
+		if self.monkey1ID and self.monkey2ID:
+			self.monkeyPairDesignated = [self.monkey1ID, self.monkey2ID]
+			self.monkeyPairDesignated.sort()
+			self.monkeyPairDesignated = tuple(self.monkeyPairDesignated)
+		else:
+			self.monkeyPairDesignated = None
+		
+		#DetectWrongLabelByCompKinshipVsIBD.__init__(self, inputFnameLs=inputFnameLs, **keywords)
 	
 	def getMonkeyID2Coverage(self, inputFname):
 		"""
@@ -109,60 +126,251 @@ class PlotPedigree(AbstractVervetMapper):
 		return monkey_id2preDeterminedCoverage
 		"""
 	
-	def getOutlierPair(self, inputFname=None, minAbsDeltaForOutlier=0.2):
+	def getOutlierPair(self, kinshipData=None, minAbsDeltaForOutlier=0.2, monkeyPair2IBDVector=None,\
+					monkeyIDInIBDDataSet=None, monkeyPairDesignated=None):
 		"""
+		2012.9.10
+			add argument monkeyPairDesignated, and read data from kinship file, rather than outlier output from DetectWrongLabelByCompKinshipVsIBD.py
+			
+			
 		2012.9.4
 		"""
-		sys.stderr.write("Getting outlier pairs from %s with minAbsDeltaForOutlier=%s ..."%(inputFname, minAbsDeltaForOutlier))
-		reader = MatrixFile(inputFname)
-		reader.constructColName2IndexFromHeader()
-		monkey1IDIndex = reader.getColIndexGivenColHeader("monkey1ID")
-		monkey2IDIndex = reader.getColIndexGivenColHeader("monkey2ID")
-		pedigreeKinshipIndex = reader.getColIndexGivenColHeader("pedigreeKinship")
-		IBDIndex = reader.getColIndexGivenColHeader("IBD_PI_HAT")
+		
+		
+		sys.stderr.write("Getting outlier pairs from kinshipData (%s X %s) and %s pairs of IBD vectors (%s monkeys) minAbsDeltaForOutlier=%s ..."%\
+						(kinshipData.data_matrix.shape[0], kinshipData.data_matrix.shape[1], \
+						len(monkeyPair2IBDVector), len(monkeyIDInIBDDataSet), minAbsDeltaForOutlier))
+		
+		sharedMonkeyIDSet = set(kinshipData.row_id_ls)&set(monkeyIDInIBDDataSet)
+		monkey_id_ls = list(sharedMonkeyIDSet)
+		monkey_id_ls.sort()
+		
 		monkeyPair2data  = {}
 		counter = 0
 		real_counter = 0
 		minDelta = None
 		maxDelta = None
 		monkeyID2monkeyPair2data = {}
-		for row in reader:
-			monkey1ID = row[monkey1IDIndex]
-			monkey2ID = row[monkey2IDIndex]
-			kinship = float(row[pedigreeKinshipIndex])
-			IBD = float(row[IBDIndex])
-			absDelta = abs(kinship-IBD)
-			if absDelta>=minAbsDeltaForOutlier:
-				delta = IBD-kinship
-				data = PassingData(kinship=kinship, IBD=IBD, delta=delta, absDelta=absDelta)
-				key = (monkey1ID, monkey2ID)
-				if key in monkeyPair2data:
-					sys.stderr.write("WARNING: key %s has value %s in monkeyPair2data already. value ovewritten with %s.\n"%\
-									(repr(key), monkeyPair2data.get(key), data))
-				monkeyPair2data[key] = data
-				if minDelta is None or delta<minDelta:
-					minDelta = delta
-				if maxDelta is None or delta>maxDelta:
-					maxDelta = delta
-				real_counter += 1
-				if monkey1ID not in monkeyID2monkeyPair2data:
-					monkeyID2monkeyPair2data[monkey1ID] ={}
-				monkeyID2monkeyPair2data[monkey1ID][key] = data
+		row_id2row_index = kinshipData.row_id2row_index
+		no_of_monkeys = len(monkey_id_ls)
+		for i in xrange(no_of_monkeys):
+			monkey1ID = monkey_id_ls[i]
+			for j in xrange(i+1, no_of_monkeys):
+				counter += 1
+				monkey2ID = monkey_id_ls[j]
+				kinship = kinshipData.getCellDataGivenRowColID(monkey1ID, monkey2ID)
+				monkey_id_pair = [monkey1ID, monkey2ID]
+				monkey_id_pair.sort()
+				key = tuple(monkey_id_pair)
+				IBD = monkeyPair2IBDVector.get(key).IBD
+				if kinship is not None and not hasattr(kinship, 'mask') and IBD is not None:
+					delta = IBD-kinship
+					absDelta = abs(delta)
+					if absDelta>=minAbsDeltaForOutlier or key==self.monkeyPairDesignated:
+						if monkeyPair2IBDVector and key in monkeyPair2IBDVector:
+							IBDVector = monkeyPair2IBDVector.get(key).IBDVector
+							IBDVectorStr = monkeyPair2IBDVector.get(key).IBDVectorStr
+						else:
+							IBDVector = None
+							IBDVectorStr = None
+					
+						data = PassingData(kinship=kinship, IBD=IBD, delta=delta, absDelta=absDelta, IBDVector=IBDVector, IBDVectorStr=IBDVectorStr)
+						if key in monkeyPair2data:
+							sys.stderr.write("WARNING: key %s has value %s in monkeyPair2data already. value overwritten with %s.\n"%\
+											(repr(key), monkeyPair2data.get(key), data))
+						monkeyPair2data[key] = data
+						if minDelta is None or delta<minDelta:
+							minDelta = delta
+						if maxDelta is None or delta>maxDelta:
+							maxDelta = delta
+						real_counter += 1
+						if monkey1ID not in monkeyID2monkeyPair2data:
+							monkeyID2monkeyPair2data[monkey1ID] ={}
+						monkeyID2monkeyPair2data[monkey1ID][key] = data
+						
+						if monkey2ID not in monkeyID2monkeyPair2data:
+							monkeyID2monkeyPair2data[monkey2ID] ={}
+						monkeyID2monkeyPair2data[monkey2ID][key] = data
 				
-				if monkey2ID not in monkeyID2monkeyPair2data:
-					monkeyID2monkeyPair2data[monkey2ID] ={}
-				monkeyID2monkeyPair2data[monkey2ID][key] = data
-				
-			counter += 1
+		
 		sys.stderr.write(" %s/%s outlier pairs, minDelta=%s, maxDelta=%s.\n"%(real_counter, counter, minDelta, maxDelta))
 		return PassingData(monkeyPair2data=monkeyPair2data, minDelta=minDelta, maxDelta=maxDelta,\
 						monkeyID2monkeyPair2data=monkeyID2monkeyPair2data)
 	
-	sex2node_property_list = {}		# in node_property_list, each entry is (node, size, color)
+	def getMonkeyPair2IBDVector(self, inputFname=None):
+		"""
+		2012.9.10
+			return monkeyIDSet as well
+		2012.9.6
+		"""
+		sys.stderr.write("Getting monkey pair 2 IBD vector from %s  ..."%(inputFname))
+		reader = MatrixFile(inputFname)
+		reader.constructColName2IndexFromHeader()
+		monkey1IDIndex = reader.getColIndexGivenColHeader("IID1")
+		monkey2IDIndex = reader.getColIndexGivenColHeader("IID2")
+		IBDIndex = reader.getColIndexGivenColHeader("PI_HAT")
+		Z0Index = reader.getColIndexGivenColHeader("Z0")
+		Z1Index = reader.getColIndexGivenColHeader("Z1")
+		Z2Index = reader.getColIndexGivenColHeader("Z2")
+		formatFunc = lambda x: '%.2f'%(x)
+		monkeyPair2IBDVector = {}
+		counter = 0
+		monkeyIDSet = set()
+		for row in reader:
+			monkey1ID = row[monkey1IDIndex]
+			monkey2ID = row[monkey2IDIndex]
+			monkey_id_pair = [monkey1ID, monkey2ID]
+			monkey_id_pair.sort()
+			key = tuple(monkey_id_pair)
+			Z0 = float(row[Z0Index])
+			Z1 = float(row[Z1Index])
+			Z2 = float(row[Z2Index])
+			IBD = float(row[IBDIndex])
+			IBDVector = [Z0, Z1, Z2]
+			IBDVector = map(formatFunc, IBDVector)
+			IBDVectorStr = ','.join(IBDVector)
+			data = PassingData(IBD=IBD, IBDVector=IBDVector, IBDVectorStr=IBDVectorStr)
+			if key in monkeyPair2IBDVector:
+				sys.stderr.write("WARNING: key %s has value %s in monkeyPair2IBDVector already. value overwritten with %s.\n"%\
+									(repr(key), monkeyPair2IBDVector.get(key), data))
+			monkeyPair2IBDVector[key] = data
+			monkeyIDSet.add(monkey1ID)
+			monkeyIDSet.add(monkey2ID)
+			counter += 1
+		sys.stderr.write(" %s pairs of IBD vectors for %s unique monkeys.\n"%(len(monkeyPair2IBDVector), len(monkeyIDSet)))
+		return PassingData(monkeyPair2IBDVector=monkeyPair2IBDVector, monkeyIDSet=monkeyIDSet)
+	
+	def getsex2node_property_list(self, DG=None,db_vervet=None, monkey_id2coverage=None, baseNodeSize=4):
+		"""
+		2012.9.6
+			
+		"""
+		sys.stderr.write("Assigning each node with different size/color ...")
+		sex2node_property_list = {}		# in node_property_list, each entry is (node, size, color)
 		#size depends on whether it's deep-sequenced (30X), 4 for 30X, 8 for the REF, 2 for all others. 
 		#color depends on it's sequenced or not
-	def drawPedigree(self, db_vervet=None, outputFnamePrefix=None, baseNodeSize=4, monkey_id2coverage=None, \
-					monkeyPair2data=None, minEdgeColor=None, maxEdgeColor=None):
+		for v in DG:
+			individual = db_vervet.getIndividualDBEntryViaDBID(v)
+			sex = individual.sex
+			
+			if individual.sex not in sex2node_property_list:
+				sex2node_property_list[sex] = []
+			individual_sequence = VervetDB.IndividualSequence.query.filter_by(sequencer='GA').\
+				filter_by(individual_id=individual.id).first()
+			node_color = 0.8	#color for the sequenced
+			
+			if monkey_id2coverage:
+				coverage = monkey_id2coverage.get(individual.code)
+			else:
+				coverage = None
+			if coverage is None and individual_sequence is not None:
+				coverage = individual_sequence.coverage
+			
+			if coverage is None:
+				node_size = baseNodeSize
+				node_color = 0	#not sequenced in a different color
+			else:
+				node_size = baseNodeSize
+				if individual.id==1:	#the reference
+					node_size = baseNodeSize*108
+					node_size = baseNodeSize*2
+				"""
+				elif coverage<2:
+					node_size = baseNodeSize*3
+				elif coverage<8:
+					node_size = baseNodeSize*12
+				elif coverage>=20:
+					node_size = baseNodeSize*36
+				else:
+					node_size = baseNodeSize
+				"""
+			
+			if individual.vrc_founder:
+				node_color = 0.25
+				if individual_sequence is None:
+					node_size = baseNodeSize*2
+			
+			sex2node_property_list[sex].append((v, node_size, node_color))
+		sys.stderr.write("Done.\n")
+		return sex2node_property_list
+	
+			
+	def drawOutlierEdge(self, DG=None, db_vervet=None, pos=None, monkeyPair2data=None, minEdgeColor=None, maxEdgeColor=None, alpha=0.5, \
+					edgeWidth=1.0):
+		phenotype_cmap = mpl.cm.jet
+		max_phenotype = maxEdgeColor
+		min_phenotype = minEdgeColor
+		phenotype_gap = max_phenotype - min_phenotype
+		phenotype_jitter = phenotype_gap/10.
+		phenotype_norm = mpl.colors.Normalize(vmin=min_phenotype-phenotype_jitter, vmax=max_phenotype+phenotype_jitter)
+		axe_x_offset4 = 0
+		axe_y_offset1 = 0.9
+		axe_width4 = 0.1
+		axe_height4 = 0.2
+		
+		sys.stderr.write("Drawing outlier edges  ...")
+		#2012.9.4 draw the outlier as additional edges
+		edgelist = []
+		edge_color = []
+		for monkeyPair, data in monkeyPair2data.iteritems():
+			dbID1 = db_vervet.getIndividualDBEntry(ucla_id=monkeyPair[0]).id
+			dbID2 = db_vervet.getIndividualDBEntry(ucla_id=monkeyPair[1]).id
+			if DG.has_node(dbID1) and DG.has_node(dbID2):	#must be in the graph already
+				edge_color.append(data.delta)
+				edgelist.append([dbID1, dbID2])
+		nx.draw_networkx_edges(DG, pos, edgelist=edgelist, edge_color=edge_color, edge_cmap=phenotype_cmap, \
+							edge_vmin=min_phenotype, edge_vmax=max_phenotype, \
+							alpha=alpha, width=edgeWidth, style='solid',\
+							arrows=False)
+		sys.stderr.write(".\n")
+	
+	def drawEdgeColorLegend(self, DG=None, pos=None,  minEdgeColor=None, maxEdgeColor=None):
+		phenotype_cmap = mpl.cm.jet
+		max_phenotype = maxEdgeColor
+		min_phenotype = minEdgeColor
+		phenotype_gap = max_phenotype - min_phenotype
+		phenotype_jitter = phenotype_gap/10.
+		phenotype_norm = mpl.colors.Normalize(vmin=min_phenotype-phenotype_jitter, vmax=max_phenotype+phenotype_jitter)
+		axe_x_offset4 = 0
+		axe_y_offset1 = 0.97
+		axe_width4 = 0.6
+		axe_height4 = 0.03
+		#2012.9.4 draw the legend
+		sys.stderr.write("Drawing edge color legend ...")
+		axe_map_phenotype_legend = pylab.axes([axe_x_offset4+0.02, axe_y_offset1, axe_width4-0.02, axe_height4], frameon=False)
+		cb = mpl.colorbar.ColorbarBase(axe_map_phenotype_legend, cmap=phenotype_cmap,
+									norm=phenotype_norm,
+									orientation='horizontal')
+		cb.set_label('Legend for the edge color, IBD-kinship')
+		sys.stderr.write(".\n")
+	
+	def drawGraphNodes(self, G=None, pos=None, sex2node_property_list=None):
+		import matplotlib as mpl
+		for sex, node_property_ls in sex2node_property_list.iteritems():
+			if sex=='M':
+				node_shape = 's'
+			else:
+				node_shape = 'o'
+			node_list = []
+			node_color_list = []
+			node_size_list = []
+			for node_property in node_property_ls:
+				node, node_size, node_color = node_property[:3]
+				if G.has_node(node):
+					node_list.append(node)
+					node_size_list.append(node_size)
+					node_color_list.append(node_color)
+			node_size_ar = numpy.array(node_size_list)
+			if sex=='M':
+				node_size_ar = node_size_ar*1.5	#by default, the square is smaller than a circle icon.
+			
+			nx.draw_networkx_nodes(G, pos, nodelist=node_list, node_color=node_color_list, node_size=node_size_ar, \
+								node_shape=node_shape, alpha=0.3, width=0, linewidths=0, cmap =mpl.cm.jet, vmin=0, vmax=1.0)
+	
+	
+	
+	def drawPedigree(self, DG=None, db_vervet=None, outputFnamePrefix=None, monkey_id2coverage=None, \
+					monkeyPair2data=None, minEdgeColor=None, maxEdgeColor=None, sex2node_property_list=None):
 		"""
 		2012.9.4
 			copied from vervet/src/misc.py
@@ -171,7 +379,6 @@ class PlotPedigree(AbstractVervetMapper):
 		2011-5-6
 			
 		"""
-		DG = db_vervet.constructPedgree()
 		
 		"""
 		sys.stderr.write("Plotting out degree histogram ....")
@@ -182,53 +389,6 @@ class PlotPedigree(AbstractVervetMapper):
 		#yh_matplotlib.drawHist(out_degree_ls, title="Histogram of no. of children per monkey", xlabel_1D="no. of children", \
 		#					outputFname=outputFname, min_no_of_data_points=50, needLog=True)
 		"""
-		sys.stderr.write("Assigning each node with different size/color ...")
-		
-		sex2node_property_list = self.sex2node_property_list
-		if not self.sex2node_property_list:
-			for v in DG:
-				individual = VervetDB.Individual.get(v)
-				sex = individual.sex
-				
-				if individual.sex not in sex2node_property_list:
-					sex2node_property_list[sex] = []
-				individual_sequence = VervetDB.IndividualSequence.query.filter_by(sequencer='GA').\
-					filter_by(individual_id=individual.id).first()
-				node_color = 0.8	#color for the sequenced
-				
-				if monkey_id2coverage:
-					coverage = monkey_id2coverage.get(individual.code)
-				else:
-					coverage = None
-				if coverage is None and individual_sequence is not None:
-					coverage = individual_sequence.coverage
-				
-				if coverage is None:
-					node_size = baseNodeSize
-					node_color = 0	#not sequenced in a different color
-				else:
-					node_size = baseNodeSize
-					if individual.id==1:	#the reference
-						node_size = baseNodeSize*108
-						node_size = baseNodeSize*4
-					"""
-					elif coverage<2:
-						node_size = baseNodeSize*3
-					elif coverage<8:
-						node_size = baseNodeSize*12
-					elif coverage>=20:
-						node_size = baseNodeSize*36
-					else:
-						node_size = baseNodeSize
-					"""
-				
-				if individual.vrc_founder:
-					node_color = 0.25
-					if individual_sequence is None:
-						node_size = baseNodeSize*12
-				
-				sex2node_property_list[sex].append((v, node_size, node_color))
-			sys.stderr.write("Done.\n")
 		
 		#nx.draw_circular(DG,with_labels=False, alpha=0.5)
 		pylab.clf()
@@ -240,83 +400,13 @@ class PlotPedigree(AbstractVervetMapper):
 							alpha=0.2, width=2.0,\
 							arrows=False)
 		G = DG.to_undirected()
-		
-		def drawOutlierEdge(DG, pos=None, monkeyPair2data=None, minEdgeColor=None, maxEdgeColor=None):
-			phenotype_cmap = mpl.cm.jet
-			max_phenotype = maxEdgeColor
-			min_phenotype = minEdgeColor
-			phenotype_gap = max_phenotype - min_phenotype
-			phenotype_jitter = phenotype_gap/10.
-			phenotype_norm = mpl.colors.Normalize(vmin=min_phenotype-phenotype_jitter, vmax=max_phenotype+phenotype_jitter)
-			axe_x_offset4 = 0
-			axe_y_offset1 = 0.9
-			axe_width4 = 0.1
-			axe_height4 = 0.2
-			
-			sys.stderr.write("Drawing outlier edges  ...")
-			#2012.9.4 draw the outlier as additional edges
-			edgelist = []
-			edge_color = []
-			for monkeyPair, data in monkeyPair2data.iteritems():
-				dbID1 = db_vervet.getIndividualDBEntry(ucla_id=monkeyPair[0]).id
-				dbID2 = db_vervet.getIndividualDBEntry(ucla_id=monkeyPair[1]).id
-				edge_color.append(data.delta)
-				edgelist.append([dbID1, dbID2])
-			nx.draw_networkx_edges(DG, pos, edgelist=edgelist, edge_color=edge_color, edge_cmap=phenotype_cmap, \
-								edge_vmin=min_phenotype, edge_vmax=max_phenotype, \
-								alpha=1.0, width=0.5, style='solid',\
-								arrows=False)
-			sys.stderr.write(".\n")
-		
-		def drawEdgeColorLegend(DG, pos=None, monkeyPair2data=None, minEdgeColor=None, maxEdgeColor=None):
-			phenotype_cmap = mpl.cm.jet
-			max_phenotype = maxEdgeColor
-			min_phenotype = minEdgeColor
-			phenotype_gap = max_phenotype - min_phenotype
-			phenotype_jitter = phenotype_gap/10.
-			phenotype_norm = mpl.colors.Normalize(vmin=min_phenotype-phenotype_jitter, vmax=max_phenotype+phenotype_jitter)
-			axe_x_offset4 = 0
-			axe_y_offset1 = 0.9
-			axe_width4 = 0.1
-			axe_height4 = 0.2
-			#2012.9.4 draw the legend
-			sys.stderr.write("Drawing edge color legend ...")
-			axe_map_phenotype_legend = pylab.axes([axe_x_offset4+0.02, axe_y_offset1, axe_width4-0.02, axe_height4], frameon=False)
-			cb = mpl.colorbar.ColorbarBase(axe_map_phenotype_legend, cmap=phenotype_cmap,
-										norm=phenotype_norm,
-										orientation='horizontal')
-			cb.set_label('Legend for the edge color, IBD-kinship')
-			sys.stderr.write(".\n")
-		
-		def drawGraphNodes(G, pos, sex2node_property_list):
-			import matplotlib as mpl
-			for sex, node_property_ls in sex2node_property_list.iteritems():
-				if sex=='M':
-					node_shape = 's'
-				else:
-					node_shape = 'o'
-				node_list = []
-				node_color_list = []
-				node_size_list = []
-				for node_property in node_property_ls:
-					node, node_size, node_color = node_property[:3]
-					node_list.append(node)
-					node_size_list.append(node_size)
-					node_color_list.append(node_color)
-				node_size_ar = numpy.array(node_size_list)
-				if sex=='M':
-					node_size_ar = node_size_ar*1.5	#by default, the square is smaller than a circle icon.
-				
-				nx.draw_networkx_nodes(DG, pos, nodelist=node_list, node_color=node_color_list, node_size=node_size_ar, \
-									node_shape=node_shape, alpha=0.5, width=0, linewidths=0, cmap =mpl.cm.jet, vmin=0, vmax=1.0)
-		
-		drawGraphNodes(DG, pos, sex2node_property_list)
+		self.drawGraphNodes(DG, pos, sex2node_property_list)
 		#nx.draw_graphviz(DG, prog=layout,with_labels=False, alpha=0.5)
 		if monkeyPair2data and minEdgeColor and maxEdgeColor:
-			drawOutlierEdge(DG, pos=pos, monkeyPair2data=monkeyPair2data, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
+			self.drawOutlierEdge(DG, db_vervet=db_vervet, pos=pos, monkeyPair2data=monkeyPair2data, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
 		if monkeyPair2data and minEdgeColor and maxEdgeColor:
 			#draw outlier edges in the end because the new axes() would change the current figure in pylab
-			drawEdgeColorLegend(DG, pos=pos, monkeyPair2data=monkeyPair2data, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
+			self.drawEdgeColorLegend(DG, pos=pos, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
 		pylab.savefig('%s_graphviz_%s_graph.png'%(outputFnamePrefix, layout), dpi=100)
 		
 		"""
@@ -329,12 +419,12 @@ class PlotPedigree(AbstractVervetMapper):
 		
 		#nx.draw_networkx_nodes(G, pos, node_color='r', node_size=baseNodeSize, alpha=0.8, width=0, linewidths=0)
 		#nx.draw_graphviz(DG, prog=layout,with_labels=False, alpha=0.5)
-		drawGraphNodes(G, pos, sex2node_property_list)
+		self.drawGraphNodes(G, pos, sex2node_property_list)
 		if monkeyPair2data and minEdgeColor and maxEdgeColor:
-			drawOutlierEdge(G, pos=pos, monkeyPair2data=monkeyPair2data, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
+			self.drawOutlierEdge(G, db_vervet=db_vervet, pos=pos, monkeyPair2data=monkeyPair2data, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
 		if monkeyPair2data and minEdgeColor and maxEdgeColor:
 			#draw outlier edges in the end because the new axes() would change the current figure in pylab
-			drawEdgeColorLegend(G, pos=pos, monkeyPair2data=monkeyPair2data, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
+			self.drawEdgeColorLegend(G, pos=pos, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
 		pylab.savefig('%s_spectral_layout_graph.png'%(outputFnamePrefix), dpi=150)
 		"""
 		"""
@@ -364,6 +454,77 @@ class PlotPedigree(AbstractVervetMapper):
 		
 	"""
 	
+	def drawSubPedigree(self, db_vervet=None, DG=None, reverseDG=None, outputFnamePrefix=None, monkeyPair=None, monkeyPairData=None, \
+					monkeyPair2data=None, minEdgeColor=None, maxEdgeColor=None, sex2node_property_list=None,\
+					**keywords):
+		"""
+		2012.9.4
+			copied from vervet/src/misc.py
+		2012.2.10
+			add argument monkeyCoverageFname to override coverage data from db
+		2011-5-6
+			
+		"""
+		sys.stderr.write("Drawing sub-pedigree ...  ")
+		#nx.draw_circular(DG,with_labels=False, alpha=0.5)
+		pylab.clf()
+		pylab.axis("off")
+		axe_pvalue = pylab.axes([-0, -0, 1, 0.93], frameon=False)	#left gap, bottom gap, width, height.
+		pylab.figure(axe_pvalue.figure.number)#, figsize=(100, 60))	#figure size was set in the beginning of the program.
+		
+		#fig = matplotlib.pyplot.gcf()
+		
+		#fig.set_size_inches(185, 60)
+		
+		#pylab.figure(figsize=(100, 60))
+		monkey1ID = monkeyPair[0]
+		monkey2ID = monkeyPair[1]
+		dbID1 = db_vervet.getIndividualDBEntry(ucla_id=monkey1ID).id
+		dbID2 = db_vervet.getIndividualDBEntry(ucla_id=monkey2ID).id
+		
+		nodeSet = set([dbID1, dbID2])
+		#add all ancestors
+		for dbID in [dbID1, dbID2]:
+			for node, bridgeList in nx.predecessor(reverseDG, dbID).iteritems():	#bridgeList only contains the the immediate predecessor to node
+				nodeSet.add(node)
+			for node in DG.successors(dbID):
+				nodeSet.add(node)
+				for parentNode in DG.predecessors(node):
+					nodeSet.add(parentNode)
+		
+		nodeList = list(nodeSet)
+		subDG = DG.subgraph(nodeList)
+		sys.stderr.write(" %s nodes %s edges ...  "%(subDG.number_of_nodes(), subDG.number_of_edges()))
+		
+		title = 'outlier: %s-%s, kinship=%.3f, IBD=%.3f, IBDVector=%s'%(monkey1ID, monkey2ID, monkeyPairData.kinship,\
+														monkeyPairData.IBD, monkeyPairData.IBDVectorStr)
+		pylab.title(title, fontsize=80)
+		layout = 'dot'
+		pos = nx.graphviz_layout(subDG, prog=layout)
+		nx.draw_networkx_edges(subDG, pos, edgelist=subDG.edges(), \
+							alpha=0.2, width=25.0, style='dashed',\
+							arrows=False)
+		self.drawGraphNodes(subDG, pos, sex2node_property_list)
+		
+		labels = {}	#dicitonary to pass into draw_networkx_labels
+		for n in subDG.nodes():
+			individual = db_vervet.getIndividualDBEntryViaDBID(n)
+			labels[n] = individual.code
+		nx.draw_networkx_labels(subDG, pos, labels=labels, font_size=50, font_color='k', font_family='sans-serif', \
+							font_weight='normal', alpha=0.5, ax=None)
+		
+		#nx.draw_graphviz(DG, prog=layout,with_labels=False, alpha=0.5)
+		if monkeyPair2data and minEdgeColor and maxEdgeColor:
+			self.drawOutlierEdge(subDG, db_vervet=db_vervet, pos=pos, monkeyPair2data=monkeyPair2data, minEdgeColor=minEdgeColor, \
+								maxEdgeColor=maxEdgeColor, alpha=0.6, edgeWidth=4.0)
+		if monkeyPair2data and minEdgeColor and maxEdgeColor:
+			#draw outlier edges in the end because the new axes() would change the current figure in pylab
+			self.drawEdgeColorLegend(subDG, pos=pos, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
+		
+		pylab.savefig('%s_graphviz_%s_graph.png'%(outputFnamePrefix, layout), dpi=30)
+		sys.stderr.write(".\n")
+	
+	
 	def run(self):
 		"""
 		"""
@@ -375,23 +536,54 @@ class PlotPedigree(AbstractVervetMapper):
 		#if self.monkeyCoverageFname and os.path.isfile(self.monkeyCoverageFname):
 		#	monkey_id2coverage = cls.getMonkeyID2Coverage(self.monkeyCoverageFname)
 		#else:
+		db_vervet = self.db_vervet
 		monkey_id2coverage = {}
 		
-		outlierData = self.getOutlierPair(inputFname=self.kinshipIBDOutlierFname, minAbsDeltaForOutlier=self.minAbsDeltaForOutlier)
+		DG = self.db_vervet.constructPedgree()
+		reverseDG = self.db_vervet.constructPedgree(directionType=2)
+		sex2node_property_list = self.getsex2node_property_list(DG=DG, db_vervet=self.db_vervet, monkey_id2coverage=None, baseNodeSize=3500)
+		
+		monkeyPair2IBDVectorData = self.getMonkeyPair2IBDVector(inputFname=self.plinkIBDCheckOutputFname)
+		monkeyPair2IBDVector = monkeyPair2IBDVectorData.monkeyPair2IBDVector
+		monkeyIDInIBDDataSet = monkeyPair2IBDVectorData.monkeyIDSet
+		
+		kinshipData = self.getMonkeyKinshipData(self.kinshipFname)
+		outlierData = self.getOutlierPair(kinshipData=kinshipData, minAbsDeltaForOutlier=self.minAbsDeltaForOutlier,\
+									monkeyPair2IBDVector=monkeyPair2IBDVector, monkeyIDInIBDDataSet=monkeyIDInIBDDataSet,\
+									monkeyPairDesignated=self.monkeyPairDesignated)
+		"""
 		self.drawPedigree(db_vervet=self.db_vervet, outputFnamePrefix=self.outputFnamePrefix, baseNodeSize=40, \
 						monkey_id2coverage=monkey_id2coverage, \
 						monkeyPair2data=outlierData.monkeyPair2data, minEdgeColor=outlierData.minDelta, \
 						maxEdgeColor=outlierData.maxDelta)
+		"""
 		
-		for monkeyID, monkeyPair2data in outlierData.monkeyID2monkeyPair2data.iteritems():
+		#for monkeyID, monkeyPair2data in outlierData.monkeyID2monkeyPair2data.iteritems():
+		for monkeyPair, monkeyPairData in outlierData.monkeyPair2data.iteritems():
+			if self.monkeyPairDesignated and monkeyPair!=self.monkeyPairDesignated:
+				continue
+			monkeyPairList = list(monkeyPair)
+			monkeyPairList.sort()
+			monkey1ID = monkeyPairList[0]
+			monkey2ID = monkeyPairList[1]
+			dbID1 = self.db_vervet.getIndividualDBEntry(ucla_id=monkey1ID).id
+			dbID2 = self.db_vervet.getIndividualDBEntry(ucla_id=monkey2ID).id
+			if DG.has_node(dbID1) and DG.has_node(dbID2):
+				outputFnamePrefix = '%s_outlier_%s_vs_%s_delta_%.3f'%(self.outputFnamePrefix, monkeyPairList[0], monkeyPairList[1], \
+													monkeyPairData.delta)
+				self.drawSubPedigree(db_vervet=self.db_vervet, DG=DG, reverseDG=reverseDG, outputFnamePrefix=outputFnamePrefix, \
+					monkeyPair = monkeyPair, monkeyPairData=monkeyPairData, \
+					monkeyPair2data=outlierData.monkeyPair2data, minEdgeColor=outlierData.minDelta, \
+					maxEdgeColor=outlierData.maxDelta, sex2node_property_list=sex2node_property_list)
+			"""
 			noOfOutliers = len(monkeyPair2data)
 			if noOfOutliers>=10:
 				outputFnamePrefix = '%s_%soutlier_%s'%(self.outputFnamePrefix, noOfOutliers, monkeyID)
-				self.drawPedigree(db_vervet=self.db_vervet, outputFnamePrefix=outputFnamePrefix, baseNodeSize=40, \
+				self.drawPedigree(DG, db_vervet=self.db_vervet, outputFnamePrefix=outputFnamePrefix, \
 						monkey_id2coverage=monkey_id2coverage, \
 						monkeyPair2data=monkeyPair2data, minEdgeColor=outlierData.minDelta, \
-						maxEdgeColor=outlierData.maxDelta)
-		
+						maxEdgeColor=outlierData.maxDelta, sex2node_property_list=sex2node_property_list)
+			"""
 
 if __name__ == '__main__':
 	main_class = PlotPedigree

@@ -3724,7 +3724,7 @@ class DBVervet(object):
 				if relationDBEntry:
 					if relationDBEntry.individual1_id!=mother.id:
 						sys.stderr.write("Error: relationship %s has (%s, %s) in db. The new entry (%s %s, %s %s) differs.\n"%(relationship_type_name, \
-								relationDBEntry.individual1_id, relationDBEntry.individual2_id, mohter.id, mother.ucla_id, individual.id, individual.ucla_id))
+								relationDBEntry.individual1_id, relationDBEntry.individual2_id, mother.id, mother.ucla_id, individual.id, individual.ucla_id))
 				else:
 					db_vervet.getInd2Ind(individual1=mother, individual2=individual, relationship_type_name=relationship_type_name)
 					no_of_new_relationship += 1
@@ -3734,9 +3734,14 @@ class DBVervet(object):
 		sys.stderr.write("%s new relationships. Done.\n"%(no_of_new_relationship))
 	
 	"""
-		#2011-5-6
-		inputFname =  os.path.expanduser("~/mnt/banyan/mnt/win/vervet-analysis/Yu/VRC_pedigree1_v6 1.tsv")
-		DBVervet.putPedigreeIntoDB(db_vervet, inputFname, )
+		#2012.8.14
+		inputFname = os.path.expanduser("~/NetworkData/vervet/SolarPedAug2012.txt")	#supposedly similar to 
+		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
+		sys.exit(3)
+		
+		#2012.8.14
+		inputFname = "/u/home/eeskin/sservice/Vervet/Expression/SolarPed.txt"	#supposedly similar to 
+		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
 		sys.exit(3)
 		
 		#2012.1.23
@@ -3744,10 +3749,11 @@ class DBVervet(object):
 		DBVervet.putPedigreeIntoDB(db_vervet, inputFname, )
 		sys.exit(3)
 		
-		#2012.8.14
-		inputFname = "/u/home/eeskin/sservice/Vervet/Expression/SolarPed.txt"	#supposedly similar to 
-		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
+		#2011-5-6
+		inputFname =  os.path.expanduser("~/mnt/banyan/mnt/win/vervet-analysis/Yu/VRC_pedigree1_v6 1.tsv")
+		DBVervet.putPedigreeIntoDB(db_vervet, inputFname, )
 		sys.exit(3)
+		
 	"""
 	
 	
@@ -4947,7 +4953,7 @@ class DBVervet(object):
 		pylab.figure(figsize=(100, 60))
 		layout = 'dot'
 		pos = nx.graphviz_layout(DG, prog=layout)
-		nx.draw_networkx_edges(DG, pos, alpha=0.9, width=0.8)
+		nx.draw_networkx_edges(DG, pos, edgelist=DG.edges(), alpha=0.9, width=0.8)
 		
 		import matplotlib as mpl
 		"""
@@ -5239,15 +5245,16 @@ class DBVervet(object):
 			query = VervetDB.IndividualAlignment.query.filter_by(ref_ind_seq_id=ref_ind_seq_id)
 			counter = 0
 			for row in query:
-				monkey_id = row.ind_sequence.individual.ucla_id
+				monkey_id = row.individual_sequence.individual.ucla_id
 				sequenced_monkey_id_set.add(monkey_id)
 				if monkey_id not in monkey_id2preDeterminedCoverage:
-					sys.stderr.write("\t monkey %s (%s) has been sequenced but not included for sequencing.\n"%(monkey_id, row.ind_sequence.individual.id))
+					sys.stderr.write("\t monkey %s (%s) has been sequenced but not included for sequencing.\n"%(monkey_id, \
+											row.individual_sequence.individual.id))
 				if row.median_depth is not None:
 					monkey_id2preDeterminedCoverage[monkey_id] = row.median_depth
 					counter += 1
-				elif row.ind_sequence.coverage is not None:
-					monkey_id2preDeterminedCoverage[monkey_id] = row.ind_sequence.coverage
+				elif row.individual_sequence.coverage is not None:
+					monkey_id2preDeterminedCoverage[monkey_id] = row.individual_sequence.coverage
 					counter += 1
 			sys.stderr.write("%s monkeys set coverage.\n"%(counter))
 			
@@ -7603,6 +7610,56 @@ class Mapping(object):
 		sys.exit(0)
 		
 	"""
+	
+	@classmethod
+	def comparePIHATFromTwoIBDCheckResults(cls, inputFname1=None, inputFname2=None, outputFnamePrefix=None):
+		"""
+		2012.9.9
+			inputFname1 or inputFname2 are output of Plink IBD workflow
+		"""
+		from pymodule import SNP
+		import numpy
+		ibdData1 = SNP.readAdjacencyListDataIntoMatrix(inputFname=inputFname1, rowIDHeader="IID1", colIDHeader="IID2", rowIDIndex=None, colIDIndex=None, \
+								dataHeader="PI_HAT", dataIndex=None, hasHeader=True, defaultValue=1, \
+								dataConvertDictionary=None, matrixDefaultDataType=numpy.float32, asymmetric=True)
+		ibdData2 = SNP.readAdjacencyListDataIntoMatrix(inputFname=inputFname2, rowIDHeader="IID1", colIDHeader="IID2", rowIDIndex=None, colIDIndex=None, \
+								dataHeader="PI_HAT", dataIndex=None, hasHeader=True, defaultValue=1, \
+								dataConvertDictionary=None, matrixDefaultDataType=numpy.float32, asymmetric=True)
+		
+		monkeyIDLs = ibdData1.row_id2row_index.keys()
+		monkeyIDLs.sort()
+		x_ls = []
+		y_ls = []
+		import csv
+		writer = csv.writer(open('%s.tsv'%(outputFnamePrefix), 'w'), delimiter='\t')
+		header = ['monkey1ID-monkey2ID', 'IBD1', 'IBD2']
+		writer.writerow(header)
+		for i in xrange(len(monkeyIDLs)):
+			for j in xrange(i+1, len(monkeyIDLs)):
+				monkey1ID = monkeyIDLs[i]
+				monkey2ID = monkeyIDLs[j]
+				ibd1 = ibdData1.getCellDataGivenRowColID(row_id=monkey1ID, col_id=monkey2ID)
+				ibd2 = ibdData2.getCellDataGivenRowColID(row_id=monkey1ID, col_id=monkey2ID)
+				if ibd1 is not None and ibd2 is not None:
+					x_ls.append(ibd1)
+					y_ls.append(ibd2)
+					data_row = ['%s-%s'%(monkey1ID, monkey2ID), ibd1, ibd2]
+					writer.writerow(data_row)
+		del writer
+		
+		from pymodule import yh_matplotlib
+		fig_fname = '%s_ibd1_vs_ibd2.png'%(outputFnamePrefix)
+		yh_matplotlib.drawScatter(x_ls, y_ls, fig_fname=fig_fname, title=None, xlabel='method 22 PI_HAT', ylabel='method 28 PI_HAT',\
+			dpi=300)
+	"""
+		# 2012.9.9
+		inputFname1 = os.path.expanduser('~/NetworkData/vervet/vervetPipeline/PlinkIBDCheck/PlinkIBDCheck_Method22_W100Z10R0.4.2012.8.28T0226/ibdCheckIBDCheck/LDPrunedMerged_ibdCheck.tsv')
+		inputFname2 = os.path.expanduser('~/NetworkData/vervet/vervetPipeline/PlinkIBDCheck/PlinkIBDCheck_TrioCallerOnMethod20_EveryoneIndependent.2012.8.29T1228/ibdCheckIBDCheck/LDPrunedMerged_ibdCheck.tsv')
+		outputFnamePrefix = os.path.expanduser("~/NetworkData/vervet/vervetPipeline/PlinkIBDCheck/Method22_vs_28_PI_HAT")
+		Mapping.comparePIHATFromTwoIBDCheckResults(inputFname1=inputFname1, inputFname2=inputFname2, outputFnamePrefix=outputFnamePrefix)
+		sys.exit(0)
+		
+	"""
 
 class IRF7(object):
 	"""
@@ -7714,6 +7771,11 @@ class Main(object):
 		#import MySQLdb
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
+		
+		#2012.9.10
+		inputFname = os.path.expanduser("~/NetworkData/vervet/SolarPedSept2012.csv")	#supposedly similar to 
+		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
+		sys.exit(3)
 		
 		inputFname = os.path.expanduser('~/script/vervet/data/194SNPData/AllSNPData.txt')
 		outputFname = os.path.expanduser('~/script/vervet/data/194SNPData/AllSNPData_yuFormat.tsv')
