@@ -1,74 +1,78 @@
 #!/usr/bin/env python
 """
 Examples:
-	# 2011-8-30 workflow on condor
-	%s -i 165-167 -o ShortRead2AlignmentPipeline_isq_id_165_167_vs_9.xml -u yh -a 9 -l condorpool -n1 -z dl324b-1.cmb.usc.edu -c
+	# 2011-8-30 workflow on condor, always commit (-c)
+	%s -i 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9 -l condorpool
+		-n1 -z dl324b-1.cmb.usc.edu -c -H
 	
 	# 2011-8-30 a workflow with 454 long-read and short-read PE. need a ref index job (-n1). 
-	%s -i 165-167 -o ShortRead2AlignmentPipeline_isq_id_165_167_vs_9.xml -u yh -a 9
-		-e /u/home/eeskin/polyacti -l hoffman2 -t /u/home/eeskin/polyacti/NetworkData/vervet/db -n1 -z dl324b-1.cmb.usc.edu -c
-		-f /work/
+	%s -i 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9
+		-e /u/home/eeskin/polyacti -l hoffman2 -t /u/home/eeskin/polyacti/NetworkData/vervet/db -n1
+		-z dl324b-1.cmb.usc.edu -c
+		-f /work/ -H
 	
 	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (-D changes localDataDir. -t changes dataDir.)
 	# 2012.3.20 use /work/ or /u/scratch/p/polyacti/tmp as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
 	# 2012.5.4 cluster 10 alignment jobs (before merging) as a unit (-w 10), skip done alignment (-K)
+	# 2012.9.21 add "-H" because AddAlignmentFile2DB need db conneciton
+	# 2012.9.21 add "--alignmentPerLibrary" to also get alignment for each library within one individual_sequence
 	%s  -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 		-l hcondor -j hcondor 
 		-z localhost -u yh -c
 		-i 631-700 -o workflow/ShortRead2Alignment_Isq_631-700_vs_524_hcondor.xml  -a 524 
-		-f /work/ -e /u/home/eeskin/polyacti  -w 10 -K
+		-f /work/ -e /u/home/eeskin/polyacti  -w 10 -K  -H --alignmentPerLibrary
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files. no ref index job (-n0).
 	# If input_site_handler is "local", pegasus will report error saying it doesn't know how to replica-transfer input files.
 	%s -i 176,178-183,207-211
-		-o ShortRead2AlignmentPipeline_8VWP_vs_9_condor_no_refIndex.xml
-		-u yh -a 9 -j condorpool -l condorpool -n0 -z dl324b-1.cmb.usc.edu -p secret  -c
+		-o ShortRead2Alignment_8VWP_vs_9_condor_no_refIndex.xml
+		-u yh -a 9 -j condorpool -l condorpool -n0 -z dl324b-1.cmb.usc.edu -p secret  -c -H
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files.
 	# If input_site_handler is "local", pegasus will report error saying it doesn't know how to replica-transfer input files.
 	%s -i 176,178-183,207-211
-		-o ShortRead2AlignmentPipeline_8VWP_vs_9_condor_no_refIndex.xml
-		-u yh -a 9 -j condorpool -l condorpool -n0 -z dl324b-1.cmb.usc.edu -p secret  -c
+		-o ShortRead2Alignment_8VWP_vs_9_condor_no_refIndex.xml
+		-u yh -a 9 -j condorpool -l condorpool -n0 -z dl324b-1.cmb.usc.edu -p secret  -c -H
 		
 	# 2011-8-30 a workflow to run on uschpc, with ref index job. Note the site_handler and input_site_handler.
 	# to enable replica-transfer.
 	%s -i 391-397,456,473,493
-		-o ShortRead2AlignmentPipeline_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
-		-j local -l uschpc -n1 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10 -p secret  -c
+		-o ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
+		-j local -l uschpc -n1 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10 -p secret  -c -H
 
 	# 2011-8-30 a workflow to run on uschpc, NO ref index job (-n0), and 4 threads for each alignment job 
 	# Note the site_handler, input_site_handler and "-t ..." to enable symlink
 	%s -i 391-397,456,473,493
-		-o ShortRead2AlignmentPipeline_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
-		-j uschpc -l uschpc -n0 -p secret -c -m 4
+		-o ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
+		-j uschpc -l uschpc -n0 -p secret -c -m 4 -H
 		-e /home/cmb-03/mn/yuhuang -z 10.8.0.10 
 		-t /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/ -J /home/cmb-03/mn/yuhuang/bin/jdk/bin/java
 	
 	# 2011-11-16 a workflow to run on uschpc, NO ref index job (-n0), and 4 threads for each alignment job 
 	# Note the site_handler, input_site_handler. this will stage in all input and output (-O).
 	%s -i 391-397,456,473,493
-		-o ShortRead2AlignmentPipeline_4DeepVRC_6LowCovVRC_392_397_vs_9_local2usc.xml -u yh -a 9
+		-o workflow/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_local2usc.xml -u yh -a 9
 		-j local -l uschpc -n0 -p secret -c -m 4
 		-e /home/cmb-03/mn/yuhuang -z 10.8.0.10 
-		-J /home/cmb-03/mn/yuhuang/bin/jdk/bin/java
+		-J /home/cmb-03/mn/yuhuang/bin/jdk/bin/java  -H
 	
 	
 	#2011-9-13 no ref index job, staging input files from localhost to uschpc, stage output files back to localhost
 	# modify the refFastaF's path in xml manually
-	%s -i 1-3 -o ShortRead2AlignmentPipeline_1_3_vs_524_local2uschpc.xml -u yh -a 524
+	%s -i 1-3 -o ShortRead2Alignment_1_3_vs_524_local2uschpc.xml -u yh -a 524
 		-j local -l uschpc -n0 -p secret -c -m 4 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10
-		-t /Network/Data/vervet/db/
+		-t /Network/Data/vervet/db/  -H
 	
 	# 2011-8-31 output the same workflow above but for condorpool
-	%s -i 391-397,456,473,493, -o ShortRead2AlignmentPipeline_4DeepVRC_6LowCovVRC_392_397_vs_9_condorpool.xml
-		-u yh -a 9 -j condorpool -l condorpool -n0 -z 10.8.0.10  -p secret  -c
+	%s -i 391-397,456,473,493, -o workflow/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_condorpool.xml
+		-u yh -a 9 -j condorpool -l condorpool -n0 -z 10.8.0.10  -p secret  -c --alignmentPerLibrary  -H
 	
 	# 2012-4-5 new alignment method, stampy (-g)
 	%s -i 167,176,178,182,183,207-211,391-397,456,473,493
-		-o ShortRead2AlignmentPipeline_10VWP_4DeepVRC_6LowCovVRC_392_397_vs_508_condorpool.xml
-		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  -c -g stampy
+		-o workflow/ShortRead2Alignment/ShortRead2Alignment_10VWP_4DeepVRC_6LowCovVRC_392_397_vs_508_condorpool.xml
+		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  -c -g stampy  -H
 	
 Description:
 	2012.5.3
@@ -113,6 +117,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 						('cluster_size_for_aln_jobs', 1, int): [1, 'w', 1, 'job cluster size for bwa/PEAlignmentByBWA/LongSEAlignmentByBWA/addOrReplaceReadGroupsJava/SortSamFilesJava/samtools jobs'],\
 						('notStageOutFinalOutput', 0, int):[0, 'O', 0, 'toggle to not stage out final output (bam + bam.bai)'],\
 						('skipDoneAlignment', 0, int):[0, 'K', 0, 'skip alignment whose path is a valid file'],\
+						("alignmentPerLibrary", 0, int): [0, '', 0, 'toggle to run alignment for each library of one individual_sequence'],\
 						("tmpDir", 1, ): ["/tmp/", 'f', 1, 'for MarkDuplicates.jar, default is /tmp/ but sometimes it is too small'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_alignment and/or individual_alignment.path'],\
 						})
@@ -143,8 +148,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			self.ignoreEmptyReadFile = True
 	
 	def addAllAlignmentJobs(self, db_vervet, individualSequenceID2FilePairLs=None, \
-						dataDir=None, \
-						isq_id2LibrarySplitOrder2FileLs=None,\
+					dataDir=None, \
+					isqLs=None,\
 					refSequence=None, refFastaFList=None, refIndexJob=None,
 					workflow=None, bwa=None, additionalArguments=None, samtools=None, mkdirWrap=None, mv=None,\
 					java=None, mergeSamFilesJava=None, mergeSamFilesJar=None, \
@@ -153,10 +158,14 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					SortSamFilesJava=None, SortSamFilesJar=None, \
 					addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None,\
 					alignment_method_name='bwa-short-read', alignment_format='bam',\
-					namespace='workflow', version='1.0', stageOutFinalOutput=False,\
+					namespace='workflow', version='1.0', transferOutput=False,\
 					PEAlignmentByBWA=None, ShortSEAlignmentByBWA=None, LongSEAlignmentByBWA=None, \
-					no_of_aln_threads=3, stampyExecutable=None, skipDoneAlignment=False):
+					no_of_aln_threads=3, stampyExecutable=None, skipDoneAlignment=False, \
+					alignmentPerLibrary=False, outputDirPrefix="", **keywords):
 		"""
+		2012.9.19
+			isq_id2LibrarySplitOrder2FileLs is replaced by isqLs.
+			add argument alignmentPerLibrary
 		2012.4.20
 			bugfix, pass alignment_method.short_name instead of alignment_method_name to db_vervet.getAlignment()
 				because alignment_method might be changed according to sequencer regardless of alignment_method_name.
@@ -175,92 +184,199 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			give different names to different java jobs according to jars
 		2011-8-28
 		"""
-		sys.stderr.write("Adding alignment jobs for %s individual sequences ..."%(len(isq_id2LibrarySplitOrder2FileLs)))
+		sys.stderr.write("Adding alignment jobs for %s individual sequences ..."%(len(isqLs)))
 		
 		no_of_alignment_jobs = 0
 		no_of_merging_jobs = 0
-		for ind_seq_id, LibrarySplitOrder2FileLs in isq_id2LibrarySplitOrder2FileLs.iteritems():
-		#for ind_seq_id, FilePairLs in individualSequenceID2FilePairLs.iteritems():
-			individual_sequence = VervetDB.IndividualSequence.get(ind_seq_id)
+		
+		alignmentFolder = "%sAlignment"%(outputDirPrefix)
+		alignmentFolderJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=alignmentFolder)
+		
+		oneLibraryAlignmentFolder = "%sOneLibAlignment"%(outputDirPrefix)
+		oneLibraryAlignmentFolderJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=oneLibraryAlignmentFolder)
+		
+		
+		for individual_sequence  in isqLs:
 			if individual_sequence is not None and individual_sequence.format=='fastq':
-				
+				library2Data = individual_sequence.library2Data
 				AlignmentJobAndOutputLs = []
+				# get or add alignment method
+				if individual_sequence.sequencer=='454':
+					alignment_method = db_vervet.getAlignmentMethod("bwa-long-read")
+				else:
+					alignment_method = db_vervet.getAlignmentMethod(alignment_method_name)
+				"""
+				#2012.4.5 have all this commented out
+				elif individual_sequence.sequencer=='GA':
+					if individual_sequence.sequence_type=='SR':	#single-end
+						alignment_method = db_vervet.getAlignmentMethod("bwa-short-read-SR")
+					else:	#default is PE
+						alignment_method = db_vervet.getAlignmentMethod("bwa-short-read")
+				"""
+				#alignment for the whole individual_sequence
+				individual_alignment = db_vervet.getAlignment(individual_code=individual_sequence.individual.code, \
+												individual_sequence_id=individual_sequence.id,\
+									path_to_original_alignment=None, sequencer=individual_sequence.sequencer, \
+									sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
+									ref_individual_sequence_id=refSequence.id, \
+									alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
+									individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
+									dataDir=dataDir)
+				skipIndividualAlignment = False
+				if individual_alignment.path:
+					alignmentAbsPath= os.path.join(dataDir, individual_alignment.path)
+					#2012.3.29	check if the alignment exists or not. if it already exists, no alignment jobs.
+					if skipDoneAlignment and os.path.isfile(alignmentAbsPath):
+						skipIndividualAlignment = True
 				#2012.3.29 this folder will store the alignment output by the alignment jbos
 				tmpOutputDir = os.path.basename(individual_sequence.path)
 				# add a mkdir job
 				mkdirJob = None
-				
-				for key, fileObjLs in LibrarySplitOrder2FileLs.iteritems():
-					library, split_order = key[:2]
-					# get or add an alignment
-					if individual_sequence.sequencer=='454':
-						alignment_method = db_vervet.getAlignmentMethod("bwa-long-read")
+				for library, pdata in library2Data.iteritems():
+					minIsqFileRawID = min(pdata.isqFileRawID2Index.keys())
+					splitOrder2Index = pdata.splitOrder2Index
+					fileObjectPairLs = pdata.fileObjectPairLs
+					
+					oneLibraryAlignmentJobAndOutputLs = []
+					splitOrderLs = splitOrder2Index.keys()
+					splitOrderLs.sort()
+					if alignmentPerLibrary:
+						#alignment for this library of the individual_sequence
+						oneLibraryAlignmentEntry = db_vervet.getAlignment(individual_code=individual_sequence.individual.code, \
+												individual_sequence_id=individual_sequence.id,\
+									path_to_original_alignment=None, sequencer=individual_sequence.sequencer, \
+									sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
+									ref_individual_sequence_id=refSequence.id, \
+									alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
+									individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
+									dataDir=dataDir, individual_sequence_file_raw_id=minIsqFileRawID)
+						skipLibraryAlignment = False
+						if oneLibraryAlignmentEntry.path:
+							alignmentAbsPath= os.path.join(dataDir, oneLibraryAlignmentEntry.path)
+							#2012.3.29	check if the alignment exists or not. if it already exists, no alignment jobs.
+							if skipDoneAlignment and os.path.isfile(alignmentAbsPath):
+								skipLibraryAlignment = True
 					else:
-						alignment_method = db_vervet.getAlignmentMethod(alignment_method_name)
-					"""
-					#2012.4.5 have all this commented out
-					elif individual_sequence.sequencer=='GA':
-						if individual_sequence.sequence_type=='SR':	#single-end
-							alignment_method = db_vervet.getAlignmentMethod("bwa-short-read-SR")
-						else:	#default is PE
-							alignment_method = db_vervet.getAlignmentMethod("bwa-short-read")
-					"""
-					individual_alignment = db_vervet.getAlignment(individual_code=individual_sequence.individual.code, \
-											individual_sequence_id=ind_seq_id,\
-								path_to_original_alignment=None, sequencer=individual_sequence.sequencer, \
-								sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
-								ref_individual_sequence_id=refSequence.id, \
-								alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
-								individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
-								dataDir=dataDir)	#read-group addition is part of pipeline
-					if not individual_alignment.path:
-						individual_alignment.path = individual_alignment.constructRelativePath()
-						session.add(individual_alignment)
-						session.flush()
-					
-					alignmentAbsPath= os.path.join(dataDir, individual_alignment.path)
-					#2012.3.29	check if the alignment exists or not. if it already exists, no alignment jobs.
-					if skipDoneAlignment and os.path.isfile(alignmentAbsPath):
-						break
-					if mkdirJob is None:	#now it's time to add the mkdirJob
-						# add a mkdir job
-						mkdirJob = self.addMKDIRJob(workflow, mkdirWrap=mkdirWrap, dirName=tmpOutputDir, \
-											namespace=namespace, version=version)
-					#newFilePair = self.registerFileToWorkflow(filePair, workflow, dataDir=dataDir)
-					newFileObjLs = self.registerISQFileObjLsToWorkflow(fileObjLs, workflow)
-					alignmentJob, alignmentOutput = self.addAlignmentJob(workflow, newFileObjLs, individual_alignment=individual_alignment, \
-						dataDir=dataDir, refFastaFList=refFastaFList, bwa=bwa, \
-						additionalArguments=additionalArguments, samtools=samtools, refIndexJob=refIndexJob, mkdirJob=mkdirJob, \
-						alignment_method=alignment_method, \
-						outputDir=tmpOutputDir, namespace=namespace, version=version,\
-						PEAlignmentByBWA=PEAlignmentByBWA, ShortSEAlignmentByBWA=ShortSEAlignmentByBWA, \
-						LongSEAlignmentByBWA=LongSEAlignmentByBWA,\
-						java=java, SortSamFilesJava=SortSamFilesJava, SortSamFilesJar=SortSamFilesJar,\
-						addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar,\
-						no_of_aln_threads=no_of_aln_threads, stampyExecutable=stampyExecutable)
-					AlignmentJobAndOutputLs.append([alignmentJob, alignmentOutput])
-					no_of_alignment_jobs += 1
-				if len(AlignmentJobAndOutputLs)>0:	#2012.3.29	merge alignment output only when there is something to merge!
-					fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(individual_alignment.path))[0]
-					
-					mergedBamFile = File('%s_merged.bam'%(fname_prefix))
+						skipLibraryAlignment = True
+					if skipIndividualAlignment and skipLibraryAlignment:	#2012.9.19 if both skip flags are true, then yes
+						continue
+					for splitOrder in splitOrderLs:
+						splitOrderIndex = splitOrder2Index[splitOrder]
+						fileObjectLs = fileObjectPairLs[splitOrderIndex]
+
+						if mkdirJob is None:	#now it's time to add the mkdirJob
+							# add a mkdir job
+							mkdirJob = self.addMKDIRJob(workflow, mkdirWrap=mkdirWrap, dirName=tmpOutputDir)
+						#newFilePair = self.registerFileToWorkflow(filePair, workflow, dataDir=dataDir)
+						newFileObjLs = self.registerISQFileObjLsToWorkflow(fileObjectLs=fileObjectLs, workflow=workflow)
+						#2012.9.19 individual_alignment is passed as None so that ReadGroup addition job is not added in addAlignmentJob()
+						alignmentJob, alignmentOutput = self.addAlignmentJob(workflow=workflow, fileObjectLs=newFileObjLs, \
+																			individual_alignment=None, \
+							dataDir=dataDir, refFastaFList=refFastaFList, bwa=bwa, \
+							additionalArguments=additionalArguments, samtools=samtools, refIndexJob=refIndexJob, mkdirJob=mkdirJob, \
+							alignment_method=alignment_method, \
+							outputDir=tmpOutputDir, namespace=namespace, version=version,\
+							PEAlignmentByBWA=PEAlignmentByBWA, ShortSEAlignmentByBWA=ShortSEAlignmentByBWA, \
+							LongSEAlignmentByBWA=LongSEAlignmentByBWA,\
+							java=java, SortSamFilesJava=SortSamFilesJava, SortSamFilesJar=SortSamFilesJar,\
+							addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar,\
+							no_of_aln_threads=no_of_aln_threads, stampyExecutable=stampyExecutable)
+						no_of_alignment_jobs += 1
+						
+						fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
+														os.path.basename(alignmentOutput.name))[0]
+						if not skipIndividualAlignment:
+							#2012.9.19 add a AddReadGroup job
+							outputRGBAM = File(os.path.join(tmpOutputDir, "%s.isq_RG.bam"%(fname_prefix)))
+							addRGJob = self.addReadGroupInsertionJob(workflow=workflow, individual_alignment=individual_alignment, \
+												inputBamFile=alignmentJob.output, \
+												outputBamFile=outputRGBAM,\
+												addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, \
+												addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar,\
+												parentJobLs=[alignmentJob, mkdirJob], extraDependentInputLs=None, \
+												extraArguments=None, job_max_memory = 2500, transferOutput=False)
+							AlignmentJobAndOutputLs.append([addRGJob, addRGJob.output])
+						if not skipLibraryAlignment:
+							#2012.9.19 add a AddReadGroup job for the library bam file
+							outputRGBAM = File(os.path.join(tmpOutputDir, "%s.isq_library_%s_RG.bam"%(fname_prefix, library)))
+							addRGJob = self.addReadGroupInsertionJob(workflow=workflow, individual_alignment=oneLibraryAlignmentEntry, \
+												inputBamFile=alignmentJob.output, \
+												outputBamFile=outputRGBAM,\
+												addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, \
+												addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar,\
+												parentJobLs=[alignmentJob, mkdirJob], extraDependentInputLs=None, \
+												extraArguments=None, job_max_memory = 2500, transferOutput=False)
+							oneLibraryAlignmentJobAndOutputLs.append([addRGJob, addRGJob.output])
+					if alignmentPerLibrary and not skipLibraryAlignment and oneLibraryAlignmentJobAndOutputLs:	#2012.9.19
+						fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
+														os.path.basename(oneLibraryAlignmentEntry.constructRelativePath()))[0]
+						mergedBamFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_merged.bam'%(fname_prefix, library)))
+						alignmentMergeJob, bamIndexJob = self.addAlignmentMergeJob(workflow, \
+											AlignmentJobAndOutputLs=oneLibraryAlignmentJobAndOutputLs, \
+											outputBamFile=mergedBamFile, \
+											samtools=samtools, java=java, \
+											mergeSamFilesJava=mergeSamFilesJava, mergeSamFilesJar=mergeSamFilesJar, \
+											BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+											mv=mv, namespace=namespace, version=version, \
+											transferOutput=False, parentJobLs=[oneLibraryAlignmentFolderJob])
+						
+						finalBamFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_dupMarked.bam'%(fname_prefix, library)))
+						markDupJob, markDupBamIndexJob = self.addMarkDupJob(workflow, parentJobLs=[alignmentMergeJob, bamIndexJob], \
+								inputBamF=alignmentMergeJob.output, \
+								inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
+								MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=tmpDir,\
+								BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+								namespace=namespace, version=version, transferOutput=False)
+						no_of_merging_jobs += 1
+						
+						#2012.9.19 add/copy the alignment file to db-affliated storage
+						#add the metric file to AddAlignmentFile2DB.py as well (to be moved into db-affiliated storage)
+						logFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_2db.log'%(fname_prefix, library)))
+						alignment2DBJob = self.addAddAlignmentFile2DBJob(workflow=workflow, executable=self.AddAlignmentFile2DB, \
+											inputFile=markDupJob.output, otherInputFileList=[markDupJob.MarkDupOutputMetricF], \
+											individual_alignment_id=oneLibraryAlignmentEntry.id, \
+											individual_sequence_file_raw_id=minIsqFileRawID,\
+											logFile=logFile, dataDir=dataDir, \
+											parentJobLs=[markDupJob, markDupBamIndexJob], \
+											extraDependentInputLs=[markDupBamIndexJob.output,], \
+											extraArguments=None, transferOutput=transferOutput, \
+											job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, commit=True)
+						
+				if AlignmentJobAndOutputLs and not skipIndividualAlignment:
+					#2012.3.29	merge alignment output only when there is something to merge!
+					fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
+													os.path.basename(individual_alignment.constructRelativePath()))[0]
+					mergedBamFile = File(os.path.join(alignmentFolder, '%s_merged.bam'%(fname_prefix)))
 					alignmentMergeJob, bamIndexJob = self.addAlignmentMergeJob(workflow, AlignmentJobAndOutputLs=AlignmentJobAndOutputLs, \
 										outputBamFile=mergedBamFile, \
 										samtools=samtools, java=java, \
 										mergeSamFilesJava=mergeSamFilesJava, mergeSamFilesJar=mergeSamFilesJar, \
 										BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 										mv=mv, namespace=namespace, version=version, \
-										stageOutFinalOutput=False)
-					#finalBamFileName = os.path.join(dataDir, individual_alignment.path)
-					finalBamFileName = os.path.basename(individual_alignment.path)	#relative path in the scratch
-					finalBamFile = File(finalBamFileName)
+										transferOutput=False, parentJobLs=[alignmentFolderJob])
+					#relative path in the scratch
+					finalBamFile = File(os.path.join(alignmentFolder, '%s_dupMarked.bam'%(fname_prefix)))
 					
-					markDupJob, markDupBamIndexJob = self.addMarkDupJob(workflow, parentJobLs=[alignmentMergeJob, bamIndexJob], inputBamF=mergedBamFile, \
+					markDupJob, markDupBamIndexJob = self.addMarkDupJob(workflow, parentJobLs=[alignmentMergeJob, bamIndexJob],
+							inputBamF=alignmentMergeJob.output, \
 							inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
 							MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=tmpDir,\
 							BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
-							namespace=namespace, version=version, stageOutFinalOutput=self.stageOutFinalOutput)
+							namespace=namespace, version=version, transferOutput=False)
 					no_of_merging_jobs += 1
+					
+					#2012.9.19 add/copy the alignment file to db-affliated storage
+					#add the metric file to AddAlignmentFile2DB.py as well (to be moved into db-affiliated storage)
+					logFile = File(os.path.join(alignmentFolder, '%s_2db.log'%(fname_prefix)))
+					alignment2DBJob = self.addAddAlignmentFile2DBJob(workflow=workflow, executable=self.AddAlignmentFile2DB, \
+										inputFile=markDupJob.output, otherInputFileList=[markDupJob.MarkDupOutputMetricF],\
+										individual_alignment_id=individual_alignment.id, \
+										logFile=logFile, dataDir=dataDir, \
+										parentJobLs=[markDupJob, markDupBamIndexJob], \
+										extraDependentInputLs=[markDupBamIndexJob.output], \
+										extraArguments=None, transferOutput=transferOutput, \
+										job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, commit=True)
+					
 		sys.stderr.write("%s alignment jobs; %s merge alignment jobs.\n"%(no_of_alignment_jobs, no_of_merging_jobs))
 	
 	def registerFileToWorkflow(self, filePair, workflow, dataDir=None):
@@ -278,14 +394,14 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			newFilePair.append(newFileRecord)
 		return newFilePair
 	
-	def registerISQFileObjLsToWorkflow(self, fileObjLs, workflow, dataDir=None):
+	def registerISQFileObjLsToWorkflow(self, fileObjectLs=None, workflow=None, dataDir=None):
 		'''
 		2012-2.24
 			similar to registerFileToWorkflow but for a different input
 		'''
 		
 		newFilePair = []
-		for fileObject in fileObjLs:
+		for fileObject in fileObjectLs:
 			relativePath = fileObject.db_entry.path
 			fastqF = File(relativePath)
 			fastqF.addPFN(PFN("file://" + fileObject.path, self.input_site_handler))
@@ -429,14 +545,14 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		for output in refIndexJob.outputLs:
 			childJob.uses(output, transfer=True, register=True, link=Link.INPUT)
 	
-	def addStampyAlignmentJob(self, workflow, fileObjLs, individual_alignment=None, \
+	def addStampyAlignmentJob(self, workflow=None, fileObjectLs=None, \
 					dataDir=None, refFastaFList=None, bwa=None, additionalArguments=None, \
 					samtools=None, refIndexJob=None, mkdirJob=None,\
 					alignment_method=None, outputDir=None, \
 					PEAlignmentByBWA=None, ShortSEAlignmentByBWA=None, LongSEAlignmentByBWA=None, \
 					java=None, SortSamFilesJava=None, SortSamFilesJar=None,\
 					addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None,\
-					no_of_aln_threads=3, stampyExecutable=None, stageOutFinalOutput=False, **keywords):
+					no_of_aln_threads=3, stampyExecutable=None, transferOutput=False, **keywords):
 		"""
 		2014.4.4
 			update for stampy 1.0.17
@@ -471,7 +587,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		
 		javaMemRequirement = "-Xms128m -Xmx%sm"%addRGJob_max_memory
 		refFastaFile = refFastaFList[0]
-		firstFileObject = fileObjLs[0]
+		firstFileObject = fileObjectLs[0]
 		fastqF = firstFileObject.fastqF
 		relativePath = fastqF.name
 		fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
@@ -486,7 +602,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		#Added option --gatkcigarworkaround removing adjacent I/D events from CIGAR strings, which trips up GATK
 		if firstFileObject.db_entry.quality_score_format=='Illumina':
 			alignmentJob.addArguments("--solexa")
-		alignmentJob.uses(outputSamFile, transfer=stageOutFinalOutput, register=True, link=Link.OUTPUT)
+		alignmentJob.uses(outputSamFile, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		alignmentJob.output = outputSamFile
 		alignmentJob.fname_prefix = fname_prefix
 		
@@ -497,7 +613,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		workflow.addJob(alignmentJob)
 		#add fastq files after "-M"
 		alignmentJob.addArguments(" -M ")	# -M FILE[,FILE] Map fastq file(s).  Use FILE.recaldata for recalibration if available
-		for fileObject in fileObjLs:
+		for fileObject in fileObjectLs:
 			fastqF = fileObject.fastqF
 			relativePath = fastqF.name
 			alignmentJob.addArguments(fastqF)
@@ -508,7 +624,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			workflow.depends(parent=mkdirJob, child=alignmentJob)
 		return alignmentJob
 	
-	def addBWAAlignmentJob(self, workflow, fileObjectLs, individual_alignment=None, \
+	def addBWAAlignmentJob(self, workflow=None, fileObjectLs=None, \
 					dataDir=None, refFastaFList=None, bwa=None, additionalArguments=None, \
 					samtools=None, refIndexJob=None, mkdirJob=None,\
 					alignment_method=None, outputDir=None, namespace='workflow', version='1.0',\
@@ -538,7 +654,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		aln_job_max_walltime= 4800	#80 hours, in minutes
 		aln_job_max_walltime = 1020	#22 hours, because all reads are stored in chunks of 5-million-read files
 		
-		javaMemRequirement = "-Xms128m -Xmx%sm"%addRGJob_max_memory
+		memRequirementData = self.getJVMMemRequirment(job_max_memory=addRGJob_max_memory, minMemory=2000)
+		job_max_memory = memRequirementData.memRequirement
+		javaMemRequirement = memRequirementData.memRequirementInStr
+		
 		if len(fileObjectLs)==1:	#single end
 			fileObject = fileObjectLs[0]
 			fastqF = fileObject.fastqF
@@ -664,7 +783,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		sai2samJob.fname_prefix = fname_prefix
 		return sai2samJob
 	
-	def addAlignmentJob(self, workflow, fileObjLs, individual_alignment=None, \
+	def addAlignmentJob(self, workflow=None, fileObjectLs=None, individual_alignment=None, \
 					dataDir=None, refFastaFList=None, bwa=None, additionalArguments=None, \
 					samtools=None, refIndexJob=None, mkdirJob=None,\
 					alignment_method=None, outputDir=None, namespace='workflow', version='1.0',\
@@ -673,6 +792,8 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None,\
 					no_of_aln_threads=3, stampyExecutable=None, **keywords):
 		"""
+		2012.9.19
+			modify it substantially
 		2012.4.5
 			choose which alignment program to use based on alignment_method.short_name
 		2012.2.23
@@ -690,13 +811,10 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		sampe_job_max_memory = 6000	#in MB
 		addRGJob_max_memory = 2500	#in MB
 		
-		aln_job_max_walltime= 4800	#80 hours, in minutes
-		
-		javaMemRequirement = "-Xms128m -Xmx%sm"%addRGJob_max_memory
-		
+		aln_job_max_walltime= 4800	#80 hours, in minutes		
 		
 		if alignment_method.short_name=='stampy':
-			alignmentJob = self.addStampyAlignmentJob(workflow, fileObjLs, individual_alignment=individual_alignment, \
+			alignmentJob = self.addStampyAlignmentJob(workflow=workflow, fileObjectLs=fileObjectLs,\
 						dataDir=dataDir, refFastaFList=refFastaFList, bwa=bwa, \
 						additionalArguments=additionalArguments, samtools=samtools, \
 						refIndexJob=refIndexJob, mkdirJob=mkdirJob, \
@@ -707,9 +825,9 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 						java=java, SortSamFilesJava=SortSamFilesJava, SortSamFilesJar=SortSamFilesJar,\
 						addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar,\
 						no_of_aln_threads=no_of_aln_threads, stampyExecutable=stampyExecutable,\
-						stageOutFinalOutput=False)
+						transferOutput=False)
 		elif alignment_method.short_name.find('bwa')==0:
-			alignmentJob = self.addBWAAlignmentJob(workflow, fileObjLs, individual_alignment=individual_alignment, \
+			alignmentJob = self.addBWAAlignmentJob(workflow=workflow, fileObjectLs=fileObjectLs, \
 						dataDir=dataDir, refFastaFList=refFastaFList, bwa=bwa, \
 						additionalArguments=additionalArguments, samtools=samtools, refIndexJob=refIndexJob, mkdirJob=mkdirJob, \
 						alignment_method=alignment_method, \
@@ -724,44 +842,29 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			sys.exit(3)
 		fname_prefix = alignmentJob.fname_prefix
 		
-		## convert sam into bam and remove unmapped reads (or queries)
-		sam_convert_job = Job(namespace=namespace, name=samtools.name, version=version)
+		## convert sam into bam	
 		bamOutputF = File(os.path.join(outputDir, "%s.bam"%(fname_prefix)))
-		sam_convert_job.addArguments('view', '-bSh', '-o', bamOutputF, alignmentJob.output)
-		#'-F', '4', (remove un-mapped reads) is removed
-		sam_convert_job.uses(alignmentJob.output, transfer=True, register=True, link=Link.INPUT)
-		sam_convert_job.uses(bamOutputF, transfer=False, register=True, link=Link.OUTPUT)
-		workflow.addJob(sam_convert_job)
-		workflow.depends(parent=alignmentJob, child=sam_convert_job)
+		sam_convert_job = self.addGenericJob(executable=samtools, inputFile=None,\
+							outputFile=bamOutputF, outputArgumentOption="view -bSh -o", \
+							parentJobLs=[alignmentJob], extraDependentInputLs=[alignmentJob.output], \
+							extraOutputLs=[],\
+							transferOutput=False, \
+							extraArgumentList=[alignmentJob.output], \
+							job_max_memory=2000)
 		
-		#2011-9-14 add/replace read group in the bam file
-		# add RG to this bam
-		alignment=individual_alignment
-		sequencer = alignment.ind_sequence.sequencer
-		read_group = '%s_%s_%s_%s_vs_%s'%(alignment.id, alignment.ind_seq_id, alignment.ind_sequence.individual.code, \
-								sequencer, alignment.ref_ind_seq_id)
-		if sequencer=='454':
-			platform_id = 'LS454'
-		elif sequencer=='GA':
-			platform_id = 'ILLUMINA'
+		if individual_alignment:	#if not given then , no read-group addition job
+			#2012.9.19 add a AddReadGroup job
+			outputRGBAM = File(os.path.join(outputDir, "%s.RG.bam"%(fname_prefix)))
+			addRGJob = self.addReadGroupInsertionJob(workflow=workflow, individual_alignment=individual_alignment, \
+								inputBamFile=sam_convert_job.output, \
+								outputBamFile=outputRGBAM,\
+								addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, \
+								addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar,\
+								parentJobLs=[sam_convert_job], extraDependentInputLs=None, \
+								extraArguments=None, job_max_memory = 2500, transferOutput=False)
+			sortAlnParentJob = addRGJob
 		else:
-			platform_id = 'ILLUMINA'
-		# the add-read-group job
-		#addRGJob = Job(namespace=namespace, name=addRGExecutable.name, version=version)
-		addRGJob = Job(namespace=namespace, name=addOrReplaceReadGroupsJava.name, version=version)
-		outputRGBAM = File(os.path.join(outputDir, "%s.RG.bam"%(fname_prefix)))
-		addRGJob.addArguments(javaMemRequirement, '-jar', addOrReplaceReadGroupsJar, \
-							"INPUT=", bamOutputF,\
-							'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
-							'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
-							'OUTPUT=', outputRGBAM, "VALIDATION_STRINGENCY=LENIENT")	#not including 'SORT_ORDER=coordinate'
-							#(adding the SORT_ORDER doesn't do sorting but it marks the header as sorted so that BuildBamIndexFilesJar won't fail.)
-		addRGJob.uses(bamOutputF, transfer=True, register=True, link=Link.INPUT)
-		addRGJob.uses(outputRGBAM, transfer=False, register=True, link=Link.OUTPUT)
-		yh_pegasus.setJobProperRequirement(addRGJob, job_max_memory=addRGJob_max_memory, no_of_cpus=None)
-		workflow.addJob(addRGJob)
-		workflow.depends(parent=sam_convert_job, child=addRGJob)
-		
+			sortAlnParentJob = sam_convert_job
 		
 		"""
 		# 2010-2-4
@@ -769,18 +872,89 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		"""
 		bam_output_fname_prefix = '%s.sorted'%(os.path.join(outputDir, fname_prefix))
 		sortBamF = File('%s.bam'%(bam_output_fname_prefix))
-		sort_sam_job = Job(namespace=namespace, name=SortSamFilesJava.name, version=version)
-		sort_sam_job.addArguments(javaMemRequirement, '-jar', SortSamFilesJar, "SORT_ORDER=coordinate", "I=", outputRGBAM, \
-								"O=", sortBamF, "VALIDATION_STRINGENCY=LENIENT")
-		sort_sam_job.uses(outputRGBAM, transfer=True, register=True, link=Link.INPUT)
-		sort_sam_job.uses(sortBamF, transfer=False, register=True, link=Link.OUTPUT)
-		sort_sam_job.output = sortBamF
-		#job_max_memory = 2500	#in MB, 2.5g resident memory, 6458Mb Virtual in one example 
-		yh_pegasus.setJobProperRequirement(sort_sam_job, job_max_memory=addRGJob_max_memory, no_of_cpus=None)
-		workflow.addJob(sort_sam_job)
-		workflow.depends(parent=addRGJob, child=sort_sam_job)
+		sortAlignmentJob = self.addSortAlignmentJob(workflow=workflow, inputBamFile=sortAlnParentJob.output, \
+					outputBamFile=sortBamF,\
+					SortSamFilesJava=SortSamFilesJava, SortSamFilesJar=SortSamFilesJar,\
+					parentJobLs=[sortAlnParentJob], extraDependentInputLs=None, \
+					extraArguments=None, job_max_memory = 2500, transferOutput=False)
+		return sortAlignmentJob, sortAlignmentJob.output
+	
+	def addReadGroupInsertionJob(self, workflow=None, individual_alignment=None, inputBamFile=None, \
+								outputBamFile=None,\
+								addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None,\
+								parentJobLs=None, extraDependentInputLs=None, \
+								extraArguments=None, job_max_memory = 2500, transferOutput=False, **keywords):
+		"""
+		2012.9.19 split out of addAlignmentJob()
+		"""
+		memRequirementData = self.getJVMMemRequirment(job_max_memory=job_max_memory, minMemory=2000)
+		job_max_memory = memRequirementData.memRequirement
+		javaMemRequirement = memRequirementData.memRequirementInStr
 		
-		return sort_sam_job, sortBamF
+		# add RG to this bam
+		sequencer = individual_alignment.individual_sequence.sequencer
+		read_group = individual_alignment.getReadGroup()	#2012.9.19
+		if sequencer=='454':
+			platform_id = 'LS454'
+		elif sequencer=='GA':
+			platform_id = 'ILLUMINA'
+		else:
+			platform_id = 'ILLUMINA'
+		# the add-read-group job
+		
+		extraArgumentList = [memRequirementData.memRequirementInStr, '-jar', addOrReplaceReadGroupsJar,\
+							"INPUT=", inputBamFile,\
+							'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
+							'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
+							'OUTPUT=', outputBamFile, "VALIDATION_STRINGENCY=LENIENT"]
+					#not including 'SORT_ORDER=coordinate'
+					#(adding the SORT_ORDER doesn't do sorting but it marks the header as sorted so that BuildBamIndexFilesJar won't fail.)
+		if extraArguments:
+			extraArgumentList.append(extraArguments)
+		if extraDependentInputLs is None:
+			extraDependentInputLs=[]
+		extraDependentInputLs.extend([inputBamFile])
+		
+		job= self.addGenericJob(executable=addOrReplaceReadGroupsJava, inputFile=None,\
+							outputFile=None, outputArgumentOption="-o", \
+							parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+							extraOutputLs=[outputBamFile],\
+							transferOutput=transferOutput, \
+							extraArgumentList=extraArgumentList, \
+							job_max_memory=memRequirementData.memRequirement, **keywords)
+		return job
+	
+	def addSortAlignmentJob(self, workflow=None, inputBamFile=None, \
+					outputBamFile=None,\
+					SortSamFilesJava=None, SortSamFilesJar=None,\
+					parentJobLs=None, extraDependentInputLs=None, \
+					extraArguments=None, job_max_memory = 2500, transferOutput=False, **keywords):
+		"""
+		2012.9.19
+		"""
+		memRequirementData = self.getJVMMemRequirment(job_max_memory=job_max_memory, minMemory=2000)
+		job_max_memory = memRequirementData.memRequirement
+		javaMemRequirement = memRequirementData.memRequirementInStr
+		
+		extraArgumentList = [memRequirementData.memRequirementInStr, '-jar', SortSamFilesJar,\
+							"SORT_ORDER=coordinate", "I=", inputBamFile, \
+							"O=", outputBamFile, "VALIDATION_STRINGENCY=LENIENT"]
+					#not including 'SORT_ORDER=coordinate'
+					#(adding the SORT_ORDER doesn't do sorting but it marks the header as sorted so that BuildBamIndexFilesJar won't fail.)
+		if extraArguments:
+			extraArgumentList.append(extraArguments)
+		if extraDependentInputLs is None:
+			extraDependentInputLs=[]
+		extraDependentInputLs.extend([inputBamFile])
+		
+		job= self.addGenericJob(executable=SortSamFilesJava, inputFile=None,\
+							outputFile=None, outputArgumentOption="-o", \
+							parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+							extraOutputLs=[outputBamFile],\
+							transferOutput=transferOutput, \
+							extraArgumentList=extraArgumentList, \
+							job_max_memory=memRequirementData.memRequirement, **keywords)
+		return job
 	
 	def addAlignmentJobNoPipe(self, workflow, filePair, dataDir=None, refFastaF=None, bwa=None, additionalArguments=None, \
 					samtools=None, refIndexJob=None, mkdirJob=None,\
@@ -946,7 +1120,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 	def addAlignmentMergeBySAMtoolsJob(self, workflow, AlignmentJobAndOutputLs=[], outputBamFile=None,samtools=None,\
 					java=None, mergeSamFilesJava=None, mergeSamFilesJar=None, \
 					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
-					mv=None, stageOutFinalOutput=False, job_max_memory=2500, **keywords):
+					mv=None, transferOutput=False, job_max_memory=2500, **keywords):
 		"""
 		2012-3.22
 			samtools merge version of addAlignmentMergeJob(), which uses picard's MergeSamFiles.jar
@@ -956,7 +1130,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		if len(AlignmentJobAndOutputLs)>1:
 			merge_sam_job = Job(namespace=workflow.namespace, name=samtools.name, version=workflow.version)
 			merge_sam_job.addArguments('-f', outputBamFile)		#'overwrite the output BAM if exist'
-			merge_sam_job.uses(outputBamFile, transfer=stageOutFinalOutput, register=True, link=Link.OUTPUT)
+			merge_sam_job.uses(outputBamFile, transfer=transferOutput, register=True, link=Link.OUTPUT)
 			yh_pegasus.setJobProperRequirement(merge_sam_job, job_max_memory=job_max_memory)
 			workflow.addJob(merge_sam_job)
 			for AlignmentJobAndOutput in AlignmentJobAndOutputLs:
@@ -970,20 +1144,20 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			merge_sam_job.addArguments(alignmentOutput, outputBamFile)
 			workflow.depends(parent=alignmentJob, child=merge_sam_job)
 			merge_sam_job.uses(alignmentOutput, transfer=True, register=True, link=Link.INPUT)
-			merge_sam_job.uses(outputBamFile, transfer=stageOutFinalOutput, register=True, link=Link.OUTPUT)
+			merge_sam_job.uses(outputBamFile, transfer=transferOutput, register=True, link=Link.OUTPUT)
 			workflow.addJob(merge_sam_job)
 		
 		# add the index job on the merged bam file
 		bamIndexJob = self.addBAMIndexJob(BuildBamIndexFilesJava=BuildBamIndexFilesJava, \
 						BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 						inputBamF=outputBamFile, parentJobLs=[merge_sam_job], \
-						stageOutFinalOutput=stageOutFinalOutput, javaMaxMemory=javaMaxMemory)
+						transferOutput=transferOutput, javaMaxMemory=javaMaxMemory)
 		return merge_sam_job, bamIndexJob
 	
 	def addMarkDupJob(self, workflow, parentJobLs=[], inputBamF=None, inputBaiF=None, outputBamFile=None,\
 					MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir="/Network/Data/vervet/vervetPipeline/tmp/",\
 					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
-					namespace='workflow', version='1.0', stageOutFinalOutput=True, no_of_cpus=1):
+					namespace='workflow', version='1.0', transferOutput=True, no_of_cpus=1):
 		"""
 		2012.3.21
 			improve it
@@ -997,9 +1171,9 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		MarkDupOutputF = outputBamFile
 		MarkDupOutputMetricF = '%s.metric'%(bamFnamePrefix)
 		
-		memRequirementObject = self.getJVMMemRequirment(job_max_memory=MarkDupJobMaxMemory, minMemory=2000)
-		job_max_memory = memRequirementObject.memRequirement
-		javaMemRequirement = memRequirementObject.memRequirementInStr
+		memRequirementData = self.getJVMMemRequirment(job_max_memory=MarkDupJobMaxMemory, minMemory=2000)
+		job_max_memory = memRequirementData.memRequirement
+		javaMemRequirement = memRequirementData.memRequirementInStr
 		
 		MarkDupJob.addArguments(javaMemRequirement, '-jar', MarkDuplicatesJar, "MAX_FILE_HANDLES=500",\
 			"VALIDATION_STRINGENCY=LENIENT", "ASSUME_SORTED=true", "INPUT=", inputBamF, \
@@ -1009,13 +1183,9 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		MarkDupJob.uses(inputBamF, transfer=True, register=True, link=Link.INPUT)
 		MarkDupJob.output = MarkDupOutputF
 		MarkDupJob.MarkDupOutputMetricF = MarkDupOutputMetricF
-		if stageOutFinalOutput:
-			MarkDupJob.uses(MarkDupOutputF, transfer=True, register=True, link=Link.OUTPUT)
-			MarkDupJob.uses(MarkDupOutputMetricF, transfer=True, register=True, link=Link.OUTPUT)
-		else:
-			MarkDupJob.uses(MarkDupOutputF, transfer=False, register=True, link=Link.OUTPUT)
-			MarkDupJob.uses(MarkDupOutputMetricF, transfer=False, register=True, link=Link.OUTPUT)
-			#pass	#don't register the files so leave them there
+		MarkDupJob.uses(MarkDupOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		MarkDupJob.uses(MarkDupOutputMetricF, transfer=transferOutput, register=True, link=Link.OUTPUT)
+		#pass	#don't register the files so leave them there
 		workflow.addJob(MarkDupJob)
 		yh_pegasus.setJobProperRequirement(MarkDupJob, job_max_memory=job_max_memory, no_of_cpus=no_of_cpus)
 		for parentJob in parentJobLs:
@@ -1028,7 +1198,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 								BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 								inputBamF=MarkDupOutputF,\
 								parentJobLs=[MarkDupJob], namespace=namespace, version=version,\
-								stageOutFinalOutput=stageOutFinalOutput)
+								transferOutput=transferOutput)
 		return MarkDupJob, bamIndexJob
 		
 	@classmethod
@@ -1036,7 +1206,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					refFastaFList=None, outputBamF=None, \
 					parentJob=None, \
 					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
-					namespace='workflow', version='1.0', stageOutFinalOutput=True,\
+					namespace='workflow', version='1.0', transferOutput=True,\
 					**keywords):
 		"""
 		2011-11-20
@@ -1048,7 +1218,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		job.uses(inputBamF, transfer=True, register=True, link=Link.INPUT)
 		for refFastaFile in refFastaFList:
 			job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
-		if stageOutFinalOutput:
+		if transferOutput:
 			job.uses(outputBamF, transfer=True, register=True, link=Link.OUTPUT)
 		else:
 			pass	#don't register the files so leave them there
@@ -1060,35 +1230,14 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		return self.addBAMIndexJob(BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					inputBamF=outputBamF,\
 					parentJobLs=[job], namespace=namespace, version=version,\
-					stageOutFinalOutput=stageOutFinalOutput)
-	
-	@classmethod
-	def addBaseQualRecalibrationJob(cls, workflow, samtoolsCalmd=None, inputBamF=None, \
-					refFastaFList=None, outputBamF=None, \
-					parentJob=None, \
-					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
-					namespace='workflow', version='1.0', stageOutFinalOutput=True,\
-					**keywords):
-		"""
-		2011-11-20
-			create a sub-workflow
-			
-			for each 2million bp interval
-				split a small bam out of input bam (add 1kb on both ends of interval)
-				index the small bam
-				run RealignerTargetCreator
-				run IndelRealigner
-				(extract the exact interval out of bam if 1kb is added to both ends of input interval)
-			merge all intervals back into one bam
-			index the merged bam
-		"""
+					transferOutput=transferOutput)
 	
 	@classmethod
 	def addLocalRealignmentJob(cls, workflow, samtoolsCalmd=None, inputBamF=None, \
 					refFastaFList=None, outputBamF=None, \
 					parentJob=None, \
 					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
-					namespace='workflow', version='1.0', stageOutFinalOutput=True,\
+					namespace='workflow', version='1.0', transferOutput=True,\
 					**keywords):
 		"""
 		2011-11-20
@@ -1144,7 +1293,6 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		workflow.addExecutable(stampy)
 		workflow.stampy = stampy
 		
-		workflow.IndexMergedBamIndexJava = workflow.BuildBamIndexFilesJava #no clustering for this as this runs on merged/dup-marked big bams
 		#workflow.BuildBamIndexFilesJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
 		workflow.addOrReplaceReadGroupsJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
 		workflow.samtools.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
@@ -1177,18 +1325,6 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		workflow.addExecutable(LongSEAlignmentByBWA)
 		workflow.LongSEAlignmentByBWA = LongSEAlignmentByBWA
 		
-		mergeSamFilesJava = Executable(namespace=namespace, name="mergeSamFilesJava", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		mergeSamFilesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		workflow.addExecutable(mergeSamFilesJava)
-		workflow.mergeSamFilesJava = mergeSamFilesJava
-		
-		SortSamFilesJava = Executable(namespace=namespace, name="SortSamFilesJava", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		SortSamFilesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		SortSamFilesJava.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.cluster_size_for_aln_jobs))
-		workflow.addExecutable(SortSamFilesJava)
-		workflow.SortSamFilesJava = SortSamFilesJava
 
 	def run(self):
 		"""
@@ -1221,7 +1357,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 		
 		
 		#individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, dataDir=self.localDataDir)
-		isq_id2LibrarySplitOrder2FileLs = db_vervet.getISQ_ID2LibrarySplitOrder2FileLs(self.ind_seq_id_ls, dataDir=self.dataDir, \
+		isqLs = db_vervet.getISQDBEntryLsForAlignment(self.ind_seq_id_ls, dataDir=self.dataDir, \
 												filtered=None, ignoreEmptyReadFile=self.ignoreEmptyReadFile)
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		
@@ -1243,7 +1379,7 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 			refIndexJob = None
 		
 		self.addAllAlignmentJobs(db_vervet, individualSequenceID2FilePairLs=None, \
-					isq_id2LibrarySplitOrder2FileLs = isq_id2LibrarySplitOrder2FileLs,\
+					isqLs = isqLs,\
 					dataDir=self.dataDir,\
 					refSequence=refSequence, refFastaFList=refFastaFList, refIndexJob=refIndexJob,
 					workflow=workflow, bwa=workflow.bwa, additionalArguments=self.additionalArguments, \
@@ -1256,10 +1392,12 @@ class ShortRead2AlignmentPipeline(AbstractNGSWorkflow):
 					SortSamFilesJava=workflow.SortSamFilesJava, SortSamFilesJar=workflow.SortSamFilesJar, \
 					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar,\
 					alignment_method_name=self.alignment_method_name, alignment_format='bam',\
-					namespace=workflow.namespace, version=workflow.version, stageOutFinalOutput=self.stageOutFinalOutput,\
+					
+					namespace=workflow.namespace, version=workflow.version, transferOutput=self.stageOutFinalOutput,\
 					PEAlignmentByBWA=workflow.PEAlignmentByBWA, ShortSEAlignmentByBWA=workflow.ShortSEAlignmentByBWA, \
 					LongSEAlignmentByBWA=workflow.LongSEAlignmentByBWA, no_of_aln_threads=self.no_of_aln_threads,\
-					stampyExecutable=workflow.stampy, skipDoneAlignment=self.skipDoneAlignment)
+					stampyExecutable=workflow.stampy, skipDoneAlignment=self.skipDoneAlignment,\
+					alignmentPerLibrary=self.alignmentPerLibrary, outputDirPrefix="")
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')

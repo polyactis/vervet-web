@@ -24,13 +24,13 @@ Examples:
 	%s  -I $dirPrefix\gatk -i $dirPrefix\call/ -l condorpool -j condorpool
 		-o FilterVCF_LowPass_top7559Contigs_no12eVarFilter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25.xml
 		-z uclaOffice -u yh -q ./alnStatForFilter.2011.12.9T0207.tsv
-		-G1 -K -R 0.1 -n 5 -L 0.25 -a 524 -C 50 -E
+		-G1 -K --maxSNPMismatchRate 0.1 -n 5 -L 0.25 -a 524 -C 50 -E
 	
 	#2011.12.9 to remove SNPs that are not in a file. no other filters.
 	dirPrefix=./AlignmentToCallLowPass_top7559Contigs_no12eVarFilter_2011.11.23T1620/
 	%s -I $dirPrefix\gatk -i $dirPrefix\call/ -l condorpool -j condorpool
 		-o Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4.xml
-		-z uclaOfficeTemp -u yh -q ./alnStatForFilter.2011.12.9T0207.tsv -G0 -R 1 -n 0 -L 1 -A 100000 -a 524 -C 50
+		-z uclaOfficeTemp -u yh -q ./alnStatForFilter.2011.12.9T0207.tsv -G0 --maxSNPMismatchRate 1 -n 0 -L 1 -A 100000 -a 524 -C 50
 		-S ./4HighCovVRC_inter_minMAC4_vs_LowPass_top7559Contigs_no12eVarFilter_inter.2011.12.9T0107/overlapPos.tsv
 	
 	#2011.12.19 run on hoffman2's condorpool
@@ -97,7 +97,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 						('minGQ', 1, int): [50, 'G', 1, 'minimum GQ/GenotypeQuality for one genotype. 2012.5.1 no longer enforced in FilterVCFByDepth.java', ],\
 						('depthFoldChange', 0, float): [0, 'A', 1, 'a variant is retained if its depth within this fold change of meanDepth,\
 		set this to 0 or below to eliminate this step of filtering.', ],\
-						("maxSNPMismatchRate", 0, float): [0, 'R', 1, 'maximum SNP mismatch rate between two vcf calls'],\
+						("maxSNPMismatchRate", 0, float): [0, '', 1, 'maximum SNP mismatch rate between two vcf calls'],\
 						("minDepthPerGenotype", 0, int): [0, 'Z', 1, 'mask genotype with below this depth as ./. (other fields retained), \
 	esp. necessary for SAMtools, which output homozygous reference if no read for one sample.'],\
 						("minMAC", 0, int): [None, 'n', 1, 'minimum MinorAlleleCount (by chromosome)'],\

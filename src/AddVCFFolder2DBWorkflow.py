@@ -3,13 +3,13 @@
 Examples:
 	#2012.5.11 
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/ 
-		-o workflow/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
+		-o workflow/2DB/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
 		-s ... -u yh -l hcondor -j hcondor  -z localhost 
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
 	# 2012.5.10 run on hoffman2 condor, turn on checkEmptyVCFByReading (-E), require db connection (-H), no clustering (-C1)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/
-		-o workflow/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
+		-o workflow/2DB/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
 		-s ... -E -H -C1
 		-l hcondor -j hcondor  -u yh -z localhost 
 		-e /u/home/eeskin/polyacti/ 
@@ -17,7 +17,7 @@ Examples:
 	
 	# 2012.7.16 add a folder of VCF files to DB without checking zero-loci VCF
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719/trioCaller_vcftoolsFilter/ 
-		-o workflow/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
+		-o workflow/2DB/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
 		-s ... -l condorpool -j condorpool
 		-u yh -z uclaOffice -C1
 	
@@ -81,12 +81,6 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		
 		executableList = []
 		
-		AddVCFFile2DB = Executable(namespace=namespace, name="AddVCFFile2DB", \
-											version=version, \
-											os=operatingSystem, arch=architecture, installed=True)
-		AddVCFFile2DB.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/AddVCFFile2DB.py"), site_handler))
-		executableList.append(AddVCFFile2DB)
-		
 		AddGenotypeMethod2DB = Executable(namespace=namespace, name="AddGenotypeMethod2DB", \
 											version=version, \
 											os=operatingSystem, arch=architecture, installed=True)
@@ -116,35 +110,6 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 			extraArgumentList.extend(["-l", logFile])
 		if dataDir:
 			extraArgumentList.extend(['-t', dataDir])
-		if commit:
-			extraArgumentList.append('-c')
-		if extraArguments:
-			extraArgumentList.append(extraArguments)
-		
-		job= self.addGenericJob(executable=executable, inputFile=inputFile, outputFile=None, \
-						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
-						extraOutputLs=[logFile],\
-						transferOutput=transferOutput, \
-						extraArgumentList=extraArgumentList, job_max_memory=job_max_memory, **keywords)
-		self.addDBArgumentsToOneJob(job=job, objectWithDBArguments=self)
-		return job
-	
-	def addAddVCFFile2DBJob(self, executable=None, inputFile=None, genotypeMethodShortName=None,\
-						logFile=None, format=None, dataDir=None, checkEmptyVCFByReading=None, commit=False, \
-						parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
-						extraArguments=None, job_max_memory=2000, **keywords):
-		"""
-		2012.6.27
-		"""
-		extraArgumentList = ['-f', format]
-		if logFile:
-			extraArgumentList.extend(["-l", logFile])
-		if dataDir:
-			extraArgumentList.extend(['-t', dataDir])
-		if checkEmptyVCFByReading:
-			extraArgumentList.extend(['-E'])
-		if genotypeMethodShortName:
-			extraArgumentList.extend(['-s', genotypeMethodShortName, ])
 		if commit:
 			extraArgumentList.append('-c')
 		if extraArguments:

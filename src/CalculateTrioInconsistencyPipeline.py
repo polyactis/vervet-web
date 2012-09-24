@@ -75,7 +75,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		"""
 		sys.stderr.write("Getting alignments based on VCF file %s ... "%(VCFFilename))
 		vcfFile = VCFFile(inputFname=VCFFilename)
-		#each sample id is '%s_%s_%s_%s_vs_%s'%(aln.id, ind_seq_id, ind_sequence.individual.code, sequencer, ref_ind_seq_id)
+		#each sample id is '%s_%s_%s_%s_vs_%s'%(aln.id, ind_seq_id, individual_sequence.individual.code, sequencer, ref_ind_seq_id)
 		alignmentLs = []
 		for sample_id in vcfFile.sample_id_ls:
 			try:
@@ -114,7 +114,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 				parent1ID, offspring_id = family[:2]
 				#output the single parent first
 				parent1Alignment = individual_id2alignmentLs.get(parent1ID)[0]
-				parent1Sex = parent1Alignment.ind_sequence.individual.codeSexInNumber()
+				parent1Sex = parent1Alignment.individual_sequence.individual.codeSexInNumber()
 				#output a fake 2nd parent, with opposite sex
 				parent2ID = 0
 				parent2Sex = 1-(parent1Sex-1)+1	#1 is father. 2 is mother.
@@ -132,7 +132,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 			elif familySize==3:
 				parent1ID, parent2ID, offspring_id = family[:3]
 				parent1Alignment = individual_id2alignmentLs.get(parent1ID)[0]
-				parent1Sex = parent1Alignment.ind_sequence.individual.codeSexInNumber()
+				parent1Sex = parent1Alignment.individual_sequence.individual.codeSexInNumber()
 				parent2Alignment = individual_id2alignmentLs.get(parent2ID)[0]
 				childAlignment = individual_id2alignmentLs.get(offspring_id)[0]
 				child_id = childAlignment.getCompositeID()
@@ -165,7 +165,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		individual_with_alignment_id2alignment = {}
 		
 		for individual_alignment in alignmentQuery:
-			ind = individual_alignment.ind_sequence.individual
+			ind = individual_alignment.individual_sequence.individual
 			individual_with_alignment_id2alignment[ind.id] = individual_alignment
 		
 		trioLs = []

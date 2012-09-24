@@ -50,6 +50,7 @@ class GenotypeCallByCoverage(object):
 						('maxNoOfReadsMultiSampleMultiplier', 1, float): [3, 'N', 1, 'across n samples, ignore bases where read depth > n*maxNoOfReads*multiplier.'],\
 						('seqCoverageFname', 0, ): ['', 'q', 1, 'The sequence coverage file. tab/comma-delimited: individual_sequence.id coverage'],\
 						('defaultCoverage', 1, float): [5, 'f', 1, 'default coverage when coverage is not available for a read group'],\
+						('minDepth', 0, float): [0, '', 1, 'minimum depth for a VCF call to regarded as non-missing, used in 3rd run_type', ],\
 						('outputFname', 1, ): [None, 'o', 1, 'output the SNP data.'],\
 						('outputDelimiter', 1, ): ['\t', 'u', 1, 'delimiter in the csv output file.'],\
 						("run_type", 1, int): [1, 'y', 1, '1: discoverFromVCF (output of GATK), 2: discoverFromBAM, 3: discoverFromVCFWithoutFilter'],\
@@ -587,17 +588,21 @@ class GenotypeCallByCoverage(object):
 		sys.stderr.write("%s\t%s\t%s.\n"%("\x08"*80, counter, real_counter))
 	
 	
-	def discoverFromVCFWithoutFilter(self, inputFname, outputFname, **keywords):
+	def discoverFromVCFWithoutFilter(self, inputFname=None, outputFname=None, **keywords):
 		"""
+		2012.9.11
+			read minDepth from self.minDepth
+		2012.9.5
+			add minDepth=0 to VCFFile
 		#2012.8.20 locus_id2row_index from VCFFile is using (chr, pos) as key, not chr_pos
 			need a conversion in between
 		2012.5.8
 		"""
-		vcfFile = VCFFile(inputFname=inputFname)
+		vcfFile = VCFFile(inputFname=inputFname, minDepth=self.minDepth)
 		vcfFile.parseFile()
 		
 		read_group2col_index = vcfFile.sample_id2index
-		locus_id2row_index = vcfFile.locus_id2row_index	
+		locus_id2row_index = vcfFile.locus_id2row_index
 		#2012.8.20 locus_id2row_index from VCFFile is using (chr, pos) as key, not chr_pos
 		new_locus_id2row_index = {}
 		for locus_id, row_index  in locus_id2row_index.iteritems():

@@ -3,12 +3,12 @@
 Examples:
 	# 2011-9-29
 	%s  -a 524 -I ./AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_condor_20111106T1554/gatk/
-		-o VCFStat_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_gatk.xml
+		-o workflow/VCFStat/VCFStat_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_gatk.xml
 		-l condorpool -j condorpool  -u yh -z uclaOffice
 	
 	#different window size for pi and TiTv
 	%s  -a 524 -I ./AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_condor_20111106T1554/gatk/
-		-o VCFStat_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_gatk_window20Mb.xml
+		-o workflow/VCFStat/VCFStat_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_gatk_window20Mb.xml
 		-l condorpool -j condorpool  -u yh -z uclaOffice
 		-w 20000000
 	
@@ -24,10 +24,10 @@ Examples:
 	# "-V 90 -x 100" are used to restrict contig IDs between 90 and 100.
 	# try "-s 0.01" to increase data sampling rate
 	%s -a 524 -I FilterGenotypeMethod5_ByMethod7Sites_NoDepthFilter_MaxSNPMissing0.5.2012.7.30T1806/method_5_vcftoolsFilter/
-		-o workflow/VCFStat_Method8_L800000P4000000n1000000.xml
+		-o workflow/VCFStat/VCFStat_Method8_L800000P4000000n1000000.xml
 		-j hcondor -l hcondor -u yh -z localhost  -D ~/NetworkData/vervet/db/ -t ~/NetworkData/vervet/db/
 		-L 800000 -P 4000000 -n 1000000 -H 
-		#-V 90 -x 100 -s 0.01
+		#-V 90 -x 100 -C 1 -s 0.01
 		
 	
 
@@ -210,6 +210,14 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 		TallyAACFromVCF.addPFN(PFN("file://" + self.javaPath, site_handler))
 		executableClusterSizeMultiplierList.append((TallyAACFromVCF, 0.2))
 		
+		#2012.8.29 vcftoolsWrapper just for LD caculation 
+		import copy
+		vcftoolsWrapperLD = copy.deepcopy(self.vcftoolsWrapper)
+		vcftoolsWrapperLD.name = 'vcftoolsWrapperLD'
+		vcftoolsWrapperLD.clearProfiles()	#get rid of existing profiles
+		executableClusterSizeMultiplierList.append((vcftoolsWrapperLD, 0))
+		
+		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 		
 	
@@ -262,7 +270,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[homoHetCountReduceOutputF], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="NoOfHet_by_NoOfTotal", whichColumnPlotLabel="HetFraction", \
-					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=50,\
+					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, homoHetCountReduceJob], \
@@ -323,7 +331,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 			self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[TiTvFinalOutputF], \
 								outputFnamePrefix=outputFnamePrefix, \
 								whichColumn=None, whichColumnLabel="Ts/Tv", whichColumnPlotLabel="Ts/Tv", need_svg=False, \
-								logWhichColumn=False,\
+								logWhichColumn=False, valueForNonPositiveYValue=-1, \
 								posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHROM", \
 								minChrLength=minChrLengthForPlot, posColumnLabel="BinStart", minNoOfTotal=50,\
 								figureDPI=100, ylim_type=2, samplingRate=1,\
@@ -357,7 +365,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 			self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[snpDensityOutputF], \
 								outputFnamePrefix=outputFnamePrefix, \
 								whichColumn=None, whichColumnLabel="SNPS/KB", whichColumnPlotLabel="SNPS/KB", need_svg=False, \
-								logWhichColumn=False,\
+								logWhichColumn=False, valueForNonPositiveYValue=-1, \
 								posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHROM", \
 								minChrLength=minChrLengthForPlot, posColumnLabel="BIN_START", minNoOfTotal=50,\
 								figureDPI=100, ylim_type=2, samplingRate=1,\
@@ -375,7 +383,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[hweMergeFile], \
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnLabel="P", whichColumnPlotLabel="-logHWEpvalue", need_svg=False, \
-							logWhichColumn=True,\
+							logWhichColumn=True, valueForNonPositiveYValue=-1, \
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHR", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
@@ -386,7 +394,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[hweMergeFile], \
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnLabel="hetFraction", whichColumnPlotLabel="hetFraction", need_svg=False, \
-							logWhichColumn=False,\
+							logWhichColumn=False, valueForNonPositiveYValue=-1, \
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHR", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
@@ -404,7 +412,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[siteMeanDepthMergeFile], \
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnLabel="MEAN_DEPTH", whichColumnPlotLabel="meanDepth", need_svg=False, \
-							logWhichColumn=False,\
+							logWhichColumn=False, valueForNonPositiveYValue=-1, \
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHROM", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
@@ -415,7 +423,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[siteMeanDepthMergeFile], \
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnLabel="VAR_DEPTH", whichColumnPlotLabel="depthVariation", need_svg=False, \
-							logWhichColumn=False,\
+							logWhichColumn=False, valueForNonPositiveYValue=-1, \
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHROM", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
@@ -442,7 +450,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[lmissingMergeFile], \
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnLabel="F_MISS", whichColumnPlotLabel="missingFrequency", need_svg=False, \
-							logWhichColumn=False,\
+							logWhichColumn=False, valueForNonPositiveYValue=-1,\
 							posColumnPlotLabel="position", chrLengthColumnLabel="chrLength", chrColumnLabel="CHR", \
 							minChrLength=minChrLengthForPlot, posColumnLabel="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=samplingRate, logCount=True,\
@@ -460,7 +468,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 												fileList=[LDMergeFile]))
 			outputFile = File( os.path.join(plotOutputDir, 'LDPlot%s.png'%(LDWindowSize)))
 			#square the sampling rate
-			LDPlotJob = self.addPlotLDJob(executable=workflow.PlotLD, inputFileList=[LDMergeFile], outputFile=outputFile, \
+			LDPlotJob = self.addPlotLDJob(executable=workflow.PlotLD, inputFileList=None, outputFile=outputFile, \
 						whichColumn=None, whichColumnHeader="R^2", whichColumnPlotLabel="r2", \
 						logWhichColumn=False,\
 						xColumnPlotLabel="distance", chrLengthColumnHeader=None, chrColumnHeader="CHR", \
@@ -470,6 +478,9 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 						extraDependentInputLs=None, \
 						extraArguments=None, transferOutput=transferOutput)
 			no_of_jobs += 2
+		else:
+			LDMergeJob = None
+			LDPlotJob = None
 		
 		#2012.8.2
 		siteQualityMergeFile = File(os.path.join(statOutputDir, 'siteQualityMerge.tsv'))
@@ -581,7 +592,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 				windowPIJob = self.addFilterJobByvcftools(vcftoolsWrapper=workflow.vcftoolsWrapper, inputVCFF=vcf1, outputFnamePrefix=outputFnamePrefix, \
 							parentJobLs=[statOutputDirJob]+inputJobLs, snpMisMatchStatFile=None, minMAC=None, minMAF=None, maxSNPMissingRate=None,\
 							perIndividualDepth=False, perIndividualHeterozygosity=False, \
-							perSiteHWE=False, haploLD=False, genoLD=False, minLDr2=0.2, LDWindowByNoOfSites=None,\
+							perSiteHWE=False, haploLD=False, genoLD=False, LDWindowByNoOfSites=None,\
 							LDWindowByBP=None, TsTvWindowSize=None, piWindowSize=windowSize, perSitePI=False, \
 							SNPDensityWindowSize=None, calculateMissingNess=False,\
 							extraDependentInputLs=None, transferOutput=False, \
@@ -594,7 +605,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 				snpDensityJob = self.addFilterJobByvcftools(vcftoolsWrapper=workflow.vcftoolsWrapper, inputVCFF=vcf1, outputFnamePrefix=outputFnamePrefix, \
 							parentJobLs=[statOutputDirJob]+inputJobLs, snpMisMatchStatFile=None, minMAC=None, minMAF=None, maxSNPMissingRate=None,\
 							perIndividualDepth=False, perIndividualHeterozygosity=False, \
-							perSiteHWE=False, haploLD=False, genoLD=False, minLDr2=0.2, LDWindowByNoOfSites=None,\
+							perSiteHWE=False, haploLD=False, genoLD=False, LDWindowByNoOfSites=None,\
 							LDWindowByBP=None, TsTvWindowSize=None, piWindowSize=None, perSitePI=False, \
 							SNPDensityWindowSize=windowSize, calculateMissingNess=False,\
 							extraDependentInputLs=None, transferOutput=False, \
@@ -603,7 +614,7 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 			perSiteHWEJob = self.addFilterJobByvcftools(vcftoolsWrapper=workflow.vcftoolsWrapper, inputVCFF=vcf1, outputFnamePrefix=outputFnamePrefix, \
 						parentJobLs=[statOutputDirJob]+inputJobLs, snpMisMatchStatFile=None, minMAC=None, minMAF=None, maxSNPMissingRate=None,\
 						perIndividualDepth=False, perIndividualHeterozygosity=False, \
-						perSiteHWE=True, haploLD=False, genoLD=False, minLDr2=0.2, LDWindowByNoOfSites=None,\
+						perSiteHWE=True, haploLD=False, genoLD=False, LDWindowByNoOfSites=None,\
 						LDWindowByBP=None, TsTvWindowSize=None, piWindowSize=None, perSitePI=False, \
 						SNPDensityWindowSize=None, calculateMissingNess=False,\
 						extraDependentInputLs=None, transferOutput=False, \
@@ -625,9 +636,9 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 						outputFormat=None, job_max_memory=1000)
 			no_of_jobs += 4
 			if LDWindowSize>0 and chr_size>=minChrLengthForPlot:
-				LDJob = self.addFilterJobByvcftools(vcftoolsWrapper=workflow.vcftoolsWrapper, inputVCFF=vcf1, outputFnamePrefix=outputFnamePrefix, \
+				LDJob = self.addFilterJobByvcftools(vcftoolsWrapper=workflow.vcftoolsWrapperLD, inputVCFF=vcf1, outputFnamePrefix=outputFnamePrefix, \
 						parentJobLs=[statOutputDirJob]+inputJobLs, snpMisMatchStatFile=None, minMAC=None, minMAF=None, maxSNPMissingRate=None,\
-						genoLD=True, minLDr2=0.2, LDWindowByNoOfSites=None,\
+						genoLD=True, minLDr2=0, LDWindowByNoOfSites=None,\
 						LDWindowByBP=LDWindowSize, \
 						extraDependentInputLs=None, transferOutput=False, \
 						outputFormat=None, job_max_memory=1000)
@@ -686,6 +697,8 @@ class CalculateVCFStatPipeline(AbstractVCFWorkflow):
 						parentJobLs=[addChrLengthToHWEJob])
 			if LDWindowSize>0 and chr_size>=minChrLengthForPlot:
 				self.addInputToStatMergeJob(workflow, statMergeJob=LDMergeJob, inputF=LDJob.output, \
+						parentJobLs=[LDJob])
+				self.addInputToStatMergeJob(workflow, statMergeJob=LDPlotJob, inputF=LDJob.output, \
 						parentJobLs=[LDJob])
 			self.addInputToStatMergeJob(workflow, statMergeJob=imissingReduceJob, inputF=missingNessJob.imissFile, \
 						parentJobLs=[missingNessJob])

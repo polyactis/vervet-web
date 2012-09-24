@@ -11,8 +11,8 @@ drop view view_alignment;
 create or replace view view_alignment as select i.id as individual_id, i.code, i.ucla_id, i.tax_id, i.sex, i.age, 
     i.site_id, i.collection_date, i.latitude, i.longitude, isq.id as isq_id, 
     isq.filtered, isq.sequencer, isq.sequence_type, isq.tissue_id, isq.base_count, 
-    isq.coverage as raw_coverage, ia.id as alignment_id, ia.ref_ind_seq_id, ia.aln_method_id,
-    ia.median_depth, ia.mean_depth, ia.mode_depth, ia.outdated_index
+    isq.coverage as raw_coverage, ia.id as alignment_id, ia.ref_ind_seq_id, ia.alignment_method_id,
+    ia.median_depth, ia.mean_depth, ia.mode_depth, ia.outdated_index, ia.date_created, ia.date_updated
     from individual i, individual_alignment ia, individual_sequence isq where isq.individual_id=i.id and isq.id=ind_seq_id
     order by individual_id, isq.sequencer, isq.sequence_type, ref_ind_seq_id, alignment_id;
     
@@ -80,13 +80,14 @@ create or replace view view_sequence_before_after_filter as select t2.*, visq.ba
     (select * from individual_sequence where filtered =0) as s2 on s1.parent_individual_sequence_id=s2.id) as t1,
     individual i where i.id=t1.individual_id) as t2, view_individual_sequence visq where t2.isq_id=visq.individual_sequence_id;
 
-drop view viewInd2Ind;
-create or replace view viewInd2Ind as select i1.code as i1_code, i2i.individual1_id, i2.code as i2_code , i2i.individual2_id, i2i.relationship_type_id
+drop view view_ind2ind;
+create or replace view view_ind2ind as select i2i.id as i2i_id, i1.code as i1_code, i2i.individual1_id, i2.code as i2_code ,
+    i2i.individual2_id, i2i.relationship_type_id
     from ind2ind i2i, individual i1, individual i2 where  i1.id=i2i.individual1_id and i2.id=i2i.individual2_id;
 
 -- 2012.6.26 view on all the alignments
 drop view view_seq_comparison_with_alignment;
-create or replace view view_seq_comparison_with_alignment as select v.*, va1.alignment_id, va1.aln_method_id,
+create or replace view view_seq_comparison_with_alignment as select v.*, va1.alignment_id, va1.alignment_method_id,
     va1.ref_ind_seq_id, va1.median_depth, va1.outdated_index
     from view_sequence_before_after_filter v left join view_alignment va1 on v.isq_id=va1.isq_id;
 
@@ -99,7 +100,7 @@ create or replace view check_isq_file_parity as select individual_sequence_id, l
 
 -- 2012.8.6
 select t1.genotype_method_id, t1.chromosome, t1.no_of_loci, t1.file_size, 
-	t2.genotype_method_id, t2.chromosome, t2.no_of_loci, t2.file_size
-	from (select * from genotype_file where genotype_method_id =10) t1 full join 
-		(select * from genotype_file where genotype_method_id =12) t2 on t1.chromosome=t2.chromosome
-	order by t1.no_of_loci desc;
+    t2.genotype_method_id, t2.chromosome, t2.no_of_loci, t2.file_size
+    from (select * from genotype_file where genotype_method_id =10) t1 full join 
+        (select * from genotype_file where genotype_method_id =12) t2 on t1.chromosome=t2.chromosome
+    order by t1.no_of_loci desc;

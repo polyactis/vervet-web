@@ -1,20 +1,14 @@
 #!/usr/bin/env python
 """
 Examples:
-	#2012.5.11 convert alignment read group (sample id) into UCLAID
 	%s
-	
-	# 2012.5.10 run on hoffman2 condor, minMAC=1 (-n 1), minMAF=0.1 (-M 0.1), maxSNPMissingRate=0 (-N 0)   (turn on checkEmptyVCFByReading, -E)
-	%s 
-	
-	# 2012.7.16 convert a folder of VCF files into plink
-	%s 
 	
 	# 2012.9.18
 	%s  -L ~/NetworkData/vervet/db/genotype_file/method_41 -i 633,634,635,636,637,638 
-		-a 524 -o workflow/HaplotypeScore/HaplotypeScore_ISQ633_638.xml -l hcondor
+		-a 524 -o workflow/HaplotypeScore/HaplotypeScore_ISQ633_638_vsMethod41.xml -l hcondor
 		-j hcondor -z localhost -u yh
-		-e /u/home/eeskin/polyacti -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		-e /u/home/eeskin/polyacti
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-C 5 -H -J ~/bin/jdk/bin/java
 	
 Description:
@@ -30,7 +24,7 @@ Description:
 		draw histogram & GW-plot of HaplotypeScore for each alignment.
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0])
 
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
@@ -127,11 +121,9 @@ class HaplotypeScoreWorkflow(parentClass):
 					extraArguments=None, transferOutput=True,  job_max_memory=2000)
 		returnData.no_of_jobs += 1
 		
-		
-		
 		return returnData
 	
-	def map(self, workflow=None, alignmentData=None, intervalData=None,\
+	def mapEachInterval(self, workflow=None, alignmentData=None, intervalData=None,\
 			VCFFile=None, passingData=None, transferOutput=True, **keywords):
 		"""
 		2012.9.17
@@ -186,13 +178,13 @@ class HaplotypeScoreWorkflow(parentClass):
 		returnData.no_of_jobs += 2
 		return returnData
 	
-	def linkMapToReduce(self, workflow=None, mapReturnData=None, preReduceReturnData=None, passingData=None, \
+	def linkMapToReduce(self, workflow=None, mapEachIntervalData=None, preReduceReturnData=None, passingData=None, \
 					reduceBeforeEachAlignmentData=None, transferOutput=True, **keywords):
 		"""
 		"""
 		for jobData in reduceBeforeEachAlignmentData.jobDataLs:
-			self.addInputToStatMergeJob(workflow, statMergeJob=jobData.mergeJob, inputF=mapReturnData.extractInfoJob.output, \
-							parentJobLs=[mapReturnData.extractInfoJob])
+			self.addInputToStatMergeJob(workflow, statMergeJob=jobData.mergeJob, inputF=mapEachIntervalData.extractInfoJob.output, \
+							parentJobLs=[mapEachIntervalData.extractInfoJob])
 	
 	
 	def addGATKVariantAnnotatorJob(self, workflow, executable=None, genomeAnalysisTKJar=None, bamFile=None, \

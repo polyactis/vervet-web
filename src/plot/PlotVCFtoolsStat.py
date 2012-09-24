@@ -30,31 +30,36 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2In
 from pymodule import yh_matplotlib, GenomeDB, utils
 from PlotTrioInconsistencyOverFrequency import PlotTrioInconsistencyOverFrequency
 import numpy, random, pylab
+from pymodule.AbstractMatrixFileWalker import AbstractMatrixFileWalker
 
-class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency):
+class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWalker):
 	__doc__ = __doc__
 	option_default_dict = PlotTrioInconsistencyOverFrequency.option_default_dict
 	option_default_dict.pop(('outputFname', 1, ))
 	option_default_dict.update({
 			('whichColumn', 0, int): [3, 'w', 1, 'data from this column (index starting from 0) is plotted as y-axis value'],\
 			('whichColumnLabel', 0, ): ["", 'W', 1, 'column label (in the header) for the data to be plotted as y-axis value, substitute whichColumn'],\
-			('logWhichColumn', 0, int): [0, 'g', 0, 'whether to take -log of the whichColumn'],\
 			('need_svg', 0, ): [0, 'n', 0, 'whether need svg output', ],\
 			('whichColumnPlotLabel', 1, ): ['#SNPs in 100kb window', 'D', 1, 'plot label for data of the whichColumn', ],\
 			('posColumnPlotLabel', 1, ): ['position', 'x', 1, 'x-axis label (posColumn) in manhattan plot', ],\
-			('chrLengthColumnLabel', 1, ): ['chrLength', 'c', 1, 'label of the chromosome length column', ],\
+			('chrLengthColumnLabel', 0, ): ['chrLength', 'c', 1, 'label of the chromosome length column', ],\
 			('chrColumnLabel', 1, ): ['CHR', 'C', 1, 'label of the chromosome column', ],\
 			('minChrLength', 1, int): [1000000, 'm', 1, 'minimum chromosome length for one chromosome to be included', ],\
 			('posColumnLabel', 1, ): ['BIN_START', 'l', 1, 'label of the position column, BIN_START for binned vcftools output. POS for others.', ],\
 			('outputFnamePrefix', 0, ): [None, 'O', 1, 'output filename prefix (optional).'],\
 			('logCount', 0, int): [0, '', 0, 'whether to take log on the y-axis of the histogram, the raw count'], \
+			('logWhichColumn', 0, int): [0, 'g', 0, 'whether to take -log of the whichColumn'],\
+			('positiveLog', 0, int): [0, '', 0, 'toggle to take log, rather than -log(), \
+				only effective when logWhichColumn is toggled. '],\
+			('valueForNonPositiveYValue', 1, float): [-1, 'v', 1, 'if the whichColumn value is not postive and logWhichColumn is on,\
+			what yValue should be.'],\
 			})
-	option_for_DB_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgresql', ],\
+	option_for_DB_dict = {('drivername', 1,):['postgresql', '', 1, 'which type of database? mysql or postgresql', ],\
 						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
 						('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
 						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
 						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-						('db_passwd', 1, ): [None, 'p', 1, 'database password', ]}
+						('db_passwd', 1, ): [None, '', 1, 'database password', ]}
 	option_default_dict.update(option_for_DB_dict)
 	
 	def __init__(self, inputFnameLs, **keywords):
@@ -63,11 +68,13 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency):
 		PlotTrioInconsistencyOverFrequency.__init__(self, inputFnameLs, **keywords)
 		#Super(PlotVCFtoolsStat, self).__init__(inputFnameLs, **keywords)
 		self.chr2xy_ls = {}
-		
+	
 	def vcftoolsOutputStatFileWalker(self, inputFname, processFunc=None, run_type=1, \
 									chrColumnLabel='CHR', minChrLength=1000000, chrLengthColumnLabel='chrLength',\
-									posColumnLabel="BIN_START"):
+									posColumnLabel="BIN_START", valueForNonPositiveYValue=-1):
 		"""
+		2012.9.18 chrLengthColumnLabel could be nothing
+		2012.8.31 add argument valueForNonPositiveYValue
 		2012.8.13 bugfix. pass inf to figureOutDelimiter
 		2012.8.1
 		2011-11-2
@@ -93,7 +100,10 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency):
 			sys.stderr.write("Error chr_id_index is None.\n")
 			sys.exit(3)
 		bin_start_index = col_name2index.get(posColumnLabel, None)
-		chrLength_index = col_name2index.get(chrLengthColumnLabel, None)
+		if chrLengthColumnLabel:	#could be nothing
+			chrLength_index = col_name2index.get(chrLengthColumnLabel, None)
+		else:
+			chrLength_index = None
 		if self.whichColumnLabel:
 			whichColumn = col_name2index.get(self.whichColumnLabel, None)
 		else:
@@ -111,12 +121,9 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency):
 			chr_id = row[chr_id_index]
 			bin_start = int(float(row[bin_start_index]))
 			
-			yValue = float(row[whichColumn])
-			if self.logWhichColumn:
-				if yValue>0:
-					yValue = -math.log10(yValue)
-				else:
-					yValue = 50
+			yValue = row[whichColumn]
+			yValue = self.handleYValue(yValue)
+			
 			if chr_id not in chr2xy_ls:
 				chr2xy_ls[chr_id] = [[],[]]
 			chr_cumu_start = self.chr_id2cumu_start.get(chr_id)
@@ -156,7 +163,7 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency):
 			try:
 				self.vcftoolsOutputStatFileWalker(inputFname, processFunc=None, chrColumnLabel=self.chrColumnLabel,\
 									minChrLength=self.minChrLength, chrLengthColumnLabel=self.chrLengthColumnLabel,\
-									posColumnLabel=self.posColumnLabel)
+									posColumnLabel=self.posColumnLabel, valueForNonPositiveYValue=self.valueForNonPositiveYValue)
 			except:	#in case something wrong (i.e. file is empty)
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 				import traceback
