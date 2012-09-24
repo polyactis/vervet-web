@@ -7,13 +7,13 @@ Examples:
 	
 	#2011-11-5 run it on hoffman2, need ssh tunnel for db (-H)
 	%s -a 524 -j hoffman2 -l hoffman2 -u yh -z uclaOffice -o MarkDupAlnID552_661Pipeline_hoffman2.xml 
-		-I 552-661 -e /u/home/eeskin/polyacti/ -m /u/home/eeskin/polyacti/NetworkData/ 
+		-I 552-661 -e /u/home/eeskin/polyacti/ -c /u/home/eeskin/polyacti/NetworkData/ 
 		-J /u/local/apps/java/jre1.6.0_23/bin/java -t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /Network/Data/vervet/db/
 		-H
 	
 	#2011-11-5 run on uschpc (input data is on uschpc), for each top contig as well
 	%s -a 524 -j uschpc -l uschpc -u yh -z uclaOffice -o MarkDupAlnID552_661Pipeline_uschpc.xml
-		-I 552-661 -P -e /home/cmb-03/mn/yuhuang/ -m /home/cmb-03/mn/yuhuang/tmp/
+		-I 552-661 -P -e /home/cmb-03/mn/yuhuang/ -c /home/cmb-03/mn/yuhuang/tmp/
 		-J /usr/usc/jdk/default/bin/java -t /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/ -D /Network/Data/vervet/db/
 	
 	#2011-11-25 on hoffman2's condor pool, need ssh tunnel for db (-H)
@@ -21,17 +21,24 @@ Examples:
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -J ~/bin/jdk/bin/java -H
 	
-	#2012.4.3 change tmpDir (-m) for AddOrReplaceReadGroups, no job clustering (-C 1)
-	%s -a 524 -j condorpool -l condorpool -u yh -z uclaOffice -o InspectAln1_To_661_RefSeq524Alignments.xml -I 1-661
-		-m /Network/Data/vervet/vervetPipeline/tmp/ -C 1
+	#2012.4.3 change tmpDir (-c) for AddOrReplaceReadGroups, no job clustering (-C 1)
+	%s -a 524 -j condorpool -l condorpool -u yh -z uclaOffice
+		-o workflow/InspectAlignment/InspectAln1_To_661_RefSeq524Alignments.xml -I 1-661
+		-c /Network/Data/vervet/vervetPipeline/tmp/ -C 1
 	
 	#2012.5.8 do perContig depth estimation (-P) and skip alignments with stats in db already (-s), need ssh tunnel for db (-H)
-	%s -a 524 -j hcondor -l hcondor -u yh -z localhost -N 7559 -o workflow/InspectAln1_To_1251_RefSeq524Alignments.xml
-		-I 1-1251
-		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
+	# add --individual_sequence_file_raw_id_type 2 (library-specific alignments, different libraries of one individual_sequence) 
+	# add --individual_sequence_file_raw_id_type 3 (both all-library-fused and library-specific alignments)
+	# add "--country_id_ls 135,136,144,148,151" to limit individuals from US,Barbados,StKitts,Nevis,Gambia (AND with -S, )
+	%s -a 524 -j hcondor -l hcondor -u yh -z localhost -N 7559
+		-o workflow/InspectAlignment/InspectAln1_To_1251_RefSeq524Alignments.xml
+		-I 1-1251 -C 1
+		-e /u/home/eeskin/polyacti/
+		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-J ~/bin/jdk/bin/java 
 		-P -s -H
-	
+		#--individual_sequence_file_raw_id_type 2 --country_id_ls 135,136,144,148,151 --tax_id_ls 60711 #sabaeus
+
 Description:
 	2012.3.21
 		use samtools flagstat
@@ -50,33 +57,29 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
 from AlignmentToCallPipeline import AlignmentToCallPipeline
 from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
+from AbstractVervetWorkflow import AbstractVervetWorkflow
 
 class InspectAlignmentPipeline(AlignmentToCallPipeline):
 	__doc__ = __doc__
-	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
+	commonOptionDict = AbstractVervetWorkflow.option_default_dict.copy()
+	commonOptionDict.pop(('inputDir', 0, ))
+	commonOptionDict.update(AlignmentToCallPipeline.commonAlignmentWorkflowOptionDict.copy())
+	
+	option_default_dict = commonOptionDict.copy()
 	option_default_dict.update({
-						('ind_seq_id_ls', 0, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. alignments come from these', ],\
-						('ind_aln_id_ls', 0, ): ['', 'I', 1, 'a comma/dash-separated list of IndividualAlignment.id. This overrides ind_seq_id_ls.', ],\
-						("tmpDir", 1, ): ["/tmp/", 'm', 1, 'for MarkDuplicates.jar or AddOrReplaceReadGroups.jar, default is /tmp/ but sometimes too small'],\
+						("tmpDir", 1, ): ["/tmp/", 'c', 1, 'for MarkDuplicates.jar or AddOrReplaceReadGroups.jar, default is /tmp/ but sometimes too small'],\
 						("needPerContigJob", 0, int): [0, 'P', 0, 'toggle to add DepthOfCoverage and VariousReadCount jobs for each contig.'],\
 						("skipAlignmentWithStats", 0, int): [0, 's', 0, 'If an alignment has depth stats filled, not DOC job will be run. similar for flagstat job.'],\
 						("fractionToSample", 0, float): [0.001, '', 1, 'fraction of loci to walk through for DepthOfCoverage walker.'],\
 						("needFastaIndexJob", 0, int): [0, '', 0, 'toggle to add a reference index job by samtools'],\
 						("needFastaDictJob", 0, int): [0, '', 0, 'toggle to add a reference dict job by picard CreateSequenceDictionary.jar'],\
-						("sequence_filtered", 0, int): [None, '', 1, 'To filter alignments. None: whatever; 0: unfiltered sequences, 1: filtered sequences'],\
-						("alignment_method_id", 0, int): [None, '', 1, 'To filter alignments. None: whatever; integer: AlignmentMethod.id'],\
 						})
 
 	def __init__(self, **keywords):
 		"""
 		2011-11-4
 		"""
-		AbstractNGSWorkflow.__init__(self, **keywords)
-		#AlignmentToCallPipeline.__init__(self, **keywords)
-		if self.ind_seq_id_ls:
-			self.ind_seq_id_ls = getListOutOfStr(self.ind_seq_id_ls, data_type=int)
-		if self.ind_aln_id_ls:
-			self.ind_aln_id_ls = getListOutOfStr(self.ind_aln_id_ls, data_type=int)
+		AlignmentToCallPipeline.__init__(self, **keywords)
 		
 	
 	def addDepthOfCoverageJob(self, workflow, DOCWalkerJava=None, genomeAnalysisTKJar=None,\
@@ -225,7 +228,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				mkdirWrap=None, mv=None, \
 				ReformatFlagstatOutput=None, PutFlagstatOutput2DB=None, PutDOCOutput2DB=None,\
 				samtoolsDepth=None, \
-				reduceDepthOfCoverage=None, reduceVariousReadCount=None,\
+				ReduceDepthOfCoverage=None, ReduceVariousReadCount=None,\
 				refFastaFList=None, \
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				needFastaIndexJob=False, needFastaDictJob=False, \
@@ -250,7 +253,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		no_of_jobs = 0
 		if needFastaDictJob:
 			fastaDictJob = self.addRefFastaDictJob(workflow, createSequenceDictionaryJava=createSequenceDictionaryJava, \
-										refFastaF=refFastaF)
+										createSequenceDictionaryJar=createSequenceDictionaryJar, refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
 			no_of_jobs += 1
 		else:
@@ -305,7 +308,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				pass
 			else:
 				#DOCOutputFnamePrefix = '%s_DOC'%(alignment.id)
-				depthOutputFile = File('%s_DOC.tsv.gz'%(alignment.id))
+				depthOutputFile = File('%s_DOC.tsv'%(alignment.id))
 				samtoolsDepthJob = self.addSAMtoolsDepthJob(workflow, samtoolsDepth=samtoolsDepth, samtools_path=samtools_path,\
 							bamF=bamF, outputFile=depthOutputFile, baiF=baiF, \
 							parentJobLs=alignmentData.jobLs, job_max_memory = 500, additionalArguments="", \
@@ -314,7 +317,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				meanMedianModeDepthJob = self.addCalculateDepthMeanMedianModeJob(workflow, \
 							executable=workflow.CalculateMedianMeanOfInputColumn, \
 							inputFile=depthOutputFile, outputFile=meanMedianModeDepthFile, alignmentID=alignment.id, fractionToSample=self.fractionToSample, \
-							noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E7,\
+							noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E6,\
 							parentJobLs=[samtoolsDepthJob], job_max_memory = 500, additionalArguments=None, \
 							transferOutput=False)
 				"""
@@ -367,7 +370,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 			"""
 				#2012.4.3 no more VariousReadCountJava job
 			finalVariousReadCountOutputF = File("%s_VariousReadCount.tsv"%(alignment.getReadGroup()))
-			reduceVariousReadCountJob = Job(namespace=namespace, name=reduceVariousReadCount.name, version=version)
+			reduceVariousReadCountJob = Job(namespace=namespace, name=ReduceVariousReadCount.name, version=version)
 			reduceVariousReadCountJob.addArguments("-o", finalVariousReadCountOutputF)
 			reduceVariousReadCountJob.uses(finalVariousReadCountOutputF, transfer=True, register=True, link=Link.OUTPUT)
 			workflow.addJob(reduceVariousReadCountJob)
@@ -375,14 +378,14 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 			
 			"""
 			finalDepthOfCoverageOutputF = File("%s_DepthOfCoverage.tsv"%(alignment.getReadGroup()))
-			reduceDepthOfCoverageJob = Job(namespace=namespace, name=reduceDepthOfCoverage.name, version=version)
+			reduceDepthOfCoverageJob = Job(namespace=namespace, name=ReduceDepthOfCoverage.name, version=version)
 			reduceDepthOfCoverageJob.addArguments("-o", finalDepthOfCoverageOutputF)
 			reduceDepthOfCoverageJob.uses(finalDepthOfCoverageOutputF, transfer=True, register=True, link=Link.OUTPUT)
 			workflow.addJob(reduceDepthOfCoverageJob)
 			"""
 			
 			for refName, refSize in refName2size.iteritems():	#this could be further improved to work on per-interval
-				depthOutputFile = File(os.path.join(statOutputDir, '%s_%s_DOC.tsv.gz'%(alignment.id, refName)))
+				depthOutputFile = File(os.path.join(statOutputDir, '%s_%s_DOC.tsv'%(alignment.id, refName)))
 				samtoolsDepthJob = self.addSAMtoolsDepthJob(workflow, samtoolsDepth=samtoolsDepth, samtools_path=samtools_path,\
 							bamF=bamF, outputFile=depthOutputFile, baiF=baiF, \
 							parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = 500, additionalArguments="", \
@@ -392,7 +395,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 							executable=workflow.CalculateMedianMeanOfInputColumn, \
 							inputFile=depthOutputFile, outputFile=meanMedianModeDepthFile, alignmentID="%s-%s"%(alignment.id, refName), \
 							fractionToSample=self.fractionToSample, \
-							noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E7,\
+							noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E6,\
 							parentJobLs=[samtoolsDepthJob], job_max_memory = 500, additionalArguments="-r %s"%(refName), \
 							transferOutput=False)
 				
@@ -455,75 +458,63 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		clusters_size = self.clusters_size
 		site_handler = self.site_handler
 		
-		executableList = []
+		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
 		
-		reduceDepthOfCoverage = Executable(namespace=namespace, name="ReduceDepthOfCoverage", version=version, os=operatingSystem,\
+		ReduceDepthOfCoverage = Executable(namespace=namespace, name="ReduceDepthOfCoverage", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
-		reduceDepthOfCoverage.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/ReduceDepthOfCoverage.py"), site_handler))
-		#clustering is buggy for programs with long arguments.
-		#reduceDepthOfCoverage.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		self.addExecutable(reduceDepthOfCoverage)
-		self.reduceDepthOfCoverage = reduceDepthOfCoverage
+		ReduceDepthOfCoverage.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/ReduceDepthOfCoverage.py"), site_handler))
+		executableClusterSizeMultiplierList.append((ReduceDepthOfCoverage, 0))
 		
-		reduceVariousReadCount = Executable(namespace=namespace, name="ReduceVariousReadCount", version=version, os=operatingSystem,\
+		ReduceVariousReadCount = Executable(namespace=namespace, name="ReduceVariousReadCount", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
-		reduceVariousReadCount.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/ReduceVariousReadCount.py"), site_handler))
-		#clustering is buggy for programs with long arguments.
-		#reduceVariousReadCount.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		self.addExecutable(reduceVariousReadCount)
-		self.reduceVariousReadCount = reduceVariousReadCount
+		ReduceVariousReadCount.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/ReduceVariousReadCount.py"), site_handler))
+		executableClusterSizeMultiplierList.append((ReduceVariousReadCount, 0))
 		
 		ContigDOCWalkerJava = Executable(namespace=namespace, name="ContigDOCWalkerJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
 		ContigDOCWalkerJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		executableList.append(ContigDOCWalkerJava)
+		executableClusterSizeMultiplierList.append((ContigDOCWalkerJava, 1))
 		
 		
 		ContigVariousReadCountJava = Executable(namespace=namespace, name="ContigVariousReadCountJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
 		ContigVariousReadCountJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		executableList.append(ContigVariousReadCountJava)
+		executableClusterSizeMultiplierList.append((ContigVariousReadCountJava, 1))
 		
 		ReformatFlagstatOutput = Executable(namespace=namespace, name="ReformatFlagstatOutput", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
 		ReformatFlagstatOutput.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mapper/ReformatFlagstatOutput.py"), site_handler))
-		executableList.append(ReformatFlagstatOutput)
+		executableClusterSizeMultiplierList.append((ReformatFlagstatOutput, 1))
 		
 		samtoolsDepth = Executable(namespace=namespace, name="samtoolsDepth", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
 		samtoolsDepth.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "shell/samtoolsDepth.sh"), site_handler))
-		executableList.append(samtoolsDepth)
+		executableClusterSizeMultiplierList.append((samtoolsDepth, 1))
 		
 		CalculateMedianModeFromSAMtoolsDepthOutput = Executable(namespace=namespace, name="CalculateMedianModeFromSAMtoolsDepthOutput", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
 		CalculateMedianModeFromSAMtoolsDepthOutput.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mapper/CalculateMedianModeFromSAMtoolsDepthOutput.py"), site_handler))
-		executableList.append(CalculateMedianModeFromSAMtoolsDepthOutput)
+		executableClusterSizeMultiplierList.append((CalculateMedianModeFromSAMtoolsDepthOutput, 1))
 		
 		CalculateMedianMeanOfInputColumn = Executable(namespace=namespace, name="CalculateMedianMeanOfInputColumn", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
 		CalculateMedianMeanOfInputColumn.addPFN(PFN("file://" + os.path.join(self.pymodulePath, "pegasus/mapper/CalculateMedianMeanOfInputColumn"), site_handler))
-		executableList.append(CalculateMedianMeanOfInputColumn)
+		executableClusterSizeMultiplierList.append((CalculateMedianMeanOfInputColumn, 1))
 				
 		
 		PutFlagstatOutput2DB = Executable(namespace=namespace, name="PutFlagstatOutput2DB", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
 		PutFlagstatOutput2DB.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/PutFlagstatOutput2DB.py"), site_handler))
-		#PutFlagstatOutput2DB.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		self.addExecutable(PutFlagstatOutput2DB)
-		self.PutFlagstatOutput2DB = PutFlagstatOutput2DB
+		executableClusterSizeMultiplierList.append((PutFlagstatOutput2DB, 0))
 		
 		PutDOCOutput2DB = Executable(namespace=namespace, name="PutDOCOutput2DB", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
 		PutDOCOutput2DB.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/PutDOCOutput2DB.py"), site_handler))
-		#PutDOCOutput2DB.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		self.addExecutable(PutDOCOutput2DB)
-		self.PutDOCOutput2DB = PutDOCOutput2DB
+		executableClusterSizeMultiplierList.append((PutDOCOutput2DB, 0))
 		
-		for executable in executableList:
-			executable.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%self.clusters_size))
-			self.addExecutable(executable)
-			setattr(self, executable.name, executable)
-		
+		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
+
+
 	def run(self):
 		"""
 		2011-7-11
@@ -557,8 +548,12 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 			refName2size = {}
 		
 		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-									dataDir=self.localDataDir, aln_method_id=self.alignment_method_id)
-		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered)
+										alignment_method_id=self.alignment_method_id, dataDir=self.localDataDir,\
+										individual_sequence_file_raw_id_type=self.individual_sequence_file_raw_id_type)
+		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
+									individual_site_id_set=set(self.site_id_ls),\
+									mask_genotype_method_id=None, parent_individual_alignment_id=None,\
+									country_id_set=set(self.country_id_ls), tax_id_set=set(self.tax_id_ls))
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.dataDir, refSequence.path)
@@ -587,7 +582,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				ReformatFlagstatOutput=workflow.ReformatFlagstatOutput, PutFlagstatOutput2DB=workflow.PutFlagstatOutput2DB, \
 				PutDOCOutput2DB=workflow.PutDOCOutput2DB,\
 				samtoolsDepth=workflow.samtoolsDepth, \
-				reduceDepthOfCoverage=workflow.reduceDepthOfCoverage, reduceVariousReadCount=workflow.reduceVariousReadCount,\
+				ReduceDepthOfCoverage=workflow.ReduceDepthOfCoverage, ReduceVariousReadCount=workflow.ReduceVariousReadCount,\
 				
 				refFastaFList=refFastaFList, \
 				namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
