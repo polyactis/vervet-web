@@ -83,7 +83,7 @@ Total   2136011136      7.23    N/A     N/A     N/A
 				median_depth = float(row[median_depth_index])
 				mode_depth = float(row[mode_depth_index])
 				individual_alignment = VervetDB.IndividualAlignment.get(alignment_id)
-				individual_alignment.pass_qc_read_base_count = total_base_count
+				individual_alignment.pass_qc_read_base_count = total_base_count	#2012.9.17 no longer trustworthy because CalculateMedianMeanOfInputColumn skips data.
 				individual_alignment.mean_depth = mean_depth
 				individual_alignment.median_depth = median_depth
 				individual_alignment.mode_depth = mode_depth
