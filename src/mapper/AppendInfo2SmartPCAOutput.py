@@ -78,6 +78,7 @@ class AppendInfo2SmartPCAOutput(AbstractVervetMapper):
 	def appendInfo(self, inputFname=None, db_vervet=None, outputFname=None,\
 				inversePCValue=True):
 		"""
+		#2012.9.25 skip samples whose individual_alignment entry could not be parsed.
 		2012.9.5
 		"""
 		sys.stderr.write("Appending info to %s ..."%(inputFname))
@@ -96,6 +97,11 @@ class AppendInfo2SmartPCAOutput(AbstractVervetMapper):
 			row = row[:len(header)]	#don't take extra columns
 			sampleID = row[0]
 			individualAlignment = db_vervet.parseAlignmentReadGroup(sampleID).individualAlignment
+			if individualAlignment is None:
+				#2012.9.25
+				#sampleID is not beginned with alignment ID, probably "ref" but could be something , skip them
+				sys.stderr.write("Warning: sampleID %s is not parsable to get alignment out of it. Skip.\n"%(sampleID))
+				continue
 			individual = individualAlignment.individual_sequence.individual
 			data_row = [individual.code]
 			
