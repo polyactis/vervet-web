@@ -12,20 +12,21 @@ Examples:
 
 Description:
 	2011-11-2
-		this program ignores loci whose depth is >4*Median for each member of the trio.
+		The input is tab/coma-delimited, with a header and has at least 3 columns.
+		The three designated columns must be of float value.
 """
 
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0])
 
 
-bit_number = math.log(sys.maxint)/math.log(2)
-if bit_number>40:	   #64bit
-	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
-else:   #32bit
-	sys.path.insert(0, os.path.expanduser('~/lib/python'))
-	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+#bit_number = math.log(sys.maxint)/math.log(2)
+#if bit_number>40:	   #64bit
+#	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
+#	sys.path.insert(0, os.path.join(os.path.expanduser('~/script64')))
+#else:   #32bit
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import matplotlib; matplotlib.use("Agg")	#to disable pop-up requirement
 import csv
@@ -84,6 +85,7 @@ class Draw2DHistogramOfMatrix(object):
 			if counter%50000==0:
 				sys.stderr.write("%s\t%s\t%s"%('\x08'*120, counter, real_counter))
 			r = random.random()
+			# exit if one row has less data to support all 3 columns
 			if len(row)<max(x_index, y_index, z_index)+1:
 				sys.stderr.write("%s\t%s\t%s\n"%('\x08'*120, counter, real_counter))
 				sys.stderr.write("Warning: the length of this row %s is beyond any of the indices (%s, %s, %s) here.\n"%\
@@ -165,7 +167,7 @@ class Draw2DHistogramOfMatrix(object):
 		outputFname = '%s_%s_vs_%s_%s_as_Z.png'%(outputFnamePrefix, self.columnForX, self.columnForY, self.columnForZ)
 		yh_matplotlib.drawHexbin(self.x_value_ls, self.y_value_ls, self.z_value_ls, \
 								fig_fname=outputFname, gridsize=gridsize, title=title, xlabel=self.columnForX, ylabel=self.columnForY,\
-								colorBarLabel=colorBarLabelForZ, reduce_C_function=numpy.mean, dpi=self.figureDPI,\
+								colorBarLabel=colorBarLabelForZ, reduce_C_function=numpy.median, dpi=self.figureDPI,\
 								mincnt=50, marginals=False, xscale=xscale)	#at least 50 sites in one hexagon
 		outputFname = '%s_%s_vs_%s_loci_count.png'%(outputFnamePrefix, self.columnForX, self.columnForY,)
 		yh_matplotlib.drawHexbin(self.x_value_ls, self.y_value_ls, loci_count_ls, \
