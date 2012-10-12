@@ -90,6 +90,8 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		vervetSrcPath = self.vervetSrcPath
 		
 		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)		
+		#mergeSameHeaderTablesIntoOne is used here on per chromosome basis, so allow clustering
+		executableClusterSizeMultiplierList.append((workflow.mergeSameHeaderTablesIntoOne, 1))
 		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 	
@@ -107,6 +109,53 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 										outputDir="%sFrequency"%(outputDirPrefix))
 		passingData.frequencyDirJob = frequencyDirJob
 		
+		#use a random VCF file as input
+		jobData = passingData.chr2jobDataLs.values()[0][0]
+		VCFFile = jobData.vcfFile
+		inputFBaseName = os.path.basename(VCFFile.name)
+		commonPrefix = inputFBaseName.split('.')[0]
+		reduceOutputDirJob = passingData.reduceOutputDirJob
+		#ExtractSamplesFromVCF for the 1st population
+		outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_pop%s_sampleID.tsv'%(commonPrefix, self.pop1Header)))
+		extraArgumentList = ['--outputFormat 2']
+		if self.pop1_tax_id_ls:
+			extraArgumentList.append("--tax_id_ls %s"%(self.pop1_tax_id_ls))
+		if self.pop1_site_id_ls:
+			extraArgumentList.append("--site_id_ls %s"%(self.pop1_site_id_ls))
+		if self.pop1_country_id_ls:
+			extraArgumentList.append("--country_id_ls %s"%(self.pop1_country_id_ls))
+		
+		extractPop1SamplesJob = self.addGenericDBJob(workflow=workflow, executable=self.ExtractSamplesFromVCF, inputFile=VCFFile, \
+					outputFile=outputFile, inputFileList=None, \
+					parentJobLs=[reduceOutputDirJob]+jobData.jobLs, extraDependentInputLs=None, \
+					extraOutputLs=None, transferOutput=transferOutput, \
+					extraArguments=None, extraArgumentList=extraArgumentList, job_max_memory=2000, \
+					sshDBTunnel=self.needSSHDBTunnel, \
+					key2ObjectForJob=None)
+		passingData.extractPop1SamplesJob = extractPop1SamplesJob
+		returnData.jobDataLs.append(PassingData(jobLs=[extractPop1SamplesJob], file=extractPop1SamplesJob.output, \
+											fileList=[extractPop1SamplesJob.output]))
+		
+		#ExtractSamplesFromVCF for the 2nd population
+		outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_pop%s_sampleID.tsv'%(commonPrefix, self.pop2Header)))
+		extraArgumentList = ['--outputFormat 2']
+		if self.pop2_tax_id_ls:
+			extraArgumentList.append("--tax_id_ls %s"%(self.pop2_tax_id_ls))
+		if self.pop2_site_id_ls:
+			extraArgumentList.append("--site_id_ls %s"%(self.pop2_site_id_ls))
+		if self.pop2_country_id_ls:
+			extraArgumentList.append("--country_id_ls %s"%(self.pop2_country_id_ls))
+		
+		extractPop2SamplesJob = self.addGenericDBJob(workflow=workflow, executable=self.ExtractSamplesFromVCF, inputFile=VCFFile, \
+					outputFile=outputFile, inputFileList=None, \
+					parentJobLs=[reduceOutputDirJob]+jobData.jobLs, extraDependentInputLs=None, \
+					extraOutputLs=None, transferOutput=transferOutput, \
+					extraArguments=None, extraArgumentList=extraArgumentList, job_max_memory=2000, \
+					sshDBTunnel=self.needSSHDBTunnel, \
+					key2ObjectForJob=None)
+		passingData.extractPop2SamplesJob = extractPop2SamplesJob
+		returnData.jobDataLs.append(PassingData(jobLs=[extractPop2SamplesJob], file=extractPop2SamplesJob.output, \
+											fileList=[extractPop2SamplesJob.output]))
 		return returnData
 	
 	def mapEachInterval(self, workflow=None, \
@@ -120,8 +169,9 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 			#. JuxtaposeAlleleFrequencyFromMultiVCFInput.py
 				#. output it in the format of Draw2DHistogramOfMatrix.py. header & 3 columns: AF_1, AF_2, count. 
 				#. arguments: two input file,
-	       
 		"""
+		if workflow is None:
+			workflow = self
 		returnData = PassingData(no_of_jobs = 0)
 		returnData.jobDataLs = []
 
@@ -136,55 +186,40 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		splitVCFJob = passingData.mapEachVCFData.splitVCFJob
 		chr = passingData.chromosome
 		
-		outputFile = File(os.path.join(topOutputDirJob.output, '%s_pop%s.vcf'%(intervalFnamePrefix, self.pop1Header)))
-		extraArgumentList = []
-		if self.pop1_tax_id_ls:
-			extraArgumentList.append("--tax_id_ls %s"%(self.pop1_tax_id_ls))
-		if self.pop1_site_id_ls:
-			extraArgumentList.append("--site_id_ls %s"%(self.pop1_site_id_ls))
-		if self.pop1_country_id_ls:
-			extraArgumentList.append("--country_id_ls %s"%(self.pop1_country_id_ls))
 		
-		extractPop1SamplesJob = self.addGenericDBJob(workflow=workflow, executable=self.ExtractSamplesFromVCF, inputFile=VCFFile, \
-					outputFile=outputFile, inputFileList=None, \
-					parentJobLs=[splitVCFJob, topOutputDirJob]+jobData.jobLs, extraDependentInputLs=None, \
-					extraOutputLs=None, transferOutput=False, \
-					extraArguments=None, extraArgumentList=extraArgumentList, job_max_memory=2000, \
-					sshDBTunnel=self.needSSHDBTunnel, \
-					key2ObjectForJob=None)
+		#1st population
+		extractPop1SamplesJob = passingData.extractPop1SamplesJob
+		outputVCF = File(os.path.join(topOutputDirJob.output, '%s_pop%s.vcf'%(intervalFnamePrefix, self.pop1Header)))
+		subsetPop1Job = self.addVCFSubsetJob(workflow, executable=workflow.vcfSubset, vcfSubsetPath=workflow.vcfSubsetPath, \
+					sampleIDFile=extractPop1SamplesJob.output,\
+					inputVCF=VCFFile, outputF=outputVCF, \
+					parentJobLs=[topOutputDirJob, splitVCFJob, extractPop1SamplesJob]+jobData.jobLs, transferOutput=False, job_max_memory=200,\
+					extraArguments=None, extraDependentInputLs=None)
 		
 		#selectVariants would generate AC, AF so that TrioCaller could read it.
 		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 		VCF4OutputF = File(os.path.join(topOutputDir, '%s_pop%s.niceformat.vcf'%(intervalFnamePrefix, self.pop1Header)))
 		pop1VCFConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=self.SelectVariantsJava, \
-				genomeAnalysisTKJar=self.genomeAnalysisTKJar, inputF=extractPop1SamplesJob.output, outputF=VCF4OutputF, \
-				refFastaFList=self.refFastaFList, parentJobLs=[extractPop1SamplesJob], \
+				genomeAnalysisTKJar=self.genomeAnalysisTKJar, inputF=subsetPop1Job.output, outputF=VCF4OutputF, \
+				refFastaFList=self.refFastaFList, parentJobLs=[subsetPop1Job], \
 				extraDependentInputLs=[], transferOutput=False, \
 				extraArguments=None, job_max_memory=2000, interval=chr)
 		
-		outputFile = File(os.path.join(topOutputDirJob.output, '%s_pop%s.vcf'%(intervalFnamePrefix, self.pop2Header)))
-		extraArgumentList = []
-		if self.pop2_tax_id_ls:
-			extraArgumentList.append("--tax_id_ls %s"%(self.pop2_tax_id_ls))
-		if self.pop2_site_id_ls:
-			extraArgumentList.append("--site_id_ls %s"%(self.pop2_site_id_ls))
-		if self.pop2_country_id_ls:
-			extraArgumentList.append("--country_id_ls %s"%(self.pop2_country_id_ls))
-		
-		extractPop2SamplesJob = self.addGenericDBJob(workflow=workflow, executable=self.ExtractSamplesFromVCF, inputFile=VCFFile, \
-					outputFile=outputFile, inputFileList=None, \
-					parentJobLs=[splitVCFJob, topOutputDirJob]+jobData.jobLs, extraDependentInputLs=None, \
-					extraOutputLs=None, transferOutput=False, \
-					extraArguments=None, extraArgumentList=extraArgumentList, job_max_memory=2000, \
-					sshDBTunnel=self.needSSHDBTunnel, \
-					key2ObjectForJob=None)
+		#2nd population
+		extractPop2SamplesJob = passingData.extractPop2SamplesJob
+		outputVCF = File(os.path.join(topOutputDirJob.output, '%s_pop%s.vcf'%(intervalFnamePrefix, self.pop2Header)))
+		subsetPop2Job = self.addVCFSubsetJob(workflow, executable=workflow.vcfSubset, vcfSubsetPath=workflow.vcfSubsetPath, \
+					sampleIDFile=extractPop2SamplesJob.output,\
+					inputVCF=VCFFile, outputF=outputVCF, \
+					parentJobLs=[topOutputDirJob, splitVCFJob, extractPop2SamplesJob]+jobData.jobLs, transferOutput=False, job_max_memory=200,\
+					extraArguments=None, extraDependentInputLs=None)
 		
 		#selectVariants would generate AC, AF so that TrioCaller could read it.
 		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 		VCF4OutputF = File(os.path.join(topOutputDir, '%s_pop%s.niceformat.vcf'%(intervalFnamePrefix, self.pop2Header)))
 		pop2VCFConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=self.SelectVariantsJava, \
-				genomeAnalysisTKJar=self.genomeAnalysisTKJar, inputF=extractPop2SamplesJob.output, outputF=VCF4OutputF, \
-				refFastaFList=self.refFastaFList, parentJobLs=[extractPop2SamplesJob], \
+				genomeAnalysisTKJar=self.genomeAnalysisTKJar, inputF=subsetPop2Job.output, outputF=VCF4OutputF, \
+				refFastaFList=self.refFastaFList, parentJobLs=[subsetPop2Job], \
 				extraDependentInputLs=[], transferOutput=False, \
 				extraArguments=None, job_max_memory=2000, interval=chr)
 		
