@@ -22,6 +22,21 @@
 	<script type="text/javascript" src="http://www.google.com/jsapi?key=${config['app_conf']['google_api_key']}"></script>
 	<script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=${config['app_conf']['google_api_key']}"
 	type="text/javascript"></script>	<!-- 2009-3-30 map api key for usc.edu -->
+<!-- 2012.10.20 added google analytics code here -->
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15266273-1']);
+  _gaq.push(['_setDomainName', 'mednet.ucla.edu']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+
+</script>
 
 </%def>
 
