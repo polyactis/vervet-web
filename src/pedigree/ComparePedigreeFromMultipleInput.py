@@ -31,7 +31,7 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, figure
 from pymodule import SNP
 from pymodule.pegasus.mapper.AbstractMapper import AbstractMapper
 import networkx as nx
-from pymodule.MatrixFile import MatrixFile
+from pymodule import MatrixFile
 
 
 class ComparePedigreeFromMultipleInput(AbstractMapper):
