@@ -25,7 +25,7 @@ import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2IndexFromHeader, figureOutDelimiter, SNPData
 from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
 from pymodule import yh_matplotlib, GenomeDB, utils
-from pymodule.MatrixFile import MatrixFile
+from pymodule import MatrixFile
 from pymodule import SNP
 from vervet.src import VervetDB
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
@@ -55,8 +55,11 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 	
 	
 	def extractSamples(self, db_vervet=None, inputFname=None, outputFname=None, \
-					tax_id_set=None, site_id_set=None, country_id_set=None, **keywords):
+					tax_id_set=None, site_id_set=None, country_id_set=None, outputFormat=1,\
+					**keywords):
 		"""
+		2012.10.10
+			added argument outputFormat. 
 		2012.10.5
 			
 		"""
@@ -65,10 +68,6 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 							getattr(country_id_set, '__len__', returnZeroFunc)(),\
 							getattr(tax_id_set, '__len__', returnZeroFunc)(), ))
 		vcfFile = VCFFile(inputFname=inputFname)
-		
-		outVCFFile = VCFFile(outputFname=outputFname)
-		outVCFFile.metaInfoLs = vcfFile.metaInfoLs
-		
 		
 		oldHeader = vcfFile.header
 		oldHeaderLength = len(oldHeader)
@@ -90,19 +89,30 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 			else:
 				sys.stderr.write("Warning: no individualAlignment for sample %s.\n"%(individual_name))
 				sys.exit(3)
-		outVCFFile.header = newHeader
-		outVCFFile.writeMetaAndHeader()
 		
-		newHeaderLength = len(newHeader)
-		no_of_snps = 0
-		for vcfRecord in vcfFile:
-			data_row =vcfRecord.row[:vcfFile.sampleStartingColumn]
-			for i in xrange(vcfFile.sampleStartingColumn, oldHeaderLength):
-				if i in col_index2sampleID:
-					data_row.append(vcfRecord.row[i])
-			outVCFFile.writer.writerow(data_row)
-			no_of_snps += 1
-		outVCFFile.close()
+		if outputFormat==1:
+			outVCFFile = VCFFile(outputFname=outputFname)
+			outVCFFile.metaInfoLs = vcfFile.metaInfoLs
+			outVCFFile.header = newHeader
+			outVCFFile.writeMetaAndHeader()
+			
+			newHeaderLength = len(newHeader)
+			no_of_snps = 0
+			for vcfRecord in vcfFile:
+				data_row =vcfRecord.row[:vcfFile.sampleStartingColumn]
+				for i in xrange(vcfFile.sampleStartingColumn, oldHeaderLength):
+					if i in col_index2sampleID:
+						data_row.append(vcfRecord.row[i])
+				outVCFFile.writer.writerow(data_row)
+				no_of_snps += 1
+			outVCFFile.close()
+		elif outputFormat==2:
+			outf = open(outputFname, 'w')
+			outf.write("sampleID\n")
+			for col_index, sampleID in col_index2sampleID.iteritems():
+				outf.write("%s\n"%(sampleID))
+			outf.close()
+			no_of_snps = 0
 		vcfFile.close()
 		sys.stderr.write("%s samples X %s SNPs.\n"%(no_of_samples, no_of_snps))
 		
@@ -117,7 +127,8 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 			pdb.set_trace()
 		
 		self.extractSamples(db_vervet=self.db_vervet, inputFname=self.inputFname, outputFname=self.outputFname, \
-					tax_id_set=set(self.tax_id_ls), site_id_set=set(self.site_id_ls), country_id_set=set(self.country_id_ls))
+					tax_id_set=set(self.tax_id_ls), site_id_set=set(self.site_id_ls), country_id_set=set(self.country_id_ls),\
+					outputFormat=self.outputFormat)
 		
 
 if __name__ == '__main__':
