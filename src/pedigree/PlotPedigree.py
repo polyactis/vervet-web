@@ -37,7 +37,7 @@ import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2IndexFromHeader, figureOutDelimiter, SNPData
 from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
 from pymodule import yh_matplotlib, GenomeDB, utils
-from pymodule.MatrixFile import MatrixFile
+from pymodule import MatrixFile
 from pymodule import SNP
 import numpy, random, pylab
 import numpy as np
