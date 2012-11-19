@@ -59,12 +59,13 @@ import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, \
 	figureOutDelimiter, getColName2IndexFromHeader, utils
 from Pegasus.DAX3 import *
-from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
+#from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 from pymodule.VCFFile import VCFFile
+from AbstractVervetWorkflow import AbstractVervetWorkflow
 
-class GenericVCFWorkflow(AbstractVCFWorkflow):
+class GenericVCFWorkflow(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
 	option_default_dict.update({
 						('individualUCLAIDFname', 0, ): [None, 'i', 1, 'a file containing individual ucla_id in each row. one column with header UCLAID. ', ],\
 						('vcfSampleIDFname', 0, ): [None, 'w', 1, 'a file containing the sample ID (a composite ID including ucla_id) each row. \
@@ -81,7 +82,7 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 							6: VCF2YuFormatJobs, \
 							7: ConvertAlignmentReadGroup2UCLAIDInVCF + VCF2YuFormatJobs, \
 							8: ConvertAlignmentReadGroup2UCLAIDInVCF + convert to plink format, \
-							9: combine all single-chromsome VCF into one. \
+							9: combine all single-chromosome VCF into one. \
 							?: Combine VCF files from two input folder, chr by chr. (not done yet. check CheckTwoVCFOverlapPipeline.py for howto)', ],\
 						("minMAC", 0, int): [None, 'n', 1, 'minimum MinorAlleleCount (by chromosome)'],\
 						("minMAF", 0, float): [None, 'f', 1, 'minimum MinorAlleleFrequency (by chromosome)'],\
@@ -95,7 +96,7 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 	def __init__(self,  **keywords):
 		"""
 		"""
-		AbstractVCFWorkflow.__init__(self, **keywords)
+		AbstractVervetWorkflow.__init__(self, **keywords)
 	
 	def addVCF2PlinkJobs(self, workflow=None, inputData=None, db_vervet=None, minMAC=None, minMAF=None,\
 						maxSNPMissingRate=None, transferOutput=True,\
@@ -103,6 +104,8 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 						treatEveryOneIndependent=False,\
 						returnMode=3, ModifyTPEDRunType=1, chr_id2cumu_chr_start=None):
 		"""
+		2012.10.22
+			change transferOutput of outputPedigreeInTFAMJob to True
 		2012.9.13
 			add argument treatEveryOneIndependent for OutputVRCPedigreeInTFAMGivenOrderFromFile.
 		2012.8.20 add outputPedigreeAsTFAMInputJobData, split from input_data.
@@ -156,7 +159,7 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 			outputFile = File(os.path.join(mergedOutputDir, 'pedigree.tfam'))
 			outputPedigreeInTFAMJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
 								inputFile=inputF, outputFile=outputFile, treatEveryOneIndependent=treatEveryOneIndependent,\
-								parentJobLs=[mergedOutputDirJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=transferOutput, \
+								parentJobLs=[mergedOutputDirJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=True, \
 								extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
 			no_of_jobs += 1
 			outputPedigreeInTFAMJob.tfamFile = outputPedigreeInTFAMJob.output	#so that it looks like a vcf2plinkJob (vcftools job)
@@ -198,7 +201,7 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 			no_of_jobs += 1
 			#2012.7.20 modify the TPED 2nd column, to become chr_pos (rather than 0)
 			modifyTPEDFnamePrefix = os.path.join(topOutputDir, '%s_snpID'%(commonPrefix))
-			outputF = '%s.tped'%(modifyTPEDFnamePrefix)
+			outputF = File('%s.tped'%(modifyTPEDFnamePrefix))
 			modifyTPEDJobExtraArguments = "-y %s "%(ModifyTPEDRunType)
 			if ModifyTPEDRunType==3 and chr_id2cumu_chr_start:
 				newChrID, newCumuStart = chr_id2cumu_chr_start.get(chr_id, (1,0))
@@ -353,11 +356,23 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		#				outputDirPrefix="")
 		return returnData
 	
-	def addVCFSubsetJobs(self, workflow, inputData=None, db_vervet=None, sampleIDFile=None, transferOutput=True,\
+	def addVCFSubsetJobs(self, workflow=None, inputData=None, db_vervet=None, sampleIDFile=None, transferOutput=True,\
+						refFastaFList=None, genomeAnalysisTKJar=None,\
 						maxContigID=None, outputDirPrefix=""):
 		"""
+		2012.10.5
+			add a GATK SelectVariants job to update AC/AF of the final VCF file
+			add argument refFastaFList, genomeAnalysisTKJar
+			
 		2012.5.9
 		"""
+		if workflow is None:
+			workflow = self
+		if genomeAnalysisTKJar is None:
+			genomeAnalysisTKJar = workflow.genomeAnalysisTKJar
+		if refFastaFList is None:
+			refFastaFList = self.refFastaFList
+		
 		sys.stderr.write("Adding vcf-subset jobs for %s vcf files ... "%(len(inputData.jobDataLs)))
 		no_of_jobs= 0
 		
@@ -370,6 +385,7 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		returnData.jobDataLs = []
 		for jobData in inputData.jobDataLs:
 			inputF = jobData.vcfFile
+			chr = self.getChrFromFname(inputF.name)
 			if maxContigID:
 				contig_id = self.getContigIDFromFname(inputF.name)
 				try:
@@ -387,12 +403,24 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 						sampleIDFile=sampleIDFile,\
 						inputVCF=inputF, outputF=outputVCF, \
 						parentJobLs=[topOutputDirJob]+jobData.jobLs, transferOutput=False, job_max_memory=200,\
-						extraArguments=None, extraDependentInputLs=[])
-			VCFGzipOutputF = File("%s.gz"%outputVCF.name)
-			VCFGzipOutput_tbi_F = File("%s.gz.tbi"%outputVCF.name)
+						extraArguments=None, extraDependentInputLs=None)
+			
+			#2012.10.5
+			#selectVariants would generate AC, AF so that TrioCaller could read it.
+			#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
+			VCF4OutputF = File(os.path.join(topOutputDir, '%s.niceformat.vcf'%commonPrefix))
+			vcfConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=workflow.SelectVariantsJava, \
+					genomeAnalysisTKJar=genomeAnalysisTKJar, inputF=vcfSubsetJob.output, outputF=VCF4OutputF, \
+					refFastaFList=refFastaFList, parentJobLs=[vcfSubsetJob], \
+					extraDependentInputLs=[], transferOutput=False, \
+					extraArguments=None, job_max_memory=2000, interval=chr)
+			
+			VCFGzipOutputF = File("%s.gz"%VCF4OutputF.name)
+			VCFGzipOutput_tbi_F = File("%s.gz.tbi"%VCF4OutputF.name)
 			bgzip_tabix_VCF_job = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
-					parentJobLs=[vcfSubsetJob], inputF=vcfSubsetJob.output, outputF=VCFGzipOutputF, \
+					parentJobLs=[vcfConvertJob], inputF=vcfConvertJob.output, outputF=VCFGzipOutputF, \
 					transferOutput=transferOutput)
+			
 			
 			
 			returnData.jobDataLs.append(PassingData(jobLs=[bgzip_tabix_VCF_job], vcfFile=VCFGzipOutputF, \
@@ -603,6 +631,8 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 			
 		"""
 		sys.stderr.write("Generating vcfSampleIDFname %s from individualUCLAIDFname %s ..."%(vcfSampleIDFname, individualUCLAIDFname))
+		
+		#first get the set of monkeys to keep from the file
 		reader = csv.reader(open(individualUCLAIDFname), delimiter=figureOutDelimiter(individualUCLAIDFname))
 		header = reader.next()
 		colName2Index = getColName2IndexFromHeader(header)
@@ -614,6 +644,7 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		sys.stderr.write(" %s uclaIDs. "%(len(individualUCLAIDSet)))
 		del reader
 		
+		#second, read a sample VCF file and output the samples that have been in the given set
 		writer = csv.writer(open(vcfSampleIDFname, 'w'), delimiter='\t')
 		from pymodule.VCFFile import VCFFile
 		vcfFile = VCFFile(inputFname=oneSampleVCFFname, minDepth=0)
@@ -772,6 +803,7 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 		self.addDBArgumentsToOneJob(job=job, objectWithDBArguments=self)
 		return job
 	
+	
 	def run(self):
 		"""
 		2011-9-28
@@ -781,16 +813,7 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
-		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
-		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		self.connectDB()
 		
 		# Create a abstract dag
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
@@ -810,7 +833,7 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 			sys.exit(0)
 		
 		if self.individualUCLAIDFname and os.path.isfile(self.individualUCLAIDFname):
-			self.generateVCFSampleIDFilenameFromIndividualUCLAIDFname(db_vervet=db_vervet, individualUCLAIDFname=self.individualUCLAIDFname, \
+			self.generateVCFSampleIDFilenameFromIndividualUCLAIDFname(db_vervet=self.db_vervet, individualUCLAIDFname=self.individualUCLAIDFname, \
 												vcfSampleIDFname=self.vcfSampleIDFname,\
 												oneSampleVCFFname=inputData.jobDataLs[0].vcfFile.abspath)
 			sampleIDFile = self.registerOneInputFile(workflow, self.vcfSampleIDFname)
@@ -823,10 +846,12 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 			if sampleIDFile is None:
 				sys.stderr.write("sampleIDFile is None.\n")
 				sys.exit(0)
-			self.addVCFSubsetJobs(workflow, inputData=inputData, db_vervet=db_vervet, sampleIDFile=sampleIDFile, transferOutput=True,\
+			self.addVCFSubsetJobs(workflow, inputData=inputData, db_vervet=self.db_vervet, sampleIDFile=sampleIDFile, \
+						transferOutput=True,\
+						refFastaFList=self.refFastaFList, genomeAnalysisTKJar=self.genomeAnalysisTKJar,\
 						maxContigID=self.maxContigID, outputDirPrefix="")
 		elif self.run_type==2:
-			self.addVCF2PlinkJobs(workflow, inputData=inputData, db_vervet=db_vervet, minMAC=self.minMAC, minMAF=self.minMAF,\
+			self.addVCF2PlinkJobs(workflow, inputData=inputData, db_vervet=self.db_vervet, minMAC=self.minMAC, minMAF=self.minMAF,\
 						maxSNPMissingRate=self.maxSNPMissingRate, transferOutput=True,\
 						outputPedigreeAsTFAM=False, outputPedigreeAsTFAMInputJobData=None, \
 						maxContigID=self.maxContigID, outputDirPrefix="")#2012.8.10 test  ModifyTPEDRunType=3, chr_id2cumu_chr_start=None
@@ -834,12 +859,12 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 			if sampleIDFile is None:
 				sys.stderr.write("sampleIDFile is None.\n")
 				sys.exit(0)
-			self.addSubsetAndVCF2PlinkJobs(workflow, inputData=inputData, db_vervet=db_vervet, minMAC=self.minMAC, \
+			self.addSubsetAndVCF2PlinkJobs(workflow, inputData=inputData, db_vervet=self.db_vervet, minMAC=self.minMAC, \
 							minMAF=self.minMAF,\
 							maxSNPMissingRate=self.maxSNPMissingRate, sampleIDFile=sampleIDFile, transferOutput=True,\
 							maxContigID=self.maxContigID, outputDirPrefix="")
 		elif self.run_type==4:
-			self.addAlignmentReadGroup2UCLAIDJobs(workflow, inputData=inputData, db_vervet=db_vervet, transferOutput=True,\
+			self.addAlignmentReadGroup2UCLAIDJobs(workflow, inputData=inputData, db_vervet=self.db_vervet, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="")
 		elif self.run_type==5:
 			refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
@@ -847,24 +872,24 @@ class GenericVCFWorkflow(AbstractVCFWorkflow):
 			refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 								input_site_handler=self.input_site_handler,\
 								checkAffiliateFileExistence=True)
-			self.addMergeVCFReplicateHaplotypesJobs(workflow, inputData=inputData, db_vervet=db_vervet, transferOutput=True,\
+			self.addMergeVCFReplicateHaplotypesJobs(workflow, inputData=inputData, db_vervet=self.db_vervet, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="",replicateIndividualTag='copy', refFastaFList=refFastaFList )
 		elif self.run_type==6:
 			self.addVCF2YuFormatJobs(workflow=workflow, inputData=inputData, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="", \
 						returnMode=1)
 		elif self.run_type==7:	#first convert every sample ID from alignment.read_group to simple ucla ID 
-			inputData2 = self.addAlignmentReadGroup2UCLAIDJobs(workflow, inputData=inputData, db_vervet=db_vervet, \
+			inputData2 = self.addAlignmentReadGroup2UCLAIDJobs(workflow, inputData=inputData, db_vervet=self.db_vervet, \
 										transferOutput=False,\
 										maxContigID=self.maxContigID, outputDirPrefix="")
 			self.addVCF2YuFormatJobs(workflow=workflow, inputData=inputData2, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="", \
 						returnMode=1)
 		elif self.run_type==8:
-			inputData2 = self.addAlignmentReadGroup2UCLAIDJobs(workflow, inputData=inputData, db_vervet=db_vervet, \
+			inputData2 = self.addAlignmentReadGroup2UCLAIDJobs(workflow, inputData=inputData, db_vervet=self.db_vervet, \
 										transferOutput=False,\
 										maxContigID=self.maxContigID, outputDirPrefix="")
-			self.addVCF2PlinkJobs(workflow, inputData=inputData2, db_vervet=db_vervet, minMAC=self.minMAC, minMAF=self.minMAF,\
+			self.addVCF2PlinkJobs(workflow, inputData=inputData2, db_vervet=self.db_vervet, minMAC=self.minMAC, minMAF=self.minMAF,\
 						maxSNPMissingRate=self.maxSNPMissingRate, transferOutput=True,\
 						outputPedigreeAsTFAM=True, outputPedigreeAsTFAMInputJobData=inputData.jobDataLs[0], \
 						maxContigID=self.maxContigID, outputDirPrefix="", returnMode=3)

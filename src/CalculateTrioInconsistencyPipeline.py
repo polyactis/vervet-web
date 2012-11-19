@@ -44,17 +44,16 @@ import subprocess, cStringIO
 import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq
 from Pegasus.DAX3 import *
-from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
+from AbstractVervetWorkflow import AbstractVervetWorkflow
 from pymodule.VCFFile import VCFFile
 
-class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
+class CalculateTrioInconsistencyPipeline(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
 	option_default_dict.update({
 						('addTrioContigSpecificPlotJobs', 0, ): [0, 'n', 0, 'whether to add mendelian-inconsistency plotting jobs for each trio and each contig', ],\
 						('addTrioSpecificPlotJobs', 0, ): [0, 'T', 0, 'whether to add mendelian-inconsistency plotting jobs for each trio', ],\
 						('inputDir', 0, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
-						('maxContigID', 1, int): [1000, 'x', 1, 'if contig ID is beyond this number, it will not be included', ],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
@@ -62,7 +61,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		"""
 		2011-7-11
 		"""
-		AbstractVCFWorkflow.__init__(self, **keywords)
+		AbstractVervetWorkflow.__init__(self, **keywords)
 		self.inputDir = os.path.abspath(self.inputDir)
 	
 	
@@ -224,6 +223,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		for parentJob in parentJobLs:
 			if parentJob:
 				workflow.depends(parent=parentJob, child=job)
+		self.no_of_jobs += 1
 		return job
 	
 	def addPlotJob(self, workflow, PlotExecutable=None, outputFname=None, outputFnameToRegisterLs=[], namespace=None, version=None,\
@@ -246,6 +246,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		for parentJob in parentJobLs:
 			if parentJob:
 				workflow.depends(parent=parentJob, child=plotJob)
+		self.no_of_jobs += 1
 		return plotJob
 	
 	def addParentToPlotJob(self, workflow, parentJob=None, parentOutputF=None, plotJob=None):
@@ -257,10 +258,12 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		if parentJob:
 			workflow.depends(parent=parentJob, child=plotJob)
 	
-	def registerCustomExecutables(self, workflow):
+	def registerCustomExecutables(self, workflow=None):
 		"""
 		2011-11-28
 		"""
+		if workflow is None:
+			workflow = self
 		namespace = workflow.namespace
 		version = workflow.version
 		operatingSystem = workflow.operatingSystem
@@ -311,25 +314,32 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		workflow.addExecutable(ReduceTrioInconsistencyByPosition)
 		workflow.ReduceTrioInconsistencyByPosition = ReduceTrioInconsistencyByPosition
 	
-	def addJobs(self, workflow, inputData=None, trioLs=[], db_vervet=None, addTrioSpecificPlotJobs=False, addTrioContigSpecificPlotJobs=False,\
-			outputDirPrefix=""):
+	def addAllJobs(self, workflow=None, inputVCFData=None, trioLs=None, \
+				addTrioSpecificPlotJobs=None, addTrioContigSpecificPlotJobs=None,\
+				outputDirPrefix="", **keywords):
 		"""
+		2012.10.19 rename it to addAllJobs()
 		2011.1.8
 			add outputDirPrefix to differentiate one run from another if multiple trio call workflows are run simultaneously
 			outputDirPrefix could contain "/" to denote sub-folders.
 		"""
-		sys.stderr.write("Adding trio-inconsistency calculation jobs for %s trios ..."%(len(trioLs)))
+		if addTrioSpecificPlotJobs is None:
+			addTrioSpecificPlotJobs = self.addTrioSpecificPlotJobs
+		if addTrioContigSpecificPlotJobs is None:
+			addTrioContigSpecificPlotJobs = self.addTrioContigSpecificPlotJobs
+		
 		if not trioLs:
 			#2012.1.9 try to guess it from the first VCF file
 			#trioLs = self.getAllTrios(self.db_vervet, aln_ref_ind_seq_id=self.aln_ref_ind_seq_id)
-			if inputData and inputData.jobDataLs:
-				firstInputF = inputData.jobDataLs[0].vcfFile
+			if inputVCFData and inputVCFData.jobDataLs:
+				firstInputF = inputVCFData.jobDataLs[0].vcfFile
 				if hasattr(firstInputF, 'abspath') and os.path.isfile(firstInputF.abspath):
-					trioLs = self.getDuoTrioThatExistInVCF(db_vervet, firstInputF.abspath)
+					trioLs = self.getDuoTrioThatExistInVCF(self.db_vervet, firstInputF.abspath)
 		if not trioLs:
 			#still empty. stop here
 			sys.stderr.write("No trios specified/found. Couldn't add trio inconsistency calculation jobs.\n")
 			return None
+		sys.stderr.write("Adding trio-inconsistency calculation jobs for %s trios ..."%(len(trioLs)))
 		
 		returnJobData = PassingData()
 		
@@ -339,13 +349,11 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		
 		topOutputDir = "%strioInconsistency"%(outputDirPrefix)
 		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
-		no_of_jobs += 1
 		
 		#each contig in each trio gets a summary.
 		trioInconsistencyByContigSummaryFile = File(os.path.join(topOutputDir, 'trio_inconsistency_by_contig_homo_het.tsv'))
 		trioInconsistencyByContigSummaryMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=trioInconsistencyByContigSummaryFile, transferOutput=True, parentJobLs=[topOutputDirJob])
-		no_of_jobs += 1
 		
 		#reduce the trio consistency by trio (each trio gets a summary)
 		trioInconsistencySummaryFile = File(os.path.join(topOutputDir, 'trio_inconsistency.tsv'))
@@ -354,7 +362,6 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		self.addInputToStatMergeJob(workflow, statMergeJob=trioInconsistencySummaryJob, \
 								inputF=trioInconsistencyByContigSummaryMergeJob.output, \
 								parentJobLs=[trioInconsistencyByContigSummaryMergeJob])
-		no_of_jobs += 1
 		returnJobData.trioInconsistencySummaryJob = trioInconsistencySummaryJob
 		
 		for trio in trioLs:
@@ -363,7 +370,6 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 			trioReprInFilename = trio.replace(",", "_")
 			trioDir = "%strio_%s"%(outputDirPrefix, trioReprInFilename)
 			trioDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=trioDir)
-			no_of_jobs += 1
 			
 			#homoOnlyDir = os.path.join(trioDir, "homoOnly")
 			#homoOnlyDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=homoOnlyDir)
@@ -372,19 +378,16 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 			allSitesDir = os.path.join(trioDir, "homoHet")
 			allSitesDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=allSitesDir)
 			workflow.depends(parent=trioDirJob, child=allSitesDirJob)
-			no_of_jobs += 1
 			
 			#depthOutputDir = os.path.join(trioDir, "depth")
 			#depthOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=depthOutputDir)
-			#no_of_jobs += 1
 			
 			if addTrioContigSpecificPlotJobs:
 				positionOutputDir = os.path.join(trioDir, "position")
 				positionOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=positionOutputDir)
-				no_of_jobs += 1
 			
 			# no space in a single argument
-			title = "trio-%s-%s-contigs"%(trio, len(inputData.jobDataLs))
+			title = "trio-%s-%s-contigs"%(trio, len(inputVCFData.jobDataLs))
 			if addTrioSpecificPlotJobs:
 				"""
 				#2012.8.1 no more homo-site only jobs
@@ -422,7 +425,6 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 							outputFname=outputFname, outputFnameToRegisterLs=[outputFname], \
 							parentJobLs=[topOutputDirJob],\
 							title=title)
-				no_of_jobs += 3
 				"""
 				outputFnamePrefix = '%s_homo_only_inconsistency_over'%(trioReprInFilename)
 				fa_mo_depth_Fname = '%s_fa_mo_depth.png'%(outputFnamePrefix)
@@ -451,17 +453,18 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 							namespace=namespace, version=version, parentJob=trioDirJob,\
 							title=title)
 				"""
-			for jobData in inputData.jobDataLs:
+			for jobData in inputVCFData.jobDataLs:
 				inputF = jobData.vcfFile
 				contig_id = self.getContigIDFromFname(inputF.name)
-				try:
-					contig_id = int(contig_id)
-					if contig_id>self.maxContigID:	#skip the small contigs
-						continue
-				except:
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
+				if self.maxContigID:
+					try:
+						contig_id = int(contig_id)
+						if contig_id>self.maxContigID:	#skip the small contigs
+							continue
+					except:
+						sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+						import traceback
+						traceback.print_exc()
 				if contig_id not in contig_id2trioInconsistencyJobLs:
 					contig_id2trioInconsistencyJobLs[contig_id] = []
 				
@@ -542,7 +545,6 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 					self.addParentToPlotJob(workflow, parentJob=trioInconsistencyCaculationAllSitesJob, \
 									parentOutputF=trioInconsistencyCaculationAllSitesJob.windowOutputF, \
 									plotJob=contigInconsistencyOverPositionAllSitesJob)
-					no_of_jobs += 1
 					"""
 					outputFnamePrefix = os.path.join(depthOutputDir, '%s_contig_%s_homo_only_inconsistency_over'%(trioDir, contig_id))
 					fa_mo_depth_Fname = '%s_fa_mo_depth.png'%(outputFnamePrefix)
@@ -576,49 +578,47 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 									parentOutputF=trioInconsistencyCaculationAllSitesJob.depthOutputF, \
 									plotJob=contigInconsistencyOverDepthAllSitesJob)
 					"""
-		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		
 		sys.stderr.write(" \t %s contig trio inconsistency calculation jobs are to be reduced ..."%(len(contig_id2trioInconsistencyJobLs)))
 		
-		#2011.12.16 reduce job to calculate average duo/trio inconsistency per position 
-		avgTrioInconsistencyByPositionFile = File(os.path.join(topOutputDir, 'avgTrioInconsistencyByPosition.tsv'))
-		avgTrioInconsistencyByPositionMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-							outputF=avgTrioInconsistencyByPositionFile, transferOutput=False, parentJobLs=[topOutputDirJob])
-		no_of_jobs += 1
-		
-		contig_id_ls = contig_id2trioInconsistencyJobLs.keys()
-		contig_id_ls.sort()
-		for contig_id in contig_id_ls:
-			trioInconsistencyJobLs = contig_id2trioInconsistencyJobLs.get(contig_id)
+		if len(contig_id2trioInconsistencyJobLs)>0:
+			#2011.12.16 reduce job to calculate average duo/trio inconsistency per position 
+			avgTrioInconsistencyByPositionFile = File(os.path.join(topOutputDir, 'avgTrioInconsistencyByPosition.tsv'))
+			avgTrioInconsistencyByPositionMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+								outputF=avgTrioInconsistencyByPositionFile, transferOutput=False, parentJobLs=[topOutputDirJob])
 			
-			oneChrAvgTrioInconsistencyByPositionFile = File(os.path.join(topOutputDir, 'chr_%s_avgTrioInconsistencyByPosition.tsv'%(contig_id)))
-			oneChrAvgTrioInconsistencyByPositionJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceTrioInconsistencyByPosition, \
-								outputF=oneChrAvgTrioInconsistencyByPositionFile, transferOutput=False, parentJobLs=[topOutputDirJob])
-			for job in trioInconsistencyJobLs:
-				self.addInputToStatMergeJob(workflow, statMergeJob=oneChrAvgTrioInconsistencyByPositionJob, inputF=job.depthOutputF, \
-							parentJobLs=[job])
-			no_of_jobs += 1
+			contig_id_ls = contig_id2trioInconsistencyJobLs.keys()
+			contig_id_ls.sort()
+			for contig_id in contig_id_ls:
+				trioInconsistencyJobLs = contig_id2trioInconsistencyJobLs.get(contig_id)
+				
+			#reduce job to calculate average trio inconsistency for each chromosome.
+				oneChrAvgTrioInconsistencyByPositionFile = File(os.path.join(topOutputDir, 'chr_%s_avgTrioInconsistencyByPosition.tsv'%(contig_id)))
+				oneChrAvgTrioInconsistencyByPositionJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceTrioInconsistencyByPosition, \
+									outputF=oneChrAvgTrioInconsistencyByPositionFile, transferOutput=False, parentJobLs=[topOutputDirJob])
+				for job in trioInconsistencyJobLs:
+					self.addInputToStatMergeJob(workflow, statMergeJob=oneChrAvgTrioInconsistencyByPositionJob, inputF=job.depthOutputF, \
+								parentJobLs=[job])
+				
+				self.addInputToStatMergeJob(workflow, statMergeJob=avgTrioInconsistencyByPositionMergeJob, \
+										inputF=oneChrAvgTrioInconsistencyByPositionJob.output, \
+										parentJobLs=[oneChrAvgTrioInconsistencyByPositionJob])
+			#bgzip and index the avgTrioInconsistencyByPositionFile
+			avgTrioInconsistencyByPosGzipFile = File("%s.gz"%avgTrioInconsistencyByPositionFile.name)
+			avgTrioInconsistencyByPosGzip_tbi_F = File("%s.gz.tbi"%avgTrioInconsistencyByPositionFile.name)
+			avgTrioInconsistencyByPosBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
+								parentJob=avgTrioInconsistencyByPositionMergeJob, inputF=avgTrioInconsistencyByPositionFile, \
+								outputF=avgTrioInconsistencyByPosGzipFile, parentJobLs=[topOutputDirJob],\
+								transferOutput=True, tabixArguments="-s 1 -b 2 -e 2")
 			
-			self.addInputToStatMergeJob(workflow, statMergeJob=avgTrioInconsistencyByPositionMergeJob, \
-									inputF=oneChrAvgTrioInconsistencyByPositionJob.output, \
-									parentJobLs=[oneChrAvgTrioInconsistencyByPositionJob])
-		#bgzip and index the avgTrioInconsistencyByPositionFile
-		avgTrioInconsistencyByPosGzipFile = File("%s.gz"%avgTrioInconsistencyByPositionFile.name)
-		avgTrioInconsistencyByPosGzip_tbi_F = File("%s.gz.tbi"%avgTrioInconsistencyByPositionFile.name)
-		avgTrioInconsistencyByPosBGZipTabixJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
-							parentJob=avgTrioInconsistencyByPositionMergeJob, inputF=avgTrioInconsistencyByPositionFile, \
-							outputF=avgTrioInconsistencyByPosGzipFile, parentJobLs=[topOutputDirJob],\
-							transferOutput=True, tabixArguments="-s 1 -b 2 -e 2")
+			returnJobData.avgTrioInconsistencyByPosBGZipTabixJob = avgTrioInconsistencyByPosBGZipTabixJob
 		
-		returnJobData.avgTrioInconsistencyByPosBGZipTabixJob = avgTrioInconsistencyByPosBGZipTabixJob
-		
-		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnJobData
 	
+	"""
 	def run(self):
-		"""
-		2011-9-28
-		"""
 		
 		if self.debug:
 			import pdb
@@ -648,7 +648,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVCFWorkflow):
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
 		workflow.writeXML(outf)
-
+	"""
 
 if __name__ == '__main__':
 	main_class = CalculateTrioInconsistencyPipeline

@@ -87,35 +87,6 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		listArgumentName2hasContent = self.processListArguments(listArgumentName_data_type_ls, emptyContent=[])
 		"""
 	
-	def addTranslateIDInIBDCheckResultJob(self, workflow=None, plinkIBDCheckOutputFile=None, pop_country_id_ls_str=None, \
-										pop_site_id_ls_str=None, popHeader=None,\
-										readGroupFile=None, parentJobLs=None, sampleIDHeader='sampleID',\
-										transferOutput=False):
-		"""
-		2012.10.15
-		"""
-		job = None
-		if plinkIBDCheckOutputFile:
-			pop_country_id_set = set(getListOutOfStr(pop_country_id_ls_str))
-			pop_site_id_set = set(getListOutOfStr(pop_site_id_ls_str))
-			if 447 in pop_site_id_set or 135 in pop_country_id_set:	#either site = VRC or country = USA
-				commonPrefix = os.path.splitext(plinkIBDCheckOutputFile.name)[0]
-				outputFile = File('%s_%s_withReadGroup.tsv'%(commonPrefix, popHeader))
-				extraArgumentList = [" --readGroupFname", readGroupFile, "--readGroupHeader %s"%(sampleIDHeader), \
-									'--replaceColumnHeaderLs IID1,IID2']
-				job = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=self.ReplaceIndividualIDInMatrixFileWithReadGroup, \
-							inputFileList=None, inputFile=plinkIBDCheckOutputFile, outputFile=outputFile, \
-							outputFnamePrefix=None, whichColumn=None, whichColumnHeader="sampleID", \
-							minNoOfTotal=0,\
-							samplingRate=1.0, \
-							parentJob=None, parentJobLs=parentJobLs, \
-							extraDependentInputLs=[readGroupFile], \
-							extraArgumentList=extraArgumentList, transferOutput=transferOutput,  job_max_memory=1000,\
-							sshDBTunnel=self.needSSHDBTunnel, \
-							objectWithDBArguments=self,)
-		
-		return job
-	
 	def registerCustomExecutables(self, workflow=None):
 		"""
 		2011-11-28
@@ -137,18 +108,6 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		#mergeSameHeaderTablesIntoOne is used here on per chromosome basis, so allow clustering
 		executableClusterSizeMultiplierList.append((workflow.mergeSameHeaderTablesIntoOne, 1))
 		
-		
-		ReplaceIndividualIDInMatrixFileWithReadGroup = Executable(namespace=namespace, name="ReplaceIndividualIDInMatrixFileWithReadGroup", version=version, \
-											os=operatingSystem, arch=architecture, installed=True)
-		ReplaceIndividualIDInMatrixFileWithReadGroup.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/ReplaceIndividualIDInMatrixFileWithReadGroup.py"), site_handler))
-		executableClusterSizeMultiplierList.append((ReplaceIndividualIDInMatrixFileWithReadGroup, 0.5))
-		
-		SelectRowsWithinCoverageRange = Executable(namespace=namespace, name="SelectRowsWithinCoverageRange", version=version, \
-											os=operatingSystem, arch=architecture, installed=True)
-		SelectRowsWithinCoverageRange.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/SelectRowsWithinCoverageRange.py"), site_handler))
-		executableClusterSizeMultiplierList.append((SelectRowsWithinCoverageRange, 0.5))
-		
-		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 		
 		if self.plinkIBDCheckOutputFname:
@@ -156,92 +115,6 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 									folderName=self.pegasusFolderName)
 		else:
 			self.plinkIBDCheckOutputFile = None
-	
-	def addExtractSampleIDJob(self, workflow=None, outputDirPrefix="", passingData=None, transferOutput=False, \
-							pop_tax_id_ls_str=None, pop_site_id_ls_str=None, pop_country_id_ls_str=None, popHeader=None,\
-							pop_sampleSize=None, returnData=None, **keywords):
-		"""
-		2012.10.15
-		"""
-		if workflow is None:
-			workflow = self
-		#use a random VCF file as input
-		jobData = passingData.chr2jobDataLs.values()[0][0]
-		VCFFile = jobData.vcfFile
-		inputFBaseName = os.path.basename(VCFFile.name)
-		commonPrefix = inputFBaseName.split('.')[0]
-		reduceOutputDirJob = passingData.reduceOutputDirJob
-		#ExtractSamplesFromVCF for the 1st population
-		outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_pop%s_sampleID.tsv'%(commonPrefix, popHeader)))
-		extraArgumentList = ['--outputFormat 2']
-		if pop_tax_id_ls_str:
-			extraArgumentList.append("--tax_id_ls %s"%(pop_tax_id_ls_str))
-		if pop_site_id_ls_str:
-			extraArgumentList.append("--site_id_ls %s"%(pop_site_id_ls_str))
-		if pop_country_id_ls_str:
-			extraArgumentList.append("--country_id_ls %s"%(pop_country_id_ls_str))
-		
-		extractPopSampleIDJob = self.addGenericDBJob(workflow=workflow, executable=self.ExtractSamplesFromVCF, inputFile=VCFFile, \
-					outputFile=outputFile, inputFileList=None, \
-					parentJobLs=[reduceOutputDirJob]+jobData.jobLs, extraDependentInputLs=None, \
-					extraOutputLs=None, transferOutput=transferOutput, \
-					extraArguments=None, extraArgumentList=extraArgumentList, job_max_memory=2000, \
-					sshDBTunnel=self.needSSHDBTunnel, \
-					key2ObjectForJob=None)
-		returnData.jobDataLs.append(PassingData(jobLs=[extractPopSampleIDJob], file=extractPopSampleIDJob.output, \
-											fileList=[extractPopSampleIDJob.output]))
-		if pop_sampleSize and pop_sampleSize>1:
-			sampleIDHeader='sampleID'	#determined by extractPopSampleIDJob
-			#. SelectRowsWithinCoverageRange
-			minMedianDepth = 2
-			maxMedianDepth = 15
-			extraArguments = " --minMedianDepth %s --maxMedianDepth %s "%(minMedianDepth, maxMedianDepth)
-			outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_pop%s_sampleID_depth%s_%s.tsv'%(commonPrefix, popHeader,\
-																			minMedianDepth, maxMedianDepth)))
-			selectRowsWithinCoverageRangeJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=self.SelectRowsWithinCoverageRange, \
-						inputFileList=None, inputFile=extractPopSampleIDJob.output, outputFile=outputFile, \
-						outputFnamePrefix=None, whichColumn=None, whichColumnHeader=sampleIDHeader, \
-						logWhichColumn=False, positiveLog=False, valueForNonPositiveYValue=-1, \
-						minNoOfTotal=0,\
-						samplingRate=1.0, \
-						parentJobLs=[extractPopSampleIDJob], \
-						extraDependentInputLs=None, \
-						extraArguments=extraArguments, transferOutput=transferOutput, job_max_memory=100,\
-						sshDBTunnel=self.needSSHDBTunnel, \
-						objectWithDBArguments=self,)
-			returnData.jobDataLs.append(PassingData(jobLs=[selectRowsWithinCoverageRangeJob], file=selectRowsWithinCoverageRangeJob.output, \
-											fileList=[selectRowsWithinCoverageRangeJob.output]))
-			#. optional, a ReplaceIndividualIDInMatrixFileWithReadGroup job (for VRC) on the IBD check result
-			translateIDInIBDResultJob = self.addTranslateIDInIBDCheckResultJob(workflow=workflow, plinkIBDCheckOutputFile=self.plinkIBDCheckOutputFile, \
-										pop_country_id_ls_str=pop_country_id_ls_str, \
-										pop_site_id_ls_str=pop_site_id_ls_str, popHeader=popHeader,\
-										readGroupFile=selectRowsWithinCoverageRangeJob.output, parentJobLs=[selectRowsWithinCoverageRangeJob], \
-										sampleIDHeader=sampleIDHeader, transferOutput=transferOutput)
-			#. SampleRows job
-			outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_pop%s_sampleSize%s.tsv'%(commonPrefix, popHeader, pop_sampleSize)))
-			extraArgumentList = [" --sampleSize %s "%(pop_sampleSize), "--maxIBDSharing %s"%(self.maxIBDSharing)]
-			if translateIDInIBDResultJob:
-				extraArgumentList.extend(["--plinkIBDCheckOutputFname", translateIDInIBDResultJob.output])
-				extraDependentInputLs = [translateIDInIBDResultJob.output]
-				returnData.jobDataLs.append(PassingData(jobLs=[translateIDInIBDResultJob], file=translateIDInIBDResultJob.output, \
-											fileList=[translateIDInIBDResultJob.output]))
-			else:
-				extraDependentInputLs = None
-			sampleRowsJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=self.SampleRows, \
-						inputFileList=None, inputFile=selectRowsWithinCoverageRangeJob.output, outputFile=outputFile, \
-						outputFnamePrefix=None, whichColumn=None, whichColumnHeader=sampleIDHeader, \
-						logWhichColumn=False, positiveLog=False, valueForNonPositiveYValue=-1, \
-						minNoOfTotal=0, \
-						samplingRate=1.0, \
-						parentJob=translateIDInIBDResultJob, parentJobLs=[selectRowsWithinCoverageRangeJob], \
-						extraDependentInputLs=extraDependentInputLs, \
-						extraArgumentList=extraArgumentList, transferOutput=transferOutput,  job_max_memory=1000)
-			
-			returnData.jobDataLs.append(PassingData(jobLs=[sampleRowsJob], file=sampleRowsJob.output, \
-											fileList=[sampleRowsJob.output]))
-			#rename the extractPopSampleIDJob
-			extractPopSampleIDJob = sampleRowsJob
-		return extractPopSampleIDJob
 	
 	def preReduce(self, workflow=None, outputDirPrefix="", passingData=None, transferOutput=True, **keywords):
 		"""

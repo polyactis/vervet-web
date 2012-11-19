@@ -3,7 +3,8 @@
 Examples:
 	%s -o outputFname input1 input2 ...
 	
-	%s  -s 0.1 -O hweplot -W "P" -l POS -g -C CHR -D "hweLogPvalue" -x position 
+	%s  --samplingRate 0.1 -O hweplot --whichColumnHeader "P" --xColumnHeader POS --logWhichColumn
+		--chrColumnHeader CHR --whichColumnPlotLabel "hweLogPvalue" --xColumnPlotLabel position 
 		-z dl324b-1.cmb.usc.edu -u yh /tmp/5988_VCF_Contig966.hwe
 	
 
@@ -35,24 +36,17 @@ from pymodule.AbstractMatrixFileWalker import AbstractMatrixFileWalker
 class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWalker):
 	__doc__ = __doc__
 	option_default_dict = PlotTrioInconsistencyOverFrequency.option_default_dict
-	option_default_dict.pop(('outputFname', 1, ))
+	option_default_dict.pop(('outputFname', 0, ))
+	option_default_dict[('whichColumnPlotLabel', 0, )][0] = '#SNPs in 100kb window'
+	option_default_dict[('whichColumn', 0, int)][0] = 3
+	option_default_dict[('xColumnPlotLabel', 0, )][0] = 'position'
+	option_default_dict[('xColumnHeader', 1, )][0] = 'BIN_START'
 	option_default_dict.update({
-			('whichColumn', 0, int): [3, 'w', 1, 'data from this column (index starting from 0) is plotted as y-axis value'],\
-			('whichColumnLabel', 0, ): ["", 'W', 1, 'column label (in the header) for the data to be plotted as y-axis value, substitute whichColumn'],\
-			('need_svg', 0, ): [0, 'n', 0, 'whether need svg output', ],\
-			('whichColumnPlotLabel', 1, ): ['#SNPs in 100kb window', 'D', 1, 'plot label for data of the whichColumn', ],\
-			('posColumnPlotLabel', 1, ): ['position', 'x', 1, 'x-axis label (posColumn) in manhattan plot', ],\
-			('chrLengthColumnLabel', 0, ): ['chrLength', 'c', 1, 'label of the chromosome length column', ],\
-			('chrColumnLabel', 1, ): ['CHR', 'C', 1, 'label of the chromosome column', ],\
-			('minChrLength', 1, int): [1000000, 'm', 1, 'minimum chromosome length for one chromosome to be included', ],\
-			('posColumnLabel', 1, ): ['BIN_START', 'l', 1, 'label of the position column, BIN_START for binned vcftools output. POS for others.', ],\
+			('chrLengthColumnHeader', 0, ): ['chrLength', 'c', 1, 'label of the chromosome length column', ],\
+			('chrColumnHeader', 1, ): ['CHR', 'C', 1, 'label of the chromosome column', ],\
+			('minChrLength', 1, int): [1000000, '', 1, 'minimum chromosome length for one chromosome to be included', ],\
 			('outputFnamePrefix', 0, ): [None, 'O', 1, 'output filename prefix (optional).'],\
 			('logCount', 0, int): [0, '', 0, 'whether to take log on the y-axis of the histogram, the raw count'], \
-			('logWhichColumn', 0, int): [0, 'g', 0, 'whether to take -log of the whichColumn'],\
-			('positiveLog', 0, int): [0, '', 0, 'toggle to take log, rather than -log(), \
-				only effective when logWhichColumn is toggled. '],\
-			('valueForNonPositiveYValue', 1, float): [-1, 'v', 1, 'if the whichColumn value is not postive and logWhichColumn is on,\
-			what yValue should be.'],\
 			})
 	option_for_DB_dict = {('drivername', 1,):['postgresql', '', 1, 'which type of database? mysql or postgresql', ],\
 						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
@@ -70,10 +64,12 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 		self.chr2xy_ls = {}
 	
 	def vcftoolsOutputStatFileWalker(self, inputFname, processFunc=None, run_type=1, \
-									chrColumnLabel='CHR', minChrLength=1000000, chrLengthColumnLabel='chrLength',\
-									posColumnLabel="BIN_START", valueForNonPositiveYValue=-1):
+									chrColumnHeader='CHR', minChrLength=1000000, chrLengthColumnHeader='chrLength',\
+									xColumnHeader="BIN_START", valueForNonPositiveYValue=-1):
 		"""
-		2012.9.18 chrLengthColumnLabel could be nothing
+		2012.10.26 skip sites if chr_cumu_start is not available
+		2012.10.25 only skip except during file opening, not file reading
+		2012.9.18 chrLengthColumnHeader could be nothing
 		2012.8.31 add argument valueForNonPositiveYValue
 		2012.8.13 bugfix. pass inf to figureOutDelimiter
 		2012.8.1
@@ -85,13 +81,21 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 		sys.stderr.write("walking through %s ..."%(inputFname))
 		counter =0
 		chr2xy_ls = self.chr2xy_ls
-		inf = utils.openGzipFile(inputFname)
-		delimiter=figureOutDelimiter(inf)	#2012.8.13 bugfix. pass inf to figureOutDelimiter
-		sys.stderr.write(" delimiter is '%s'  "%(delimiter))
-		reader = csv.reader(inf, delimiter=delimiter)
-		header = reader.next()
-		col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
-		chr_id_index = col_name2index.get(chrColumnLabel, None)
+		try:
+			inf = utils.openGzipFile(inputFname)
+			delimiter=figureOutDelimiter(inf)	#2012.8.13 bugfix. pass inf to figureOutDelimiter
+			sys.stderr.write(" delimiter is '%s'  "%(delimiter))
+			reader = csv.reader(inf, delimiter=delimiter)
+			header = reader.next()
+			col_name2index = getColName2IndexFromHeader(header, skipEmptyColumn=True)
+		except:	#in case something wrong (i.e. file is empty)
+			sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+			import traceback
+			traceback.print_exc()
+			print sys.exc_info()
+			return
+		
+		chr_id_index = col_name2index.get(chrColumnHeader, None)
 		if chr_id_index is None:
 			chr_id_index = col_name2index.get("CHROM", None)
 		if chr_id_index is None:
@@ -99,13 +103,13 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 		if chr_id_index is None:
 			sys.stderr.write("Error chr_id_index is None.\n")
 			sys.exit(3)
-		bin_start_index = col_name2index.get(posColumnLabel, None)
-		if chrLengthColumnLabel:	#could be nothing
-			chrLength_index = col_name2index.get(chrLengthColumnLabel, None)
+		bin_start_index = col_name2index.get(xColumnHeader, None)
+		if chrLengthColumnHeader:	#could be nothing
+			chrLength_index = col_name2index.get(chrLengthColumnHeader, None)
 		else:
 			chrLength_index = None
-		if self.whichColumnLabel:
-			whichColumn = col_name2index.get(self.whichColumnLabel, None)
+		if self.whichColumnHeader:
+			whichColumn = col_name2index.get(self.whichColumnHeader, None)
 		else:
 			whichColumn = self.whichColumn
 		
@@ -127,7 +131,9 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 			if chr_id not in chr2xy_ls:
 				chr2xy_ls[chr_id] = [[],[]]
 			chr_cumu_start = self.chr_id2cumu_start.get(chr_id)
-			
+			if chr_cumu_start is None:	#2012.10.26 skip sites
+				sys.stderr.write("Chromosome %s does not have chr_cumu_start.\n"%(chr_id))
+				continue
 			chr2xy_ls[chr_id][0].append(chr_cumu_start + bin_start + 1)
 			chr2xy_ls[chr_id][1].append(yValue)
 			counter += 1
@@ -160,15 +166,10 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 		for inputFname in self.inputFnameLs:
 			if not os.path.isfile(inputFname):
 				continue
-			try:
-				self.vcftoolsOutputStatFileWalker(inputFname, processFunc=None, chrColumnLabel=self.chrColumnLabel,\
-									minChrLength=self.minChrLength, chrLengthColumnLabel=self.chrLengthColumnLabel,\
-									posColumnLabel=self.posColumnLabel, valueForNonPositiveYValue=self.valueForNonPositiveYValue)
-			except:	#in case something wrong (i.e. file is empty)
-				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-				import traceback
-				traceback.print_exc()
-				print sys.exc_info()
+			self.vcftoolsOutputStatFileWalker(inputFname, processFunc=None, chrColumnHeader=self.chrColumnHeader,\
+									minChrLength=self.minChrLength, chrLengthColumnHeader=self.chrLengthColumnHeader,\
+									xColumnHeader=self.xColumnHeader, valueForNonPositiveYValue=self.valueForNonPositiveYValue)
+			
 		sys.stderr.write("Done.\n")
 		
 		import pylab
@@ -203,7 +204,7 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 		#bonferroni_value = -math.log10(0.01/len(genome_wide_result.data_obj_ls))
 		#ax.axhline(bonferroni_value, linestyle='--', color='k', linewidth=0.8)
 		
-		ax.set_xlabel(self.posColumnPlotLabel)
+		ax.set_xlabel(self.xColumnPlotLabel)
 		ax.set_ylabel(self.whichColumnPlotLabel)
 		#ax.set_xlim([0, chr_id2cumu_size[chr_ls[-1]]])
 		if self.ylim_type==1:

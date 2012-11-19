@@ -52,7 +52,10 @@ class ReduceMatrixBySumSameKeyColsAndThenDivide(ReduceMatrixByChosenColumn):
 				if self.operatorType==2:
 					ratio = float(dataLs[0]) - float(dataLs[1])
 				else:
-					ratio = dataLs[0]/float(dataLs[1])
+					if dataLs[1]!=0:
+						ratio = dataLs[0]/float(dataLs[1])
+					else:
+						ratio = -1
 				key2dataLs[key].append(ratio)
 		sys.stderr.write("Done.\n")
 		return PassingData(key2dataLs= key2dataLs, header=header)

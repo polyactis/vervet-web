@@ -43,10 +43,6 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 	partitionWorkflowOptionDict= {
 						("needFastaIndexJob", 0, int): [0, 'A', 0, 'need to add a reference index job by samtools?'],\
 						("needFastaDictJob", 0, int): [0, 'B', 0, 'need to add a reference dict job by picard CreateSequenceDictionary.jar?'],\
-						('intervalOverlapSize', 1, int): [300000, 'U', 1, 'overlap size between adjacent intervals from one contig/chromosome,\
-				only used for TrioCaller, not for SAMtools/GATK', ],\
-						('intervalSize', 1, int): [5000000, 'Z', 1, 'size for adjacent intervals from one contig/chromosome', ],\
-						("ligateVcfPerlPath", 1, ): ["%s/bin/umake/scripts/ligateVcf.pl", '', 1, 'path to ligateVcf.pl'],\
 						("selectedRegionFname", 0, ): ["", 'R', 1, 'the file is in bed format, tab-delimited, chr start stop.\
 		used to restrict SAMtools/GATK to only make calls at this region. \
 		start and stop are 0-based. i.e. start=0, stop=100 means bases from 0-99.\
@@ -63,8 +59,6 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		#if self.option_default_dict.get('ligateVcfPerlPath'):
 		#	self.pathToInsertHomePathList.append('ligateVcfPerlPath')
 		AbstractVervetWorkflow.__init__(self, **keywords)
-		if hasattr(self, 'ligateVcfPerlPath'):
-			self.ligateVcfPerlPath =  self.insertHomePath(self.ligateVcfPerlPath, self.home_path)
 		
 		listArgumentName_data_type_ls = [('ind_seq_id_ls', int), ("ind_aln_id_ls", int), \
 								("site_id_ls", int), ('country_id_ls', int), ('tax_id_ls', int)]
@@ -137,13 +131,6 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		"""
 		return self.map(**keywords)
 	
-	def reduceAfterEachChromosome(self, workflow=None, chromosome=None, passingData=None, transferOutput=True, \
-								mapEachIntervalDataLs=None, **keywords):
-		"""
-		"""
-		returnData = PassingData(no_of_jobs = 0)
-		returnData.jobDataLs = []
-		return returnData
 	
 	def linkMapToReduce(self, workflow=None, mapEachIntervalData=None, preReduceReturnData=None, passingData=None, transferOutput=True, **keywords):
 		"""
@@ -160,7 +147,16 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		returnData = PassingData(no_of_jobs = 0)
 		returnData.jobDataLs = []
 		return returnData
-
+	
+	def reduceAfterEachChromosome(self, workflow=None, chromosome=None, passingData=None, transferOutput=True, \
+								mapEachIntervalDataLs=None, **keywords):
+		"""
+		"""
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		returnData.mapEachIntervalDataLs = mapEachIntervalDataLs
+		return returnData
+	
 	def reduceBeforeEachAlignment(self, workflow=None, passingData=None, transferOutput=True, **keywords):
 		"""
 		2012.9 setup some reduce jobs before loop over all intervals of one alignment begins.
@@ -171,19 +167,25 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		returnData.jobDataLs = []
 		return returnData
 	
-	def reduceAfterEachAlignment(self, workflow=None, passingData=None, transferOutput=True, **keywords):
+	def reduceAfterEachAlignment(self, workflow=None, passingData=None, mapEachChromosomeDataLs=None,\
+								reduceAfterEachChromosomeDataLs=None,\
+								transferOutput=True, **keywords):
 		"""
 		"""
 		returnData = PassingData(no_of_jobs = 0)
 		returnData.jobDataLs = []
+		returnData.mapEachChromosomeDataLs = mapEachChromosomeDataLs
+		returnData.reduceAfterEachChromosomeDataLs = reduceAfterEachChromosomeDataLs
 		return returnData
 
-	def reduce(self, workflow=None, passingData=None, transferOutput=True, **keywords):
+	def reduce(self, workflow=None, passingData=None, reduceAfterEachAlignmentDataLs=None,
+			transferOutput=True, **keywords):
 		"""
 		2012.9.17
 		"""
 		returnData = PassingData(no_of_jobs = 0)
 		returnData.jobDataLs = []
+		returnData.reduceAfterEachAlignmentDataLs = reduceAfterEachAlignmentDataLs
 		return returnData
 	
 	def addAllJobs(self, workflow=None, inputVCFData=None, alignmentDataLs=None, chr2IntervalDataLs=None, samtools=None, \
@@ -207,19 +209,18 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 			chr2VCFFile[chr] = inputF
 		chrIDSet = set(chr2VCFFile.keys())&set(chr2IntervalDataLs.keys())
 		
-		sys.stderr.write("Adding haplotype score calculating jobs for %s chromosomes/contigs ..."%(len(chrIDSet)))
+		sys.stderr.write("Adding alignment+VCF-related jobs for %s chromosomes/contigs ..."%(len(chrIDSet)))
 		refFastaF = refFastaFList[0]
-		no_of_jobs = 0
 		
 		topOutputDir = "%smap"%(outputDirPrefix)
 		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
-		no_of_jobs += 1
+		self.no_of_jobs += 1
 		
 		if needFastaDictJob:	# the .dict file is required for GATK
 			fastaDictJob = self.addRefFastaDictJob(workflow, createSequenceDictionaryJava=createSequenceDictionaryJava, \
 												refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
-			no_of_jobs += 1
+			self.no_of_jobs += 1
 		else:
 			fastaDictJob = None
 			refFastaDictF = None
@@ -227,7 +228,7 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		if needFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
-			no_of_jobs += 1
+			self.no_of_jobs += 1
 		else:
 			fastaIndexJob = None
 			refFastaIndexF = None
@@ -245,23 +246,30 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		#	all reduce dataLs never gets reset.
 		passingData = PassingData(AlignmentJobAndOutputLs=[], bamFnamePrefix=None, topOutputDirJob=topOutputDirJob,\
 					outputDirPrefix=outputDirPrefix, refFastaFList=refFastaFList, \
+					
 					mapEachAlignmentData = None,\
 					mapEachChromosomeData=None, \
 					mapEachIntervalData=None,\
 					reduceBeforeEachAlignmentData = None, \
 					reduceAfterEachAlignmentData=None,\
 					reduceAfterEachChromosomeData=None,\
+					
 					mapEachAlignmentDataLs = [],\
 					mapEachChromosomeDataLs=[], \
 					mapEachIntervalDataLs=[],\
 					reduceBeforeEachAlignmentDataLs = [], \
 					reduceAfterEachAlignmentDataLs=[],\
 					reduceAfterEachChromosomeDataLs=[],\
+					
+					gzipReduceAfterEachChromosomeFolderJob=None,\
+					gzipReduceBeforeEachAlignmentFolderJob = None,\
+					gzipReduceAfterEachAlignmentFolderJob = None,\
+					gzipPreReduceFolderJob = None,\
+					gzipReduceFolderJob=None,\
 					)
 		preReduceReturnData = self.preReduce(workflow=workflow, passingData=passingData, transferOutput=False,\
 											**keywords)
 		passingData.preReduceReturnData = preReduceReturnData
-		no_of_jobs += preReduceReturnData.no_of_jobs
 		
 		for alignmentData in alignmentDataLs:
 			alignment = alignmentData.alignment
@@ -279,14 +287,12 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 												preReduceReturnData=preReduceReturnData, **keywords)
 			mapEachAlignmentDataLs.append(mapEachAlignmentData)
 			passingData.mapEachAlignmentData = mapEachAlignmentData
-			no_of_jobs += mapEachAlignment.no_of_jobs
 			
 			reduceBeforeEachAlignmentData = self.reduceBeforeEachAlignment(workflow=workflow, passingData=passingData, \
 													preReduceReturnData=preReduceReturnData, transferOutput=False, \
 													**keywords)
 			passingData.reduceBeforeEachAlignmentData = reduceBeforeEachAlignmentData
 			passingData.reduceBeforeEachAlignmentDataLs.append(reduceBeforeEachAlignmentData)
-			no_of_jobs += reduceBeforeEachAlignmentData.no_of_jobs
 			
 			mapEachChromosomeDataLs = passingData.mapEachChromosomeDataLs
 			mapEachChromosomeDataLs = []
@@ -301,9 +307,8 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 									VCFFile=VCFFile, passingData=passingData, reduceBeforeEachAlignmentData=reduceBeforeEachAlignmentData,\
 									mapEachAlignmentData=mapEachAlignmentData,\
 									transferOutput=False, **keywords)
-				mapEachChromosomeDataLs.append(mapEachChromosomeData)
 				passingData.mapEachChromosomeData = mapEachChromosomeData
-				no_of_jobs += mapEachChromosomeData.no_of_jobs
+				mapEachChromosomeDataLs.append(mapEachChromosomeData)
 				
 				mapEachIntervalDataLs = passingData.mapEachIntervalDataLs
 				mapEachIntervalDataLs = []
@@ -323,9 +328,8 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 										VCFFile=VCFFile, passingData=passingData, reduceBeforeEachAlignmentData=reduceBeforeEachAlignmentData,\
 										mapEachAlignmentData=mapEachAlignmentData,\
 										mapEachChromosomeData=mapEachChromosomeData, transferOutput=False, **keywords)
-					mapEachIntervalDataLs.append(mapEachIntervalData)
 					passingData.mapEachIntervalData = mapEachIntervalData
-					no_of_jobs += mapEachIntervalData.no_of_jobs
+					mapEachIntervalDataLs.append(mapEachIntervalData)
 					
 					linkMapToReduceData = self.linkMapToReduce(workflow=workflow, mapEachIntervalData=mapEachIntervalData, preReduceReturnData=preReduceReturnData, \
 										reduceBeforeEachAlignmentData=reduceBeforeEachAlignmentData,\
@@ -334,44 +338,59 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 										**keywords)
 				
 				reduceAfterEachChromosomeData = self.reduceAfterEachChromosome(workflow=workflow, chromosome=chr, passingData=passingData, \
-									mapEachIntervalDataLs=mapEachIntervalDataLs,\
+									mapEachIntervalDataLs=passingData.mapEachIntervalDataLs,\
 									transferOutput=False, dataDir=dataDir, \
 									**keywords)
 				passingData.reduceAfterEachChromosomeData = reduceAfterEachChromosomeData
 				passingData.reduceAfterEachChromosomeDataLs.append(reduceAfterEachChromosomeData)
-				no_of_jobs += reduceAfterEachChromosomeData.no_of_jobs
 				
 				gzipReduceAfterEachChromosomeData = self.addGzipSubWorkflow(workflow=workflow, \
 						inputData=reduceAfterEachChromosomeData, transferOutput=transferOutput,\
-						outputDirPrefix="%sreduceAfterEachChromosome"%(outputDirPrefix))
+						outputDirPrefix="%sreduceAfterEachChromosome"%(outputDirPrefix), \
+						topOutputDirJob=passingData.gzipReduceAfterEachChromosomeFolderJob, report=False)
+				passingData.gzipReduceAfterEachChromosomeFolderJob = gzipReduceAfterEachChromosomeData.topOutputDirJob
+				
 			reduceAfterEachAlignmentData = self.reduceAfterEachAlignment(workflow=workflow, \
 													mapEachAlignmentData=mapEachAlignmentData,\
+													mapEachChromosomeDataLs=mapEachChromosomeDataLs,\
+													reduceAfterEachChromosomeDataLs=reduceAfterEachChromosomeDataLs,\
 													passingData=passingData, \
 													transferOutput=False, dataDir=dataDir, **keywords)
 			passingData.reduceAfterEachAlignmentData = reduceAfterEachAlignmentData
 			passingData.reduceAfterEachAlignmentDataLs.append(reduceAfterEachAlignmentData)
-			no_of_jobs += reduceAfterEachAlignmentData.no_of_jobs
 			
 			gzipReduceBeforeEachAlignmentData = self.addGzipSubWorkflow(workflow=workflow, \
 						inputData=reduceBeforeEachAlignmentData, transferOutput=transferOutput,\
-						outputDirPrefix="%sreduceBeforeEachAlignment"%(outputDirPrefix))
+						outputDirPrefix="%sreduceBeforeEachAlignment"%(outputDirPrefix), \
+						topOutputDirJob=passingData.gzipReduceBeforeEachAlignmentFolderJob, report=False)
+			passingData.gzipReduceBeforeEachAlignmentFolderJob = gzipReduceBeforeEachAlignmentData.topOutputDirJob
+			
 			gzipReduceAfterEachAlignmentData = self.addGzipSubWorkflow(workflow=workflow, \
 						inputData=reduceAfterEachAlignmentData, transferOutput=transferOutput,\
-						outputDirPrefix="%sreduceAfterEachAlignment"%(outputDirPrefix))
+						outputDirPrefix="%sreduceAfterEachAlignment"%(outputDirPrefix), \
+						topOutputDirJob=passingData.gzipReduceAfterEachAlignmentFolderJob, \
+						report=False)
+			passingData.gzipReduceAfterEachAlignmentFolderJob = gzipReduceAfterEachAlignmentData.topOutputDirJob
 		reduceReturnData = self.reduce(workflow=workflow, passingData=passingData, \
-							mapEachAlignmentData=mapEachAlignmentData,\
+							mapEachAlignmentData=mapEachAlignmentData, \
+							reduceAfterEachAlignmentDataLs=passingData.reduceAfterEachAlignmentDataLs,\
 							**keywords)
 		passingData.reduceReturnData = reduceReturnData
-		no_of_jobs += reduceReturnData.no_of_jobs
 		
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
 		
 		#2012.9.18 gzip the final output
 		newReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=preReduceReturnData, transferOutput=transferOutput,\
-						outputDirPrefix="%spreReduce"%(outputDirPrefix))
-		
+						outputDirPrefix="%spreReduce"%(outputDirPrefix), \
+						topOutputDirJob=passingData.gzipPreReduceFolderJob, \
+						report=False)
+		passingData.gzipPreReduceFolderJob = newReturnData.topOutputDirJob
 		newReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=reduceReturnData, transferOutput=transferOutput,\
-						outputDirPrefix="%sreduce"%(outputDirPrefix))
+						outputDirPrefix="%sreduce"%(outputDirPrefix), \
+						topOutputDirJob=passingData.gzipReduceFolderJob, \
+						report=False)
+		passingData.gzipReduceFolderJob = newReturnData.topOutputDirJob
+		
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
 	def registerAlignmentAndItsIndexFile(self, workflow=None, alignmentLs=None, dataDir=None, checkFileExistence=True):

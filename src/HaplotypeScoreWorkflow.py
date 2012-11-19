@@ -68,7 +68,7 @@ class HaplotypeScoreWorkflow(parentClass):
 		
 		plotOutputDir = "%splot"%(outputDirPrefix)
 		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
-		returnData.no_of_jobs += 2
+		self.no_of_jobs += 2
 		
 		returnData.plotOutputDirJob = plotOutputDirJob
 		returnData.statOutputDirJob = statOutputDirJob
@@ -91,22 +91,22 @@ class HaplotypeScoreWorkflow(parentClass):
 		mergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=mergeOutputF, transferOutput=transferOutput, parentJobLs=[statOutputDirJob],)
 		returnData.jobDataLs.append(PassingData(jobLs=[mergeJob ], file=mergeJob.output, fileList=[mergeJob.output], mergeJob=mergeJob))
-		returnData.no_of_jobs += 1
+		self.no_of_jobs += 1
 		
 		outputFnamePrefix = os.path.join(plotOutputDirJob.output, '%s_%s_Plot'%(passingData.bamFnamePrefix, passingData.annotationName))
-		# whichColumnPlotLabel and posColumnPlotLabel should not contain spaces or ( or ). because they will disrupt shell commandline
+		# whichColumnPlotLabel and xColumnPlotLabel should not contain spaces or ( or ). because they will disrupt shell commandline
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[mergeOutputF], \
 							outputFnamePrefix=outputFnamePrefix, \
-							whichColumn=None, whichColumnLabel=passingData.annotationName, whichColumnPlotLabel=passingData.annotationName, \
+							whichColumn=None, whichColumnHeader=passingData.annotationName, whichColumnPlotLabel=passingData.annotationName, \
 							need_svg=False, \
 							logWhichColumn=False, valueForNonPositiveYValue=-1, \
-							posColumnPlotLabel="position", chrLengthColumnLabel=None, chrColumnLabel="CHROM", \
-							minChrLength=None, posColumnLabel="POS", minNoOfTotal=50,\
+							xColumnPlotLabel="position", chrLengthColumnHeader=None, chrColumnHeader="CHROM", \
+							minChrLength=None, xColumnHeader="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=0.01,\
 							parentJobLs=[mergeJob, plotOutputDirJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
-		returnData.no_of_jobs += 1
+		self.no_of_jobs += 1
 		
 		outputFile = File( os.path.join(plotOutputDirJob.output, '%s_%s_Hist.png'%(passingData.bamFnamePrefix, passingData.annotationName)))
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -119,7 +119,7 @@ class HaplotypeScoreWorkflow(parentClass):
 					parentJobLs=[plotOutputDirJob, mergeJob], \
 					extraDependentInputLs=None, \
 					extraArguments=None, transferOutput=True,  job_max_memory=2000)
-		returnData.no_of_jobs += 1
+		self.no_of_jobs += 1
 		
 		return returnData
 	
@@ -175,7 +175,7 @@ class HaplotypeScoreWorkflow(parentClass):
 		returnData.variantAnnotatorJob=variantAnnotatorJob
 		returnData.extractInfoJob=extractInfoJob
 		#add the sub-alignment to the alignment merge job
-		returnData.no_of_jobs += 2
+		self.no_of_jobs += 2
 		return returnData
 	
 	def linkMapToReduce(self, workflow=None, mapEachIntervalData=None, preReduceReturnData=None, passingData=None, \

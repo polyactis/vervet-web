@@ -50,14 +50,14 @@ Examples:
 		-e /u/home/eeskin/polyacti/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -u yh -C 5 -S ./method7_sites.tsv -A 0
 	
-	#2012.8.1 FilterGenotypeMethod6_ByMaskingZeroDPSite (-Z 1) 2FoldDepthFilter (-A 2) MaxSNPMissing1.0 (-L 1.0)
+	#2012.8.1 FilterGenotypeMethod6_ByMaskingZeroDPSite (-m 1) 2FoldDepthFilter (-A 2) MaxSNPMissing1.0 (-L 1.0)
 	# "-V 90 -x 100" are used to restrict contig IDs between 90 and 100.
-	# "-g 5" to the minimum distance between neighboring SNPs
+	# "-g 5" to the minimum distance between neighboring SNPs, "-f 0.1", minMAF=0.1
 	%s -I ~/NetworkData/vervet/db/genotype_file/method_6/ -q ./aux/alnStatForFilter.2012.8.1T1805.tsv
-		-L 1.0 -a 524  -E -H -o workflow/FilterGenotypeMethod6_ByMaskingZeroDPSite_2FoldDepthFilter_MaxSNPMissing1.0.xml 
+		-L 1.0 -a 524  -E -H -o workflow/FilterGenotypeMethod6_MinDP1_2FoldDepthFilter_MaxSNPMissing1.0MinNeighborDistance5MinMAF0.1.xml 
 		-l hcondor -j hcondor
 		-e /u/home/eeskin/polyacti/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-u yh -C 5 -Z 1 -A 2 -g 5
+		-u yh -C 5 -m 1 -A 2 -g 5 -f 0.1
 		#-V 90 -x 100 
 	
 Description:
@@ -73,10 +73,10 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
 from Pegasus.DAX3 import *
-from AbstractVervetWorkflow import AbstractVervetWorkflow
+from vervet.src.AbstractVervetWorkflow import AbstractVervetWorkflow
+from vervet.src import VervetDB
 #from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 
 class FilterVCFPipeline(AbstractVervetWorkflow):
@@ -98,8 +98,6 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 						('depthFoldChange', 0, float): [0, 'A', 1, 'a variant is retained if its depth within this fold change of meanDepth,\
 		set this to 0 or below to eliminate this step of filtering.', ],\
 						("maxSNPMismatchRate", 0, float): [0, '', 1, 'maximum SNP mismatch rate between two vcf calls'],\
-						("minDepthPerGenotype", 0, int): [0, 'Z', 1, 'mask genotype with below this depth as ./. (other fields retained), \
-	esp. necessary for SAMtools, which output homozygous reference if no read for one sample.'],\
 						("minMAC", 0, int): [None, 'n', 1, 'minimum MinorAlleleCount (by chromosome)'],\
 						("minMAF", 0, float): [None, 'f', 1, 'minimum MinorAlleleFrequency (by chromosome)'],\
 						("maxSNPMissingRate", 0, float): [1.0, 'L', 1, 'maximum SNP missing rate in one vcf (denominator is #chromosomes)'],\
@@ -107,7 +105,8 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 						('vcf1Dir', 1, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						('vcf2Dir', 0, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files. If not provided, filter vcf1Dir without applying maxSNPMismatchRate filter.', ],\
 						})
-
+	#("minDepthPerGenotype", 0, int): [0, 'Z', 1, 'mask genotype with below this depth as ./. (other fields retained), \
+	#	esp. necessary for SAMtools, which output homozygous reference if no read for one sample.'],\
 	def __init__(self,  **keywords):
 		"""
 		"""
@@ -121,6 +120,8 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			sys.stderr.write("Error: alnStatForFilterFname (%s) is nothing while depthFoldChange=%s.\n"%\
 							(self.alnStatForFilterFname, self.depthFoldChange))
 			sys.exit(3)
+		
+		self.minDepthPerGenotype = self.minDepth
 	
 	def registerVCFAndItsTabixIndex(self, workflow, vcfF, input_site_handler='local'):
 		"""

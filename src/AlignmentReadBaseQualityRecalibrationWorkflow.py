@@ -131,7 +131,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 								transferOutput=False, \
 								extraArguments=None, job_max_memory=4000)
 		
-		returnData.no_of_jobs += 1
+		self.no_of_jobs += 1
 		returnData.countCovariatesJob = countCovariatesJob
 		returnData.jobDataLs.append(PassingData(jobLs=[countCovariatesJob], file=countCovariatesJob.recalFile, \
 											fileList=[countCovariatesJob.recalFile]))
@@ -208,7 +208,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		
 		passingData.AlignmentJobAndOutputLs.append([selectAlignmentJob, selectAlignmentJob.output])
 		#add the sub-alignment to the alignment merge job
-		returnData.no_of_jobs += 5
+		self.no_of_jobs += 5
 		return returnData
 	
 
@@ -233,6 +233,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 					BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 					mv=workflow.mv, parentJobLs=[topOutputDirJob], \
 					transferOutput=False)
+			self.no_of_jobs += 1
 			#2012.9.19 add/copy the alignment file to db-affliated storage
 			#add the metric file to AddAlignmentFile2DB.py as well (to be moved into db-affiliated storage)
 			logFile = File(os.path.join(topOutputDirJob.output, '%s_2db.log'%(bamFnamePrefix)))
@@ -245,6 +246,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 								extraDependentInputLs=[bamIndexJob.output], \
 								extraArguments=None, transferOutput=transferOutput, \
 								job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, commit=True)
+			self.no_of_jobs += 1
 			returnData.jobDataLs.append(PassingData(jobLs=[alignment2DBJob], file=alignment2DBJob.logFile, \
 											fileList=[alignment2DBJob.logFile]))
 		return returnData
@@ -291,6 +293,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 						transferOutput=transferOutput, \
 						extraArgumentList=extraArgumentList, \
 						job_max_memory=memRequirementData.memRequirement, **keywords)
+		
 		job.recalFile = outputFile
 		return job
 	

@@ -90,7 +90,7 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 		counter = 0
 		family_id= 1	#all in one family
 		for alignment in alignmentLs:
-			node_id = alignment.ind_sequence.individual_id
+			node_id = alignment.individual_sequence.individual_id
 			individual = self.getIndividual(db_vervet=db_vervet, individual_id=node_id, \
 										individual_id2individual=individual_id2individual)
 			if self.treatEveryOneIndependent:

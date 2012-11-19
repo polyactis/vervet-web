@@ -55,8 +55,9 @@ class ReplicateVCFGenotypeColumns(AbstractVCFMapper):
 	
 	
 	def replicateVCFGenotypeColumns(self, inputFname, outputFname=None, replicateIndividualTag=None, sampleID2FamilyCount=None,\
-								sampleStartingColumn=9, minDepth=0):
+								minDepth=0):
 		"""
+		2012.10.5 remove argument sampleStartingColumn
 		2012.5.10
 			VCFFile has been changed considerably and can act as a writer now.
 		2012.3.29
@@ -81,10 +82,10 @@ class ReplicateVCFGenotypeColumns(AbstractVCFMapper):
 		sampleID2DataIndexLs = {}
 		oldHeader = vcfFile.header
 		oldHeaderLength = len(oldHeader)
-		newHeader = oldHeader[:sampleStartingColumn]	#anything before the samples are same
+		newHeader = oldHeader[:vcfFile.sampleStartingColumn]	#anything before the samples are same
 		no_of_samples = 0
-		for i in xrange(sampleStartingColumn, oldHeaderLength):
-			#for sample_id in vcfFile.metaInfoLs[-1][sampleStartingColumn:]:
+		for i in xrange(vcfFile.sampleStartingColumn, oldHeaderLength):
+			#for sample_id in vcfFile.metaInfoLs[-1][vcfFile.sampleStartingColumn:]:
 			sample_id = oldHeader[i].strip()
 			newHeader.append('%s%s%s'%(sample_id, replicateIndividualTag, 1))	#1 because it's the 1st copy
 			no_of_samples += 1
@@ -131,7 +132,7 @@ class ReplicateVCFGenotypeColumns(AbstractVCFMapper):
 		
 		self.replicateVCFGenotypeColumns(self.inputFname, self.outputFname, replicateIndividualTag=self.replicateIndividualTag, \
 								sampleID2FamilyCount=sampleID2FamilyCount,\
-								sampleStartingColumn=9, minDepth=self.minDepth)
+								minDepth=self.minDepth)
 
 if __name__ == '__main__':
 	main_class = ReplicateVCFGenotypeColumns

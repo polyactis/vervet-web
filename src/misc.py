@@ -1376,6 +1376,14 @@ class VariantDiscovery(object):
 						outputFname=distanceOutputFname, hetHalfMatchDistance=0.5)
 	"""
 	
+		inputFname = os.path.expanduser('~/script/vervet/data/194SNPData/AllSNPData.txt')
+		outputFname = os.path.expanduser('~/script/vervet/data/194SNPData/AllSNPData_yuFormat.tsv')
+		distanceOutputFname = os.path.expanduser("~/script/vervet/data/194SNPData/AllSNPData_yuFormat_rowPairwiseDistance.tsv")
+		VariantDiscovery.turn194SNPOriginalDataIntoYuFormat(inputFname=inputFname, outputFname=outputFname,\
+										distanceOutputFname=distanceOutputFname)
+		sys.exit(0)
+		
+		
 	"""
 	
 	class GetBACEndHitsOnContigs(object):
@@ -1437,7 +1445,7 @@ class VariantDiscovery(object):
 				self.no_of_deletions += cigar_code2no_of_bases.get(2, 0)
 				no_of_mismatches = read.alen - no_of_matches
 				if 8 in cigar_code2no_of_bases:
-					if cigar_code2no_of_bases[8]!=no_of_matches:
+					if cigar_code2no_of_bases[8]!=no_of_mismatches:
 						sys.stderr.write("No of mismatches in cigar (%s) doesn't match the number (%s) calculated.\n"%\
 										(cigar_code2no_of_bases[8], no_of_mismatches))
 						import pdb
@@ -2797,7 +2805,7 @@ class VariantDiscovery(object):
 			return True
 	
 	@classmethod
-	def compareAlternativeAlleleFrequencyOfTwoCallSets(cls, inputDir1, inputDir2, outputDir, min_no_of_data_points=10, \
+	def compareAlternativeAlleleFrequencyOfTwoCallSets(cls, inputDir1, inputDir2, outputDir=None, min_no_of_data_points=10, \
 													xlabel='', ylabel='', dpi=300, frequencyDelta=0.001):
 		"""
 		2011-9-21
@@ -3254,6 +3262,7 @@ class VariantDiscovery(object):
 		sys.stderr.write("Done.\n")
 		
 	"""
+		
 		#2011-11-22
 		AAC_ls = range(1,9)
 		# data from the 4 HC monkeys
@@ -3293,6 +3302,18 @@ class VariantDiscovery(object):
 				color_ls=['r', 'g', 'b', 'y','c', 'k'])
 		
 	"""
+	
+		#2012.8.1
+		workflowName = 'VCFStat_LowPass_top7559Contigs_no12eVarFilter_inter_100kbwindow_2011.12.6T2342'
+		workflowName = 'VCFStat_Method8_L800000P4000000m1000000.2012.8.1T0331'
+		inputFname='/Network/Data/vervet/vervetPipeline/%s/AAC_tally.tsv'%(workflowName)
+		inputFname = '/usr/local/home_ubuntu/crocea/mnt/hoffman2/u/scratch/p/polyacti/pegasus/%s/11Contigs_AAC_tally.tsv'%(workflowName)
+		outputFnamePrefix = './AAC_distribution_of_11ContigsFromMethod8'
+		VariantDiscovery.drawAACHistogramFromAACFile(inputFname=inputFname, outputFnamePrefix=outputFnamePrefix, \
+				color_ls=['r', 'g', 'b', 'y','c', 'k'])
+		sys.exit(0)
+		
+		
 		#2011-12.7
 		workflowName = 'VCFStat_LowPass_top7559Contigs_no12eVarFilter_inter_100kbwindow_2011.12.6T2342'
 		workflowName = 'VCFStat_FilterVCF_LowPass_top7559Contigs_no12eVarFilter_inter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25_100kbwindow.2011.12.6T2345'
@@ -3336,6 +3357,17 @@ class VariantDiscovery(object):
 			writer.writerow(row)
 		del reader, writer
 		"""
+		
+		#2012.7.26
+		prefix = '/Network/Data/vervet/vervetPipeline/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.2012.725T0210/sampleHaplotypeDistance'
+		inputFname='%s.csv'%(prefix)
+		outputFname='%s.beautify.tsv'%(prefix)
+		VariantDiscovery.beautifyReplicateHaplotypeDistanceOutput(db_vervet=db_vervet, inputFname=inputFname, \
+			outputFname=outputFname)
+		sys.exit(0)
+		
+		
+		
 		#2012.7.26
 		prefix = '/Network/Data/vervet/vervetPipeline/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.2012.725T0210/haplotypeDistance.merged'
 		inputFname='%s.tsv'%(prefix)
@@ -3402,6 +3434,13 @@ class VariantDiscovery(object):
 			colorBarLabel=None, reduce_C_function=yh_matplotlib.logSum, dpi=300, mincnt=None, marginals=False, xscale='linear',\
 			scale='linear')
 		"""
+		#2012.7.26
+		prefix = '/Network/Data/vervet/vervetPipeline/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.2012.725T0210/Contig2802_1_55870_Contig1731_1_72833_Contig3687_1_29987.majoritySupport.merged'
+		inputFname='%s.tsv'%(prefix)
+		outputFname='%s.beautify.tsv'%(prefix)
+		VariantDiscovery.beautifyReplicateHaplotypeMajoritySupportOutput(db_vervet=db_vervet, inputFname=inputFname, outputFname=outputFname)
+		sys.exit(0)
+		
 		#2012.7.26
 		prefix = '/Network/Data/vervet/vervetPipeline/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.2012.725T0210/Contig2802_1_55870_Contig1731_1_72833_Contig3687_1_29987.majoritySupport.merged'
 		inputFname='%s.tsv'%(prefix)
@@ -3734,6 +3773,11 @@ class DBVervet(object):
 		sys.stderr.write("%s new relationships. Done.\n"%(no_of_new_relationship))
 	
 	"""
+		#2012.9.10
+		inputFname = os.path.expanduser("~/NetworkData/vervet/SolarPedSept2012.csv")	#supposedly similar to 
+		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
+		sys.exit(3)
+		
 		#2012.8.14
 		inputFname = os.path.expanduser("~/NetworkData/vervet/SolarPedAug2012.txt")	#supposedly similar to 
 		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
@@ -6526,6 +6570,13 @@ class DBVervet(object):
 		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447,\
 			targetCoverageNotNull=True)
 		sys.exit(0)
+		
+		#2012.7.23
+		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447,\
+			targetCoverageNotNull=False)
+		sys.exit(0)
+		
 	"""
 	
 	@classmethod
@@ -7574,6 +7625,72 @@ class VervetGenome(object):
 		
 	"""
 
+class VervetPopGen(object):
+	"""
+	2012.11.2
+	"""
+	def __init__(self):
+		pass
+	
+	@classmethod
+	def plotBoschEtAl2009AndVRCLDDecay(cls, inputFname=None, outputFname=None, \
+									pop2Color={'VRC':'b', 'EUR':'m', 'MENA':'k', 'AME':'g', 'SSAFR':'#a52a2a'}, maxDist=80):
+		"""
+		2012.11.2
+			color closely follow BoschEtAL2009's original color. SSAFR's color '#a52a2a', is brown. 
+			distance is in kb
+		"""
+		import csv
+		from pymodule import MatrixFile
+		from pymodule import PassingData
+		import matplotlib
+		import pylab
+		pylab.clf()
+		
+		reader = MatrixFile(inputFname=inputFname)
+		reader.constructColName2IndexFromHeader()
+		
+		popIndex = reader.getColIndexGivenColHeader("Continental group")
+		meanR2Index = reader.getColIndexGivenColHeader("MeanR2")
+		distanceIndex = reader.getColIndexGivenColHeader("distclass")
+		pop2data ={}
+		for row in reader:
+			pop = row[popIndex].strip()
+			dist = float(row[distanceIndex])
+			if maxDist and dist>maxDist:
+				continue
+			meanR2 = float(row[meanR2Index])
+			if pop not in pop2data:
+				pop2data[pop] = PassingData(x_ls=[], y_ls=[])
+			pop2data[pop].x_ls.append(dist)
+			pop2data[pop].y_ls.append(meanR2)
+		sys.stderr.write("%s populations.\n"%(len(pop2data)))
+		
+		plotObjectLs = []
+		popLabelLs = []
+		for pop, data in pop2data.iteritems():
+			if pop in pop2Color:
+				color = pop2Color.get(pop)
+				plotObject = pylab.plot(data.x_ls, data.y_ls, linestyle='-', color=color, marker='o')
+				plotObjectLs.append(plotObject)
+				popLabelLs.append(pop)
+		pylab.ylim(ymin=0)
+		pylab.ylabel("mean $r^2$")
+		pylab.xlabel("distance between loci (KB)")
+		pylab.legend(popLabelLs, shadow = True)
+		pylab.savefig(outputFname, dpi=200)
+	
+	"""
+		#2012.11.2
+		prefix = os.path.expanduser('~/script/vervet/doc/2012.11.06ASHG/BoschEtAl2009-supp4_LDDecay_differentPopHoja2')
+		inputFname = '%s.csv'%(prefix)
+		outputFname =  '%s.svg'%(prefix)
+		VervetPopGen.plotBoschEtAl2009AndVRCLDDecay(inputFname=inputFname, outputFname=outputFname,
+			pop2Color={'VRC':'b', 'EUR':'m', 'MENA':'k', 'AME':'g', 'SSAFR':'#a52a2a'}, maxDist=80)
+		sys.exit(0)
+	"""
+
+
 class Mapping(object):
 	"""
 	2012.4.12
@@ -7735,16 +7852,20 @@ class IRF7(object):
 
 class Main(object):
 	__doc__ = __doc__
-	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
+	option_default_dict = {
+						('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
 						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
 						('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
 						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
 						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
 						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
+						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
+									If not given, use the default stored in db.'],\
 						('input', 0, ): ['', 'i', 1, 'common input.', ],\
 						('output', 0, ): ['', 'o', 1, 'common output', ],\
 						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']
+						}
 	
 	def __init__(self, **keywords):
 		"""
@@ -7762,6 +7883,13 @@ class Main(object):
 		else:
 			debug =False
 		
+		#2012.11.2
+		prefix = os.path.expanduser('~/script/vervet/doc/2012.11.06ASHG/BoschEtAl2009-supp4_LDDecay_differentPopHoja2')
+		inputFname = '%s.csv'%(prefix)
+		outputFname =  '%s.svg'%(prefix)
+		VervetPopGen.plotBoschEtAl2009AndVRCLDDecay(inputFname=inputFname, outputFname=outputFname,
+			pop2Color={'VRC':'b', 'EUR':'m', 'MENA':'k', 'AME':'g', 'SSAFR':'#a52a2a'}, maxDist=400000)
+		sys.exit(0)
 		
 		import VervetDB
 		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
@@ -7772,64 +7900,41 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2012.9.10
-		inputFname = os.path.expanduser("~/NetworkData/vervet/SolarPedSept2012.csv")	#supposedly similar to 
-		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
-		sys.exit(3)
-		
-		inputFname = os.path.expanduser('~/script/vervet/data/194SNPData/AllSNPData.txt')
-		outputFname = os.path.expanduser('~/script/vervet/data/194SNPData/AllSNPData_yuFormat.tsv')
-		distanceOutputFname = os.path.expanduser("~/script/vervet/data/194SNPData/AllSNPData_yuFormat_rowPairwiseDistance.tsv")
-		VariantDiscovery.turn194SNPOriginalDataIntoYuFormat(inputFname=inputFname, outputFname=outputFname,\
-										distanceOutputFname=distanceOutputFname)
-		sys.exit(0)
-		
-		
-		#2012.8.1
-		workflowName = 'VCFStat_LowPass_top7559Contigs_no12eVarFilter_inter_100kbwindow_2011.12.6T2342'
-		workflowName = 'VCFStat_Method8_L800000P4000000m1000000.2012.8.1T0331'
-		inputFname='/Network/Data/vervet/vervetPipeline/%s/AAC_tally.tsv'%(workflowName)
-		inputFname = '/usr/local/home_ubuntu/crocea/mnt/hoffman2/u/scratch/p/polyacti/pegasus/%s/11Contigs_AAC_tally.tsv'%(workflowName)
-		outputFnamePrefix = './AAC_distribution_of_11ContigsFromMethod8'
-		VariantDiscovery.drawAACHistogramFromAACFile(inputFname=inputFname, outputFnamePrefix=outputFnamePrefix, \
-				color_ls=['r', 'g', 'b', 'y','c', 'k'])
-		sys.exit(0)
-		
-		#2012.7.26
-		prefix = '/Network/Data/vervet/vervetPipeline/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.2012.725T0210/Contig2802_1_55870_Contig1731_1_72833_Contig3687_1_29987.majoritySupport.merged'
-		inputFname='%s.tsv'%(prefix)
-		outputFname='%s.beautify.tsv'%(prefix)
-		VariantDiscovery.beautifyReplicateHaplotypeMajoritySupportOutput(db_vervet=db_vervet, inputFname=inputFname, outputFname=outputFname)
-		sys.exit(0)
-		
-		#2012.7.26
-		prefix = '/Network/Data/vervet/vervetPipeline/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.2012.725T0210/sampleHaplotypeDistance'
-		inputFname='%s.csv'%(prefix)
-		outputFname='%s.beautify.tsv'%(prefix)
-		VariantDiscovery.beautifyReplicateHaplotypeDistanceOutput(db_vervet=db_vervet, inputFname=inputFname, \
-			outputFname=outputFname)
-		sys.exit(0)
-		
-		#2012.7.23
-		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
-		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447,\
-			targetCoverageNotNull=False)
-		sys.exit(0)
-		
-		
-		#2012.7.14 update the md5sum for the existing db entries
-		TableClass = VervetDB.IndividualAlignment
+		#2012.9.25 update the file_size for the existing db entries
 		TableClass = VervetDB.IndividualSequenceFile
-		for db_entry in TableClass.query.filter(TableClass.md5sum==None):
-			if db_entry.base_count>0:	#if md5sum for empty files are all same.
-				absPath = os.path.join(db_vervet.data_dir, db_entry.path)
-				if db_entry.path and os.path.isfile(absPath):
-					sys.stderr.write("md5sum on %s ... "%(db_entry.path))
-					db_vervet.updateDBEntryMD5SUM(db_entry=db_entry, absPath=absPath)
-					sys.stderr.write("\n")
+		TableClass = VervetDB.IndividualAlignment
+		counter = 0
+		for db_entry in TableClass.query.filter(TableClass.file_size==None):
+			if TableClass== VervetDB.IndividualSequenceFile and getattr(db_entry, 'base_count', 0)==0:	#if md5sum for empty files are all same.
+				continue
+			if db_entry.file_size is None:
+				sys.stderr.write("file_size on %s %s ... "%(counter, db_entry.path))
+				db_vervet.updateDBEntryPathFileSize(db_entry=db_entry, data_dir=self.dataDir)
+				sys.stderr.write("\n")
+			counter += 1
 		db_vervet.session.flush()
 		db_vervet.session.commit()
 		sys.exit(0)
+		
+		#2012.7.14 update the md5sum for the existing db entries
+		TableClass = VervetDB.IndividualSequenceFile
+		TableClass = VervetDB.IndividualAlignment
+		counter = 0
+		for db_entry in TableClass.query.filter(TableClass.md5sum==None):
+			if TableClass== VervetDB.IndividualSequenceFile and getattr(db_entry, 'base_count', 0)==0:	#if md5sum for empty files are all same.
+				continue
+			if db_entry.md5sum is None:
+				sys.stderr.write("md5sum on %s %s ... "%(counter, db_entry.path))
+				db_vervet.updateDBEntryMD5SUM(db_entry=db_entry, data_dir=self.dataDir)
+				sys.stderr.write("\n")
+			counter += 1
+				
+		db_vervet.session.flush()
+		db_vervet.session.commit()
+		sys.exit(0)
+		
+		
+		
 		# 2012.4.19 run misc.py like "~/script/vervet/src/misc.py -u yh -k genome"
 		from pymodule import GenomeDB
 		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
