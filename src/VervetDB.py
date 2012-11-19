@@ -46,7 +46,9 @@ __session__ = scoped_session(sessionmaker(autoflush=False, autocommit=True))
 #__metadata__ = ThreadLocalMetaData()	#2008-10 not good for pylon
 
 __metadata__ = MetaData()
-
+#used in getattr(individual_site_id_set, '__len__', returnZeroFunc)()
+from pymodule.utils import returnZeroFunc
+	
 class AnalysisMethod(Entity):
 	"""
 	2011-4-5
@@ -235,6 +237,7 @@ class GeographicIntegrity(Entity):
 
 class Individual(Entity, TableClass):
 	"""
+	2012.9.27 add is_contaminated
 	2012.7.5 added column sequence_batch_ls	
 	2012.6.19 add column target_coverage
 	2012.2.7
@@ -275,6 +278,7 @@ class Individual(Entity, TableClass):
 	comment = Field(String(4096))
 	microchip_id = Field(String(4096))
 	target_coverage = Field(Integer)	#2012.6.19
+	is_contaminated = Field(Integer, default=0)	#2012.9.27 field to mark whether it's contaminated or not.
 	sequence_batch_ls = ManyToMany('SequenceBatch', tablename='individual2batch', local_colname='individual_id')	#2012.7.5
 	#ManyToOne('SequenceBatch', colname='sequence_batch_id', ondelete='CASCADE', onupdate='CASCADE')	#2012.7.5
 	created_by = Field(String(128))
@@ -1383,10 +1387,10 @@ class VervetDB(ElixirDB):
 			query = query.filter_by(alignment_method_id=alignment_method_id)
 		"""
 		if country_id_ls:	#2012.9.23 not sure whether it'll work
-			sys.stderr.write("Adding filter country_id_ls=%s ... \n"%(getattr(country_id_ls, '__len__', self.returnZeroFunc)()))
+			sys.stderr.write("Adding filter country_id_ls=%s ... \n"%(getattr(country_id_ls, '__len__', returnZeroFunc)()))
 			query = query.filter(TableClass.individual_sequence.individual.site.has(Site.country_id.in_(country_id_ls)))
 		if tax_id_ls:
-			sys.stderr.write("Adding filter tax_id_ls=%s ... \n"%(getattr(tax_id_ls, '__len__', self.returnZeroFunc)()))
+			sys.stderr.write("Adding filter tax_id_ls=%s ... \n"%(getattr(tax_id_ls, '__len__', returnZeroFunc)()))
 			query = query.filter(TableClass.individual_sequence.individual.has(Individual.tax_id.in_(tax_id_ls)))
 		"""
 		if not ind_aln_id_ls and not ind_seq_id_ls and not ref_ind_seq_id:
@@ -1436,13 +1440,13 @@ class VervetDB(ElixirDB):
 		sys.stderr.write("%s alignments.\n"%(len(alignmentLs)))
 		return alignmentLs
 	
-	#used in getattr(individual_site_id_set, '__len__', returnZeroFunc)()
-	returnZeroFunc = lambda: 0
-	
 	def filterAlignments(self, alignmentLs, max_coverage=None, individual_site_id=None, sequence_filtered=None,\
 						individual_site_id_set=None, mask_genotype_method_id=None, parent_individual_alignment_id=None,\
-						country_id_set=None, tax_id_set=None):
+						country_id_set=None, tax_id_set=None, excludeContaminant=False, excludeTissueIDSet=set([6]),\
+						report=True):
 		"""
+		2012.10.2 add argument excludeTissueIDSet, default=6 (RNASASamples). Most alignments have either tissue_id=5 (ACD-blood) or null.
+		2012.9.27 add argument excludeContaminant
 		2012.9.22 add argument country_id_set, tax_id_set
 		2012.7.26 added argument mask_genotype_method_id & parent_individual_alignment_id
 		2012.5.8
@@ -1456,11 +1460,12 @@ class VervetDB(ElixirDB):
 		2011-11-22
 			447 in "individual_site_id=447" is VRC.
 		"""
-		sys.stderr.write("Filter %s alignments to select individual_sequence.coverage <=%s & site-id=%s & sequence_filtered=%s & from %s sites & %s countries & %s taxonomies ..."%\
+		if report:
+			sys.stderr.write("Filter %s alignments to select individual_sequence.coverage <=%s & site-id=%s & sequence_filtered=%s & from %s sites & %s countries & %s taxonomies ..."%\
 							(len(alignmentLs), max_coverage, individual_site_id, sequence_filtered, \
-							getattr(individual_site_id_set, '__len__', self.returnZeroFunc)(),\
-							getattr(country_id_set, '__len__', self.returnZeroFunc)(),\
-							getattr(tax_id_set, '__len__', self.returnZeroFunc)(),\
+							getattr(individual_site_id_set, '__len__', returnZeroFunc)(),\
+							getattr(country_id_set, '__len__', returnZeroFunc)(),\
+							getattr(tax_id_set, '__len__', returnZeroFunc)(),\
 							)
 						)
 		newAlignmentLs = []
@@ -1495,8 +1500,13 @@ class VervetDB(ElixirDB):
 					continue
 				elif alignment.individual_sequence.individual.tax_id not in tax_id_set:
 					continue
+			if excludeContaminant and alignment.individual_sequence.individual.is_contaminated:	#2012.9.27
+				continue
+			if excludeTissueIDSet and alignment.individual_sequence.tissue_id in excludeTissueIDSet:	#2012.10.2
+				continue
 			newAlignmentLs.append(alignment)
-		sys.stderr.write(" kept %s alignments. Done.\n"%(len(newAlignmentLs)))
+		if report:
+			sys.stderr.write(" kept %s alignments. Done.\n"%(len(newAlignmentLs)))
 		return newAlignmentLs
 	
 	@classmethod
@@ -2797,6 +2807,7 @@ class VervetDB(ElixirDB):
 	
 	def parseAlignmentReadGroup(self, read_group):
 		"""
+		2012.10.8 no more try except
 		2012.5.10
 			read-group is used to designate samples in alignment files and also in the ensuing multi-sample VCF files,
 				similar to compositeID used in trio-representations but different.
@@ -2805,15 +2816,31 @@ class VervetDB(ElixirDB):
 								sequencer, self.ref_ind_seq_id)
 								
 		"""
+		split_id_ls = read_group.split('_')
 		try:
-			split_id_ls = read_group.split('_')
 			individual_alignment_id = int(split_id_ls[0])
-			individualAlignment = IndividualAlignment.get(individual_alignment_id)
-			ind_seq_id = individualAlignment.individual_sequence.id
-			individual_code = individualAlignment.individual_sequence.individual.code
-			sequencer = individualAlignment.individual_sequence.sequencer
-			ref_ind_seq_id = individualAlignment.ref_sequence.id
-			individual_id = individualAlignment.individual_sequence.individual.id
+		except:	#only catch the string error, not catching the db error,
+			sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+			import traceback
+			traceback.print_exc()
+			individualAlignment = None
+			individual_alignment_id = None
+			ind_seq_id = None
+			individual_code = None
+			sequencer = None
+			ref_ind_seq_id = None
+			individual_id = None
+			return PassingData(individual_alignment_id=individual_alignment_id, individual_sequence_id=ind_seq_id,\
+						individual_id=individual_id, individual_code=individual_code, ref_ind_seq_id=ref_ind_seq_id,\
+						sequencer=sequencer, individualAlignment=individualAlignment)
+		
+		individualAlignment = IndividualAlignment.get(individual_alignment_id)
+		ind_seq_id = individualAlignment.individual_sequence.id
+		individual_code = individualAlignment.individual_sequence.individual.code
+		sequencer = individualAlignment.individual_sequence.sequencer
+		ref_ind_seq_id = individualAlignment.ref_sequence.id
+		individual_id = individualAlignment.individual_sequence.individual.id
+		"""
 		except:
 			sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 			import traceback
@@ -2825,6 +2852,7 @@ class VervetDB(ElixirDB):
 			sequencer = None
 			ref_ind_seq_id = None
 			individual_id = None
+		"""
 		return PassingData(individual_alignment_id=individual_alignment_id, individual_sequence_id=ind_seq_id,\
 						individual_id=individual_id, individual_code=individual_code, ref_ind_seq_id=ref_ind_seq_id,\
 						sequencer=sequencer, individualAlignment=individualAlignment)
@@ -2924,10 +2952,14 @@ class VervetDB(ElixirDB):
 			if absPath is given, take that , rather than construct it from data_dir and db_entry.path
 		"""
 		from pymodule import utils
-		if not absPath:
-			if data_dir is None:
-				data_dir = self.data_dir
+		if data_dir is None:
+			data_dir = self.data_dir
+		if not absPath and db_entry.path:
 			absPath = os.path.join(data_dir, db_entry.path)
+		
+		if absPath and not os.path.isfile(absPath):
+			sys.stderr.write("Warning: file %s doesn't exist.\n"%(absPath))
+			return
 		md5sum = utils.get_md5sum(absPath)
 		if db_entry.md5sum is  not None and db_entry.md5sum!=md5sum:
 			sys.stderr.write("WARNING: The new md5sum %s is not same as the existing md5sum %s.\n"%(md5sum, db_entry.md5sum))
@@ -2955,10 +2987,13 @@ class VervetDB(ElixirDB):
 			if absPath is given, take that , rather than construct it from data_dir and db_entry.path
 		"""
 		from pymodule import utils
-		if not absPath:
-			if data_dir is None:
-				data_dir = self.data_dir
+		if data_dir is None:
+			data_dir = self.data_dir
+		if not absPath and db_entry.path:
 			absPath = os.path.join(data_dir, db_entry.path)
+		if absPath and not os.path.isfile(absPath):
+			sys.stderr.write("Warning: file %s doesn't exist.\n"%(absPath))
+			return
 		file_size = utils.getFileOrFolderSize(absPath)
 		if db_entry.file_size is not None and file_size!=db_entry.file_size:
 			sys.stderr.write("Warning: the new file size %s doesn't match the old one %s.\n"%(file_size, db_entry.file_size))

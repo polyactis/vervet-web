@@ -6,6 +6,7 @@ then
 	echo "Usage: $0 vcfSubsetPath sampleIDFile inputVCF outputVCF [extraArguments]"
 	echo
 	echo "Note:"
+	echo "	0. sampleIDFile is a file containing individual ucla_id in each row. one column with header UCLAID."
 	echo "	1. input vcf file could be gzipped or not. tbi file (index file of the gzipped vcf) is not used."
 	echo "	2. outputFile is plain VCF, no bgzip/tabix-index."
 	echo "	3. Default for extraArguments is $extraArgumentsDefault."
@@ -18,6 +19,7 @@ fi
 # vcf-subset Usage: vcf-subset [OPTIONS] in.vcf.gz > out.vcf
 #Options:
 #   -c, --columns <string>           File or comma-separated list of columns to keep in the vcf file. If file, one column per row
+#   -a, --trim-alt-alleles           Remove alternate alleles if not found in the subset
 #   -e, --exclude-ref                Exclude rows not containing variants.
 #   -f, --force                      Proceed anyway even if VCF does not contain some of the samples.
 #   -p, --private                    Print only rows where only the subset columns carry an alternate allele.

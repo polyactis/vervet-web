@@ -27,20 +27,14 @@ class AbstractVervetMapper(AbstractDBInteractingClass):
 	__doc__ = __doc__
 	option_default_dict = AbstractMapper.option_default_dict.copy()
 	#option_default_dict.pop(('inputFname', 1, ))
+	
 	option_default_dict.update({
-							('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgresql', ],\
-							('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
-							('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
-							('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
-							('db_user', 1, ): [None, 'u', 1, 'database username', ],\
-							('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-							('port', 0, ):[None, '', 1, 'database port number'],\
 							('logFilename', 0, ): [None, '', 1, 'file to contain logs. use it only if this program is at the end of pegasus workflow \
 		and has no output file'],\
 							("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
 									If not given, use the default stored in db.'],\
-							('commit', 0, int):[0, 'c', 0, 'commit db transaction'],\
 							})
+	option_default_dict.update(AbstractMapper.db_option_dict)
 	def __init__(self, inputFnameLs=None, **keywords):
 		"""
 		"""

@@ -1174,7 +1174,8 @@ class AlignmentToCallPipeline(parentClass):
 		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
 									individual_site_id_set=set(self.site_id_ls),\
 									mask_genotype_method_id=None, parent_individual_alignment_id=None,\
-									country_id_set=set(self.country_id_ls), tax_id_set=set(self.tax_id_ls))
+									country_id_set=set(self.country_id_ls), tax_id_set=set(self.tax_id_ls),\
+									excludeContaminant=self.excludeContaminant)
 		
 		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
 										defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)

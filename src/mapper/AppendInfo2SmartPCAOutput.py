@@ -35,7 +35,7 @@ import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2IndexFromHeader, figureOutDelimiter, SNPData
 from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
 from pymodule import yh_matplotlib, GenomeDB, utils
-from pymodule.MatrixFile import MatrixFile
+from pymodule import MatrixFile
 from pymodule import SNP
 import numpy, random, pylab
 import numpy as np
@@ -103,7 +103,7 @@ class AppendInfo2SmartPCAOutput(AbstractVervetMapper):
 				sys.stderr.write("Warning: sampleID %s is not parsable to get alignment out of it. Skip.\n"%(sampleID))
 				continue
 			individual = individualAlignment.individual_sequence.individual
-			data_row = [individual.code]
+			data_row = ['%s_%s'%(individual.code, individualAlignment.id)]
 			
 			floatValue_row = row[1:]
 			if inversePCValue:

@@ -18,12 +18,12 @@ Examples:
 	# 2012.8.9 LD-prune a folder of VCF files into plink, need the db tunnel (-H) for output pedigree in tfam
 	# "-V 90 -x 100" are used to restrict contig IDs between 90 and 100.
 	# -c 1 is to sample all locus data (samplingRate). LDPruneMinR2=0.3 (-R), LDPruneWindowSize=500 (-W), 
-	# LDPruneWindowShiftSize=100 (-Z)
+	# LDPruneWindowShiftSize=100 (--LDPruneWindowShiftSize)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719/trioCaller_vcftoolsFilter/ 
 		-o workflow/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
 		-y 2  -E
 		-l condorpool -j condorpool
-		-u yh -z uclaOffice  -C 4 -H -R 0.3 -W 500 -Z 100
+		-u yh -z uclaOffice  -C 4 -H -R 0.3 -W 500 --LDPruneWindowShiftSize 100
 		#-V 90 -x 100 -c 1
 	
 	# 2012.8.10 LD pruning
@@ -36,7 +36,7 @@ Examples:
 	# no clustering (-C 1)
 	%s -I ~/NetworkData/vervet/db/genotype_file/method_14/
 		-o workflow/PlinkSexCheck_Method14_W100Z10R0.4_maxContigID195.xml
-		-W 100 -Z 10 -R 0.4 -C 1  -H -l hcondor -j hcondor  -u yh -z localhost
+		-W 100 --LDPruneWindowShiftSize 10 -R 0.4 -C 1  -H -l hcondor -j hcondor  -u yh -z localhost
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-z localhost  -y4 -c 0.01 -g ./aux/Method14_LDPrune_merge_list.2012.8.13T1702.txt -x 195
 		
@@ -77,7 +77,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		3: IBD check,\n\
 		4: sex check,\n', ],\
 						('LDPruneWindowSize', 1, int): [50, 'W', 1, ' window size (in the number of SNPs, not bp) for plink LD pruning'],\
-						('LDPruneWindowShiftSize', 1, int): [20, 'Z', 1, 'adjacent window shift (in the number of SNPs), not bp '],\
+						('LDPruneWindowShiftSize', 1, int): [20, '', 1, 'adjacent window shift (in the number of SNPs), not bp '],\
 						('kinshipFname', 0, ): ["", 's', 1, 'the kinship file from Sue (in turn from Solar, based on pedigree )\
 		if given, y3 (IBD check) workflow will compare IBD result with kinship'],\
 							}
@@ -196,8 +196,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 					extraArguments=None, job_max_memory=2000,\
 					parentJobLs =[topOutputDirJob]+ jobData.jobLs)
 			
-			no_of_jobs += 1
-			
 			#add output to some reduce job
 			self.addInputToStatMergeJob(workflow, statMergeJob=mendelMergeJob, \
 								inputF=plinkMendelJob.mendelFile, \
@@ -220,10 +218,10 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 											fileList=fmendelMergeJob.outputLs))
 		returnData.jobDataLs.append(PassingData(jobLs=[lmendelMergeJob], file=lmendelMergeJob.output, \
 											fileList=lmendelMergeJob.outputLs))
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
 		##2012.7.21 gzip the final output
 		returnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
 					outputDirPrefix=outputDirPrefix)
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
 	def writePlinkMergeListFile(self, outputFname=None, extractedFilenameTupleList=[]):
@@ -913,7 +911,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			ModifyTPEDRunType = 1	#plink mendel doesn't skip non-human chromosomes
 			
 			needToKnowNoOfLoci = False
-			minNoOfLoci = 0
+			minNoOfLoci = None	#2012.10.19 bugfix
 		
 		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
 					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)

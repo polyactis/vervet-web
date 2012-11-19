@@ -8,11 +8,14 @@ Examples:
 	%s  -a 525 -f 9 -I 8GenomeVsTop156Contigs_GATK_all_bases/call/ -N 0.8 -M0
 		-c 1 -o 8GenomeVsTop156Contigs_GATK_all_bases_maxNA0.8_minMAF0_het2NA.xml -j condorpool -l condorpool  -u yh -z uclaOffice
 	
-	#2012.5.11 on hoffman condor, no job clustering (-C1)
+	#2012.5.11 on hoffman condor, no job clustering (-C1), always need db connection on hcondor (-H)
+	# set minDepth=1 (-m1)
+	# add -U 0 -Z 3000 if u want to change the interval configuration
 	%s -a 524 -I Combine_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs_and_VariantsOf36RNA-SeqMonkeysFromNam_minDepth5/
-		-C 1
+		-C 1 -H -m1
 		-j hcondor -l hcondor -D ~/NetworkData/vervet/db/ -t ~/NetworkData/vervet/db/ -u yh -z localhost
 		-o workflow/PairwiseDistance/PairwiseDistance_Combine_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs_and_VariantsOf36RNA-SeqMonkeysFromNam_minDepth5.xml
+		#-U 0 -Z 3000
 
 Description:
 	2011-10-14
@@ -32,12 +35,11 @@ import subprocess, cStringIO
 import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
-from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
+from AbstractVervetWorkflow import AbstractVervetWorkflow
 
-
-class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
+class CalculateDistanceMatrixFromVCFPipe(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
 	option_default_dict.update({
 						('min_MAF', 1, float): [0.0, '', 1, 'minimum MAF for SNP filter', ],\
 						('max_NA_rate', 1, float): [1, '', 1, 'maximum NA rate for SNP filter', ],\
@@ -45,19 +47,26 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 						('hetHalfMatchDistance', 1, float): [0.5, 'q', 1, 'distance between two half-matched genotypes. AG vs A or AG vs AC', ],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
-
+	#2012.9.25 no overlap and make the interval a lot smaller, (for VCF file)
+	option_default_dict[('intervalOverlapSize', 1, int)][0] = 0
+	option_default_dict[('intervalSize', 1, int)][0] = 3000
+	
 	def __init__(self,  **keywords):
 		"""
 		2011-7-11
 		"""
-		AbstractVCFWorkflow.__init__(self, **keywords)
+		AbstractVervetWorkflow.__init__(self, **keywords)
 		
 		self.inputDir = os.path.abspath(self.inputDir)
 	
-	def registerCustomExecutables(self, workflow):
+	def registerCustomExecutables(self, workflow=None):
 		"""
 		2011-11-28
 		"""
+		if workflow==None:
+			workflow=self
+		AbstractVervetWorkflow.registerCustomExecutables(self, workflow)
+		
 		namespace = workflow.namespace
 		version = workflow.version
 		operatingSystem = workflow.operatingSystem
@@ -66,22 +75,118 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 		site_handler = workflow.site_handler
 		vervetSrcPath = self.vervetSrcPath
 		
-		
+		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)		
 		AggregateAndHClusterDistanceMatrix = Executable(namespace=namespace, name="AggregateAndHClusterDistanceMatrix", \
 											version=version, \
 											os=operatingSystem, arch=architecture, installed=True)
 		AggregateAndHClusterDistanceMatrix.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "reducer/AggregateAndHClusterDistanceMatrix.py"), \
 													site_handler))
-		AggregateAndHClusterDistanceMatrix.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(AggregateAndHClusterDistanceMatrix)
-		workflow.AggregateAndHClusterDistanceMatrix = AggregateAndHClusterDistanceMatrix
+		executableClusterSizeMultiplierList.append((AggregateAndHClusterDistanceMatrix, 0))
+		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 	
-	
-	def run(self):
+	def preReduce(self, workflow=None, outputDirPrefix="", passingData=None, transferOutput=True, **keywords):
 		"""
-		2011-9-28
+		2012.9.17
+		"""
+		parentPreReduceData = AbstractVervetWorkflow.preReduce(self, workflow=workflow, outputDirPrefix=outputDirPrefix, passingData=passingData, \
+							transferOutput=transferOutput, **keywords)
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		
+		callOutputDir = "call"
+		callOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=callOutputDir)
+		passingData.callOutputDirJob = callOutputDirJob
+		
+		matrixDir = "pairwiseDistMatrix"
+		matrixDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=matrixDir)
+		passingData.matrixDirJob = matrixDirJob
+		
+		reduceOutputDirJob = passingData.reduceOutputDirJob
+		#2012.10.9 reduceOutputDirJob was added to passingData during AbstractVCFWorkflow.preReduce()
+		
+		#reduceOutputDir = "aggregateData"
+		#reduceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=reduceOutputDir)
+		#passingData.reduceOutputDirJob = reduceOutputDirJob
+		
+		figureFnamePrefix = os.path.join(reduceOutputDirJob.output, 'aggregateDistanceMatrix')
+		aggregateDistanceMatrixOutputF = File('%s.tsv'%(figureFnamePrefix))
+		PCAFile = File('%s_PCA.tsv'%(figureFnamePrefix))
+		aggregateAndHClusterDistanceMatrixJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.AggregateAndHClusterDistanceMatrix, \
+									outputF=aggregateDistanceMatrixOutputF, \
+									parentJobLs=[reduceOutputDirJob],extraOutputLs=[PCAFile, File('%s.png'%(figureFnamePrefix)), \
+																				File('%s.svg'%(figureFnamePrefix))], \
+									extraDependentInputLs=[], transferOutput=True, extraArguments="-f %s"%(figureFnamePrefix))
+		returnData.aggregateAndHClusterDistanceMatrixJob = aggregateAndHClusterDistanceMatrixJob
+		
+		#2012.9.5 add the job to append meta info (country, sex, latitude, etc. of each monkey)
+		outputF = File('%s_withMetaInfo.tsv'%(figureFnamePrefix))
+		appendInfo2PCAOutputJob = self.addGenericDBJob(executable=self.AppendInfo2SmartPCAOutput, inputFile=PCAFile, \
+				outputFile=outputF, \
+				parentJobLs=[aggregateAndHClusterDistanceMatrixJob], extraDependentInputLs=None, \
+				extraOutputLs=None,\
+				transferOutput=True, \
+				extraArgumentList=None, extraArguments=None, sshDBTunnel=self.needSSHDBTunnel, \
+				key2ObjectForJob=None, job_max_memory=2000)
+		
+		
+		return returnData
+	
+	def mapEachInterval(self, workflow=None, \
+					VCFFile=None, passingData=None, transferOutput=False, **keywords):
+		"""
+		2012.9.22
 		"""
 		
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		
+		topOutputDirJob = passingData.topOutputDirJob
+		intervalFnamePrefix = passingData.intervalFnamePrefix
+		jobData = passingData.jobData
+		callOutputDirJob = passingData.callOutputDirJob
+		
+		splitVCFJob = passingData.mapEachVCFData.splitVCFJob
+		
+		genotypeCallOutputFname = os.path.join(callOutputDirJob.output, '%s.call'%(intervalFnamePrefix))
+		genotypeCallOutput = File(genotypeCallOutputFname)
+		genotypeCallByCoverage_job = self.addVCF2MatrixJob(workflow, executable=self.GenotypeCallByCoverage, \
+											inputVCF=VCFFile, outputFile=genotypeCallOutput, \
+					refFastaF=None, run_type=3, numberOfReadGroups=10, minDepth=self.minDepth,\
+					parentJobLs=[callOutputDirJob, splitVCFJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=False, \
+					extraArguments=None, job_max_memory=2000)
+		
+		matrixDirJob = passingData.matrixDirJob
+		calculaOutputFname =os.path.join(matrixDirJob.output, '%s.pairwiseDist.convertHetero2NA%s.minMAF%.2f.maxNA%.2f.tsv'%(intervalFnamePrefix, \
+							self.convertHetero2NA, self.min_MAF, self.max_NA_rate))
+		calculaOutput = File(calculaOutputFname)
+		calculaJob = self.addCalculatePairwiseDistanceFromSNPXStrainMatrixJob(workflow, \
+										executable=self.CalculatePairwiseDistanceOutOfSNPXStrainMatrix, \
+										inputFile=genotypeCallOutput, outputFile=calculaOutput, \
+					min_MAF=self.min_MAF, max_NA_rate=self.max_NA_rate, convertHetero2NA=self.convertHetero2NA, \
+					hetHalfMatchDistance=self.hetHalfMatchDistance,\
+					parentJobLs=[genotypeCallByCoverage_job, matrixDirJob], extraDependentInputLs=[], transferOutput=False, \
+					extraArguments=None, job_max_memory=2000)
+		returnData.jobDataLs.append(PassingData(jobLs=[calculaJob], file=calculaJob.output, \
+											fileList=[calculaJob.output]))
+		returnData.calculaJob = calculaJob
+		return returnData
+	
+	def linkMapToReduce(self, workflow=None, mapEachIntervalData=None, preReduceReturnData=None, passingData=None, transferOutput=True, **keywords):
+		"""
+		"""
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		
+		for jobData in mapEachIntervalData.jobDataLs:
+			calculaJob = jobData.jobLs[0]
+			self.addInputToStatMergeJob(workflow, statMergeJob=preReduceReturnData.aggregateAndHClusterDistanceMatrixJob, \
+						inputF=calculaJob.output, \
+						parentJobLs=[calculaJob])
+		return returnData
+	
+	"""
+	2011.9-28
+	def run(self):
 		if self.debug:
 			import pdb
 			pdb.set_trace()
@@ -144,14 +249,6 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 		refFastaF = refFastaFList[0]
 		
 		
-		"""
-		#2011-9-2
-		self.outputSeqCoverage(self.seqCoverageFname)
-		seqCoverageF = File(os.path.basename(self.seqCoverageFname))
-		seqCoverageF.addPFN(PFN("file://" + os.path.abspath(self.seqCoverageFname), \
-											self.input_site_handler))
-		workflow.addFile(seqCoverageF)
-		"""
 		seqCoverageF = None
 		for jobData in inputData.jobDataLs:
 			inputF = jobData.vcfFile
@@ -161,7 +258,7 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 			genotypeCallOutput = File(genotypeCallOutputFname)
 			genotypeCallByCoverage_job = self.addVCF2MatrixJob(workflow, executable=workflow.GenotypeCallByCoverage, \
 															inputVCF=inputF, outputFile=genotypeCallOutput, \
-						refFastaF=None, run_type=3, numberOfReadGroups=10, \
+						refFastaF=None, run_type=3, numberOfReadGroups=10, minDepth=self.minDepth,\
 						parentJobLs=[callOutputDirJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=False, \
 						extraArguments=" --minDepth %s "%(self.minDepth), job_max_memory=2000)
 			
@@ -182,7 +279,7 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVCFWorkflow):
 		outf = open(self.outputFname, 'w')
 		workflow.writeXML(outf)
 		
-
+	"""
 
 	
 if __name__ == '__main__':

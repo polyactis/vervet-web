@@ -144,6 +144,9 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 	def outputPedgreeOfAlignmentsInMerlinFormat(self, db_vervet, alignmentLs, pedigreeOutputFname=None, replicateIndividualTag='copy',\
 											treatEveryOneIndependent=False):
 		"""
+		#2012.9.26 output below is wrong if some members of duo or trio have >1 alignments
+			need to fix this bug 
+		2012.9.26 deal with the case that one individual appear in multiple alignments
 		2012.8.28
 			add argument treatEveryOneIndependent, which removes the family structure and also no replicates
 		2012.3.29
@@ -179,99 +182,96 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		#time to output
 		sampleID2FamilyCount = {}	#2012.3.29
 		writer = csv.writer(open(pedigreeOutputFname, 'w'), delimiter=' ')
+		noOfFamilies = 0
 		for family in familyLs:
 			familySize = len(family)
 			for memberID in family:	#2012.3.29 make sure to record the occurrence of each member before writing them out
 				# as the occurrence is used in output 
-				alignment = individual_id2alignmentLs.get(memberID)[0]
-				self.adjustSampleID2FamilyCountFromAlignmentDBEntry(alignment, sampleID2FamilyCount)
+				for alignment in individual_id2alignmentLs.get(memberID):
+					self.adjustSampleID2FamilyCountFromAlignmentDBEntry(alignment, sampleID2FamilyCount)
 				
 			if familySize==1:
 				individual_id = family[0]
-				alignment = individual_id2alignmentLs.get(individual_id)[0]
-				
-				sampleID = self.getSampleIDWithReplicateCount(alignment, replicateIndividualTag=replicateIndividualTag, \
+				for alignment in individual_id2alignmentLs.get(individual_id):
+					sampleID = self.getSampleIDWithReplicateCount(alignment, replicateIndividualTag=replicateIndividualTag, \
+												sampleID2FamilyCount=sampleID2FamilyCount)
+					family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[alignment.getReadGroup()])
+					self.writeOneLineToPedigreeFile(writer, family_id, alignment, father_id=0, mother_id=0,\
+											replicateIndividualTag=replicateIndividualTag, \
 											sampleID2FamilyCount=sampleID2FamilyCount)
-				family_id = "F%s_%s"%(individual_id, sampleID2FamilyCount[alignment.getReadGroup()])
-				self.writeOneLineToPedigreeFile(writer, family_id, alignment, father_id=0, mother_id=0,\
-										replicateIndividualTag=replicateIndividualTag, \
-										sampleID2FamilyCount=sampleID2FamilyCount)
-			elif familySize==2:
+					noOfFamilies += 1
+			elif familySize==2:	#2012.9.26 output below is wrong if some members of duo or trio have >1 alignments 
 				parent1ID, offspring_id = family[:2]
 				#output the single parent first
-				parent1Alignment = individual_id2alignmentLs.get(parent1ID)[0]
-				parent1sampleID = self.getSampleIDWithReplicateCount(parent1Alignment, replicateIndividualTag=replicateIndividualTag, \
-											sampleID2FamilyCount=sampleID2FamilyCount)
-				family_id = "F%s_%s"%(parent1ID, sampleID2FamilyCount[parent1Alignment.getReadGroup()])	#2012.3.29 add count to family ID
-				self.writeOneLineToPedigreeFile(writer, family_id, parent1Alignment, father_id=0, mother_id=0,\
-										replicateIndividualTag=replicateIndividualTag, \
-										sampleID2FamilyCount=sampleID2FamilyCount)
-				if treatEveryOneIndependent:	#2012.8.29
-					#output the offspring
-					childAlignment = individual_id2alignmentLs.get(offspring_id)[0]
-					father_id = 0
-					mother_id = 0
-					self.writeOneLineToPedigreeFile(writer, family_id, childAlignment, father_id=father_id, mother_id=mother_id,\
-											replicateIndividualTag=replicateIndividualTag, \
-											sampleID2FamilyCount=sampleID2FamilyCount)
-				else:
-					#output a fake 2nd parent, with opposite sex
-					sndParentID = 'dummy'
-					sndParentSex = 1-(parent1Alignment.individual_sequence.individual.codeSexInNumber()-1)+1
-					self.writeOneLineToPedigreeFile(writer, family_id, sndParentID, father_id=0, mother_id=0, sex=sndParentSex,\
+				for parent1Alignment in individual_id2alignmentLs.get(parent1ID):
+					parent1SampleID = self.getSampleIDWithReplicateCount(parent1Alignment, replicateIndividualTag=replicateIndividualTag, \
+												sampleID2FamilyCount=sampleID2FamilyCount)
+					family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[parent1Alignment.getReadGroup()])	#2012.3.29 add count to family ID
+					self.writeOneLineToPedigreeFile(writer, family_id, parent1Alignment, father_id=0, mother_id=0,\
 											replicateIndividualTag=replicateIndividualTag, \
 											sampleID2FamilyCount=sampleID2FamilyCount)
 					#output the offspring
-					childAlignment = individual_id2alignmentLs.get(offspring_id)[0]
-					if sndParentSex==1:
-						father_id = sndParentID
-						mother_id = parent1sampleID
-					else:
-						father_id = parent1sampleID
-						mother_id = sndParentID
-					self.writeOneLineToPedigreeFile(writer, family_id, childAlignment, father_id=father_id, mother_id=mother_id,\
-											replicateIndividualTag=replicateIndividualTag, \
-											sampleID2FamilyCount=sampleID2FamilyCount)
+					for childAlignment in individual_id2alignmentLs.get(offspring_id):
+						family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[parent1Alignment.getReadGroup()])	#2012.3.29 add count to family ID
+						if treatEveryOneIndependent:	#2012.8.29
+							father_id = 0
+							mother_id = 0
+						else:
+							#output a fake 2nd parent, with opposite sex
+							sndParentID = 'dummy'
+							sndParentSex = 1-(parent1Alignment.individual_sequence.individual.codeSexInNumber()-1)+1
+							self.writeOneLineToPedigreeFile(writer, family_id, sndParentID, father_id=0, mother_id=0, sex=sndParentSex,\
+													replicateIndividualTag=replicateIndividualTag, \
+													sampleID2FamilyCount=sampleID2FamilyCount)
+							if sndParentSex==1:
+								father_id = sndParentID
+								mother_id = parent1SampleID
+							else:
+								father_id = parent1SampleID
+								mother_id = sndParentID
+						self.writeOneLineToPedigreeFile(writer, family_id, childAlignment, father_id=father_id, mother_id=mother_id,\
+													replicateIndividualTag=replicateIndividualTag, \
+													sampleID2FamilyCount=sampleID2FamilyCount)
+						noOfFamilies += 1
 			elif familySize==3:
 				parent1ID, parent2ID, offspring_id = family[:3]
 				#output one parent
-				parent1Alignment = individual_id2alignmentLs.get(parent1ID)[0]
-				parent1SampleID = self.getSampleIDWithReplicateCount(parent1Alignment, replicateIndividualTag=replicateIndividualTag, \
-											sampleID2FamilyCount=sampleID2FamilyCount)
-				family_id = "F%s_%s"%(parent1ID, sampleID2FamilyCount[parent1Alignment.getReadGroup()])
-				self.writeOneLineToPedigreeFile(writer, family_id, parent1Alignment, father_id=0, mother_id=0,\
-										replicateIndividualTag=replicateIndividualTag, \
-										sampleID2FamilyCount=sampleID2FamilyCount)
-				#output 2nd parent
-				parent2Alignment = individual_id2alignmentLs.get(parent2ID)[0]
-				parent2SampleID = self.getSampleIDWithReplicateCount(parent2Alignment, replicateIndividualTag=replicateIndividualTag, \
-											sampleID2FamilyCount=sampleID2FamilyCount)
-				self.writeOneLineToPedigreeFile(writer, family_id, parent2Alignment, father_id=0, mother_id=0,\
-										replicateIndividualTag=replicateIndividualTag, \
-										sampleID2FamilyCount=sampleID2FamilyCount)
-				#output offspring
-				if treatEveryOneIndependent:	#2012.8.29
-					#output the offspring
-					childAlignment = individual_id2alignmentLs.get(offspring_id)[0]
-					father_id = 0
-					mother_id = 0
-					self.writeOneLineToPedigreeFile(writer, family_id, childAlignment, father_id=father_id, mother_id=mother_id,\
+				for parent1Alignment in individual_id2alignmentLs.get(parent1ID):
+					parent1SampleID = self.getSampleIDWithReplicateCount(parent1Alignment, replicateIndividualTag=replicateIndividualTag, \
+												sampleID2FamilyCount=sampleID2FamilyCount)
+					family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[parent1Alignment.getReadGroup()])
+					self.writeOneLineToPedigreeFile(writer, family_id, parent1Alignment, father_id=0, mother_id=0,\
 											replicateIndividualTag=replicateIndividualTag, \
 											sampleID2FamilyCount=sampleID2FamilyCount)
-				else:
-					childAlignment = individual_id2alignmentLs.get(offspring_id)[0]
-					parent2Sex = parent2Alignment.individual_sequence.individual.codeSexInNumber()
-					if parent2Sex==1:
-						father_id = parent2SampleID
-						mother_id = parent1SampleID
-					else:
-						father_id = parent1SampleID
-						mother_id = parent2SampleID
-					self.writeOneLineToPedigreeFile(writer, family_id, childAlignment, father_id=father_id, mother_id=mother_id,\
-											replicateIndividualTag=replicateIndividualTag, \
-											sampleID2FamilyCount=sampleID2FamilyCount)
+					#output 2nd parent
+					for parent2Alignment in individual_id2alignmentLs.get(parent2ID):
+						parent2SampleID = self.getSampleIDWithReplicateCount(parent2Alignment, replicateIndividualTag=replicateIndividualTag, \
+													sampleID2FamilyCount=sampleID2FamilyCount)
+						family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[parent1Alignment.getReadGroup()])
+						self.writeOneLineToPedigreeFile(writer, family_id, parent2Alignment, father_id=0, mother_id=0,\
+												replicateIndividualTag=replicateIndividualTag, \
+												sampleID2FamilyCount=sampleID2FamilyCount)
+						#output offspring
+						for childAlignment in individual_id2alignmentLs.get(offspring_id):
+							if treatEveryOneIndependent:	#2012.8.29
+								#output the offspring
+								father_id = 0
+								mother_id = 0
+							else:
+								parent2Sex = parent2Alignment.individual_sequence.individual.codeSexInNumber()
+								if parent2Sex==1:
+									father_id = parent2SampleID
+									mother_id = parent1SampleID
+								else:
+									father_id = parent1SampleID
+									mother_id = parent2SampleID
+							family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[parent1Alignment.getReadGroup()])
+							self.writeOneLineToPedigreeFile(writer, family_id, childAlignment, father_id=father_id, mother_id=mother_id,\
+														replicateIndividualTag=replicateIndividualTag, \
+														sampleID2FamilyCount=sampleID2FamilyCount)
+							noOfFamilies += 1
 		del writer
-		sys.stderr.write("Done.\n")
+		sys.stderr.write("%s families.\n"%(noOfFamilies))
 		return sampleID2FamilyCount
 		
 	def outputSampleID2FamilyCount(self, sampleID2FamilyCount, outputFname=None):
@@ -875,7 +875,10 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			del vcfFile
 		
 		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
-												individual_site_id_set=set(self.site_id_ls))
+												individual_site_id_set=set(self.site_id_ls),\
+												mask_genotype_method_id=None, parent_individual_alignment_id=None,\
+									country_id_set=set(self.country_id_ls), tax_id_set=set(self.tax_id_ls),\
+									excludeContaminant=self.excludeContaminant)
 		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
 															defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
 		sampleID2FamilyCount = self.outputPedgreeOfAlignmentsInMerlinFormat(db_vervet, alignmentLs, self.pedigreeOutputFname,\
