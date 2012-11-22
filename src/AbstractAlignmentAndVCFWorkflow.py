@@ -212,15 +212,13 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		sys.stderr.write("Adding alignment+VCF-related jobs for %s chromosomes/contigs ..."%(len(chrIDSet)))
 		refFastaF = refFastaFList[0]
 		
-		topOutputDir = "%smap"%(outputDirPrefix)
+		topOutputDir = "%sMap"%(outputDirPrefix)
 		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
-		self.no_of_jobs += 1
 		
 		if needFastaDictJob:	# the .dict file is required for GATK
 			fastaDictJob = self.addRefFastaDictJob(workflow, createSequenceDictionaryJava=createSequenceDictionaryJava, \
 												refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
-			self.no_of_jobs += 1
 		else:
 			fastaDictJob = None
 			refFastaDictF = None
@@ -228,7 +226,6 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 		if needFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
-			self.no_of_jobs += 1
 		else:
 			fastaIndexJob = None
 			refFastaIndexF = None
