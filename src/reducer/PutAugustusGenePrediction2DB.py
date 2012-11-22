@@ -200,7 +200,7 @@ class Protein(object):
 class PutAugustusGenePrediction2DB(AbstractVervetMapper):
 	__doc__ = __doc__
 	option_default_dict = AbstractVervetMapper.option_default_dict.copy()
-	#option_default_dict.pop(('inputFname', 1, ))
+	#option_default_dict.pop(('inputFname', 0, ))
 	option_default_dict.pop(('outputFname', 0, ))
 	option_default_dict.pop(('outputFnamePrefix', 0, ))
 	option_default_dict.update({

@@ -50,7 +50,7 @@ from DetectWrongLabelByCompKinshipVsIBD import DetectWrongLabelByCompKinshipVsIB
 class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 	__doc__ = __doc__
 	option_default_dict = AbstractVervetMapper.option_default_dict.copy()
-	option_default_dict.pop(('inputFname', 1, ))
+	option_default_dict.pop(('inputFname', 0, ))
 	option_default_dict.update({
 						('plinkIBDCheckOutputFname', 1, ): ["", 'l', 1, 'file that contains IBD check result, output of plink IBD'], \
 						('kinshipFname', 1, ): [None, 'i', 1, 'the header-less 3-column tab/coma-delimited kinship filename.'], \
