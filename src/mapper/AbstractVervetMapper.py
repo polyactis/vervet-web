@@ -26,7 +26,7 @@ from vervet.src import VervetDB
 class AbstractVervetMapper(AbstractDBInteractingClass):
 	__doc__ = __doc__
 	option_default_dict = AbstractMapper.option_default_dict.copy()
-	#option_default_dict.pop(('inputFname', 1, ))
+	#option_default_dict.pop(('inputFname', 0, ))
 	
 	option_default_dict.update({
 							('logFilename', 0, ): [None, '', 1, 'file to contain logs. use it only if this program is at the end of pegasus workflow \

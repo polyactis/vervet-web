@@ -37,7 +37,7 @@ from pymodule import MatrixFile
 class ComparePedigreeFromMultipleInput(AbstractMapper):
 	__doc__ = __doc__
 	option_default_dict = AbstractMapper.option_default_dict.copy()
-	option_default_dict.pop(('inputFname', 1, ))
+	option_default_dict.pop(('inputFname', 0, ))
 	option_default_dict.update({
 						('outputFname', 1, ):option_default_dict.get(('outputFname', 0, )),\
 						('childColumnIndex', 1, int):[1, '', 1, 'index of the child ID column, 0-based. same across input.'],\

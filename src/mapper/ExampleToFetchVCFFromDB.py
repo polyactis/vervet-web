@@ -19,16 +19,16 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
-from pymodule.pegasus.mapper.AbstractMapper import AbstractMapper
+from pymodule import TaxonomyDB
+from pymodule import AbstractMapper
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
 from vervet.src import VervetDB
-from pymodule import TaxonomyDB
 
 
 class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 	__doc__ = __doc__
 	option_default_dict = AbstractMapper.option_default_dict.copy()
-	option_default_dict.pop(('inputFname', 1, ))
+	option_default_dict.pop(('inputFname', 0, ))
 	option_default_dict.update({
 							('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgresql', ],\
 							('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
@@ -37,8 +37,6 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 							('db_user', 1, ): [None, 'u', 1, 'database username', ],\
 							('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
 							('port', 0, ):[None, '', 1, 'database port number'],\
-							("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
-									If not given, use the default stored in db.'],\
 							('genotypeMethodID', 1, int):[4, 'm', 1, 'genotype method ID'],\
 							("chromosome", 1, ): [None, 'c', 1, 'chromosome for the genotype_file to be fetched'],\
 							("format", 1, ): ['VCF', 'f', 1, 'format of genotype_file entry'],\
