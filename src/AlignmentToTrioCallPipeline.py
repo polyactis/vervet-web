@@ -61,10 +61,10 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 import subprocess, cStringIO
 import VervetDB, csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, utils
+from pymodule import VCFFile
 from Pegasus.DAX3 import *
 from AlignmentToCallPipeline import AlignmentToCallPipeline
 from AbstractVervetWorkflow import AbstractVervetWorkflow
-from pymodule.VCFFile import VCFFile
 
 class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 	__doc__ = __doc__
