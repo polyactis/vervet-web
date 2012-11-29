@@ -132,7 +132,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 			selectRowsWithinCoverageRangeJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=self.SelectRowsWithinCoverageRange, \
 						inputFileList=None, inputFile=extractPopSampleIDJob.output, outputFile=outputFile, \
 						outputFnamePrefix=None, whichColumn=None, whichColumnHeader=sampleIDHeader, \
-						logWhichColumn=False, positiveLog=False, valueForNonPositiveYValue=-1, \
+						logY=False, valueForNonPositiveYValue=-1, \
 						minNoOfTotal=0,\
 						samplingRate=1.0, \
 						parentJobLs=[extractPopSampleIDJob], \
@@ -161,7 +161,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 			sampleRowsJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=self.SampleRows, \
 						inputFileList=None, inputFile=selectRowsWithinCoverageRangeJob.output, outputFile=outputFile, \
 						outputFnamePrefix=None, whichColumn=None, whichColumnHeader=sampleIDHeader, \
-						logWhichColumn=False, positiveLog=False, valueForNonPositiveYValue=-1, \
+						logY=False, valueForNonPositiveYValue=-1, \
 						minNoOfTotal=0, \
 						samplingRate=1.0, \
 						parentJob=translateIDInIBDResultJob, parentJobLs=[selectRowsWithinCoverageRangeJob], \

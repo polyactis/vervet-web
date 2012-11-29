@@ -33,7 +33,7 @@ from pymodule.VCFFile import VCFFile
 
 class PlotVCFDepthVsPosition(PlotVCFAAF_vs_Position):
 	__doc__ = __doc__
-	option_default_dict = PlotVCFAAF_vs_Position.option_default_dict
+	option_default_dict = PlotVCFAAF_vs_Position.option_default_dict.copy()
 
 	def __init__(self, inputFnameLs, **keywords):
 		"""

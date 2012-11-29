@@ -264,7 +264,7 @@ Available Options
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[selfSampleMixupMergeFile], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="FREEMIX", whichColumnPlotLabel="mixFraction", \
-					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+					logY=False, logCount=True, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, selfSampleMixupMergeJob], \
@@ -277,7 +277,7 @@ Available Options
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[selfSampleMixupMergeFile], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="FREE_RH", whichColumnPlotLabel="refAlleleProbGivenHet", \
-					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+					logY=False, logCount=True, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, selfSampleMixupMergeJob], \
@@ -290,7 +290,7 @@ Available Options
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[selfSampleMixupMergeFile], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="FREE_RA", whichColumnPlotLabel="refAlleleProbGivenAlternativeAllele", \
-					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+					logY=False, logCount=True, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, selfSampleMixupMergeJob], \
@@ -304,7 +304,7 @@ Available Options
 					inputFileList=[selfSampleMixupMergeJob.output], \
 					outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="FREEMIX", whichColumnPlotLabel="mixFractionByHet", \
-					logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+					logY=False, valueForNonPositiveYValue=50,\
 					xColumnHeader="CHIPMIX", xColumnPlotLabel="mixAgainstSelfGenotype", \
 					minNoOfTotal=5,\
 					figureDPI=150, samplingRate=1,\
@@ -319,7 +319,7 @@ Available Options
 					inputFileList=[selfSampleMixupMergeJob.output], \
 					outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="FREEMIX", whichColumnPlotLabel="mixFractionByHet", \
-					logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+					logY=False, valueForNonPositiveYValue=50,\
 					xColumnHeader="AVG_DP", xColumnPlotLabel="avgDepth", \
 					minNoOfTotal=5,\
 					figureDPI=150, samplingRate=1,\
@@ -334,7 +334,7 @@ Available Options
 					inputFileList=[selfSampleMixupMergeJob.output], \
 					outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="CHIPMIX", whichColumnPlotLabel="mixAgainstSelfGenotype", \
-					logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+					logY=False, valueForNonPositiveYValue=50,\
 					xColumnHeader="AVG_DP", xColumnPlotLabel="avgDepth", \
 					minNoOfTotal=5,\
 					figureDPI=150, samplingRate=1,\
@@ -349,7 +349,7 @@ Available Options
 					inputFileList=[selfSampleMixupMergeJob.output], \
 					outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="FREEMIX", whichColumnPlotLabel="mixFraction", \
-					logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+					logY=False, valueForNonPositiveYValue=50,\
 					xColumnHeader="FREE_RH", xColumnPlotLabel="refAlleleProbGivenHet", \
 					minNoOfTotal=5,\
 					figureDPI=150, samplingRate=1,\
@@ -364,7 +364,7 @@ Available Options
 					inputFileList=[selfSampleMixupMergeJob.output], \
 					outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="FREEMIX", whichColumnPlotLabel="mixFraction", \
-					logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+					logY=False, valueForNonPositiveYValue=50,\
 					xColumnHeader="FREE_RA", xColumnPlotLabel="refAlleleProbGivenAlternativeAllele", \
 					minNoOfTotal=5,\
 					figureDPI=150, samplingRate=1,\
@@ -379,7 +379,7 @@ Available Options
 					inputFileList=[selfSampleMixupMergeJob.output], \
 					outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="FREE_RH", whichColumnPlotLabel="refAlleleProbGivenHet", \
-					logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=-1,\
+					logY=False, valueForNonPositiveYValue=-1,\
 					xColumnHeader="FREE_RA", xColumnPlotLabel="refAlleleProbGivenAlternativeAllele", \
 					minNoOfTotal=5,\
 					figureDPI=150, samplingRate=1,\
@@ -407,7 +407,7 @@ Available Options
 					inputFileList=[likSubstractedSelfSampleMixupMergeJob.output], \
 					outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="FREEMIX", whichColumnPlotLabel="mixFraction", \
-					logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=-1,\
+					logY=False, valueForNonPositiveYValue=-1,\
 					xColumnHeader="FREELK1_by_FREELK0", xColumnPlotLabel="deltaMinusLogLikelihood", \
 					minNoOfTotal=5,\
 					figureDPI=150, samplingRate=1,\

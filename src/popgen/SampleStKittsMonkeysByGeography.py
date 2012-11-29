@@ -116,7 +116,7 @@ class SampleStKittsMonkeysByGeography(AbstractVervetMapper):
 		
 		query = db_vervet.metadata.bind.execute(query_string)
 		for row in query:
-			monkeyID2Info[row.ucla_id] = PassingData(latitude=row.latitude, longitude=row.longitude, db_id=row.id,\
+			monkeyID2Info[row.ucla_id] = PassingData(latitude=row.latitude, longitude=row.longitude, sex=row.sex, db_id=row.id,\
 												country=row.country, site_name=row.site_name, \
 												alignment_id=None, alignment_depth=None)
 			properAlignment = db_vervet.getProperAlignmentGivenIndividualID(ucla_id=row.ucla_id)
@@ -225,14 +225,14 @@ class SampleStKittsMonkeysByGeography(AbstractVervetMapper):
 		#..
 		return graph
 	
-	def getPairwiseDistanceWithinGraphOfChosenMonkey(self, graph=None, chosenMonkeyIDSet=None):
+	def getPairwiseDistanceWithinGraphOfChosenMonkey(self, graph=None, chosenMonkeyIDDict=None):
 		"""
 		2012.11.27
 		"""
 		sys.stderr.write("Getting list of pairwise distance of all pairs in graph for %s chosen monkeys ..."%\
-						(len(chosenMonkeyIDSet)))
+						(len(chosenMonkeyIDDict)))
 		distance_ls = []
-		chosenMonkeyIDList = list(chosenMonkeyIDSet)
+		chosenMonkeyIDList = list(chosenMonkeyIDDict)
 		for i in xrange(len(chosenMonkeyIDList)):
 			monkey1ID = chosenMonkeyIDList[i]
 			for j in xrange(i+1, len(chosenMonkeyIDList)):
@@ -246,7 +246,7 @@ class SampleStKittsMonkeysByGeography(AbstractVervetMapper):
 		sys.stderr.write("%s pairs .\n"%(len(distance_ls)))
 		return distance_ls
 	
-	def calculateNewMonkeyToChosenSetDistanceVector(self, graph=None, preChosenMonkeyIDSet=None, minShortestDistance=0.4):
+	def constructNewMonkeyToChosenSetDistanceVector(self, graph=None, preChosenMonkeyIDSet=None, minShortestDistance=0.4):
 		"""
 		2012.11.26
 			each monkey is assigned a probability mass based on its geographic distance to the closest monkey
@@ -287,7 +287,7 @@ class SampleStKittsMonkeysByGeography(AbstractVervetMapper):
 												newlyChosenMonkeyID=None, minShortestDistance=0.4):
 		"""
 		2012.11.26
-			supplement to calculateNewMonkeyToChosenSetDistanceVector()
+			supplement to constructNewMonkeyToChosenSetDistanceVector()
 		"""
 		oldShortestDistanceToChosenSet_monkeyID_ls = oldShortestDistanceVectorData.shortestDistanceToChosenSet_monkeyID_ls
 		
@@ -336,42 +336,41 @@ class SampleStKittsMonkeysByGeography(AbstractVervetMapper):
 		#draw a random uniform variable
 		#compareIns = CNVCompare(min_reciprocal_overlap=0.1)
 		
-		finalChosenMonkeyIDSet = set(list(preChosenMonkeyIDSet))
+		finalChosenMonkeyIDDict = {}
+		for monkeyID in preChosenMonkeyIDSet:
+			finalChosenMonkeyIDDict[monkeyID] = [-1,-1,-1]	#the value is a tuple of (shortestDistance, monkey1ID, shortestDistanceToThisChosenMonkey)
 		
-		while len(finalChosenMonkeyIDSet)<noOfMonkeysToChoose:
+		
+		while len(finalChosenMonkeyIDDict)<noOfMonkeysToChoose and len(shortestDistanceVectorData.shortestDistanceToChosenSet_monkeyID_ls)>0:
 			#segmentKey = CNVSegmentBinarySearchTreeKey(chromosome="1", \
 			#					span_ls=[u*probabilitySpanRBDict.totalDistance, u*probabilitySpanRBDict.totalDistance],\
 			#					min_reciprocal_overlap=1)
-			targetNodeLs = []
-			probabilitySpanRBDict.findNodes(segmentKey, node_ls=targetNodeLs, compareIns=compareIns)
-			if len(targetNodeLs)>1:
-				sys.stderr.write("Warning: >1 (%s) target nodes for this random variable(u=%s). Choose 1st one.\n"%(len(targetNodeLs), u))
-			elif len(targetNodeLs)==0:
-				sys.stderr.write("Warning: no target node found for this random variable(u=%s).\n"%(u))
-				continue
-				#sys.exit(2)
+			shortestDistanceToChosenSet_monkeyID_ls = shortestDistanceVectorData.shortestDistanceToChosenSet_monkeyID_ls
+			shortestDistanceToChosenSet_monkeyID_ls.sort()
+			element = shortestDistanceToChosenSet_monkeyID_ls[-1]
 			
-			targetNode = targetNodeLs[0]
-			if targetNode.key.span>0.4:	#at least 0.4 km away
-				finalChosenMonkeyIDSet.add(targetNode.key.ucla_id)
-				probabilitySpanRBDict = self.updateNewMonkeyToChosenSetDistanceVector(graph=graph, \
-							oldProbabilitySpanRBDict=probabilitySpanRBDict, newlyChosenMonkeyID=targetNode.key.ucla_id)
-		return finalChosenMonkeyIDSet
+			newlyChosenMonkeyID = element[1]
+			finalChosenMonkeyIDDict[newlyChosenMonkeyID] = element
+			shortestDistanceVectorData = self.updateNewMonkeyToChosenSetDistanceVector(graph=graph, \
+						oldShortestDistanceVectorData=shortestDistanceVectorData, newlyChosenMonkeyID=newlyChosenMonkeyID, \
+						minShortestDistance=minShortestDistance)
+		return finalChosenMonkeyIDDict
 	
-	def outputChosenMonkeys(self, monkeyID2Info=None, chosenMonkeyIDSet=None, outputFname=None):
+	def outputChosenMonkeys(self, monkeyID2Info=None, chosenMonkeyIDDict=None, outputFname=None):
 		"""
 		2012.11.26
 			output include:
 				monkeyID, dbID, alignmentDepth, country
 		"""
-		sys.stderr.write("Outputting %s chosen monkeys to %s ...  "%(len(chosenMonkeyIDSet), outputFname))
+		sys.stderr.write("Outputting %s chosen monkeys to %s ...  "%(len(chosenMonkeyIDDict), outputFname))
 		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
-		header = ['monkey_id', 'latitude', 'longitude', 'site_name','country', 'alignment_id', 'alignment_depth']
+		header = ['monkey_id', 'sex', 'latitude', 'longitude', 'site_name','country', 'alignment_id', 'alignment_depth', \
+				'shortestDistanceToChosenSet', 'shortestDistanceToThisChosenMonkey']
 		writer.writerow(header)
-		for ucla_id in chosenMonkeyIDSet:
+		for ucla_id, element  in chosenMonkeyIDDict.iteritems():
 			monkeyInfo = monkeyID2Info.get(ucla_id)
-			row = [ucla_id, monkeyInfo.latitude, monkeyInfo.longitude, monkeyInfo.site_name, monkeyInfo.country, monkeyInfo.alignment_id,\
-				monkeyInfo.alignment_depth]
+			row = [ucla_id, monkeyInfo.sex, monkeyInfo.latitude, monkeyInfo.longitude, monkeyInfo.site_name, monkeyInfo.country, monkeyInfo.alignment_id,\
+				monkeyInfo.alignment_depth, element[0], element[2]]
 			writer.writerow(row)
 		del writer
 		sys.stderr.write(".\n")
@@ -411,29 +410,34 @@ class SampleStKittsMonkeysByGeography(AbstractVervetMapper):
 		
 		allMonkeyGraph = self.constructNeighborGraph(allMonkeyID2Info, maxDist=self.maxDist)
 		
+		"""
+		#draw it and check how many monkeys have degree=1
 		pos=nx.graphviz_layout(graph, prog="neato")
 		#nx.draw_shell(graph)
 		nx.draw(graph, pos, with_labels=True
 			)
 		#node_size=40,
 		pylab.savefig('%s_graphNeatoLayout.png'%(self.outputFnamePrefix), dpi=150)
-		#draw it and check how many monkeys have degree=1
+		"""
 		
-		probabilitySpanRBDict = self.calculateNewMonkeyToChosenSetDistanceVector(graph=graph, preChosenMonkeyIDSet=preChosenMonkeyIDSet)
+		shortestDistanceVectorData = self.constructNewMonkeyToChosenSetDistanceVector(graph=graph, preChosenMonkeyIDSet=preChosenMonkeyIDSet, \
+												minShortestDistance=self.minShortestDistance)
+		#probabilitySpanRBDict = self.constructNewMonkeyToChosenSetDistanceVector(graph=graph, preChosenMonkeyIDSet=preChosenMonkeyIDSet)
 		#sampling for 10 times
-		for i in xrange(10):
-			finalChosenMonkeyIDSet = self.chooseExtraSamples(graph, preChosenMonkeyIDSet=preChosenMonkeyIDSet, \
+		for i in xrange(1):
+			finalChosenMonkeyIDDict = self.chooseExtraSamples(graph, preChosenMonkeyIDSet=preChosenMonkeyIDSet, \
 												noOfMonkeysToChoose=self.noOfMonkeysToChoose, \
-												probabilitySpanRBDict=probabilitySpanRBDict)
-			self.outputChosenMonkeys(monkeyID2Info=allMonkeyID2Info, chosenMonkeyIDSet=finalChosenMonkeyIDSet, \
-									outputFname='%s_sample%s_%sMonkeys.tsv'%(self.outputFnamePrefix, i, len(finalChosenMonkeyIDSet)))
+												shortestDistanceVectorData=shortestDistanceVectorData, \
+												minShortestDistance=self.minShortestDistance)
+			self.outputChosenMonkeys(monkeyID2Info=allMonkeyID2Info, chosenMonkeyIDDict=finalChosenMonkeyIDDict, \
+									outputFname='%s_sample%s_%sMonkeys.tsv'%(self.outputFnamePrefix, i, len(finalChosenMonkeyIDDict)))
 			distance_ls = self.getPairwiseDistanceWithinGraphOfChosenMonkey(graph=allMonkeyGraph, \
-																		chosenMonkeyIDSet=finalChosenMonkeyIDSet)
+																		chosenMonkeyIDDict=finalChosenMonkeyIDDict)
 			
 			yh_matplotlib.drawHist(data_ls=distance_ls, title=None, \
 					xlabel_1D="pairwise distance within graph", \
 					xticks=None, outputFname='%s_sample%s_%sMonkeys_pairwise_distance_hist.png'%\
-						(self.outputFnamePrefix, i, len(finalChosenMonkeyIDSet)), \
+						(self.outputFnamePrefix, i, len(finalChosenMonkeyIDDict)), \
 					min_no_of_data_points=10, needLog=True, \
 					dpi=200, max_no_of_bins=40)
 			# draw Histogram of pairwise shortest-path distance among the chosen ones  

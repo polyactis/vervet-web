@@ -288,7 +288,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		drawJob = self.addDraw2DHistogramOfMatrixJob(workflow=workflow, executable=self.Draw2DHistogramOfMatrix, \
 											inputFileList=None, inputFile=reduceJob.output, outputFile=outputFile, \
 				outputFnamePrefix=None, whichColumn=None, whichColumnHeader=self.pop1Header, whichColumnPlotLabel=None, \
-				positiveLog=False, valueForNonPositiveYValue=-1, \
+				valueForNonPositiveYValue=-1, \
 				missingDataNotation='NA',\
 				xColumnHeader=self.pop2Header, xColumnPlotLabel=None, \
 				minNoOfTotal=100,\
@@ -305,7 +305,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		estimateOutlierJob = self.addAbstractPlotJob(workflow=workflow, executable=self.EstimateOutliersIn2DData, \
 					inputFileList=None, inputFile=reduceJob.output, outputFile=outputFile, \
 					outputFnamePrefix=None, whichColumn=None, whichColumnHeader=self.pop1Header, whichColumnPlotLabel=None, \
-					logWhichColumn=False, positiveLog=False, valueForNonPositiveYValue=-1, \
+					logY=False, valueForNonPositiveYValue=-1, \
 					missingDataNotation='NA',\
 					xColumnHeader=self.pop2Header, xColumnPlotLabel=None, \
 					minNoOfTotal=0,\

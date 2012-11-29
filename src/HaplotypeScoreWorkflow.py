@@ -99,7 +99,7 @@ class HaplotypeScoreWorkflow(parentClass):
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnHeader=passingData.annotationName, whichColumnPlotLabel=passingData.annotationName, \
 							need_svg=False, \
-							logWhichColumn=False, valueForNonPositiveYValue=-1, \
+							logY=False, valueForNonPositiveYValue=-1, \
 							xColumnPlotLabel="position", chrLengthColumnHeader=None, chrColumnHeader="CHROM", \
 							minChrLength=None, xColumnHeader="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=0.01,\
@@ -113,7 +113,7 @@ class HaplotypeScoreWorkflow(parentClass):
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[mergeJob.output], \
 					outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader=passingData.annotationName, whichColumnPlotLabel=passingData.annotationName, \
-					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+					logY=None, logCount=True, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=0.1,\
 					parentJobLs=[plotOutputDirJob, mergeJob], \

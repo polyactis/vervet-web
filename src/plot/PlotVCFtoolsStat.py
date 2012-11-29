@@ -3,8 +3,8 @@
 Examples:
 	%s -o outputFname input1 input2 ...
 	
-	%s  --samplingRate 0.1 -O hweplot --whichColumnHeader "P" --xColumnHeader POS --logWhichColumn
-		--chrColumnHeader CHR --whichColumnPlotLabel "hweLogPvalue" --xColumnPlotLabel position 
+	%s  --samplingRate 0.1 -O hweplot --whichColumnHeader "P" --xColumnHeader POS --logY 2
+		--chrColumnHeader CHR --whichColumnPlotLabel "hweMinusLogPvalue" --xColumnPlotLabel position 
 		-z dl324b-1.cmb.usc.edu -u yh /tmp/5988_VCF_Contig966.hwe
 	
 
@@ -35,7 +35,7 @@ from pymodule.AbstractMatrixFileWalker import AbstractMatrixFileWalker
 
 class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWalker):
 	__doc__ = __doc__
-	option_default_dict = PlotTrioInconsistencyOverFrequency.option_default_dict
+	option_default_dict = PlotTrioInconsistencyOverFrequency.option_default_dict.copy()
 	option_default_dict.pop(('outputFname', 0, ))
 	option_default_dict[('whichColumnPlotLabel', 0, )][0] = '#SNPs in 100kb window'
 	option_default_dict[('whichColumn', 0, int)][0] = 3
