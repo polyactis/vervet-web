@@ -4,7 +4,7 @@ drop view view_individual;
 create or replace view view_individual as select i.id, i.code, i.name, i.ucla_id, i.tax_id, i.sex, i.age, i.age_cas, 
     i.approx_age_group_at_collection, u.realname as collector, i.collection_date, i.latitude, 
     i.longitude,i.site_id, i.target_coverage, s.short_name as site_name,
-    s.city, s.stateprovince as province, c.name as country from individual i, site s, country c,
+    s.city, s.stateprovince as province, s.country_id, c.name as country from individual i, site s, country c,
     acl_user u where i.site_id=s.id and s.country_id=c.id and i.collector_id=u.id;
     
 drop view view_alignment cascade;
@@ -18,12 +18,24 @@ create or replace view view_alignment as select i.id as individual_id, i.code, i
     from individual i, individual_alignment ia, individual_sequence isq where isq.individual_id=i.id and isq.id=ind_seq_id
     order by individual_id, isq.sequencer, isq.sequence_type, ref_ind_seq_id, alignment_id;
 
+    
+drop view view_alignment_with_country cascade;
+create or replace view view_alignment_with_country as select i.id as individual_id, i.code, i.ucla_id, i.tax_id, i.sex, i.age, 
+    i.site_id, i.collection_date, i.latitude, i.longitude, i.country_id, i.country, isq.id as isq_id, 
+    isq.filtered, isq.sequencer, isq.sequence_type, isq.tissue_id, isq.base_count, 
+    isq.coverage as raw_coverage, ia.id as alignment_id, ia.ref_ind_seq_id, ia.alignment_method_id,
+    ia.median_depth, ia.mean_depth, ia.mode_depth, ia.outdated_index, ia.individual_sequence_file_raw_id,
+    ia.total_no_of_reads, 
+    ia.date_created, ia.date_updated
+    from view_individual i, individual_alignment ia, individual_sequence isq where isq.individual_id=i.id and isq.id=ind_seq_id
+    order by individual_id, isq.sequencer, isq.sequence_type, ref_ind_seq_id, alignment_id;
+
 -- 2012.10.1
 drop view view_genotype_method_alignment;
 create or replace view view_genotype_method_alignment as select va.*, g2a.genotype_method_id, g.short_name,
-	g.no_of_individuals, g.no_of_loci
-	from view_alignment va, genotype_method2individual_alignment g2a, genotype_method g
-	where va.alignment_id=g2a.individual_alignment_id and g2a.genotype_method_id=g.id;
+    g.no_of_individuals, g.no_of_loci
+    from view_alignment va, genotype_method2individual_alignment g2a, genotype_method g
+    where va.alignment_id=g2a.individual_alignment_id and g2a.genotype_method_id=g.id;
 
 drop view view_individual_sequence cascade;
 create or replace view view_individual_sequence as select ntt.*, t2.batch_id_list, t2.coverage_list
@@ -32,7 +44,7 @@ create or replace view view_individual_sequence as select ntt.*, t2.batch_id_lis
     isq.read_count, 
     i.id as individual_id, i.code, i.name, i.ucla_id, i.tax_id, i.sex, i.age, i.age_cas, 
     i.approx_age_group_at_collection, i.collection_date, i.latitude, 
-    i.longitude, s.id as site_id, s.short_name as site_name, s.city, c.name as country, isq.date_created, isq.date_updated
+    i.longitude, s.id as site_id, s.short_name as site_name, s.city, s.country_id, c.name as country, isq.date_created, isq.date_updated
     from individual i, individual_sequence isq, site s, country c 
     where i.site_id=s.id and i.id=isq.individual_id and s.country_id=c.id) 
     as newt left join tissue t on t.id=newt.tissue_id) as ntt, 
