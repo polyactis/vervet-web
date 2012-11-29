@@ -1421,6 +1421,28 @@ class VervetDB(ElixirDB):
 		sys.stderr.write("%s alignments Done.\n"%(len(alignmentLs)))
 		return alignmentLs
 	
+	def getProperAlignmentGivenIndividualID(self, ucla_id=None, individual_id=None, ref_ind_seq_id=524, alignment_method_id=2):
+		"""
+		2012.11.26
+			Definition of proper alignment:
+				1. not outdated
+				2. from filtered reads.
+				3. ref_ind_seq_id is the most recent reference (524 now)
+				4. alignment_method_id is the consensus one(=2).
+			
+			query the view_alignment_with_country.
+		"""
+		query_string = "select * from view_alignment_with_country"
+		where_condition_ls = ["filtered=1 and outdated_index=0 and ref_ind_seq_id=%s and alignment_method_id=%s "%\
+							(ref_ind_seq_id, alignment_method_id)]
+		if ucla_id:
+			where_condition_ls.append("ucla_id='%s'"%(ucla_id))
+		if individual_id:
+			where_condition_ls.append("individual_id=%s"%(individual_id))
+		query_string = "%s where %s "%(query_string, " and ".join(where_condition_ls))
+		query = self.metadata.bind.execute(query_string)
+		return query.fetchone()
+	
 	def getAlignmentsFromVCFSampleIDList(self, sampleIDList=None):
 		"""
 		2012.8.15
