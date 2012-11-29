@@ -129,7 +129,7 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[perSampleMatchFractionFile], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="no_of_matches_by_no_of_non_NA_pairs", whichColumnPlotLabel="matchFraction", \
-					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=50,\
+					logY=None, logCount=True, valueForNonPositiveYValue=50,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, perSampleMatchFractionReduceJob ], \

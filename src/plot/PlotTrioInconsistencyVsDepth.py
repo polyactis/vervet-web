@@ -32,7 +32,7 @@ import numpy
 
 class PlotTrioInconsistencyVsDepth(PlotTrioInconsistencyOverFrequency):
 	__doc__ = __doc__
-	option_default_dict = PlotTrioInconsistencyOverFrequency.option_default_dict
+	option_default_dict = PlotTrioInconsistencyOverFrequency.option_default_dict.copy()
 	#option_default_dict.update({('maxDepth', 1, int): [50, 'm', 1, 'genotype depth of every member of the trio should be below this number']})
 	def __init__(self, inputFnameLs, **keywords):
 		"""

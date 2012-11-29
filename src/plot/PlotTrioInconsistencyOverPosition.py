@@ -30,7 +30,7 @@ from PlotTrioInconsistencyOverFrequency import PlotTrioInconsistencyOverFrequenc
 
 class PlotTrioInconsistencyOverPosition(PlotTrioInconsistencyOverFrequency):
 	__doc__ = __doc__
-	option_default_dict = PlotTrioInconsistencyOverFrequency.option_default_dict
+	option_default_dict = PlotTrioInconsistencyOverFrequency.option_default_dict.copy()
 
 	def __init__(self, inputFnameLs, **keywords):
 		"""

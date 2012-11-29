@@ -131,7 +131,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		self.addDrawHistogramJob(executable=workflow.DrawHistogram, inputFileList=[imendelMergeFile], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="N", whichColumnPlotLabel="log_NoOfMendelErrors", \
-					logWhichColumn=True, positiveLog=True, logCount=True, valueForNonPositiveYValue=50,\
+					logY=True, logCount=True, valueForNonPositiveYValue=50,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, imendelMergeJob], \
@@ -154,7 +154,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		self.addDrawHistogramJob(executable=workflow.DrawHistogram, inputFileList=[lmendelMergeFile], \
 							outputFile=outputFile, \
 					whichColumn=2, whichColumnHeader=None, whichColumnPlotLabel="NoOfMendelErrors", \
-					logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=50,\
+					logY=False, logCount=True, valueForNonPositiveYValue=50,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, lmendelMergeJob], \
@@ -521,7 +521,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			toTsvMatrixJob = self.addAbstractMatrixFileWalkerJob(executable=self.AbstractMatrixFileWalker, \
 					inputFile=plinkIBDCheckJob.genomeFile, outputFile=outputFile, \
 					outputFnamePrefix=None, whichColumn=None, whichColumnHeader=None, \
-					logWhichColumn=False, positiveLog=False, valueForNonPositiveYValue=-1, \
+					logY=False, valueForNonPositiveYValue=-1, \
 					minNoOfTotal=10,\
 					samplingRate=1, \
 					parentJobLs=[topOutputDirJob, plinkIBDCheckJob], \
@@ -534,7 +534,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFile=toTsvMatrixJob.output, \
 								outputFile=outputFile, \
 						whichColumn=None, whichColumnHeader="PI_HAT", whichColumnPlotLabel="proportionIBD", \
-						logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+						logY=None, logCount=True, valueForNonPositiveYValue=-1,\
 						minNoOfTotal=10,\
 						figureDPI=100, samplingRate=1, \
 						parentJobLs=[plotOutputDirJob, toTsvMatrixJob], \
@@ -578,7 +578,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFile=detectWrongLabelJob.output, \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="chiSqPvalue", whichColumnPlotLabel="log10chiSqPvalue", \
-							logWhichColumn=True, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+							logY=True, logCount=True, valueForNonPositiveYValue=-1,\
 							minNoOfTotal=10,\
 							figureDPI=150, samplingRate=1, \
 							parentJobLs=[plotOutputDirJob, detectWrongLabelJob], \
@@ -604,7 +604,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFile=plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile, \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="sumAbsDelta", whichColumnPlotLabel="sumAbsDelta", \
-							logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+							logY=False, logCount=True, valueForNonPositiveYValue=-1,\
 							minNoOfTotal=10,\
 							figureDPI=150, samplingRate=1, \
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
@@ -618,7 +618,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFile=plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile, \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="avgAbsDelta", whichColumnPlotLabel="avgAbsDelta", \
-							logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+							logY=False, logCount=True, valueForNonPositiveYValue=-1,\
 							minNoOfTotal=10,\
 							figureDPI=150, samplingRate=1, \
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
@@ -632,7 +632,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFile=plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile, \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="medianAbsDelta", whichColumnPlotLabel="medianAbsDelta", \
-							logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+							logY=False, logCount=True, valueForNonPositiveYValue=-1,\
 							minNoOfTotal=10,\
 							figureDPI=150, samplingRate=1, \
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
@@ -646,7 +646,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFileList=[plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile], \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="sumAbsDelta", whichColumnPlotLabel="sumAbsDelta", \
-							logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+							logY=False, valueForNonPositiveYValue=50,\
 							xColumnHeader="medianAbsDelta", xColumnPlotLabel="medianAbsDelta", \
 							minNoOfTotal=20,\
 							figureDPI=150, samplingRate=1,\
@@ -661,7 +661,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFileList=[plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile], \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="medianAbsDelta", whichColumnPlotLabel="medianAbsDelta", \
-							logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+							logY=False, valueForNonPositiveYValue=50,\
 							xColumnHeader="noOfNonMissing", xColumnPlotLabel="noOfNonMissing", \
 							minNoOfTotal=20,\
 							figureDPI=150, samplingRate=1,\
@@ -676,7 +676,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFile=plotPedigreeKinshipVsIBDJob.pairwiseCorOfKinshipIBDDeltaFile, \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="corr", whichColumnPlotLabel="pairwiseCorOfKinshipIBDDelta", \
-							logWhichColumn=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+							logY=False, logCount=True, valueForNonPositiveYValue=-1,\
 							minNoOfTotal=10,\
 							figureDPI=150, samplingRate=1, \
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
@@ -690,7 +690,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFileList=[plotPedigreeKinshipVsIBDJob.pairwiseCorOfKinshipIBDDeltaFile], \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="corr", whichColumnPlotLabel="pairwiseCorOfKinshipIBDDelta", \
-							logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+							logY=False, valueForNonPositiveYValue=50,\
 							xColumnHeader="monkey1_medianAbsDelta", xColumnPlotLabel="monkey1_medianAbsDelta", \
 							minNoOfTotal=20,\
 							figureDPI=150, samplingRate=1,\
@@ -705,7 +705,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFileList=[plotPedigreeKinshipVsIBDJob.pairwiseCorOfKinshipIBDDeltaFile], \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="corr", whichColumnPlotLabel="pairwiseCorOfKinshipIBDDelta", \
-							logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+							logY=False, valueForNonPositiveYValue=50,\
 							xColumnHeader="monkey2_medianAbsDelta", xColumnPlotLabel="monkey2_medianAbsDelta", \
 							minNoOfTotal=20,\
 							figureDPI=150, samplingRate=1,\
@@ -767,7 +767,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			self.addAbstractPlotJob(workflow=workflow, executable=workflow.AbstractPlot, inputFileList=[plinkJob.sexcheckFile], \
 								outputFile=outputFile, \
 						whichColumn=None, whichColumnHeader="F", whichColumnPlotLabel="inbreedCoeffByChrX", \
-						logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=50,\
+						logY=False, valueForNonPositiveYValue=50,\
 						xColumnHeader="PEDSEX", xColumnPlotLabel="sexByInput", \
 						minNoOfTotal=2,\
 						figureDPI=100, samplingRate=1,\
@@ -781,7 +781,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 								inputFileList=[plinkJob.sexcheckFile], \
 								outputFile=outputFile, \
 						whichColumn=None, whichColumnHeader="PEDSEX", \
-						logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=-1,\
+						logY=False, valueForNonPositiveYValue=-1,\
 						minNoOfTotal=10,\
 						samplingRate=1,\
 						parentJobLs=[topOutputDirJob, plinkJob], \
@@ -792,7 +792,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[selectMaleDataJob.output], \
 								outputFile=outputFile, \
 						whichColumn=None, whichColumnHeader="F", whichColumnPlotLabel="inbreedCoeffByChrX", \
-						logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=-1,\
+						logY=False, valueForNonPositiveYValue=-1,\
 						minNoOfTotal=10,\
 						figureDPI=100, samplingRate=1,\
 						parentJobLs=[plotOutputDirJob, selectMaleDataJob], \
@@ -805,7 +805,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 								inputFileList=[plinkJob.sexcheckFile], \
 								outputFile=outputFile, \
 						whichColumn=None, whichColumnHeader="PEDSEX", \
-						logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=-1,\
+						logY=False, valueForNonPositiveYValue=-1,\
 						minNoOfTotal=10,\
 						samplingRate=1,\
 						parentJobLs=[topOutputDirJob, plinkJob], \
@@ -816,7 +816,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[selectFemaleDataJob.output], \
 								outputFile=outputFile, \
 						whichColumn=None, whichColumnHeader="F", whichColumnPlotLabel="inbreedCoeffByChrX", \
-						logWhichColumn=False, positiveLog=True, valueForNonPositiveYValue=-1,\
+						logY=False, valueForNonPositiveYValue=-1,\
 						minNoOfTotal=10,\
 						figureDPI=100, samplingRate=1,\
 						parentJobLs=[plotOutputDirJob, selectFemaleDataJob], \

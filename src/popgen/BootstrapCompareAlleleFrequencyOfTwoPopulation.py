@@ -123,7 +123,7 @@ class BootstrapCompareAlleleFrequencyOfTwoPopulation(CompareAlleleFrequencyOfTwo
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[mergeJob.output], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="outlierFraction", whichColumnPlotLabel="outlierFraction", \
-					logWhichColumn=False, positiveLog=True, logCount=False, valueForNonPositiveYValue=-1,\
+					logY=False, positiveLog=True, logCount=False, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=5,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[topOutputDirJob, mergeJob], \
@@ -135,7 +135,7 @@ class BootstrapCompareAlleleFrequencyOfTwoPopulation(CompareAlleleFrequencyOfTwo
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[mergeJob.output], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="corr", whichColumnPlotLabel="AFSCorrelation", \
-					logWhichColumn=False, positiveLog=True, logCount=False, valueForNonPositiveYValue=-1,\
+					logY=False, positiveLog=True, logCount=False, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=5,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[topOutputDirJob, mergeJob], \
