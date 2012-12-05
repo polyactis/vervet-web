@@ -1339,11 +1339,12 @@ class VervetDB(ElixirDB):
 		return db_entry
 	
 	
-	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=[], ind_aln_id_ls=[], alignment_method_id=None, \
+	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=None, ind_aln_id_ls=None, alignment_method_id=None, \
 					dataDir=None, sequence_type=None, outdated_index=0, mask_genotype_method_id=None, \
 					parent_individual_alignment_id=None, individual_sequence_file_raw_id_type=1,\
-					country_id_ls=None, tax_id_ls=None):
+					country_id_ls=None, tax_id_ls=None, excludeAlignmentWithoutLocalFile=True):
 		"""
+		2012.11.29 added argument excludeAlignmentWithoutLocalFile, (exclude an alignment if it does not exist in local storage)
 		2012.9.23 add argument country_id_ls and tax_id_ls
 		2012.9.20 rename aln_method_id to alignment_method_id
 		2012.9.19 & 2012.9.22 add argument individual_sequence_file_raw_id_type:
@@ -1370,6 +1371,8 @@ class VervetDB(ElixirDB):
 		2011-7-12
 		
 		"""
+		if dataDir is None:
+			dataDir = self.data_dir
 		alignmentLs = []
 		TableClass = IndividualAlignment
 		query = TableClass.query
@@ -1385,17 +1388,18 @@ class VervetDB(ElixirDB):
 		if alignment_method_id:
 			sys.stderr.write("Adding filter via the alignment_method_id=%s ... \n"%(alignment_method_id))
 			query = query.filter_by(alignment_method_id=alignment_method_id)
-		"""
+		
 		if country_id_ls:	#2012.9.23 not sure whether it'll work
 			sys.stderr.write("Adding filter country_id_ls=%s ... \n"%(getattr(country_id_ls, '__len__', returnZeroFunc)()))
 			query = query.filter(TableClass.individual_sequence.individual.site.has(Site.country_id.in_(country_id_ls)))
 		if tax_id_ls:
 			sys.stderr.write("Adding filter tax_id_ls=%s ... \n"%(getattr(tax_id_ls, '__len__', returnZeroFunc)()))
 			query = query.filter(TableClass.individual_sequence.individual.has(Individual.tax_id.in_(tax_id_ls)))
-		"""
+		
 		if not ind_aln_id_ls and not ind_seq_id_ls and not ref_ind_seq_id:
 			sys.stderr.write("Both ind_seq_id_ls and ind_aln_id_ls are empty and ref_ind_seq_id is None. no alignment to be fetched.\n")
 			sys.exit(3)
+		
 		if individual_sequence_file_raw_id_type==1:	#only all-library-fused alignments
 			query = query.filter(TableClass.individual_sequence_file_raw_id==None)
 		elif individual_sequence_file_raw_id_type==2:	#only library-specific alignments
@@ -1403,21 +1407,27 @@ class VervetDB(ElixirDB):
 		else:
 			#2012.9.22 do nothing = include both 
 			pass
-
+		
 		#order by TableClass.id is important because this is the order that gatk&samtools take input bams.
 		#Read group in each bam is beginned by alignment.id. GATK would arrange bams in the order of read groups.
 		# while samtools doesn't do that and vcf-isect could combine two vcfs with columns in different order.
+		
 		query = query.filter_by(outdated_index=outdated_index).\
 					filter_by(mask_genotype_method_id=mask_genotype_method_id).\
 					filter_by(parent_individual_alignment_id=parent_individual_alignment_id).\
 					order_by(TableClass.id)
+		
 		for row in query:
-			if sequence_type is not None and row.sequence_type!=sequence_type:
+			if sequence_type is not None and row.individual_sequence.sequence_type!=sequence_type:
 				continue
 			if row.path:	#it's not None
 				abs_path = os.path.join(dataDir, row.path)
-				if os.path.isfile(abs_path):
+				if excludeAlignmentWithoutLocalFile:
+					if os.path.isfile(abs_path):
+						alignmentLs.append(row)
+				else:
 					alignmentLs.append(row)
+				
 		sys.stderr.write("%s alignments Done.\n"%(len(alignmentLs)))
 		return alignmentLs
 	
@@ -1461,6 +1471,42 @@ class VervetDB(ElixirDB):
 				alignmentLs.append(individualAlignment)
 		sys.stderr.write("%s alignments.\n"%(len(alignmentLs)))
 		return alignmentLs
+	
+	def getMonkeyID2ProperAlignment(self, ref_ind_seq_id=524, alignment_method_id=2, idType=1):
+		"""
+		2012.11.30
+			Definition of proper alignment:
+				1. not outdated
+				2. from filtered reads.
+				3. ref_ind_seq_id is the most recent reference (524 now)
+				4. alignment_method_id is the consensus one(=2).
+			
+			query the view_alignment_with_country.
+			
+			idType
+				1: ucla_id
+				2: individual.id
+				3: individual.code
+		"""
+		query_string = "select * from view_alignment_with_country"
+		where_condition_ls = ["filtered=1 and outdated_index=0 and ref_ind_seq_id=%s and alignment_method_id=%s "%\
+							(ref_ind_seq_id, alignment_method_id)]
+		query_string = "%s where %s "%(query_string, " and ".join(where_condition_ls))
+		query = self.metadata.bind.execute(query_string)
+		monkeyID2ProperAlignment = {}
+		for row in query:
+			if idType ==1:
+				monkeyID = row.ucla_id
+			elif idType==2:
+				monkeyID = row.individual_id
+			else:
+				monkeyID = row.code
+			if monkeyID not in monkeyID2ProperAlignment:
+				monkeyID2ProperAlignment[monkeyID] = row
+			else:
+				sys.stderr.write("Warning: monkey %s has >1 proper alignment. Only used the 1st one. (ref_ind_seq_id=%s, alignment_method_id=%s)\n"%\
+								(ref_ind_seq_id, alignment_method_id))
+		return monkeyID2ProperAlignment
 	
 	def filterAlignments(self, alignmentLs, max_coverage=None, individual_site_id=None, sequence_filtered=None,\
 						individual_site_id_set=None, mask_genotype_method_id=None, parent_individual_alignment_id=None,\
@@ -2635,7 +2681,7 @@ class VervetDB(ElixirDB):
 		if directionType==3:
 			DG = nx.Graph()
 		else:
-			DG=nx.DiGraph()
+			DG = nx.DiGraph()
 		
 		for row in Ind2Ind.query:
 			if directionType==2:
@@ -2644,44 +2690,53 @@ class VervetDB(ElixirDB):
 				DG.add_edge(row.individual1_id, row.individual2_id)
 		
 		"""
-		#2012.6.19 initialization, but found unnecessary. increasePredecessorNoOfOffspringCount() can do it itself.
+		#2012.6.19 initialization, but found unnecessary. increasePredecessorNoOfDescendantCount() can do it itself.
 		for node in DG:
-			DG.node[node]["noOfOffspring"] = 0	#initialize this
+			DG.node[node]["noOfDescendant"] = 0	#initialize this
 			DG.node[node]["noOfChildren"] = len(DG.successors(node))	#
 		"""
 		sys.stderr.write("%s nodes. %s edges. %s connected components.\n"%(DG.number_of_nodes(), DG.number_of_edges(), \
 															nx.number_connected_components(DG.to_undirected())))
 		return DG
 	
-	def accumulatePredecessorAttributeRecursively(self, DG=None, source=None, attributeName='noOfOffspring'):
+	def accumulatePredecessorAttributeRecursively(self, DG=None, source=None, attributeName='noOfDescendant'):
 		"""
+		2012.11.30
+			bugfix. use copy.deepcopy around attributeInitValue or attributeIncrementValue everytime.
 		2012.6.19
-			a recursive function to accumulate one attribute of the predecessors of the source node
+			attributeName=
+				noOfDescendant: wrong, don't use it
+				descendantList: treated as a set
+				descendantSet: same as descendantList
+			a recursive function to accumulate the attribute of the predecessors of the source node
+				by absorbing the attribute of the source node.
+			The algorithm starts from the bottom of the pedigree. called in calculateCumulativeAttributeForEachNodeInPedigree() 
 		"""
+		import copy
 		predecessorList = DG.predecessors(source)
-		if attributeName =='noOfOffspring':
+		if attributeName =='noOfDescendant':
 			attributeInitValue = 0
 			attributeIncrementValue = 1
-		elif attributeName =='offspringList' or attributeName=='offspringSet':
+		elif attributeName =='descendantList' or attributeName=='descendantSet':
 			attributeInitValue = set()
 			attributeIncrementValue = set([source])
-		else:	#same as noOfOffspring
+		else:	#same as noOfDescendant
 			attributeInitValue = 0
 			attributeIncrementValue = 1
 		if attributeName not in DG.node[source]:	#never accessed
-			DG.node[source][attributeName] = attributeInitValue
+			DG.node[source][attributeName] = copy.deepcopy(attributeInitValue)	#avoid "by-reference"
 		for node in predecessorList:
 			if attributeName not in DG.node[node]:
-				DG.node[node][attributeName] = attributeInitValue
-			if attributeName=='offspringList' or attributeName=='offspringSet':
-				DG.node[node][attributeName] |= DG.node[source][attributeName]
-				DG.node[node][attributeName] |= attributeIncrementValue	#source itself
+				DG.node[node][attributeName] = copy.deepcopy(attributeInitValue)
+			if attributeName=='descendantList' or attributeName=='descendantSet':
+				DG.node[node][attributeName] |= copy.deepcopy(DG.node[source][attributeName])
+				DG.node[node][attributeName] |= copy.deepcopy(attributeIncrementValue)	#source itself
 			else:
-				DG.node[node][attributeName] += DG.node[source][attributeName]
-				DG.node[node][attributeName] += attributeIncrementValue	#source itself
+				DG.node[node][attributeName] += copy.deepcopy(DG.node[source][attributeName])
+				DG.node[node][attributeName] += copy.deepcopy(attributeIncrementValue)	#source itself
 			self.accumulatePredecessorAttributeRecursively(DG, source=node, attributeName=attributeName)
 	
-	def calculateCumulativeAttributeForEachNodeInPedigree(self, DG=None, attributeName='noOfOffspring'):
+	def calculateCumulativeAttributeForEachNodeInPedigree(self, DG=None, attributeName='noOfDescendant'):
 		"""
 		2012.6.19
 			the algorithm starts from the bottom (leaves) of the graph and do a reverse BFS
@@ -2695,11 +2750,11 @@ class VervetDB(ElixirDB):
 			self.accumulatePredecessorAttributeRecursively(DG, source=leafNode, attributeName=attributeName)
 		
 	
-	def getNoOfOffspring(self, individual_id=None, attributeName = 'noOfOffspring'):
+	def getNoOfDescendant(self, individual_id=None, attributeName = 'noOfDescendant'):
 		"""
 		2012.6.19
-			this function is wrong. don't use it. use getOffspringSet() to get a unique set of offsprings and get its length.
-			It's wrong because in BFS upwards traversal, if one parent has >1 children, its offspring count would be added to
+			this function is wrong. don't use it. use getDescendantSet() to get a unique set of descendants and get its length.
+			It's wrong because in BFS upwards traversal, if one parent has >1 children, its descendant count would be added to
 				that of grandparent for >1 times, which is bad.
 		"""
 		if not getattr(self, 'pedigreeDG', None):
@@ -2714,10 +2769,11 @@ class VervetDB(ElixirDB):
 			self.calculateCumulativeAttributeForEachNodeInPedigree(self.pedigreeDG, attributeName=attributeName)
 		return self.pedigreeDG.node[individual_id][attributeName]
 	
-	def getOffspringSet(self, individual_id=None, attributeName = 'offspringList'):
+	def getDescendantSet(self, individual_id=None, attributeName = 'descendantList'):
 		"""
 		2012.6.19
-			similar to getNoOfOffspring() (which is wrong) but return a set of offspring nodes
+			descendantList is treated as descendantSet.
+			similar to getNoOfDescendant() (which is wrong) but return a set of descendant nodes
 		"""
 		if not getattr(self, 'pedigreeDG', None):
 			self.pedigreeDG = self.constructPedgree()
@@ -2730,6 +2786,27 @@ class VervetDB(ElixirDB):
 		if attributeName not in nodeProperty:	#not run yet
 			self.calculateCumulativeAttributeForEachNodeInPedigree(self.pedigreeDG, attributeName=attributeName)
 		return self.pedigreeDG.node[individual_id][attributeName]
+	
+	def getAncestorSet(self, individual_id=None, attributeName = 'descendantList'):
+		"""
+		2012.11.30
+			use a reverse pedigree DG
+		2012.6.19
+			descendantList is treated as descendantSet.
+			similar to getNoOfDescendant() (which is wrong) but return a set of descendant nodes
+		"""
+		if not getattr(self, 'pedigreeReverseDG', None):
+			self.pedigreeReverseDG = self.constructPedgree(directionType=2)
+		
+		if individual_id not in self.pedigreeReverseDG.node:
+			return None
+		
+		firstNode = self.pedigreeReverseDG.nodes()[0]
+		nodeProperty = self.pedigreeReverseDG.node[firstNode]
+		if attributeName not in nodeProperty:	#not run yet
+			self.calculateCumulativeAttributeForEachNodeInPedigree(self.pedigreeReverseDG, attributeName=attributeName)
+		return self.pedigreeReverseDG.node[individual_id][attributeName]
+	
 	
 	def findFamilyFromPedigreeGivenSize(self, DG=None, familySize=3, removeFamilyFromGraph=True, noOfOutgoingEdges=None):
 		"""
