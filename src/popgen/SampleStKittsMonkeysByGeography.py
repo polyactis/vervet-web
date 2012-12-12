@@ -4,8 +4,10 @@ Examples:
 	%s -i
 	
 	#2012.11.27
-	%s  -i /tmp/StKittsMonkeys.txt -O /tmp/StKittsMonkeys_sampling  -u yh --db_passwd secret --maxDist 1
-		 -z uclaOffice   --noOfMonkeysToChoose 60
+	%s  -i ~/script/vervet/data/StKittsGeoSampling/StKittsMonkeysByAnia.txt
+		-O ~/script/vervet/data/StKittsGeoSampling/StKittsMonkeys_minShortestDist_0.4KM_sample0_60Monkeys
+		-u yh --db_passwd secret --maxDist 1 --minShortestDistance 0.4
+		-z uclaOffice  --noOfMonkeysToChoose 60
 
 Description:
 	2012.11.26 The goal is to maximize the unrelatedness among the final set.
@@ -61,6 +63,7 @@ class SampleStKittsMonkeysByGeography(AbstractVervetMapper):
 						('sequencedMonkeyCountryIDList', 1, ): ["144,148", '', 1, 'both St. Kitts and Nevis'], \
 						('newSampleMonkeyCountryIDList', 1, ): ["144", '', 1, 'only from st Kitts'], \
 						('noOfMonkeysToChoose', 1, int): [60, '', 1, 'total number of monkeys to choose (+chosen ones, + sequenced ones)'], \
+						('addOnlyVWPMonkeys', 0, int): [0, '', 0, 'add monkeys whose UCLAID is beginned with VWP (lab own collection, rather than SKBRF)'], \
 						
 					})
 	def __init__(self, inputFnameLs=None, **keywords):
@@ -99,20 +102,25 @@ class SampleStKittsMonkeysByGeography(AbstractVervetMapper):
 		sys.stderr.write("%s monkeys.\n"%(len(chosenMonkeyIDSet)))
 		return chosenMonkeyIDSet
 	
-	def readInMonkeysFromDB(self, db_vervet=None, countryIDList=None, maxLongitude=None):
+	def readInMonkeysFromDB(self, db_vervet=None, countryIDList=None, maxLongitude=None, addOnlyVWPMonkeys=False):
 		"""
-		2012.12.26
+		2012.12.2 add argument addOnlyVWPMonkeys
+		2012.11.26
 		"""
 		sys.stderr.write("Fetching all monkeys of country %s from db , maxLongitude = %s ..."%\
 						(utils.getStrOutOfList(countryIDList), maxLongitude))
 		
 		monkeyID2Info = {}
 		
-		query_string = "select * from view_individual where country_id in (%s) and latitude is not null and longitude is not null "%\
-				(utils.getStrOutOfList(countryIDList))
-		
+		query_string = "select * from view_individual"
+		where_condition_ls = ["country_id in (%s)"%(utils.getStrOutOfList(countryIDList)), \
+							"latitude is not null and longitude is not null"]
 		if maxLongitude is not None:
-			query_string += " and longitude<=%s "%(maxLongitude)
+			where_condition_ls.append(" longitude<=%s "%(maxLongitude))
+		if addOnlyVWPMonkeys:
+			where_condition_ls.append(" ucla_id ~ '^VWP' ")
+		if where_condition_ls:
+			query_string = "%s where %s"%(query_string, " and ".join(where_condition_ls))
 		
 		query = db_vervet.metadata.bind.execute(query_string)
 		for row in query:
@@ -400,7 +408,7 @@ class SampleStKittsMonkeysByGeography(AbstractVervetMapper):
 		
 		#monkey with latitudes/longitudes
 		monkeyID2Info = self.readInMonkeysFromDB(db_vervet, countryIDList=self.newSampleMonkeyCountryIDList,\
-								maxLongitude=self.maxLongitude)
+								maxLongitude=self.maxLongitude, addOnlyVWPMonkeys=self.addOnlyVWPMonkeys)
 		
 		#allMonkeyID2Info is for output purpose
 		allMonkeyID2Info = self.readInMonkeysFromDB(db_vervet, countryIDList=self.sequencedMonkeyCountryIDList,\

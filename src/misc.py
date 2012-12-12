@@ -27,7 +27,7 @@ import sys, os, math
 #sys.path.insert(0, os.path.expanduser('~/lib/python'))
 #sys.path.insert(0, os.path.join(os.path.expanduser('~/script/annot/bin')))
 #sys.path.insert(0, os.path.join(os.path.expanduser('~/script/test/python')))
-sys.path.insert(0, os.path.join(os.path.expanduser('~/script/variation/src')))
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import matplotlib; matplotlib.use("Agg")	#to disable pop-up requirement
@@ -3671,7 +3671,79 @@ class DBVervet(object):
 		
 	"""
 	
-	
+	@classmethod
+	def moveIndividualLatLonAltToSiteTable(cls, db_vervet=None, commit=True):
+		"""
+		2012.12.6
+			This function is written for the purpose of eliminating lat/lon/alt columns in table individual
+				and move all of them to table site. However, sometimes, same site has multiple different
+				combinations of (lat,lon,alt). So need to create new sites to accomodate that.
+			
+			add new sites with appended names such as "_1", "_2". and fill the site entries with corresponding lat/lon.
+		
+			get individuals whose lat/lon is not null but the corresponding sites' lat/lon is null.
+		"""
+		db_vervet.session.begin()
+		sys.stderr.write("Getting individuals whose site does not have latitude, longitude, etc. ...")
+		query = db_vervet.metadata.bind.execute("select i.id, i.ucla_id, i.latitude, i.longitude, i.altitude, \
+			s.id as site_id, s.short_name, s.country_id from individual i, site s \
+			where s.id =i.site_id and (s.latitude is null or s.longitude is null ) and i.latitude is not null and i.longitude is not null \
+			order by s.short_name , i.latitude;")
+		site_id2lat_lon2individual_id_ls = {}
+		counter = 0
+		for row in query:
+			counter += 1
+			individual_id = row.id
+			site_id = row.site_id
+			lat_lon = (row.latitude, row.longitude, row.altitude)
+			if site_id not in site_id2lat_lon2individual_id_ls:
+				site_id2lat_lon2individual_id_ls[site_id] = {}
+			if lat_lon not in site_id2lat_lon2individual_id_ls[site_id]:
+				site_id2lat_lon2individual_id_ls[site_id][lat_lon] = []
+			site_id2lat_lon2individual_id_ls[site_id][lat_lon].append(individual_id)
+		sys.stderr.write(" %s sites, %s individuals.\n"%(len(site_id2lat_lon2individual_id_ls),\
+														counter))
+		sys.stderr.write("Adding new sites and updating sites of affected individuals ...")
+		from vervet.src import VervetDB
+		no_of_updated_sites = 0
+		no_of_new_sites = 0
+		no_of_updated_individuals = 0
+		for site_id, lat_lon2individual_id_ls in site_id2lat_lon2individual_id_ls.iteritems():
+			site = VervetDB.Site.get(site_id)
+			lat_lon_ls = lat_lon2individual_id_ls.keys()
+			lat_lon_ls.sort()
+			#pass first combo of lat,lon to site.
+			first_lat_lon = lat_lon_ls[0]
+			site.latitude = first_lat_lon[0]
+			site.longitude = first_lat_lon[1]
+			site.altitude = first_lat_lon[2]
+			db_vervet.session.add(site)
+			no_of_updated_sites  += 1
+			#create new sites using all other lat/lon combos
+			for i in xrange(1, len(lat_lon_ls)):
+				lat_lon = lat_lon_ls[i]
+				new_site_name = '%s-%s'%(site.short_name, i)
+				latitude, longitude, altitude = lat_lon[:3]
+				new_site = db_vervet.getSite(short_name=new_site_name, description=site.description, city=site.city, \
+								stateprovince=site.stateprovince, country_name=site.country.name, latitude=latitude, longitude=longitude,\
+								altitude=altitude)
+				no_of_new_sites  += 1
+				for individual_id in lat_lon2individual_id_ls.get(lat_lon):
+					individual = VervetDB.Individual.get(individual_id)
+					individual.site = new_site
+					db_vervet.session.add(individual)
+					no_of_updated_individuals += 1
+			db_vervet.session.flush()
+		sys.stderr.write(" %s sites updated, %s new sites, %s individuals updated.\n"%(no_of_updated_sites,\
+																no_of_new_sites, no_of_updated_individuals))
+		if commit:
+			db_vervet.session.flush()
+			db_vervet.session.commit()
+	"""
+		#2012.12.6
+		DBVervet.moveIndividualLatLonAltToSiteTable(db_vervet=db_vervet, commit=True)
+		sys.exit(0)
+	"""
 	@classmethod
 	def putPedigreeIntoDB(cls, db_vervet=None, inputFname=None, monkeyIDPrefix="", \
 						collector_name='Nelson B. Freimer', tax_id=60711, \
@@ -6501,7 +6573,7 @@ class DBVervet(object):
 	"""
 	
 	@classmethod
-	def outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(cls, db_vervet=None, outputFname=None, site_id=447,\
+	def outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(cls, db_vervet=None, outputFname=None, site_id=447,\
 											targetCoverageNotNull=True):
 		"""
 		2012.7.23
@@ -6511,25 +6583,25 @@ class DBVervet(object):
 			1. select all monkeys from individual where site_id=447 and target_coverage is not null,
 			2. get their actual coverage from view_individual_sequence (filtered=1, match the individual_id)
 				if they have >1 sequence, output them all
-			3. get number of offspring given individual ID from db
-			animal ID, target coverage, actual coverage, no of offspring
+			3. get number of descendant given individual ID from db
+			animal ID, target coverage, actual coverage, no of descendant
 		"""
-		sys.stderr.write("Outputting VRC monkeys with target coverage, actual coverage, #offspring ...")
+		sys.stderr.write("Outputting VRC monkeys with target coverage, actual coverage, #descendant ...")
 		import VervetDB
 		import csv
 		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
-		header = ['UCLAID', 'targetCoverage', 'actualCoverage', 'noOfOffspring','batchNumberList','batchCoverageList']
+		header = ['UCLAID', 'targetCoverage', 'actualCoverage', 'noOfDescendants','batchNumberList','batchCoverageList']
 		writer.writerow(header)
 		query = VervetDB.Individual.query.filter_by(site_id=site_id)
 		if targetCoverageNotNull:
 			query = query.filter(VervetDB.Individual.target_coverage!=None)
 		counter = 0
 		for row in query:
-			offspringSet = db_vervet.getOffspringSet(row.id)
-			if offspringSet is not None:
-				no_of_offspring = len(offspringSet)
+			descendantSet = db_vervet.getDescendantSet(row.id)
+			if descendantSet is not None:
+				no_of_descendant = len(descendantSet)
 			else:
-				no_of_offspring = None
+				no_of_descendant = None
 			actual_coverage_ls = []
 			sub_query = VervetDB.IndividualSequence.query.filter_by(individual_id=row.id).filter_by(filtered=1)
 			for isq in sub_query:
@@ -6544,7 +6616,7 @@ class DBVervet(object):
 						actual_coverage_ls.append('%.3f'%isq.coverage)
 					else:
 						actual_coverage_ls.append("unknown")
-			data_row = [row.ucla_id, row.target_coverage, ','.join(actual_coverage_ls), no_of_offspring, \
+			data_row = [row.ucla_id, row.target_coverage, ','.join(actual_coverage_ls), no_of_descendant, \
 					','.join(batch_number_ls), ','.join(batch_coverage_ls)]
 			writer.writerow(data_row)
 			counter += 1
@@ -6553,28 +6625,29 @@ class DBVervet(object):
 		
 	"""
 		#2012.6.19
-		outputFname = '/tmp/VRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
-		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447)
+		outputFname = '/tmp/VRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(db_vervet, outputFname=outputFname, site_id=447)
 		sys.exit(0)
 		
 		#2012.7.23
-		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
-		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447,\
+		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(db_vervet, outputFname=outputFname, site_id=447,\
 			targetCoverageNotNull=False)
 		sys.exit(0)
 		
 		#2012.8.20
-		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
-		outputFname = '/tmp/VRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
-		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447,\
+		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
+		outputFname = '/tmp/VRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(db_vervet, outputFname=outputFname, site_id=447,\
 			targetCoverageNotNull=True)
 		sys.exit(0)
 		
 		#2012.7.23
-		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfOffspring.tsv'
-		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfOffspring(db_vervet, outputFname=outputFname, site_id=447,\
+		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(db_vervet, outputFname=outputFname, site_id=447,\
 			targetCoverageNotNull=False)
 		sys.exit(0)
+		
 		
 	"""
 	
@@ -7687,6 +7760,14 @@ class VervetPopGen(object):
 		VervetPopGen.plotBoschEtAl2009AndVRCLDDecay(inputFname=inputFname, outputFname=outputFname,
 			pop2Color={'VRC':'b', 'EUR':'m', 'MENA':'k', 'AME':'g', 'SSAFR':'#a52a2a'}, maxDist=80)
 		sys.exit(0)
+		
+		#2012.11.2
+		prefix = os.path.expanduser('~/script/vervet/doc/2012.11.06ASHG/BoschEtAl2009-supp4_LDDecay_differentPopHoja2')
+		inputFname = '%s.csv'%(prefix)
+		outputFname =  '%s.svg'%(prefix)
+		VervetPopGen.plotBoschEtAl2009AndVRCLDDecay(inputFname=inputFname, outputFname=outputFname,
+			pop2Color={'VRC':'b', 'EUR':'m', 'MENA':'k', 'AME':'g', 'SSAFR':'#a52a2a'}, maxDist=400000)
+		sys.exit(0)
 	"""
 
 
@@ -7882,15 +7963,7 @@ class Main(object):
 		else:
 			debug =False
 		
-		#2012.11.2
-		prefix = os.path.expanduser('~/script/vervet/doc/2012.11.06ASHG/BoschEtAl2009-supp4_LDDecay_differentPopHoja2')
-		inputFname = '%s.csv'%(prefix)
-		outputFname =  '%s.svg'%(prefix)
-		VervetPopGen.plotBoschEtAl2009AndVRCLDDecay(inputFname=inputFname, outputFname=outputFname,
-			pop2Color={'VRC':'b', 'EUR':'m', 'MENA':'k', 'AME':'g', 'SSAFR':'#a52a2a'}, maxDist=400000)
-		sys.exit(0)
-		
-		import VervetDB
+		from vervet.src import VervetDB
 		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
 					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
 		db_vervet.setup(create_tables=False)
@@ -7898,6 +7971,11 @@ class Main(object):
 		#import MySQLdb
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
+		
+		#2012.12.6
+		DBVervet.moveIndividualLatLonAltToSiteTable(db_vervet=db_vervet, commit=True)
+		sys.exit(0)
+		
 		
 		#2012.9.25 update the file_size for the existing db entries
 		TableClass = VervetDB.IndividualSequenceFile

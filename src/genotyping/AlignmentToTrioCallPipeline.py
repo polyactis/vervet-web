@@ -46,10 +46,9 @@ Examples:
 Description:
 	2011-7-12
 		a program which generates a pegasus workflow dag (xml file) to call genotypes on all chosen alignments.
-		The workflow will stage in (or symlink if site_handler and input_site_handler are same.) every input file.
-			It will also stage out every output file.
 		If needFastaIndexJob is off, the reference fasta file and its affiliated files will not be staged in.
 		If on, the reference fasta file will be staged in and affiliated index/dict files will be created by a job.
+		run_type 1: TrioCaller on alignments; 2: TrioCaller on VCF files; 3: polymutt on VCF files
 """
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
@@ -58,13 +57,12 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import subprocess, cStringIO
-import VervetDB, csv
+import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, utils
 from pymodule import VCFFile
 from Pegasus.DAX3 import *
+from vervet.src import VervetDB, AbstractVervetWorkflow
 from AlignmentToCallPipeline import AlignmentToCallPipeline
-from AbstractVervetWorkflow import AbstractVervetWorkflow
 
 class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 	__doc__ = __doc__
@@ -75,7 +73,8 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 	#option_default_dict.pop(('inputDir', 0, ))
 	option_default_dict.update({
 						('pedigreeOutputFname', 1, ): ['', 'w', 1, 'the file which would contain the pedigree file in Merlin format'],\
-						("trioCallerPath", 1, ): ["%s/script/vervet/bin/trioCaller/TrioCaller", 'P', 1, 'path to TrioCaller binary'],\
+						("trioCallerPath", 1, ): ["%s/script/vervet/bin/trioCaller/TrioCaller", '', 1, 'path to TrioCaller binary'],\
+						("polymuttPath", 1, ): ["%s/bin/polymutt", '', 1, 'path to the polymutt binary'],\
 						('replicateIndividualTag', 1, ): ['copy', 'T', 1, 'the tag that separates the true ID and its replicate count'],\
 						('sampleID2FamilyCountFname', 1, ): ['', 'n', 1, 'a tab-delimited file that records how many families in which each individual occurs'],\
 						("onlyKeepBiAllelicSNP", 0, int): [0, 'c', 0, 'toggle this to remove all SNPs with >=3 alleles?'],\
@@ -102,7 +101,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		#2012.8.15 change it to run after SAMtools
 		self.run_type = 2
 	
-	def writeOneLineToPedigreeFile(self, writer, family_id, individual_alignment=None, father_id=0, mother_id=0,
+	def writeOneLineToPedigreeFile(self, writer=None, family_id=None, individual_alignment=None, father_id=0, mother_id=0,
 								sex=None, replicateIndividualTag='copy', sampleID2FamilyCount=None):
 		"""
 		2012.3.29
@@ -141,10 +140,11 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			sampleID2FamilyCount[sample_id] = 0
 		sampleID2FamilyCount[sample_id] += 1
 		
-	def outputPedgreeOfAlignmentsInMerlinFormat(self, db_vervet, alignmentLs, pedigreeOutputFname=None, replicateIndividualTag='copy',\
-											treatEveryOneIndependent=False):
+	def outputPedgreeOfAlignmentsInMerlinFormat(self, db_vervet=None, alignmentLs=None, pedigreeOutputFname=None, \
+								replicateIndividualTag='copy',\
+								treatEveryOneIndependent=False, ):
 		"""
-		#2012.9.26 output below is wrong if some members of duo or trio have >1 alignments
+		2012.9.26 output is wrong if some members of duo or trio have >1 alignments
 			need to fix this bug 
 		2012.9.26 deal with the case that one individual appear in multiple alignments
 		2012.8.28
@@ -291,31 +291,57 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		sys.stderr.write("%s entries outputted.\n"%(len(sampleID2FamilyCount)))
 		
 	
-	def addTrioCallerJob(self, workflow, trioCallerWrapper=None, trioCallerPath=None, inputVCF=None, pedFile=None, outputVCF=None, \
-						parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+	def addTrioCallerJob(self, workflow=None, trioCallerWrapper=None, trioCallerPath=None, inputVCF=None, pedFile=None, outputVCF=None, \
+						parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 						extraArguments=None, job_max_memory=2000, **keywords):
 		"""
+		2012.12.5 call addGenericJob()
 		2012.1.20
 			increase the rounds from 30 to 40
 			add --burnin 20
 		2011-12-4
 		"""
-		job = Job(namespace=workflow.namespace, name=trioCallerWrapper.name, version=workflow.version)
-		job.addArguments(trioCallerPath, "--vcf", inputVCF, "--pedfile", pedFile, \
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		extraArgumentList = []
+		extraOutputLs = [outputVCF]
+		key2ObjectForJob = {}
+		extraArgumentList.extend([trioCallerPath, "--vcf", inputVCF, "--pedfile", pedFile, \
 						"--states 50 --randomPhase --rounds 40 --burnin 20",\
-						"--prefix %s"%(os.path.splitext(outputVCF.name)[0]))
-		if extraArguments:
-			job.addArguments(extraArguments)
-		job.uses(inputVCF, transfer=True, register=True, link=Link.INPUT)
-		job.uses(pedFile, transfer=True, register=True, link=Link.INPUT)
-		job.uses(outputVCF, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		job.output = outputVCF
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
-		workflow.addJob(job)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=job)
-		for input in extraDependentInputLs:
-			job.uses(input, transfer=True, register=True, link=Link.INPUT)
+						"--prefix %s"%(os.path.splitext(outputVCF.name)[0])])
+		extraDependentInputLs.extend([inputVCF, pedFile])
+		
+		job = self.addGenericJob(executable=trioCallerWrapper, inputFile=None, inputArgumentOption="", \
+					outputFile=None, outputArgumentOption="", \
+					parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, extraOutputLs=extraOutputLs, \
+					transferOutput=transferOutput, \
+					extraArguments=extraArguments, extraArgumentList=extraArgumentList, job_max_memory=job_max_memory, \
+					sshDBTunnel=None, \
+					key2ObjectForJob=key2ObjectForJob, **keywords)
+		return job
+	
+	def addPolyMuttJob(self, workflow=None, executable=None, inputVCF=None, pedFile=None, datFile=None, \
+					outputVCF=None, \
+					parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
+					extraArguments=None, job_max_memory=2000, **keywords):
+		"""
+		2012.12.5 datFile could be empty file.
+		"""
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		extraArgumentList = []
+		extraOutputLs = [outputVCF]
+		key2ObjectForJob = {}
+		extraArgumentList.extend(["-p", pedFile, "-d", datFile])
+		extraDependentInputLs.extend([pedFile, datFile])
+		
+		job = self.addGenericJob(executable=trioCallerWrapper, inputFile=inputVCF, inputArgumentOption="--in_vcf", \
+					outputFile=outputVCF, outputArgumentOption="--out_vcf", \
+					parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, extraOutputLs=extraOutputLs, \
+					transferOutput=transferOutput, \
+					extraArguments=extraArguments, extraArgumentList=extraArgumentList, job_max_memory=job_max_memory, \
+					sshDBTunnel=None, \
+					key2ObjectForJob=key2ObjectForJob, **keywords)
 		return job
 	
 	def addGenotypeCallJobs(self, workflow=None, alignmentDataLs=None, chr2IntervalDataLs=None, samtools=None, \
@@ -637,8 +663,9 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				outputDirPrefix="", \
 				maxSNPMissingRate=None, alnStatForFilterF=None, onlyKeepBiAllelicSNP=True, \
 				cumulativeMedianDepth=5000, job_max_memory = 2000, vcf_job_max_memory = 1000,\
-				transferOutput=True, **keywords):
+				run_type=2, transferOutput=True, **keywords):
 		"""
+		2012.12.5 added argument run_type (same as self.run_type) 2: TrioCaller; 3: polymutt
 		2012.8.15
 		"""
 		sys.stderr.write("Adding trioCaller jobs for  %s vcf files ..."%(len(inputData.jobDataLs)))
@@ -651,7 +678,6 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			fastaDictJob = self.addRefFastaDictJob(workflow, createSequenceDictionaryJava=createSequenceDictionaryJava, \
 												refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
-			no_of_jobs += 1
 		else:
 			fastaDictJob = None
 			refFastaDictF = None
@@ -659,7 +685,6 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		if needFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
-			no_of_jobs += 1
 		else:
 			fastaIndexJob = None
 			refFastaIndexF = None
@@ -680,22 +705,21 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			commonPrefix = inputFBaseName.split('.')[0]
 			
 			overlapInterval = chr_id
-			
+			#split VCF job
 			outputFnamePrefix = os.path.join(round1CallDirJob.folder, '%s_splitVCF'%commonPrefix)
 			splitVCFJob = self.addSplitVCFFileJob(executable=self.SplitVCFFile, inputFile=inputF, outputFnamePrefix=outputFnamePrefix, \
 					noOfOverlappingSites=intervalOverlapSize, noOfSitesPerUnit=intervalSize, noOfTotalSites=inputF.noOfLoci, \
 					parentJobLs=jobData.jobLs+[round1CallDirJob], \
 					extraDependentInputLs=[jobData.tbi_F], \
 					extraArguments=None, transferOutput=False, job_max_memory=job_max_memory)
-			no_of_jobs +=1
 			
+			#ligate vcf job (different segments of a chromosome into one chromosome)
 			concatTrioCallerOutputFname = os.path.join(trioCallerOutputDirJob.folder, '%s.vcf'%chr_id)
 			concatTrioCallerOutputF = File(concatTrioCallerOutputFname)
 			trioCallerWholeContigConcatJob = self.addLigateVcfJob(executable=ligateVcf, ligateVcfPerlPath=ligateVcfPerlPath, \
 										outputFile=concatTrioCallerOutputF, \
 										parentJobLs=[trioCallerOutputDirJob], extraDependentInputLs=[], transferOutput=False, \
 										extraArguments=None, job_max_memory=vcf_job_max_memory)
-			no_of_jobs +=1
 			
 			#bgzip and tabix the trio caller output
 			bgzip_concatTrioCallerOutputF = File("%s.gz"%concatTrioCallerOutputFname)
@@ -707,7 +731,6 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			returnData.jobDataLs.append(PassingData(vcfFile=bgzip_concatTrioCallerOutputF, jobLs=[bgzip_tabix_concatTrioCallerOutput_job]))
 			#self.addRefFastaJobDependency(workflow, wholeRefUnionOfIntersectionJob, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
 			#							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
-			no_of_jobs +=1
 			
 			noOfUnits = max(1, utils.getNoOfUnitsNeededToCoverN(N=inputF.noOfLoci, s=intervalSize, o=intervalOverlapSize)-1)
 			for unitNumber in xrange(1, noOfUnits+1):
@@ -725,54 +748,50 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						refFastaFList=refFastaFList, parentJobLs=[round1CallDirJob, splitVCFJob], \
 						extraDependentInputLs=None, transferOutput=tranferIntermediateFilesForDebug, \
 						extraArguments=None, job_max_memory=job_max_memory, interval=overlapInterval)
-				no_of_jobs +=1
-				
-				#2012.4.2 replicate individuals who appear in more than 1 families
-				round1_IndividualsReplicatedVCF = File( os.path.join(round1CallDirJob.folder, \
-													'%s.replicate.vcf'%overlapIntervalFnameSignature))
-				replicateVCFGenotypeColumnsJob = self.addReplicateVCFGenotypeColumnsJob(workflow, \
-							executable=workflow.ReplicateVCFGenotypeColumns, inputF=round1_VCF4OutputF, \
-							sampleID2FamilyCountF=sampleID2FamilyCountF, outputF=round1_IndividualsReplicatedVCF, \
-							replicateIndividualTag=replicateIndividualTag,\
-							parentJobLs=[round1_vcf_convert_job], extraDependentInputLs=[], \
-							transferOutput=tranferIntermediateFilesForDebug, \
-							extraArguments=None, job_max_memory=vcf_job_max_memory)
-				no_of_jobs +=1
-				
-				#TrioCaller job
-				trioCallerOutputF = File(os.path.join(trioCallerOutputDirJob.folder, '%s.orig.vcf'%overlapIntervalFnameSignature))
-				trioCallerJob = self.addTrioCallerJob(workflow, trioCallerWrapper=trioCallerWrapper, trioCallerPath=trioCallerPath, \
-						inputVCF=round1_IndividualsReplicatedVCF,\
-						pedFile=pedFile, outputVCF=trioCallerOutputF, \
-						parentJobLs=[trioCallerOutputDirJob, replicateVCFGenotypeColumnsJob], \
-						extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
-						extraArguments=None, job_max_memory=vcf_job_max_memory)	#1.2G memory for 12K loci
-				no_of_jobs +=1
-				
-				#2012.4.2
-				mergeReplicateOutputF = File(os.path.join(trioCallerOutputDirJob.folder, \
-														'%s.noReplicate.vcf'%overlapIntervalFnameSignature))
-				noOfAlignments= len(alignmentLs)
-				
-				no_of_loci =  getattr(inputF, 'no_of_loci', None)
-				if no_of_loci is None:
-					no_of_loci = 26000.	#assume 26K
-				memoryRequest = min(10000, max(4000, int(6000*(noOfAlignments/323.0)*(no_of_loci/26000.0))) )
-					#extrapolates from 4000Mb memory for a 323-sample with 26K loci, (2.6 Megabase)
-					#upper bound is 10g. lower bound is 4g.
-				mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(workflow, \
-									executable=workflow.MergeVCFReplicateHaplotypesJava,\
-									genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-									inputF=trioCallerOutputF, outputF=mergeReplicateOutputF, \
-									replicateIndividualTag=replicateIndividualTag, \
-									refFastaFList=refFastaFList, parentJobLs=[trioCallerJob], \
-									extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
-									extraArguments=None, job_max_memory=memoryRequest,\
-									analysis_type='MergeVCFReplicateGenotypeColumns')
-				no_of_jobs +=1
-				
-				#ligate job
-				
+				if run_type==2:
+					#2012.4.2 replicate individuals who appear in more than 1 families
+					round1_IndividualsReplicatedVCF = File( os.path.join(round1CallDirJob.folder, \
+														'%s.replicate.vcf'%overlapIntervalFnameSignature))
+					replicateVCFGenotypeColumnsJob = self.addReplicateVCFGenotypeColumnsJob(workflow, \
+								executable=workflow.ReplicateVCFGenotypeColumns, inputF=round1_VCF4OutputF, \
+								sampleID2FamilyCountF=sampleID2FamilyCountF, outputF=round1_IndividualsReplicatedVCF, \
+								replicateIndividualTag=replicateIndividualTag,\
+								parentJobLs=[round1_vcf_convert_job], extraDependentInputLs=[], \
+								transferOutput=tranferIntermediateFilesForDebug, \
+								extraArguments=None, job_max_memory=vcf_job_max_memory)
+					
+					#TrioCaller job
+					trioCallerOutputF = File(os.path.join(trioCallerOutputDirJob.folder, '%s.orig.vcf'%overlapIntervalFnameSignature))
+					trioCallerJob = self.addTrioCallerJob(workflow, trioCallerWrapper=trioCallerWrapper, trioCallerPath=trioCallerPath, \
+							inputVCF=round1_IndividualsReplicatedVCF,\
+							pedFile=pedFile, outputVCF=trioCallerOutputF, \
+							parentJobLs=[trioCallerOutputDirJob, replicateVCFGenotypeColumnsJob], \
+							extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
+							extraArguments=None, job_max_memory=vcf_job_max_memory)	#1.2G memory for 12K loci
+					
+					#2012.4.2
+					mergeReplicateOutputF = File(os.path.join(trioCallerOutputDirJob.folder, \
+															'%s.noReplicate.vcf'%overlapIntervalFnameSignature))
+					noOfAlignments= len(alignmentLs)
+					
+					no_of_loci =  getattr(inputF, 'no_of_loci', None)
+					if no_of_loci is None:
+						no_of_loci = 26000.	#assume 26K
+					memoryRequest = min(10000, max(4000, int(6000*(noOfAlignments/323.0)*(no_of_loci/26000.0))) )
+						#extrapolates from 4000Mb memory for a 323-sample with 26K loci, (2.6 Megabase)
+						#upper bound is 10g. lower bound is 4g.
+					mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(workflow, \
+										executable=workflow.MergeVCFReplicateHaplotypesJava,\
+										genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+										inputF=trioCallerOutputF, outputF=mergeReplicateOutputF, \
+										replicateIndividualTag=replicateIndividualTag, \
+										refFastaFList=refFastaFList, parentJobLs=[trioCallerJob], \
+										extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
+										extraArguments=None, job_max_memory=memoryRequest,\
+										analysis_type='MergeVCFReplicateGenotypeColumns')
+				elif run_type==3:
+					#add polymutt jobs
+					pass
 				#convert to vcf4 so that other vcftools software could be used.
 				vcf4_trioCallerOutputFname = os.path.join(trioCallerOutputDirJob.folder, '%s.noreplicte.v4.vcf'%overlapIntervalFnameSignature)
 				vcf4_trioCallerOutputF = File(vcf4_trioCallerOutputFname)
@@ -788,7 +807,6 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						parentJob=vcf_convert_TrioCallerOutputJob, inputF=vcf4_trioCallerOutputF, outputF=trioGzipOutputF, \
 						transferOutput=False)
 				
-				no_of_jobs +=2
 				
 				#add this output to the union job
 				# 2012.6.1 done it through addInputToStatMergeJob()
@@ -796,30 +814,35 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 							parentJobLs=[bgzip_tabix_trioOutputF_job], \
 							extraDependentInputLs=[trioGzipOutput_tbi_F])
 				
-		sys.stderr.write(" %s jobs. \n"%(no_of_jobs))
+		sys.stderr.write(" %s jobs. \n"%(self.no_of_jobs))
 		return returnData
 	
-	def addReplicateVCFGenotypeColumnsJob(self, workflow, executable=None, inputF=None, sampleID2FamilyCountF=None, outputF=None, \
+	def addReplicateVCFGenotypeColumnsJob(self, workflow=None, executable=None, inputF=None, \
+					sampleID2FamilyCountF=None, outputF=None, \
 					replicateIndividualTag=None,\
-					parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+					parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 					extraArguments=None, job_max_memory=2000, **keywords):
 		"""
+		2012.12.5 call addGenericJob()
 		2012.4.2
 			a job that replicates the genotype columns of individuals who appear in >1 families.
 			This is to be run before TrioCaller is applied.
 		"""
-		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
-		job.addArguments('-n', sampleID2FamilyCountF, '-T', replicateIndividualTag, '-i', inputF, '-o', outputF)
-		job.uses(sampleID2FamilyCountF, transfer=True, register=True, link=Link.INPUT)
-		job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
-		job.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		job.output = outputF
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
-		workflow.addJob(job)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=job)
-		for input in extraDependentInputLs:
-			job.uses(input, transfer=True, register=True, link=Link.INPUT)
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		extraArgumentList = []
+		extraOutputLs = []
+		key2ObjectForJob = {}
+		extraArgumentList.extend(['-n', sampleID2FamilyCountF, '-T', replicateIndividualTag])
+		extraDependentInputLs.append(sampleID2FamilyCountF)
+		
+		job = self.addGenericJob(executable=executable, inputFile=inputF, inputArgumentOption="-i", \
+					outputFile=outputF, outputArgumentOption="-o", \
+					parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, extraOutputLs=extraOutputLs, \
+					transferOutput=transferOutput, \
+					extraArguments=extraArguments, extraArgumentList=extraArgumentList, job_max_memory=job_max_memory, \
+					sshDBTunnel=None, \
+					key2ObjectForJob=key2ObjectForJob, **keywords)
 		return job
 	
 	def registerCustomExecutables(self, workflow=None):
@@ -861,7 +884,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		if self.run_type==1:
 			alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
 										alignment_method_id=self.alignment_method_id, dataDir=self.localDataDir)
-		elif self.run_type==2:
+		elif self.run_type in [2,3]:
 			inputData = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler, \
 									checkEmptyVCFByReading=self.checkEmptyVCFByReading,\
 									pegasusFolderName=self.pegasusFolderName,\
@@ -942,7 +965,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, maxSNPMissingRate=self.maxSNPMissingRate,\
 						alnStatForFilterF=alnStatForFilterF, cumulativeMedianDepth=cumulativeMedianDepth,\
 						transferOutput=True)
-		elif self.run_type==2:
+		elif self.run_type in [2, 3]:
 			self.addTrioCallerJobsONVCFFiles(workflow=workflow, alignmentLs=alignmentLs, inputData=inputData, \
 						samtools=workflow.samtools, \
 						genotyperJava=workflow.genotyperJava,  SelectVariantsJava=workflow.SelectVariantsJava, \
@@ -965,7 +988,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						site_type=self.site_type, dataDir=self.dataDir,\
 						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, maxSNPMissingRate=self.maxSNPMissingRate,\
 						alnStatForFilterF=None, cumulativeMedianDepth=cumulativeMedianDepth,\
-						transferOutput=True)
+						run_type=self.run_type, transferOutput=True)
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')

@@ -103,6 +103,7 @@ class Country(Entity):
 
 class Site(Entity, TableClass):
 	"""
+	2012.12.6 add unique constraint on (latitude, longitude)
 	2011-4-29
 		add column altitude
 	2011-3-1
@@ -124,6 +125,7 @@ class Site(Entity, TableClass):
 	using_options(tablename='site', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('short_name', 'latitude', 'longitude', 'city', 'stateprovince', 'country_id'))
+	using_table_options(UniqueConstraint('short_name', 'latitude', 'longitude'))
 
 
 class Group(Entity):
@@ -237,6 +239,7 @@ class GeographicIntegrity(Entity):
 
 class Individual(Entity, TableClass):
 	"""
+	2012.12.6 get rid of latitude, longitude, altitude, it's now rolled into site.
 	2012.9.27 add is_contaminated
 	2012.7.5 added column sequence_batch_ls	
 	2012.6.19 add column target_coverage
@@ -262,9 +265,6 @@ class Individual(Entity, TableClass):
 	birthplace = Field(String(256))
 	access = Field(Enum("public", "restricted", name="access_enum_type"), default='restricted')
 	tax_id =Field(Integer)	#2011-3-1
-	latitude = Field(Float)	#2011-3-1
-	longitude = Field(Float)	#2011-3-1
-	altitude = Field(Float)	#2011-4-28
 	geographic_integrity = ManyToOne("GeographicIntegrity", colname='geographic_integrity_id', ondelete='CASCADE', onupdate='CASCADE')
 	age = Field(Integer)	#2011-4-28
 	age_cas = Field(Integer)	#2011-4-28 CAS stands for chris a. schmitt
@@ -1605,13 +1605,19 @@ class VervetDB(ElixirDB):
 		return db_entry
 	
 	def getIndividual(self, code=None, sex=None, age=None, age_cas=None, latitude=None, longitude=None, \
-					altitude=None, ucla_id=None, site=None, collection_date=None, collector=None, \
+					altitude=None, ucla_id=None, site=None, site_name=None, city=None, stateprovince=None, country_name=None, \
+					collection_date=None, collector=None, \
 					approx_age_group_at_collection=None, tax_id=None, birthdate=None, vrc_founder=None, comment=None,\
 					microchip_id=None):
 		"""
 		Examples:
 			individual = db_vervet.getIndividual(ucla_id=monkey_id)
+			individual = db_vervet.getIndividual(code=code)
+			individual = db_vervet.getIndividual(code=code, ucla_id=ucla_id, site=None, site_name='YBK', country_name='Gambia')
 			
+		2012.12.6 in the case of creating a new individual, and site is None (to  be created on the fly),
+			site_name and country_name must be not null.
+			latitude, longitude, altitude is no longer part of table Individual.
 		2012.5.29
 			check Individual using code if ucla_id is missing
 		2011-10-18
@@ -1639,8 +1645,11 @@ class VervetDB(ElixirDB):
 				sex = None
 			elif len(sex)>=1:	#2011-5-5 take the first letter
 				sex = sex[0].upper()
-			db_entry = Individual(code=code, sex=sex, age=age, age_cas=age_cas, latitude=latitude,\
-						longitude=longitude, altitude=altitude, ucla_id=ucla_id, site=site, \
+			if not site and site_name and country_name:
+				site = self.getSite(description=site_name, city=city, stateprovince=stateprovince, country_name=country_name,  \
+								latitude=latitude,\
+								longitude=longitude, altitude=altitude)
+			db_entry = Individual(code=code, sex=sex, age=age, age_cas=age_cas, ucla_id=ucla_id, site=site, \
 						collection_date=collection_date, collector=collector,\
 						approx_age_group_at_collection=approx_age_group_at_collection, tax_id=tax_id, birthdate=birthdate,\
 						vrc_founder=vrc_founder, comment=comment, microchip_id=microchip_id)
@@ -2308,13 +2317,16 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
-	def getSite(self, description=None, city=None, stateprovince=None, country_name=None, latitude=None, longitude=None,\
-			altitude=None):
+	def getSite(self, short_name=None, description=None, city=None, stateprovince=None, country_name=None, \
+			latitude=None, longitude=None, altitude=None):
 		"""
+		2012.12.6 added argument short_name
 		2011-4-28
 		"""
 		country = self.getCountry(country_name=country_name)
-		if description:
+		if short_name :
+			short_name = short_name
+		elif description:
 			short_name = description
 		elif city:
 			short_name = city
