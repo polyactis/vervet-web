@@ -38,7 +38,7 @@ import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, figureOutDelimiter, getColName2IndexFromHeader
 from Pegasus.DAX3 import *
 from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
-from pymodule.VCFFile import VCFFile
+from pymodule import VCFFile
 from GenericVCFWorkflow import GenericVCFWorkflow
 
 class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
