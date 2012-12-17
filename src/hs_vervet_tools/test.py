@@ -8,12 +8,22 @@ import hsVCFExtractionTools
 obj=hsVCFExtractionTools.hsVCFExtractionTools("TestAnalyses1")
 print '1'
 
+genotypeMethodID=40;
+chromosome='Contig917'
 #desc_str='This time I append test project 1\n'
 #obj.createProjectDescription(desc_str,'a')
 
 uclaid_ls=obj.loadUCLA_id_ls()
 
-print uclaid_ls
+idx_ls=obj.loadVCFInd(genotypeMethodID)
+
+(VCF_fname_ls,contig_ls)=obj.loadVCFfilename_ls(genotypeMethodID)
+
+contig='Contig917'
+ind917=contig_ls.index(contig)
+vcffilename=VCF_fname_ls[ind917]
+datastruct=obj.createGenotypeData(idx_ls,uclaid_ls,vcffilename,genotypeMethodID,contig=contig)
+obj.saveContigGenotypeData(datastruct)
 
 
 

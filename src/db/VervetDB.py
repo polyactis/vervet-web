@@ -2161,6 +2161,7 @@ class VervetDB(ElixirDB):
 			genotype_method_id = genotype_method.id
 			
 		query = GenotypeFile.query.filter_by(genotype_method_id=genotype_method_id)
+
 		if format:
 			query = query.filter_by(format=format)
 		if md5sum:	#2012.8.6 if format is not given, then use md5sum as the sole unique identifier 
