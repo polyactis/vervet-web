@@ -2,11 +2,11 @@
 #filename = os.path.join("/home/GMI", 'hannes.svardal/Documents')
 
 #print filename
+import hsVCFExtractionTools
 
-print str.join('ab','cd')
-print 'ab'+'cd'
+obj=hsVCFExtractionTools.hsVCFExtractionTools("TestAnalyses1")
+genotypeMethodID=40
 
-x=None
-
-if x==None:
-    print 'oida'
+(VCFfilename_ls,contig_ls)=obj.loadVCFfilename_ls(genotypeMethodID=genotypeMethodID)
+print VCFfilename_ls
+print contig_ls

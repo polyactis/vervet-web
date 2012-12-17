@@ -194,8 +194,70 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 		else:
 			raise hs.hsError('variable existAction must be w (overwrite) or p (pass)')	
 	
-	def createVCFfilename_ls(self):
-		pass
+	def loadVCFInd(self,genotype_method_id):
+		fname = os.path.join(self.projectDir,'VCF_indices_Meth'+str(genotype_method_id)+'.tsv')
+		with open(fname, 'r') as f:
+			columnIndexList=f.readline().split()
+		return columnIndexList	
+	
+	def createVCFfilename_ls(self,genotypeMethodID, format1='VCF'):
+		"""
+		create a list of VCF Filenames for each contig
+		"""
+		db_vervet = self.DBobject()
+		session = db_vervet.session
+		
+		#session.begin()
+		# if not self.dataDir:
+		# 	self.dataDir = self.db_vervet.data_dir
+		#dataDir = self.dataDir
+		
+		query = VervetDB.GenotypeFile.query.filter_by(genotype_method_id=genotypeMethodID)
+		contig_ls=[]
+		VCFfilename_ls=[]
+		for entry in query:
+			VCFfilename_ls.append(str(entry.path))
+			contig_ls.append(str(entry.chromosome))
+		session.close()
+			
+		return (VCFfilename_ls,contig_ls)	
+	
+	def saveVCFfilename_ls(self,VCFfilename_ls,contig_ls,genotypeMethodID,exist_action):
+		fname = os.path.join(self.projectDir,'VCF_filename_ls_Meth'+str(genotypeMethodID)+'.tsv')
+		if exist_action=='check':
+			if os.path.isfile(fname):
+				return True
+			else:
+				return False
+		elif exist_action=='p':
+			if os.path.isfile(fname):
+				pass
+			else:
+				with open(fname, 'w') as f:
+					writer=csv.writer(f, delimiter='\t')
+					writer.writerow(VCFfilename_ls)
+					writer.writerow(contig_ls)
+					del writer		
+		elif exist_action=='w':
+			with open(fname, 'w') as f:
+				writer=csv.writer(f, delimiter='\t')
+				writer.writerow(VCFfilename_ls)
+				writer.writerow(contig_ls)
+				del writer	
+		else:
+			raise hs.hsError('variable existAction must be w (overwrite) or p (pass) or check')
+			
+	def loadVCFfilename_ls(self,genotypeMethodID):
+		"""
+		load a list of VCF Filenames for each contig
+		"""
+		fname = os.path.join(self.projectDir,'VCF_filename_ls_Meth'+str(genotypeMethodID)+'.tsv')
+		with open(fname, 'r') as f:
+			VCFfilename_ls=f.readline().split()
+			contig_ls=f.readline().split()
+		return (VCFfilename_ls,contig_ls)
+
+				
 	
 	def createGenotypeData(self,vcf_indx_ls,ucla_id_ls,vcffilename,genotype_method_id,contig=None):
 		"""
@@ -204,7 +266,7 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 			and return genotype matrix
 		"""
 		#import pdb
-		filename = vcffilename
+		filename = os.path.join(self.dataDir,vcffilename)
 		if os.path.isfile(filename):
 			counter= 0
 			from pymodule.yhio.VCFFile import VCFFile
@@ -215,7 +277,7 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 			#writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
 			#header = ['Chromosome', 'position', 'ref','alt']
 			chrom_ls=[]; ref_ls=[]; snp_pos_ls=[]; alt_ls=[]
-			columnIndexList = vcf_indx_ls
+			columnIndexList = map(int,vcf_indx_ls)
 			datalist=[]
 			for vcfRecord in vcfFile:
 				data_row=[]
@@ -281,7 +343,7 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 			
 class hsContigDataStruct(object):
 	# var1 = 'hi'
-	def __init__(self, ind_id_ls=None, chrom_ls=None, ref_ls=None, snp_pos_ls=None, alt_ls=None, data=None,genotype_method=None,contig=None):
+	def __init__(self, ucla_id_ls=None, chrom_ls=None, ref_ls=None, snp_pos_ls=None, alt_ls=None, data=None,genotype_method=None,contig=None):
 		"""
 		row_id_ls ... individual ids
 		col_info_ls ...  
@@ -291,7 +353,7 @@ class hsContigDataStruct(object):
 			sys.stderr.write("Error: genotype_method_id %s, chromosome %s does not exist.\n"%(self.genotypeMethodID, self.chromosome))
 			sys.exit(2)
 		"""
-		self.ind_id_ls = ind_id_ls
+		self.ucla_id_ls = ucla_id_ls
 		self.chrom_ls = chrom_ls
 		self.ref_ls = ref_ls
 		self.snp_pos_ls = snp_pos_ls
