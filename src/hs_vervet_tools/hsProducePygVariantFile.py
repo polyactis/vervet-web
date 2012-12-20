@@ -448,7 +448,7 @@ class CalculateStatsForSubPop(AbstractVervetMapper):
 		"""
 		Calculate alternative allele frequency
 		"""
-		return data.sum(axis=1)/(2.*data.shape[1])
+		return data.sum(axis=1)./(2.*data.shape[1])
 		
 	def nonFixedDataList(self,datastruct):
 		aaf=self.calculateAAF(datastruct.data)

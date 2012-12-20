@@ -4,6 +4,7 @@ Created on Nov 7, 2012
 @author: hannes.svardal
 '''
 import hsVCFExtractionTools
+reload(hsVCFExtractionTools)
 
 obj=hsVCFExtractionTools.hsVCFExtractionTools("TestAnalyses1")
 print '1'
@@ -23,7 +24,12 @@ contig='Contig917'
 ind917=contig_ls.index(contig)
 vcffilename=VCF_fname_ls[ind917]
 datastruct=obj.createGenotypeData(idx_ls,uclaid_ls,vcffilename,genotypeMethodID,contig=contig)
-obj.saveContigGenotypeData(datastruct)
+datastructNF=obj.nonFixedGenotypeData(datastruct)
+info_dic=obj.parseVariantInfo(datastructNF.info_ls)
+print info_dic
+
+#print(dir(datastructNF))
+
 
 
 

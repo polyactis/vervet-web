@@ -18,12 +18,12 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import csv
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
-from pymodule.pegasus.mapper.AbstractMapper import AbstractMapper
+#from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
+#from pymodule.pegasus.mapper.AbstractMapper import AbstractMapper
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
 from vervet.src import VervetDB
 import numpy as np
-from subprocess import call
+#from subprocess import call
 from vervet.src.hs_vervet_tools import hs_support_tools as hs
 
 
@@ -262,7 +262,7 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 	def createGenotypeData(self,vcf_indx_ls,ucla_id_ls,vcffilename,genotype_method_id,contig=None):
 		"""
 		2012.9.19
-			get entries of VCF-file that correspond to a sub-population with ucla_id in uclaidlist
+			get entries of VCF-file that correspond to a sub-population with vcf file index in vcf_indx_ls
 			and return genotype matrix
 		"""
 		#import pdb
@@ -272,14 +272,19 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 			from pymodule.yhio.VCFFile import VCFFile
 			
 			vcfFile = VCFFile(inputFname=filename, minDepth=0)
+			
+				
 			#this is a list with the read-group names
 			#readgroupIDList = vcfFile.getSampleIDList()
 			#writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
 			#header = ['Chromosome', 'position', 'ref','alt']
-			chrom_ls=[]; ref_ls=[]; snp_pos_ls=[]; alt_ls=[]
+			chrom_ls=[]; ref_ls=[]; snp_pos_ls=[]; alt_ls=[]; quality_ls=[];  info_ls=[]
 			columnIndexList = map(int,vcf_indx_ls)
 			datalist=[]
 			for vcfRecord in vcfFile:
+				#objects in VCFRecord: [vcfRecord.chr, vcfRecord.pos, vcfRecord.vcf_locus_id, vcfRecord.refBase, vcfRecord.altBase, \
+#					vcfRecord.quality, vcfRecord.filter,\
+#					vcfRecord.info, vcfRecord.format] + vcfRecord.row[self.sampleStartingColumn:]				
 				data_row=[]
 				chrom_ls.append(vcfRecord.chr)
 				snp_pos_ls.append(vcfRecord.pos)
@@ -287,6 +292,8 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 				nonRefBase = vcfRecord.altBase
 				ref_ls.append(refBase)
 				alt_ls.append(nonRefBase)
+				quality_ls.append(vcfRecord.quality)
+				info_ls.append(vcfRecord.info)
 				for columnIndex in columnIndexList:
 					#for vcfCall in vcfRecord.data_row[1:]: #data_row is a list of dictionary {'GT': base-call, 'DP': depth}, or None if missing.
 					#it includes one extra sample in index 0, which is the reference individual (from the ref column of VCF).
@@ -308,8 +315,27 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 			data=np.array(datalist,dtype=np.float)
 			datastruct=hsContigDataStruct(ucla_id_ls=np.array(ucla_id_ls), chrom_ls=np.array(chrom_ls),\
 										ref_ls=np.array(ref_ls),snp_pos_ls=np.array(snp_pos_ls),alt_ls=np.array(alt_ls),\
+										quality_ls=np.array(map(float,quality_ls)),info_ls=np.array(info_ls),\
 										data=data,genotype_method=genotype_method_id,contig=contig)
 			return datastruct		
+	
+	def calculateAAF(self,data):
+		"""
+		Calculate alternative allele frequency
+		"""
+		return data.sum(axis=1)/(2.*data.shape[1])
+	
+	def nonFixedGenotypeData(self,datastruct):
+		aaf=self.calculateAAF(datastruct.data)
+		nonfixedpos=np.nonzero((aaf>0)*(aaf<1))
+		nonfixedpos=nonfixedpos[0]
+		datastructNF=hsContigDataStruct(ucla_id_ls=datastruct.ucla_id_ls, chrom_ls=datastruct.chrom_ls[nonfixedpos],
+									ref_ls=datastruct.ref_ls[nonfixedpos], snp_pos_ls=datastruct.snp_pos_ls[nonfixedpos],
+									alt_ls=datastruct.alt_ls[nonfixedpos], data=datastruct.data[nonfixedpos,:],\
+									quality_ls=datastruct.quality_ls[nonfixedpos],info_ls=datastruct.info_ls[nonfixedpos],\
+									genotype_method=datastruct.genotype_method,contig=datastruct.contig)
+		return datastructNF
+	
 	
 	def saveContigGenotypeData(self,datastruct):
 		if datastruct.contig==False:
@@ -317,12 +343,45 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 		else:
 			fnameDat = os.path.join(self.projectDir,'data_Meth'+str(datastruct.genotype_method)+\
 								'_'+datastruct.contig+'.tsv')
-			fnamePos = os.path.join(self.projectDir,'SNPpos_Meth'+str(datastruct.genotype_method)+\
-								'_'+datastruct.contig+'.tsv')
-			fnameRefAlt = os.path.join(self.projectDir,'RefAlt_Meth'+str(datastruct.genotype_method)+\
-								'_'+datastruct.contig+'.tsv')
+			
 			writerDat=csv.writer(open(fnameDat, 'w'), delimiter='\t')
 			writerDat.writerows(datastruct.data)
+			del writerDat
+			
+			fnamePos = os.path.join(self.projectDir,'SNPpos_Meth'+str(datastruct.genotype_method)+\
+								'_'+datastruct.contig+'.tsv')
+			writerPos=csv.writer(open(fnamePos, 'w'), delimiter='\t')
+			writerPos.writerow(datastruct.chrom_ls)
+			writerPos.writerow(datastruct.snp_pos_ls)
+			del writerPos
+			
+			fnameRefAlt = os.path.join(self.projectDir,'RefAlt_Meth'+str(datastruct.genotype_method)+\
+								'_'+datastruct.contig+'.tsv')
+			writerRefAlt=csv.writer(open(fnameRefAlt, 'w'), delimiter='\t')
+			writerRefAlt.writerow(datastruct.ref_ls)
+			writerRefAlt.writerow(datastruct.alt_ls)
+			del writerRefAlt
+			
+			fnameQualMeta = os.path.join(self.projectDir,'QualMeta_Meth'+str(datastruct.genotype_method)+\
+								'_'+datastruct.contig+'.tsv')
+			writerQualMeta=csv.writer(open(fnameQualMeta, 'w'), delimiter='\t')
+			writerQualMeta.writerow(datastruct.quality_ls)
+			writerQualMeta.writerow(datastruct.info_ls)
+			del writerQualMeta
+	
+	
+	"""			
+	def saveContigGenotypeData2(self,datastruct):
+		if datastruct.contig==False:
+			print 'datastruct has no contig specified, can\'t save with saveContigGenotypeData'
+		else:
+			for attribute, value in vars(datastruct).iteritems():
+				if (value =! None) and attribute =! "contig"
+				fname = os.path.join(self.projectDir,str(attribute)+str(datastruct.genotype_method)+\
+								'_'+datastruct.contig+'.tsv')
+				with open(fnameDat, 'w') as f:
+					writer=csv.writer(f, delimiter='\t')
+					writerDat.writerows(datastruct.data)
 			del writerDat
 			writerPos=csv.writer(open(fnamePos, 'w'), delimiter='\t')
 			writerPos.writerow(datastruct.chrom_ls)
@@ -332,8 +391,69 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 			writerRefAlt.writerow(datastruct.ref_ls)
 			writerRefAlt.writerow(datastruct.alt_ls)
 			del writerRefAlt
-			
-					
+		"""			
+	
+	def parseVariantInfo(self,info_ls):
+		"""
+		this function takes the np.array of the VCF info column and returns a dictionary of 
+		VCF info lists, where each entry corresponds to a variant
+		"""
+		dict_ls=[]
+		for variant_entry in info_ls:
+			variant_entry2=variant_entry.split(';')
+			dict_creator=[]
+			for entry in variant_entry2:
+				entry2=entry.split("=")
+				try:
+					entry2[1]=int(entry2[1])
+				except:
+					try:
+						entry2[1]=float(entry2[1])
+					except:
+						pass
+				dict_creator.append(tuple(entry2))
+			dict_ls.append(dict(dict_creator))
+#			dict_ls=map(lambda s: s.split("="),dict_ls)
+		
+		#convert list of dicts into dict of lists:
+		#numpy array has problems with mixed data types...
+		key_ls=dict_ls[0].keys()
+		empt_array_ls=[np.empty(len(dict_ls),dtype=type(dict_ls[0][key])) for key in key_ls]
+		for el in empt_array_ls:
+			el[:]=np.NAN
+#		empt_array[:]=np.NAN
+		info_dic=dict([(key,empt_array) for key,empt_array in zip(key_ls,empt_array_ls)])
+		for (indx,dic) in enumerate(dict_ls):
+			for key in key_ls:
+#				print key,indx,dic[key],info_dic[key][indx]
+				try:
+					info_dic[key][indx]=dic[key]
+				except:
+					pass		
+		return info_dic
+	
+	def parseVariantInfoOld(self,info_ls):
+		"""
+		this function takes the np.array of the VCF info column and returns a dictionary of 
+		VCF info lists, where each entry corresponds to a variant
+		"""
+		dict_ls=[]
+		for variant_entry in info_ls:
+			variant_entry2=variant_entry.split(';')
+			dict_creator=[]
+			for entry in variant_entry2:
+				entry2=entry.split("=")
+				try:
+					entry2[1]=int(entry2[1])
+				except:
+					try:
+						entry2[1]=float(entry2[1])
+					except:
+						pass
+				dict_creator.append(tuple(entry2))
+			dict_ls.append(dict(dict_creator))
+#			dict_ls=map(lambda s: s.split("="),dict_ls)
+		return dict_ls
 	
 	def run(self):
 		"""
@@ -343,9 +463,11 @@ class hsVCFExtractionTools(AbstractVervetMapper):
 			
 class hsContigDataStruct(object):
 	# var1 = 'hi'
-	def __init__(self, ucla_id_ls=None, chrom_ls=None, ref_ls=None, snp_pos_ls=None, alt_ls=None, data=None,genotype_method=None,contig=None):
+	def __init__(self, ucla_id_ls=None, chrom_ls=None, ref_ls=None, snp_pos_ls=None, alt_ls=None, \
+				quality_ls=None,info_ls=None,\
+				data=None,genotype_method=None,contig=None):
+		#row_id_ls ... individual idsq
 		"""
-		row_id_ls ... individual ids
 		col_info_ls ...  
 		
 		make a length check:(adapt)
@@ -358,6 +480,8 @@ class hsContigDataStruct(object):
 		self.ref_ls = ref_ls
 		self.snp_pos_ls = snp_pos_ls
 		self.alt_ls = alt_ls
+		self.quality_ls=quality_ls
+		self.info_ls=info_ls
 		self.data = data
 		self.genotype_method=genotype_method
 		self.contig=contig
