@@ -30,7 +30,6 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import csv
-import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, \
 	figureOutDelimiter, getColName2IndexFromHeader, utils
 from Pegasus.DAX3 import *
@@ -39,6 +38,7 @@ from pymodule.VCFFile import VCFFile
 #from AlignmentToCallPipeline import AlignmentToCallPipeline
 #from AbstractVervetWorkflow import AbstractVervetWorkflow
 from AbstractAlignmentAndVCFWorkflow import AbstractAlignmentAndVCFWorkflow
+from vervet.src import VervetDB
 
 parentClass = AbstractAlignmentAndVCFWorkflow
 class HaplotypeScoreWorkflow(parentClass):

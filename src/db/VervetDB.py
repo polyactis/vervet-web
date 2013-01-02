@@ -1174,6 +1174,7 @@ class VervetDB(ElixirDB):
 			__metadata__.bind = create_engine(self._url, pool_recycle=self.pool_recycle)
 		2008-07-09
 		"""
+		"""
 		ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
 												class_to_have_attr=self)
 		
@@ -1193,9 +1194,13 @@ class VervetDB(ElixirDB):
 			#handler.setFormatter(formatter)
 			#my_logger.addHandler(handler)
 			my_logger.setLevel(logging.DEBUG)
+		"""
+		ElixirDB.__init__(self, **keywords)
 		self.setup_engine(metadata=__metadata__, session=__session__, entities=entities)
 		self.uclaID2monkeyDBEntry = {}	#2012.9.4
 		self.dbID2monkeyDBEntry = {}	#2012.9.6
+		
+		self.READMEClass = README	#2012.12.18 required to figure out data_dir
 	
 	def setup(self, create_tables=True):
 		"""
@@ -1929,76 +1934,6 @@ class VervetDB(ElixirDB):
 			dstFilenameLs.append(dstFilename)
 		return logMessage
 	
-	def moveFileIntoDBAffiliatedStorage(self, db_entry=None, filename=None, inputDir=None, outputDir=None, \
-									dstFilename=None,\
-								relativeOutputDir=None, shellCommand='cp -rL', srcFilenameLs=None, dstFilenameLs=None,\
-								constructRelativePathFunction=None):
-		"""
-		2012.8.30 add argument dstFilename, which if given , overwrites outputDir
-		2012.7.18 -L of cp meant "always follow symbolic links in SOURCE".
-		2012.7.13 copied from RegisterAndMoveSplitSequenceFiles.moveNewISQFileIntoDBStorage()
-			filename could be a folder.
-		2012.7.4
-			add srcFilename and dstFilename into given arguments (srcFilenameLs, dstFilenameLs) for later undo
-		2012.6.8
-			return non-zero if failure in move or destinaion file already exists
-		2012.2.10
-			this function moves a file to a db-affiliated storage path
-			relativeOutputDir is the path part (in relative path) of db_entry.path = os.path.split(db_entry.path)[0]
-		"""
-		exitCode = 0
-		if constructRelativePathFunction is not None:
-			newPath = constructRelativePathFunction(db_entry=db_entry, sourceFilename=filename)
-			newfilename = os.path.basename(newPath)
-		else:
-			newfilename = '%s_%s'%(db_entry.id, filename)
-			newPath = os.path.join(relativeOutputDir, newfilename)
-		if db_entry.path!=newPath:
-			db_entry.path = newPath
-			try:
-				self.session.add(db_entry)
-				self.session.flush()
-			except:
-				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-				import traceback
-				traceback.print_exc()
-				exitCode = 4
-				return exitCode
-		
-		srcFilename = os.path.join(inputDir, filename)
-		if dstFilename is None:	#2012.8.30
-			dstFilename = os.path.join(outputDir, newfilename)
-		if os.path.isfile(dstFilename):
-			sys.stderr.write("Error: destination %s already exits.\n"%(dstFilename))
-			exitCode = 2
-		else:
-			#move the file
-			commandline = '%s %s %s'%(shellCommand, srcFilename, dstFilename)
-			return_data = utils.runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-			if srcFilenameLs is not None:
-				srcFilenameLs.append(srcFilename)
-			if dstFilenameLs is not None:
-				dstFilenameLs.append(dstFilename)
-			if hasattr(db_entry, 'md5sum') and getattr(db_entry, 'md5sum')==None:	#2012.7.14 has this attribute but it's None
-				try:
-					self.updateDBEntryMD5SUM(db_entry=db_entry, absPath=dstFilename)
-				except:
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
-					exitCode = 2
-					return exitCode
-			if return_data.stderr_content:
-				#something wrong. abort
-				sys.stderr.write("commandline %s failed: %s\n"%(commandline, return_data.stderr_content))
-				#remove the db entry
-				self.session.delete(db_entry)
-				self.session.flush()
-				exitCode = 3
-			else:
-				exitCode = 0
-		return exitCode
-	
 	def getIndividualSequenceFileRaw(self, individual_sequence_id=None, library=None, md5sum=None, path=None, mate_id=None,\
 									file_size=None):
 		"""
@@ -2609,24 +2544,6 @@ class VervetDB(ElixirDB):
 		sys.stderr.write("%s individual sequence files from %s isq entries.\n"%(counter, len(isqLs)))
 		return isqLs
 	
-	
-	@property
-	def data_dir(self, ):
-		"""
-		2012.3.29
-			raise a BaseException
-		2011-2-11
-			get the master directory in which all files attached to this db are stored.
-		"""
-		dataDirEntry = README.query.filter_by(title='data_dir').first()
-		if not dataDirEntry or not dataDirEntry.description or not os.path.isdir(dataDirEntry.description):
-			# todo: need to test dataDirEntry.description is writable to the user
-			sys.stderr.write("data_dir not available in db or not accessible on the harddisk. Raise exception.\n")
-			raise BaseException
-			return None
-		else:
-			return dataDirEntry.description
-	
 	@classmethod
 	def get_data_dir(cls, ):
 		"""
@@ -3056,61 +2973,6 @@ class VervetDB(ElixirDB):
 					orphanPathList.append(itemAbsPath)
 		sys.stderr.write(" %s found.\n"%(len(orphanPathList)))
 		return orphanPathList
-	
-	def updateDBEntryMD5SUM(self, db_entry=None, data_dir=None, absPath=None):
-		"""
-		2012.7.13
-			if absPath is given, take that , rather than construct it from data_dir and db_entry.path
-		"""
-		from pymodule import utils
-		if data_dir is None:
-			data_dir = self.data_dir
-		if not absPath and db_entry.path:
-			absPath = os.path.join(data_dir, db_entry.path)
-		
-		if absPath and not os.path.isfile(absPath):
-			sys.stderr.write("Warning: file %s doesn't exist.\n"%(absPath))
-			return
-		md5sum = utils.get_md5sum(absPath)
-		if db_entry.md5sum is  not None and db_entry.md5sum!=md5sum:
-			sys.stderr.write("WARNING: The new md5sum %s is not same as the existing md5sum %s.\n"%(md5sum, db_entry.md5sum))
-		db_entry.md5sum = md5sum
-		self.session.add(db_entry)
-		self.session.flush()
-	"""
-	#2012.7.14 update the md5sum for the existing db entries
-		TableClass = VervetDB.IndividualAlignment
-		TableClass = VervetDB.IndividualSequenceFile
-		for db_entry in TableClass.query:
-			if db_entry.md5sum is None:
-				absPath = os.path.join(db_vervet.data_dir, db_entry.path)
-				if db_entry.path and os.path.isfile(absPath):
-					sys.stderr.write("md5sum on %s ... "%(db_entry.path))
-					db_vervet.updateDBEntryMD5SUM(db_entry=db_entry, absPath=absPath)
-					sys.stderr.write("\n")
-		db_vervet.session.flush()
-		db_vervet.session.commit()
-		sys.exit(0)
-	"""
-	def updateDBEntryPathFileSize(self, db_entry=None, data_dir=None, absPath=None):
-		"""
-		2012.7.13
-			if absPath is given, take that , rather than construct it from data_dir and db_entry.path
-		"""
-		from pymodule import utils
-		if data_dir is None:
-			data_dir = self.data_dir
-		if not absPath and db_entry.path:
-			absPath = os.path.join(data_dir, db_entry.path)
-		if absPath and not os.path.isfile(absPath):
-			sys.stderr.write("Warning: file %s doesn't exist.\n"%(absPath))
-			return
-		file_size = utils.getFileOrFolderSize(absPath)
-		if db_entry.file_size is not None and file_size!=db_entry.file_size:
-			sys.stderr.write("Warning: the new file size %s doesn't match the old one %s.\n"%(file_size, db_entry.file_size))
-		db_entry.file_size = file_size
-		self.session.add(db_entry)
-		self.session.flush()
 		
 	def updateGenotypeMethodNoOfLoci(self, db_entry=None, format=None, no_of_chromosomes=None):
 		"""

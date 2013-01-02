@@ -31,11 +31,11 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
 from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
 from ShortRead2AlignmentPipeline import ShortRead2AlignmentPipeline
+from vervet.src import VervetDB
 
 class MarkDuplicatesWorkflow(ShortRead2AlignmentPipeline):
 	__doc__ = __doc__

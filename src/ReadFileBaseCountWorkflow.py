@@ -20,10 +20,10 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, yh_pegasus
 from Pegasus.DAX3 import *
 from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
+from vervet.src import VervetDB
 
 
 class ReadFileBaseCountWorkflow(AbstractNGSWorkflow):

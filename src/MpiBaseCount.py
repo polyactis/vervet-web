@@ -38,8 +38,8 @@ from pymodule import PassingData, importNumericArray, getListOutOfStr
 #from Scientific import MPI
 from mpi4py import MPI
 from pymodule.MPIwrapper import MPI4pywrapper
-import VervetDB
 from MpiBWA import MpiBWA
+from vervet.src import VervetDB
 
 num = importNumericArray()
 

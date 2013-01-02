@@ -75,11 +75,11 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, re, csv
-import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from pymodule.utils import runLocalCommand, getColName2IndexFromHeader
 from Pegasus.DAX3 import *
 from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
+from vervet.src import VervetDB
 
 class UnpackAndAddIndividualSequence2DB(AbstractNGSWorkflow):
 	__doc__ = __doc__

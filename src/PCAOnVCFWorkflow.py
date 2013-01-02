@@ -35,11 +35,11 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq
 from Pegasus.DAX3 import *
 from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 from pymodule.VCFFile import VCFFile
+from vervet.src import VervetDB
 
 class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 	__doc__ = __doc__

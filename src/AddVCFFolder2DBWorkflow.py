@@ -34,12 +34,12 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import csv
-import VervetDB
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, figureOutDelimiter, getColName2IndexFromHeader
 from Pegasus.DAX3 import *
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, figureOutDelimiter, getColName2IndexFromHeader
 from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 from pymodule import VCFFile
 from GenericVCFWorkflow import GenericVCFWorkflow
+from vervet.src import VervetDB
 
 class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 	__doc__ = __doc__
@@ -105,13 +105,13 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		"""
 		2012.6.27
 		"""
-		extraArgumentList = ['-s', genotypeMethodShortName]
+		extraArgumentList = ['--genotypeMethodShortName', genotypeMethodShortName]
 		if logFile:
-			extraArgumentList.extend(["-l", logFile])
+			extraArgumentList.extend(["--logFilename", logFile])
 		if dataDir:
-			extraArgumentList.extend(['-t', dataDir])
+			extraArgumentList.extend(['--dataDir', dataDir])
 		if commit:
-			extraArgumentList.append('-c')
+			extraArgumentList.append('--commit')
 		if extraArguments:
 			extraArgumentList.append(extraArguments)
 		
@@ -131,15 +131,15 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		"""
 		extraArgumentList = []
 		if logFile:
-			extraArgumentList.extend(["-l", logFile])
+			extraArgumentList.extend(["--logFilename", logFile])
 		if dataDir:
-			extraArgumentList.extend(['-t', dataDir])
+			extraArgumentList.extend(['--dataDir', dataDir])
 		if commit:
-			extraArgumentList.append('-c')
+			extraArgumentList.append('--commit')
 		if genotypeMethodShortName:
-			extraArgumentList.extend(['-s', genotypeMethodShortName, ])
+			extraArgumentList.extend(['--genotypeMethodShortName', genotypeMethodShortName, ])
 		if genotypeMethodID:
-			extraArgumentList.extend(['-i', genotypeMethodID, ])
+			extraArgumentList.extend(['--genotypeMethodID', genotypeMethodID, ])
 		if extraArguments:
 			extraArgumentList.append(extraArguments)
 		

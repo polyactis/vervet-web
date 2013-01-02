@@ -39,12 +39,12 @@ else:   #32bit
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-import VervetDB
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
 from Pegasus.DAX3 import *
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
 from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
-from FilterVCFPipeline import FilterVCFPipeline
 from pymodule.utils import runLocalCommand
+from FilterVCFPipeline import FilterVCFPipeline
+from vervet.src import VervetDB
 
 class OutputVCFSiteStat(FilterVCFPipeline):
 	__doc__ = __doc__
