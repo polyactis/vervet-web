@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+
+<%!
+	import datetime
+%>
+
+<%def name="title()">Web portal for vervet database</%def>
+
+##<link rel="stylesheet" type="text/css" href="http://ajax.googleapis.com/ajax/libs/yui/2.6.0/build/reset/reset-min.css">
+##<link rel="stylesheet" type="text/css" href="http://ajax.googleapis.com/ajax/libs/yui/2.6.0/build/base/base.css">
+##<link rel="stylesheet" type="text/css" href="http://ajax.googleapis.com/ajax/libs/yui/2.6.0/build/reset-fonts-grids/reset-fonts-grids.css">
+
+<%def name="head()">
+<link rel="stylesheet" type="text/css" href="${url('/style/style.css')}" />
+</%def>
+
+
+<%def name="loadScriptLibrary()">
+	<!-- <script src="http://ajax.googleapis.com/ajax/libs/yui/2.6.0/build/yuiloader/yuiloader-min.js"></script>
+	<script src="http://ajax.googleapis.com/ajax/libs/yui/2.6.0/build/yahoo-dom-event/yahoo-dom-event.js" type="text/javascript"></script>
+	 -->
+	<script type="text/javascript" src="http://www.google.com/jsapi?key=${config['app_conf']['google_api_key']}"></script>
+	<script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=${config['app_conf']['google_api_key']}"
+	type="text/javascript"></script>
+<!-- 2012.10.20 added google analytics code here -->
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15266273-3']);
+  _gaq.push(['_setDomainName', 'cmb.usc.edu']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+
+</script>
+
+</%def>
+
+<%def name="footer()">
+	<p><a href="/hello/index">Web Portal</a> of vervet database from <a href=http://sites.google.com/site/polyactis/>Yu Huang</a>. Page generated at ${str(datetime.datetime.now())}. </p>
+</%def>
+
+<html>
+    <head>
+        ${self.loadScriptLibrary()}
+    		${self.head()}
+        <title>${self.title()}</title>
+    </head>
+    <body>
+        ${self.body()}
+			<div class="footer" style = "bottom: 0em; ">
+				${self.footer()}
+			</div>
+    </body>
+</html>

@@ -1,0 +1,1140 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="5009.3604"
+   height="2509.6187"
+   id="svg5491"
+   version="1.1"
+   inkscape:version="0.48.3.1 r9886"
+   sodipodi:docname="flowchart.svg">
+  <defs
+     id="defs5493">
+    <inkscape:perspective
+       sodipodi:type="inkscape:persp3d"
+       inkscape:vp_x="0 : 526.18109 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_z="744.09448 : 526.18109 : 1"
+       inkscape:persp3d-origin="372.04724 : 350.78739 : 1"
+       id="perspective5499" />
+    <inkscape:perspective
+       id="perspective5661"
+       inkscape:persp3d-origin="0.5 : 0.33333333 : 1"
+       inkscape:vp_z="1 : 0.5 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_x="0 : 0.5 : 1"
+       sodipodi:type="inkscape:persp3d" />
+    <inkscape:perspective
+       id="perspective5704"
+       inkscape:persp3d-origin="0.5 : 0.33333333 : 1"
+       inkscape:vp_z="1 : 0.5 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_x="0 : 0.5 : 1"
+       sodipodi:type="inkscape:persp3d" />
+    <inkscape:perspective
+       id="perspective5792"
+       inkscape:persp3d-origin="0.5 : 0.33333333 : 1"
+       inkscape:vp_z="1 : 0.5 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_x="0 : 0.5 : 1"
+       sodipodi:type="inkscape:persp3d" />
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend"
+       style="overflow:visible">
+      <path
+         id="path4459"
+         d="M 0,0 5,-5 -12.5,0 5,5 0,0 z"
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;marker-start:none"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         inkscape:connector-curvature="0" />
+    </marker>
+    <path
+       style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend);font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans"
+       d="m 205.41267,1875.7739 c 0,0 -99.60771,-9.4962 -121.726507,-28.1063 -44.473369,-37.4185 -57.710772,-299.4804 -57.710772,-299.4804"
+       id="path14940"
+       sodipodi:nodetypes="csc"
+       inkscape:connector-curvature="0" />
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-5"
+       style="overflow:visible">
+      <path
+         inkscape:connector-curvature="0"
+         id="path4459-7"
+         d="M 0,0 5,-5 -12.5,0 5,5 0,0 z"
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;marker-start:none"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-6"
+       style="overflow:visible">
+      <path
+         inkscape:connector-curvature="0"
+         id="path4459-5"
+         d="M 0,0 5,-5 -12.5,0 5,5 0,0 z"
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;marker-start:none"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-67"
+       style="overflow:visible">
+      <path
+         id="path4459-2"
+         d="M 0,0 5,-5 -12.5,0 5,5 0,0 z"
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;marker-start:none"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         inkscape:connector-curvature="0" />
+    </marker>
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.35"
+     inkscape:cx="1383.5601"
+     inkscape:cy="920.65353"
+     inkscape:document-units="px"
+     inkscape:current-layer="g3503"
+     showgrid="false"
+     inkscape:window-width="1292"
+     inkscape:window-height="1038"
+     inkscape:window-x="288"
+     inkscape:window-y="108"
+     inkscape:window-maximized="0"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     showguides="true"
+     inkscape:guide-bbox="true" />
+  <metadata
+     id="metadata5496">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(2517.834,58.028446)">
+    <text
+       xml:space="preserve"
+       style="font-size:40px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="473.14285"
+       y="-27.637821"
+       id="text5501"><tspan
+         sodipodi:role="line"
+         id="tspan5503"
+         x="473.14285"
+         y="-27.637821">shell/wgetGivenURL.sh</tspan><tspan
+         sodipodi:role="line"
+         x="473.14285"
+         y="22.362179"
+         id="tspan3075">shell/lftpData.sh</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:40px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="441.71429"
+       y="183.79076"
+       id="text5505"><tspan
+         sodipodi:role="line"
+         id="tspan5507"
+         x="441.71429"
+         y="183.79076">vervet-web/src/MpiBWA.py</tspan></text>
+    <flowRoot
+       xml:space="preserve"
+       style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans"
+       id="flowRoot2796-9"
+       transform="translate(208.98566,2027.7982)"><flowRegion
+         id="flowRegion2798-4"><use
+           x="0"
+           y="0"
+           xlink:href="#rect16486"
+           id="use2800-3"
+           width="744.09448"
+           height="1052.3622"
+           transform="translate(-10,-18)" /></flowRegion><flowPara
+         id="flowPara2802-5">DB</flowPara><flowPara
+         id="flowPara2804-1">Postgres</flowPara><flowPara
+         id="flowPara2806-7">/MySQL</flowPara></flowRoot>    <g
+       id="g5830"
+       transform="matrix(0.78757177,0,0,0.78757177,-45.153136,131.75843)">
+      <g
+         id="g2792"
+         transform="matrix(2.3449749,0,0,2.3449749,-736.67989,152.50203)"
+         style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans">
+        <rect
+           rx="19.290995"
+           ry="19.290995"
+           y="188.18002"
+           x="264.41534"
+           height="55.842354"
+           width="54.827038"
+           id="rect2794"
+           style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:none;stroke:#0a0203;stroke-width:1.51400006;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:0.96097568;stroke-dasharray:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans" />
+        <flowRoot
+           transform="translate(12,22)"
+           id="flowRoot2796"
+           style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans"
+           xml:space="preserve"><flowRegion
+             id="flowRegion2798"><use
+               transform="translate(-10,-18)"
+               height="1052.3622"
+               width="744.09448"
+               id="use2800"
+               xlink:href="#rect16486"
+               y="0"
+               x="0" /></flowRegion><flowPara
+             id="flowPara2802">DB</flowPara><flowPara
+             id="flowPara2804">Postgres</flowPara><flowPara
+             id="flowPara2806">/MySQL</flowPara></flowRoot>      </g>
+      <text
+         transform="translate(-135.95145,-49.457018)"
+         id="text5776"
+         y="690.13953"
+         x="54.285713"
+         style="font-size:32px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="690.13953"
+           x="54.285713"
+           id="tspan5778"
+           sodipodi:role="line">DB</tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-700.52289"
+       y="390.11108"
+       id="text5780"><tspan
+         sodipodi:role="line"
+         id="tspan5782"
+         x="-700.52289"
+         y="390.11108">Individual vervet collection spreadsheets</tspan></text>
+    <g
+       style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans"
+       transform="matrix(1.8857956,-0.29296816,0.29296816,1.8857956,-1039.6994,-3543.4535)"
+       id="g4187">
+      <g
+         id="g4626"
+         transform="matrix(0.99087188,0.13480693,-0.13480693,0.99087188,290.72748,12.747876)">
+        <path
+           sodipodi:nodetypes="cc"
+           id="path4179"
+           d="m -35.238805,2111.8814 170.407845,98.8432"
+           style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend);font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans"
+           inkscape:connector-curvature="0" />
+        <text
+           xml:space="preserve"
+           style="font-size:14.67184639px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+           x="67.245262"
+           y="2133.4712"
+           id="text5842"
+           transform="matrix(0.99982131,0.0189034,-0.0189034,0.99982131,0,0)"><tspan
+             sodipodi:role="line"
+             id="tspan5844"
+             x="67.245262"
+             y="2133.4712">DBVervet.putxxx() of misc.py</tspan></text>
+      </g>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="218.33427"
+       y="377.82535"
+       id="text3256"><tspan
+         sodipodi:role="line"
+         id="tspan3258"
+         x="218.33427"
+         y="377.82535">VariantDiscovery.calculatePairwiseDistanceOutOfSNPXStrainMatrix()</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="481.19138"
+       y="574.96826"
+       id="text3260"><tspan
+         sodipodi:role="line"
+         id="tspan3262"
+         x="481.19138"
+         y="574.96826">VariantDiscovery.discoverHetsFromBAM()</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-677.77484"
+       y="1958.2587"
+       id="text2950"><tspan
+         sodipodi:role="line"
+         id="tspan2952"
+         x="-677.77484"
+         y="1958.2587" /></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-678.95062"
+       y="2007.075"
+       id="text2958"><tspan
+         sodipodi:role="line"
+         id="tspan2960"
+         x="-678.95062"
+         y="2007.075" /></text>
+    <g
+       id="g3511"
+       transform="translate(0,-22)">
+      <text
+         sodipodi:linespacing="125%"
+         id="text2946"
+         y="1613.9321"
+         x="-714.91772"
+         style="font-size:28px;font-style:normal;font-weight:bold;line-height:125%;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Andale Mono Bold"
+         xml:space="preserve"><tspan
+           style="font-size:32px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:FreeSans;-inkscape-font-specification:FreeSans Bold"
+           y="1613.9321"
+           x="-714.91772"
+           id="tspan2948"
+           sodipodi:role="line">Alignment2CallPipeline.py</tspan></text>
+      <text
+         id="text2954"
+         y="1909.4423"
+         x="-677.77484"
+         style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="1909.4423"
+           x="-677.77484"
+           id="tspan2956"
+           sodipodi:role="line">GenotypeCallByCoverage.py</tspan><tspan
+           id="tspan3165"
+           y="1944.4423"
+           x="-677.77484"
+           sodipodi:role="line">CalculatePairwiseDistanceOutOfSNPXStrainMatrix.py</tspan><tspan
+           id="tspan3183"
+           y="1979.4423"
+           x="-677.77484"
+           sodipodi:role="line">MergeGenotypeMatrix.py</tspan></text>
+      <text
+         id="text2962"
+         y="1665.3607"
+         x="-678.04828"
+         style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="1665.3607"
+           x="-678.04828"
+           id="tspan2964"
+           sodipodi:role="line">SelectAndSplitFastaRecords.py</tspan><tspan
+           id="tspan3169"
+           y="1700.3607"
+           x="-678.04828"
+           sodipodi:role="line">picard's CreateSequenceDictionary.jar</tspan><tspan
+           id="tspan3173"
+           y="1735.3607"
+           x="-678.04828"
+           sodipodi:role="line">picard's MergeSamFiles.jar</tspan><tspan
+           id="tspan3167"
+           y="1770.3607"
+           x="-678.04828"
+           sodipodi:role="line">picard's AddOrReplaceReadGroupsAndCleanSQHeader.jar</tspan><tspan
+           id="tspan3181"
+           y="1805.3607"
+           x="-678.04828"
+           sodipodi:role="line">GATK's GenomeAnalysisTK.jar</tspan><tspan
+           id="tspan3185"
+           y="1840.3607"
+           x="-678.04828"
+           sodipodi:role="line">shell/CallVariantBySamtools.sh</tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-678.74554"
+       y="1811.8097"
+       id="text2966"><tspan
+         sodipodi:role="line"
+         id="tspan2968"
+         x="-678.74554"
+         y="1811.8097" /></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-683.48914"
+       y="1762.9933"
+       id="text2970"><tspan
+         sodipodi:role="line"
+         id="tspan2972"
+         x="-683.48914"
+         y="1762.9933" /></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-677.77484"
+       y="1860.626"
+       id="text2974"><tspan
+         sodipodi:role="line"
+         id="tspan2976"
+         x="-677.77484"
+         y="1860.626" /></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-678.74554"
+       y="1714.177"
+       id="text2978"><tspan
+         sodipodi:role="line"
+         id="tspan2980"
+         x="-678.74554"
+         y="1714.177" /></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:bold;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Andale Mono Bold"
+       x="-712.63196"
+       y="861.07501"
+       id="text2982"><tspan
+         sodipodi:role="line"
+         id="tspan2984"
+         x="-712.63196"
+         y="861.07501">UnpackAndAddIndividualSequence2DB.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-674.06055"
+       y="890.78925"
+       id="text2986"><tspan
+         sodipodi:role="line"
+         id="tspan2988"
+         x="-674.06055"
+         y="890.78925">convertBamToFastqAndGzip.sh</tspan><tspan
+         sodipodi:role="line"
+         x="-674.06055"
+         y="925.78925"
+         id="tspan2895">  $picard_tool_path/SamToFastq.jar</tspan><tspan
+         sodipodi:role="line"
+         x="-674.06055"
+         y="960.78925"
+         id="tspan3189">shell/SplitReadFileWrapper.sh</tspan><tspan
+         sodipodi:role="line"
+         x="-674.06055"
+         y="995.78925"
+         id="tspan3187">mapper/RegisterAndMoveSplitSequenceFiles.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="157.08231"
+       y="883.93219"
+       id="text2990"><tspan
+         sodipodi:role="line"
+         id="tspan2992"
+         x="157.08231"
+         y="883.93219">MpiBaseCount.py</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend)"
+       d="m -41.20341,878.21784 185.71428,0"
+       id="path2994"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend)"
+       d="m -431.48913,968.78925 0,194.28575"
+       id="path3958"
+       inkscape:connector-curvature="0" />
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:bold;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Andale Mono Bold"
+       x="745.93945"
+       y="843.93213"
+       id="text3002"><tspan
+         sodipodi:role="line"
+         id="tspan3004"
+         x="745.93945"
+         y="843.93213">InspectBaseQualityPipeline.py</tspan></text>
+    <g
+       id="g3158"
+       transform="translate(-605.71429,-6.285714)">
+      <text
+         id="text2998"
+         y="1042.5034"
+         x="219.08231"
+         style="font-size:28px;font-style:normal;font-weight:bold;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans;-inkscape-font-specification:Andale Mono Bold"
+         xml:space="preserve"><tspan
+           y="1042.5034"
+           x="219.08231"
+           id="tspan3000"
+           sodipodi:role="line">FilterShortReadPipeline.py</tspan></text>
+      <text
+         id="text3006"
+         y="1094.7893"
+         x="264.22516"
+         style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="1094.7893"
+           x="264.22516"
+           id="tspan3008"
+           sodipodi:role="line">$picard_tool_path/FilterShortRead.jar</tspan><tspan
+           id="tspan3010"
+           y="1129.7893"
+           x="264.22516"
+           sodipodi:role="line">AddFilteredSequences2DB.py</tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="814.51093"
+       y="923.93213"
+       id="text3012"><tspan
+         sodipodi:role="line"
+         id="tspan3014"
+         x="814.51093"
+         y="923.93213">InspectBaseQuality.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-700.49524"
+       y="1201.7562"
+       id="text3018"><tspan
+         sodipodi:role="line"
+         id="tspan3020"
+         x="-700.49524"
+         y="1201.7562"
+         style="font-weight:bold;-inkscape-font-specification:Andale Mono Bold">ShortRead2AlignmentPipeline.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="148.57143"
+       y="1306.0706"
+       id="text3022"
+       transform="translate(-714.78101,-58.028446)"><tspan
+         sodipodi:role="line"
+         id="tspan3024"
+         x="148.57143"
+         y="1306.0706">bwa</tspan><tspan
+         sodipodi:role="line"
+         x="148.57143"
+         y="1341.0706"
+         id="tspan3026">LongSEAlignmentByBWA.sh</tspan><tspan
+         sodipodi:role="line"
+         x="148.57143"
+         y="1376.0706"
+         id="tspan3028">ShortSEAlignmentByBWA.sh</tspan><tspan
+         sodipodi:role="line"
+         x="148.57143"
+         y="1411.0706"
+         id="tspan3032">PEAlignmentByBWA.sh</tspan><tspan
+         sodipodi:role="line"
+         x="148.57143"
+         y="1446.0706"
+         id="tspan3036">vcf_convert.sh</tspan><tspan
+         sodipodi:role="line"
+         x="148.57143"
+         y="1481.0706"
+         id="tspan3038">bgzip_tabix.sh</tspan><tspan
+         sodipodi:role="line"
+         x="148.57143"
+         y="1516.0706"
+         id="tspan3040">vcf_isec.sh</tspan><tspan
+         sodipodi:role="line"
+         x="148.57143"
+         y="1551.0706"
+         id="tspan3042">vcf_concat.sh</tspan><tspan
+         sodipodi:role="line"
+         x="148.57143"
+         y="1586.0706"
+         id="tspan3044" /><tspan
+         sodipodi:role="line"
+         x="148.57143"
+         y="1621.0706"
+         id="tspan3046" /></text>
+    <g
+       id="g4200"
+       transform="translate(-182.85714,-160)">
+      <text
+         sodipodi:linespacing="125%"
+         transform="translate(-714.78101,-58.028446)"
+         id="text3044"
+         y="2305.2134"
+         x="165.71429"
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial Bold"
+         xml:space="preserve"><tspan
+           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:FreeSans;-inkscape-font-specification:FreeSans"
+           y="2305.2134"
+           x="165.71429"
+           id="tspan3047"
+           sodipodi:role="line">CalculateTrioInconsistencyPipeline.py</tspan></text>
+      <text
+         sodipodi:linespacing="125%"
+         id="text3049"
+         y="2299.4707"
+         x="-523.35242"
+         style="font-size:40px;font-style:normal;font-weight:normal;line-height:125%;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial"
+           y="2299.4707"
+           x="-523.35242"
+           id="tspan3051"
+           sodipodi:role="line">CalculateTrioInconsistency.py</tspan><tspan
+           style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial"
+           id="tspan3053"
+           y="2334.4707"
+           x="-523.35242"
+           sodipodi:role="line">plot/PlotTrioInconsistencySumaryHist.py</tspan><tspan
+           style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial"
+           id="tspan3055"
+           y="2369.4707"
+           x="-523.35242"
+           sodipodi:role="line">plot/PlotTrioInconsistencyOverPosition.py</tspan><tspan
+           style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial"
+           id="tspan3057"
+           y="2404.4707"
+           x="-523.35242"
+           sodipodi:role="line">plot/PlotTrioInconsistencyOverFrequency.py</tspan></text>
+    </g>
+    <g
+       id="g3503"
+       transform="translate(722.85714,-374.28571)">
+      <text
+         id="text3059"
+         y="1449.7565"
+         x="393.79041"
+         style="font-size:40px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           style="font-weight:bold;-inkscape-font-specification:AR PL KaitiM Big5 Bold"
+           id="tspan3063"
+           y="1449.7565"
+           x="393.79041"
+           sodipodi:role="line">MummerTwoGenomesPipeline.py</tspan></text>
+      <text
+         sodipodi:linespacing="125%"
+         id="text3067"
+         y="1497.7565"
+         x="424.64758"
+         style="font-size:40px;font-style:normal;font-weight:normal;line-height:125%;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial"
+           y="1497.7565"
+           x="424.64758"
+           id="tspan3069"
+           sodipodi:role="line">mapper/SelectAndSplitFastaRecords.py</tspan><tspan
+           style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial"
+           y="1532.7565"
+           x="424.64758"
+           sodipodi:role="line"
+           id="tspan9178">nucmer</tspan><tspan
+           style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial"
+           id="tspan3071"
+           y="1567.7565"
+           x="424.64758"
+           sodipodi:role="line">shell/PostNucmer.sh</tspan><tspan
+           style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial"
+           id="tspan3073"
+           y="1602.7565"
+           x="424.64758"
+           sodipodi:role="line" /></text>
+      <text
+         xml:space="preserve"
+         style="font-size:22px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+         x="-3240.6912"
+         y="2080.1616"
+         id="text9180"
+         sodipodi:linespacing="125%"><tspan
+           sodipodi:role="line"
+           id="tspan9182"
+           x="-3240.6912"
+           y="2080.1616"
+           style="font-size:28px;font-weight:bold;-inkscape-font-specification:Arial Bold">reducer/ComparePedigreeFromMultipleInput.py</tspan></text>
+    </g>
+    <g
+       id="g3447"
+       transform="translate(-24,-16)">
+      <g
+         id="g3457">
+        <text
+           xml:space="preserve"
+           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+           x="-1236.781"
+           y="1608.8993"
+           id="text4155"
+           sodipodi:linespacing="125%"><tspan
+             sodipodi:role="line"
+             id="tspan4157"
+             x="-1236.781"
+             y="1608.8993"
+             style="font-size:36px;font-weight:bold;-inkscape-font-specification:Arial Bold">InspectAlignmentPipeline.py</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+           x="-1221.6382"
+           y="1656.3279"
+           id="text4159"
+           sodipodi:linespacing="125%"><tspan
+             sodipodi:role="line"
+             id="tspan4161"
+             x="-1221.6382"
+             y="1656.3279">gatk DepthOfCoverageWalker.jar</tspan><tspan
+             sodipodi:role="line"
+             x="-1221.6382"
+             y="1691.3279"
+             id="tspan4163">gatk VariousReadCountWalker.jar</tspan><tspan
+             sodipodi:role="line"
+             x="-1221.6382"
+             y="1726.3279"
+             id="tspan3184">samtools depth</tspan><tspan
+             sodipodi:role="line"
+             x="-1221.6382"
+             y="1761.3279"
+             id="tspan3186">mapper/CalculateMediaMode..py</tspan><tspan
+             sodipodi:role="line"
+             x="-1221.6382"
+             y="1796.3279"
+             id="tspan4165">reducer/ReduceDepthOfCoverage.py</tspan><tspan
+             sodipodi:role="line"
+             x="-1221.6382"
+             y="1831.3279"
+             id="tspan4167">reducer/ReduceVariousReadCount.py</tspan><tspan
+             sodipodi:role="line"
+             x="-1221.6382"
+             y="1866.3279"
+             id="tspan4169" /></text>
+      </g>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       x="665.71429"
+       y="1002.3563"
+       id="text4171"
+       sodipodi:linespacing="125%"
+       transform="translate(-714.78101,-58.028446)"><tspan
+         sodipodi:role="line"
+         id="tspan4173"
+         x="665.71429"
+         y="1002.3563">todo: add picard/SplitRead.jar</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial Bold"
+       x="-21.774452"
+       y="2089.3586"
+       id="text3044-9"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3047-9"
+         x="-21.774452"
+         y="2089.3586"
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial Bold">CalculateVCFStatPipeline.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial Bold"
+       x="-1346.7355"
+       y="2083.9299"
+       id="text3044-9-4"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3047-9-6"
+         x="-1346.7355"
+         y="2083.9299"
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial Bold">CheckTwoVCFOverlapPipeline.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       x="16.076103"
+       y="2134.3276"
+       id="text3111"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3113"
+         x="16.076103"
+         y="2134.3276">vcftools</tspan><tspan
+         sodipodi:role="line"
+         x="16.076103"
+         y="2169.3276"
+         id="tspan3115">mapper/CountHomoHetInOneVCF.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       x="-1290.4954"
+       y="2132.8992"
+       id="text3117"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3119"
+         x="-1290.4954"
+         y="2132.8992">mapper/CheckTwoVCFOverlap.py</tspan></text>
+    <g
+       id="g9161"
+       transform="translate(-785.71429,8.5714286)">
+      <text
+         sodipodi:linespacing="125%"
+         id="text3125"
+         y="2066.3276"
+         x="1272.076"
+         style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+         xml:space="preserve"><tspan
+           style="font-size:36px;font-weight:bold;-inkscape-font-specification:Arial Bold"
+           y="2066.3276"
+           x="1272.076"
+           id="tspan3127"
+           sodipodi:role="line">FilterVCFPipeline.py</tspan></text>
+      <text
+         sodipodi:linespacing="125%"
+         id="text3129"
+         y="2110.8992"
+         x="1288.9333"
+         style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+         xml:space="preserve"><tspan
+           id="tspan3133"
+           y="2110.8992"
+           x="1288.9333"
+           sodipodi:role="line">CalculateSNPMismatchRateOfTwoVCF.py</tspan><tspan
+           id="tspan3139"
+           y="2145.8992"
+           x="1288.9333"
+           sodipodi:role="line">gatk/FilterVCFByTDepth</tspan><tspan
+           id="tspan3135"
+           y="2180.8992"
+           x="1288.9333"
+           sodipodi:role="line">vcftools</tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:40px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-31.638123"
+       y="1598.6135"
+       id="text3301"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3303"
+         x="-31.638123"
+         y="1598.6135"
+         style="font-size:32px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:FreeSans;-inkscape-font-specification:FreeSans Bold">Alignment2CallPipelineForLowPass.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:40px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="622.64758"
+       y="1598.6135"
+       id="text3307"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         x="622.64758"
+         y="1598.6135"
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial Bold"
+         id="tspan3128">AlignmentToTrioCallPipeline.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:32px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       x="702.64758"
+       y="1651.1849"
+       id="text3132"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3134"
+         x="702.64758"
+         y="1651.1849">TrioCaller</tspan><tspan
+         sodipodi:role="line"
+         x="702.64758"
+         y="1691.1849"
+         id="tspan3136" /></text>
+    <g
+       id="g3459">
+      <text
+         sodipodi:linespacing="125%"
+         id="text3138"
+         y="2064.3276"
+         x="1878.0762"
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial Bold"
+         xml:space="preserve"><tspan
+           y="2064.3276"
+           x="1878.0762"
+           id="tspan3140"
+           sodipodi:role="line">OutputVCFSiteStat.py</tspan></text>
+      <text
+         sodipodi:linespacing="125%"
+         id="text3142"
+         y="2138.6135"
+         x="1918.6477"
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+         xml:space="preserve"><tspan
+           style="font-size:28px"
+           y="2138.6135"
+           x="1918.6477"
+           id="tspan3144"
+           sodipodi:role="line">mergeSameHeaderTablesIntoOne.py</tspan><tspan
+           style="font-size:28px"
+           id="tspan3146"
+           y="2173.6135"
+           x="1918.6477"
+           sodipodi:role="line">bgzip_tabix</tspan><tspan
+           style="font-size:28px"
+           id="tspan3148"
+           y="2208.6135"
+           x="1918.6477"
+           sodipodi:role="line">tabixRetrieve</tspan><tspan
+           style="font-size:28px"
+           id="tspan3150"
+           y="2243.6135"
+           x="1918.6477"
+           sodipodi:role="line">FilterVCFByDepthJava</tspan><tspan
+           style="font-size:28px"
+           id="tspan3152"
+           y="2278.6135"
+           x="1918.6477"
+           sodipodi:role="line">CalculateSNPMismatchRateOfTwoVCF</tspan><tspan
+           style="font-size:28px"
+           id="tspan3154"
+           y="2313.6135"
+           x="1918.6477"
+           sodipodi:role="line">ReduceMatrixByMergeColumnsWithSameKey</tspan><tspan
+           style="font-size:28px"
+           id="tspan3156"
+           y="2348.6135"
+           x="1918.6477"
+           sodipodi:role="line" /></text>
+    </g>
+    <g
+       id="g3451"
+       transform="translate(-666.85714,-219.71429)">
+      <text
+         sodipodi:linespacing="125%"
+         id="text3044-9-4-2"
+         y="2310.7871"
+         x="-1330.7811"
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial Bold"
+         xml:space="preserve"><tspan
+           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial Bold"
+           y="2310.7871"
+           x="-1330.7811"
+           id="tspan3047-9-6-0"
+           sodipodi:role="line">PCAOnVCFWorkflow.py</tspan></text>
+      <text
+         sodipodi:linespacing="125%"
+         id="text4318"
+         y="2370.042"
+         x="-1274.781"
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+         xml:space="preserve"><tspan
+           y="2370.042"
+           x="-1274.781"
+           id="tspan4320"
+           sodipodi:role="line">mapper/ConvertVCF2EigenStrat.py</tspan><tspan
+           id="tspan4322"
+           y="2415.042"
+           x="-1274.781"
+           sodipodi:role="line">shell/MergeFiles.sh</tspan><tspan
+           id="tspan4324"
+           y="2460.042"
+           x="-1274.781"
+           sodipodi:role="line">polyactis/EIG3.0/bin/smartpca</tspan></text>
+    </g>
+    <g
+       id="g9169"
+       transform="translate(545.71428,-40.000004)">
+      <text
+         sodipodi:linespacing="125%"
+         id="text3044-9-6"
+         y="2093.6443"
+         x="527.26465"
+         style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial Bold"
+         xml:space="preserve"><tspan
+           style="font-size:36px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Arial;-inkscape-font-specification:Arial Bold"
+           y="2093.6443"
+           x="527.26465"
+           id="tspan3047-9-65"
+           sodipodi:role="line">CalculateDistanceMatrixFromVCFPipe.py</tspan></text>
+      <text
+         sodipodi:linespacing="125%"
+         id="text3121"
+         y="2142.3276"
+         x="565.21899"
+         style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+         xml:space="preserve"><tspan
+           y="2142.3276"
+           x="565.21899"
+           id="tspan3123"
+           sodipodi:role="line">CalculatePairwiseDistanceOutOfSNPXStrainMatrix.py</tspan></text>
+      <text
+         sodipodi:linespacing="125%"
+         id="text3383"
+         y="2359.4707"
+         x="542.36194"
+         style="font-size:24px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
+         xml:space="preserve"><tspan
+           style="font-size:36px"
+           y="2359.4707"
+           x="542.36194"
+           id="tspan3385"
+           sodipodi:role="line">AggregateAndHClusterDistanceMatrix.py</tspan></text>
+      <path
+         id="path2994-9"
+         d="m 550.93328,2124.6136 0,185.7142"
+         style="fill:none;stroke:#000000;stroke-width:1.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend)"
+         inkscape:connector-curvature="0" />
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
+       x="265.21899"
+       y="1130.0421"
+       id="text3411"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3413"
+         x="265.21899"
+         y="1130.0421"
+         style="font-weight:bold;-inkscape-font-specification:Sans Bold">ReadFileBaseCountWorkflow.py</tspan></text>
+    <g
+       style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans"
+       transform="matrix(1.8857956,-0.29296816,0.29296816,1.8857956,-650.64148,-3073.8088)"
+       id="g4187-6">
+      <g
+         id="g4626-7"
+         transform="matrix(0.99087188,0.13480693,-0.13480693,0.99087188,290.72748,12.747876)">
+        <path
+           inkscape:connector-curvature="0"
+           sodipodi:nodetypes="cc"
+           id="path4179-1"
+           d="m -26.455753,2122.5292 170.407843,98.8432"
+           style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend);font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans" />
+      </g>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:36px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans"
+       x="3962.8572"
+       y="2502.1304"
+       id="text3471"
+       sodipodi:linespacing="125%"
+       transform="translate(-2071.0191,-58.028446)"><tspan
+         sodipodi:role="line"
+         id="tspan3473"
+         x="3962.8572"
+         y="2502.1304">Draw2DHistogramOfMatrix.py</tspan></text>
+    <path
+       inkscape:connector-curvature="0"
+       style="fill:none;stroke:#000000;stroke-width:1.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow1Lend)"
+       d="m 1886.1238,2133.5306 0,185.7142"
+       id="path2994-9-7" />
+    <text
+       xml:space="preserve"
+       style="font-size:36px;font-style:normal;font-weight:bold;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans Bold"
+       x="1256.6953"
+       y="1603.876"
+       id="text3499"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3501"
+         x="1256.6953"
+         y="1603.876">DownsampleAlignmentToTrioCallWorkflow.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:36px;font-style:normal;font-weight:bold;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans Bold"
+       x="-731.0191"
+       y="2025.3046"
+       id="text3526"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3528"
+         x="-731.0191"
+         y="2025.3046">DeleteEmptyVCF.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:40px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="-676.46283"
+       y="1534.7993"
+       id="text3301-4"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3303-1"
+         x="-676.46283"
+         y="1534.7993"
+         style="font-size:32px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:FreeSans;-inkscape-font-specification:FreeSans Bold">MarkDuplicatesWorkflow.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       x="-437.14285"
+       y="2158.1902"
+       id="text3186"
+       sodipodi:linespacing="125%"
+       transform="translate(-2071.0191,-58.028446)"><tspan
+         sodipodi:role="line"
+         id="tspan3188"
+         x="-437.14285"
+         y="2158.1902"
+         style="font-size:36px;font-weight:bold;-inkscape-font-specification:Arial Bold">GenericVCFWorkflow.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       x="-2454.1619"
+       y="2150.4473"
+       id="text3190"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3192"
+         x="-2454.1619"
+         y="2150.4473">AlignmentReadGroup2UCLAID</tspan><tspan
+         sodipodi:role="line"
+         x="-2454.1619"
+         y="2185.4473"
+         id="tspan3196">SubsetAndVCF2Plink</tspan><tspan
+         sodipodi:role="line"
+         x="-2454.1619"
+         y="2220.4473"
+         id="tspan3200">VCF2Plink</tspan><tspan
+         sodipodi:role="line"
+         x="-2454.1619"
+         y="2255.4473"
+         id="tspan3202">VCFSubset</tspan><tspan
+         sodipodi:role="line"
+         x="-2454.1619"
+         y="2290.4473"
+         id="tspan4018">addMergeVCFReplicateHaplotypesJobs</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       x="-2517.834"
+       y="2378.0496"
+       id="text3186-2"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3188-3"
+         x="-2517.834"
+         y="2378.0496"
+         style="font-size:36px;font-weight:bold;-inkscape-font-specification:Arial Bold">AddVCFFolder2DBWorkflow.py</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:28px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Arial;-inkscape-font-specification:Arial"
+       x="-135.9998"
+       y="2249.478"
+       id="text3186-2-1"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3188-3-5"
+         x="-135.9998"
+         y="2249.478"
+         style="font-size:36px;font-weight:bold;-inkscape-font-specification:Arial Bold">BootstrapFilterCalculateVCFWorkflow.py</tspan></text>
+  </g>
+</svg>
