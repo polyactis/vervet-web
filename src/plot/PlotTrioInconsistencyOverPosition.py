@@ -37,7 +37,7 @@ class PlotTrioInconsistencyOverPosition(PlotTrioInconsistencyOverFrequency):
 		2011-7-11
 		"""
 		PlotTrioInconsistencyOverFrequency.__init__(self, inputFnameLs, **keywords)
-		#Super(PlotTrioInconsistencyOverPosition, self).__init__(inputFnameLs, **keywords)
+		#super(PlotTrioInconsistencyOverPosition, self).__init__(inputFnameLs, **keywords)
 		"""
 		from pymodule import ProcessOptions
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
