@@ -60,7 +60,7 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 		"""
 		"""
 		PlotTrioInconsistencyOverFrequency.__init__(self, inputFnameLs, **keywords)
-		#Super(PlotVCFtoolsStat, self).__init__(inputFnameLs, **keywords)
+		#super(PlotVCFtoolsStat, self).__init__(inputFnameLs, **keywords)
 		self.chr2xy_ls = {}
 	
 	def vcftoolsOutputStatFileWalker(self, inputFname, processFunc=None, run_type=1, \

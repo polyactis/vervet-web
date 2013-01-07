@@ -38,7 +38,7 @@ class PlotTrioInconsistencyVsDepth(PlotTrioInconsistencyOverFrequency):
 		"""
 		"""
 		PlotTrioInconsistencyOverFrequency.__init__(self, inputFnameLs, **keywords)
-		#Super(PlotTrioInconsistencyVsDepth, self).__init__(inputFnameLs, **keywords)
+		#super(PlotTrioInconsistencyVsDepth, self).__init__(inputFnameLs, **keywords)
 		self.fa_depth_ls = []
 		self.mo_depth_ls = []
 		self.child_depth_ls = []

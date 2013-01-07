@@ -39,7 +39,7 @@ class PlotVCFDepthVsPosition(PlotVCFAAF_vs_Position):
 		"""
 		"""
 		PlotVCFAAF_vs_Position.__init__(self, inputFnameLs, **keywords)
-		#Super(PlotVCFDepthVsPosition, self).__init__(inputFnameLs, **keywords)
+		#super(PlotVCFDepthVsPosition, self).__init__(inputFnameLs, **keywords)
 		"""
 		from pymodule import ProcessOptions
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
