@@ -3,42 +3,42 @@
 Examples:
 	#2012.5.11 convert alignment read group (sample id) into UCLAID
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/ 
-		-o workflow/SampleIDInUCLAID_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
+		-o dags/SampleIDInUCLAID_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
 		-u yh -y4 -l hcondor -j hcondor  -z localhost
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
-	# 2012.8.10 IBD check, locusSamplingRate=0.01 (-c 0.01)
+	# 2012.8.10 IBD check, locusSamplingRate=0.01 (--locusSamplingRate 0.01)
 	# add -s kinshipFile if you want comparison (table&figures) between IBD pi-hat and kinship 
-	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o workflow/PlinkIBDCheck_Method14.xml -C 1 
-		-H -l hcondor -j hcondor  -u yh -z localhost
+	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkIBDCheck/PlinkIBDCheck_Method14.xml -C 1 
+		--needSSHDBTunnel -l hcondor -j hcondor  -u yh -z localhost
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		 -z localhost  -y3 -c 0.01 -g ./aux/Method14_LDPrune_merge_list.2012.8.10T0441.txt
+		 -z localhost  -y3 --locusSamplingRate 0.01 -g ./aux/Method14_LDPrune_merge_list.2012.8.10T0441.txt
 		 #-s ~/NetworkData/vervet/Kinx2Apr2012.txt
 	
-	# 2012.8.9 LD-prune a folder of VCF files into plink, need the db tunnel (-H) for output pedigree in tfam
+	# 2012.8.9 LD-prune a folder of VCF files into plink, need the db tunnel (--needSSHDBTunnel) for output pedigree in tfam
 	# "-V 90 -x 100" are used to restrict contig IDs between 90 and 100.
-	# -c 1 is to sample all locus data (samplingRate). LDPruneMinR2=0.3 (-R), LDPruneWindowSize=500 (-W), 
+	# --locusSamplingRate 1 is to sample all locus data (samplingRate). LDPruneMinR2=0.3 (-R), LDPruneWindowSize=500 (-W), 
 	# LDPruneWindowShiftSize=100 (--LDPruneWindowShiftSize)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719/trioCaller_vcftoolsFilter/ 
-		-o workflow/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
+		-o dags/ToPlinkFilterVCF/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
 		-y 2  -E
 		-l condorpool -j condorpool
-		-u yh -z uclaOffice  -C 4 -H -R 0.3 -W 500 --LDPruneWindowShiftSize 100
-		#-V 90 -x 100 -c 1
+		-u yh -z uclaOffice  -C 4 --needSSHDBTunnel -R 0.3 -W 500 --LDPruneWindowShiftSize 100
+		#-V 90 -x 100 --locusSamplingRate 1
 	
 	# 2012.8.10 LD pruning
-	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o workflow/PlinkMendelError_Method14.xml
-		-E -C 4  -H -l hcondor -j hcondor  -u yh -z localhost
+	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkMendelError/PlinkMendelError_Method14.xml
+		-E -C 4  --needSSHDBTunnel -l hcondor -j hcondor  -u yh -z localhost
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
-		-z localhost  -y1  -c 0.01 -g ./aux/Method14_LDPrune_merge_list.txt
+		-z localhost  -y1  --locusSamplingRate 0.01 -g ./aux/Method14_LDPrune_merge_list.txt
 	
 	# 2012.8.13 sex check using the top 195 contigs (-x 195) (Contig 83, 149,193 are sex chromosomes)
 	# no clustering (-C 1)
 	%s -I ~/NetworkData/vervet/db/genotype_file/method_14/
-		-o workflow/PlinkSexCheck_Method14_W100Z10R0.4_maxContigID195.xml
-		-W 100 --LDPruneWindowShiftSize 10 -R 0.4 -C 1  -H -l hcondor -j hcondor  -u yh -z localhost
+		-o dags/PlinkSexCheck/PlinkSexCheck_Method14_W100Z10R0.4_maxContigID195.xml
+		-W 100 --LDPruneWindowShiftSize 10 -R 0.4 -C 1  --needSSHDBTunnel -l hcondor -j hcondor  -u yh -z localhost
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-z localhost  -y4 -c 0.01 -g ./aux/Method14_LDPrune_merge_list.2012.8.13T1702.txt -x 195
+		-z localhost  -y4 --locusSamplingRate 0.01 -g ./aux/Method14_LDPrune_merge_list.2012.8.13T1702.txt -x 195
 		
 Description:
 	2012.8.14 a plink workflow on folder of VCF files.
@@ -58,8 +58,8 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, N
 	figureOutDelimiter, getColName2IndexFromHeader, utils
 from pymodule import GenomeDB
 from Pegasus.DAX3 import *
-from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
-from pymodule.VCFFile import VCFFile
+from pymodule import AbstractVCFWorkflow
+from pymodule import VCFFile
 from GenericVCFWorkflow import GenericVCFWorkflow
 from vervet.src import VervetDB
 
@@ -130,7 +130,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		self.addDrawHistogramJob(executable=workflow.DrawHistogram, inputFileList=[imendelMergeFile], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="N", whichColumnPlotLabel="log_NoOfMendelErrors", \
-					logY=True, logCount=True, valueForNonPositiveYValue=50,\
+					logY=1, logCount=True, valueForNonPositiveYValue=50,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, imendelMergeJob], \
@@ -153,7 +153,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		self.addDrawHistogramJob(executable=workflow.DrawHistogram, inputFileList=[lmendelMergeFile], \
 							outputFile=outputFile, \
 					whichColumn=2, whichColumnHeader=None, whichColumnPlotLabel="NoOfMendelErrors", \
-					logY=False, logCount=True, valueForNonPositiveYValue=50,\
+					logY=0, logCount=True, valueForNonPositiveYValue=50,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, lmendelMergeJob], \
@@ -520,7 +520,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			toTsvMatrixJob = self.addAbstractMatrixFileWalkerJob(executable=self.AbstractMatrixFileWalker, \
 					inputFile=plinkIBDCheckJob.genomeFile, outputFile=outputFile, \
 					outputFnamePrefix=None, whichColumn=None, whichColumnHeader=None, \
-					logY=False, valueForNonPositiveYValue=-1, \
+					logY=None, valueForNonPositiveYValue=-1, \
 					minNoOfTotal=10,\
 					samplingRate=1, \
 					parentJobLs=[topOutputDirJob, plinkIBDCheckJob], \
@@ -568,7 +568,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[detectWrongLabelJob, plotOutputDirJob], extraDependentInputLs=[fontFile], \
 							extraOutputLs=None,\
 							transferOutput=transferOutput, \
-							extraArgumentList=['-s 10', '-e', fontFile, '-n -c %s -x %s'%(maxBlockSize, maxBlockSize)], job_max_memory=4000)
+							extraArgumentList=['--font_size 10', '--font_path', fontFile, '--no_grid --blockColUnit %s --blockRowUnit %s'%(maxBlockSize, maxBlockSize)], job_max_memory=4000)
 					no_of_jobs += 1
 				
 				outputFile = File(os.path.join(plotOutputDir, '%s_chiSqPvalue_hist.png'%(wrongLabelOutputFnamePrefix)))
@@ -577,7 +577,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFile=detectWrongLabelJob.output, \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="chiSqPvalue", whichColumnPlotLabel="log10chiSqPvalue", \
-							logY=True, logCount=True, valueForNonPositiveYValue=-1,\
+							logY=1, logCount=True, valueForNonPositiveYValue=-1,\
 							minNoOfTotal=10,\
 							figureDPI=150, samplingRate=1, \
 							parentJobLs=[plotOutputDirJob, detectWrongLabelJob], \
@@ -603,7 +603,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							inputFile=plotPedigreeKinshipVsIBDJob.sumAbsDeltaFile, \
 							outputFile=outputFile, \
 							whichColumn=None, whichColumnHeader="sumAbsDelta", whichColumnPlotLabel="sumAbsDelta", \
-							logY=False, logCount=True, valueForNonPositiveYValue=-1,\
+							logY=None, logCount=True, valueForNonPositiveYValue=-1,\
 							minNoOfTotal=10,\
 							figureDPI=150, samplingRate=1, \
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
@@ -830,7 +830,9 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		"""
 		2011-11-28
 		"""
-		GenericVCFWorkflow.registerCustomExecutables(self, workflow=workflow)
+		#GenericVCFWorkflow.registerCustomExecutables(self, workflow=workflow)
+		#2013.1.6 equivalent to above
+		super(PlinkOnVCFWorkflow ,self).registerCustomExecutables(workflow=workflow)
 		
 		if workflow is None:
 			workflow = self
