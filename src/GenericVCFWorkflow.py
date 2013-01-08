@@ -3,45 +3,45 @@
 Examples:
 	#2012.5.11 convert alignment read group (sample id) into UCLAID
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/ 
-		-o workflow/SampleIDInUCLAID_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
+		-o dags/SampleIDInUCLAID_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
 		-u yh -y4 -l hcondor -j hcondor  -z localhost
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
 	# 2012.5.10 subset + convert-2-plink.
 	# run on hoffman2 condor, minMAC=1 (-n 1), minMAF=0.1 (-f 0.1), maxSNPMissingRate=0 (-L 0)   (turn on checkEmptyVCFByReading, -E)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/
-		-o workflow/SubsetTo36RNASamplesAndPlink_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
+		-o dags/SubsetTo36RNASamplesAndPlink_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
 		-i ~/script/vervet/data/RNADevelopment_eQTL/36monkeys.phenotypes.txt
 		-w ~/script/vervet/data/RNADevelopment_eQTL/36monkeys.inAlignmentReadGroup.tsv
 		-n1 -f 0.1 -L 0 -y3 -E
-		-l hcondor -j hcondor  -u yh -z localhost -H
+		-l hcondor -j hcondor  -u yh -z localhost --needSSHDBTunnel
 		-e /u/home/eeskin/polyacti/
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 	
-	# 2012.7.16 convert a folder of VCF files into plink, need the db tunnel (-H) for output pedigree in tfam
+	# 2012.7.16 convert a folder of VCF files into plink, need the db tunnel (--needSSHDBTunnel) for output pedigree in tfam
 	# "-V 90 -x 100" are used to restrict contig IDs between 90 and 100.
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719/trioCaller_vcftoolsFilter/ 
-		-o workflow/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
+		-o dags/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
 		-y 2  -E
 		-l condorpool -j condorpool
-		-u yh -z uclaOffice  -C 4 -H
+		-u yh -z uclaOffice  -C 4 --needSSHDBTunnel
 		#-V 90 -x 100 
 	
 	# 2012.7.25 calculate haplotype distance & majority call support stats
 	%s -I AlignmentToTrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicates/
-		-o workflow/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.xml
+		-o dags/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.xml
 		-y 5 -E -l condorpool -j condorpool -u yh -z uclaOffice  -C 1 -a 524
 	
 	# 2012.8.20 convert method 16 to yu format (-y 6 works for generic VCF, -y 7 adds sample ID conversion first)
 	%s -I ~/NetworkData/vervet/db/genotype_file/method_16/
-		-o workflow/VCF2YuFormat/VCF2YuFormat_Method16.xml
-		-y 7 -E  -l hcondor -j hcondor  -u yh -z localhost -H -C 2
+		-o dags/VCF2YuFormat/VCF2YuFormat_Method16.xml
+		-y 7 -E  -l hcondor -j hcondor  -u yh -z localhost --needSSHDBTunnel -C 2
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 
 	# 2012.8.30 combine multiple VCF into one
 	# -s .. is optional. if given, the combined VCF will be added into db.
-	%s -I ~/NetworkData/vervet/db/genotype_file/method_10/ -o workflow/GenericVCFWorkflow/MultiVCF2OneFile_Method10.xml
-		-y 9  -l hcondor -j hcondor -u yh -z localhost -H -C 1
+	%s -I ~/NetworkData/vervet/db/genotype_file/method_10/ -o dags/GenericVCFWorkflow/MultiVCF2OneFile_Method10.xml
+		-y 9  -l hcondor -j hcondor -u yh -z localhost --needSSHDBTunnel -C 1
 		-s 16HCSAMtoolsMinDP1_2FoldDepth_minMAC8_maxSNPMissing0
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 	
@@ -60,8 +60,7 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, N
 from Pegasus.DAX3 import *
 #from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 from pymodule import VCFFile
-from AbstractVervetWorkflow import AbstractVervetWorkflow
-from vervet.src import VervetDB
+from vervet.src import VervetDB, AbstractVervetWorkflow
 
 class GenericVCFWorkflow(AbstractVervetWorkflow):
 	__doc__ = __doc__
@@ -131,16 +130,12 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		2012.5.9
 		"""
 		sys.stderr.write("Adding VCF2plink jobs for %s vcf files ... "%(len(inputData.jobDataLs)))
-		no_of_jobs= 0
-		
 		
 		topOutputDir = "%sVCF2Plink"%(outputDirPrefix)
 		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
-		no_of_jobs += 1
 		
 		mergedOutputDir = "%sVCF2PlinkMerged"%(outputDirPrefix)
 		mergedOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergedOutputDir)
-		no_of_jobs += 1
 		
 		mergedPlinkFnamePrefix = os.path.join(mergedOutputDir, 'merged')
 		mergedTPEDFile = File('%s.tped'%(mergedPlinkFnamePrefix))
@@ -148,7 +143,6 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		tpedFileMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=mergedTPEDFile, transferOutput=False, parentJobLs=[mergedOutputDirJob], \
 							extraArguments='-n')
-		no_of_jobs += 1
 		
 		#2012.8.20
 		if outputPedigreeAsTFAMInputJobData is None:
@@ -161,7 +155,6 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 								inputFile=inputF, outputFile=outputFile, treatEveryOneIndependent=treatEveryOneIndependent,\
 								parentJobLs=[mergedOutputDirJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=True, \
 								extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
-			no_of_jobs += 1
 			outputPedigreeInTFAMJob.tfamFile = outputPedigreeInTFAMJob.output	#so that it looks like a vcf2plinkJob (vcftools job)
 		else:
 			outputPedigreeInTFAMJob = None
@@ -198,7 +191,6 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 						minMAC=minMAC, minMAF=minMAF, \
 						maxSNPMissingRate=maxSNPMissingRate,\
 						extraDependentInputLs=[jobData.tbi_F], outputFormat='--plink-tped', transferOutput=transferOneContigPlinkOutput)
-			no_of_jobs += 1
 			#2012.7.20 modify the TPED 2nd column, to become chr_pos (rather than 0)
 			modifyTPEDFnamePrefix = os.path.join(topOutputDir, '%s_snpID'%(commonPrefix))
 			outputF = File('%s.tped'%(modifyTPEDFnamePrefix))
@@ -210,7 +202,6 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 						inputF=vcf2plinkJob.tpedFile, outputF=outputF, \
 						parentJobLs=[vcf2plinkJob], transferOutput=False, job_max_memory=200,\
 						extraArguments=modifyTPEDJobExtraArguments, extraDependentInputLs=[])
-			no_of_jobs += 1
 			
 			#add output to some reduce job
 			self.addInputToStatMergeJob(workflow, statMergeJob=tpedFileMergeJob, \
@@ -246,10 +237,9 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 					makeBED=True, \
 					extraDependentInputLs=None, transferOutput=transferOutput, \
 					extraArguments=None, job_max_memory=2000, parentJobLs=[mergedOutputDirJob, tpedFileMergeJob, tfamJob])
-			no_of_jobs += 1
 			returnData.jobDataLs.append(PassingData(jobLs=[convertMergedTPED2BEDJob], file=convertMergedTPED2BEDJob.bedFile, \
 											fileList=convertMergedTPED2BEDJob.outputLs))
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs. Done.\n"%(self.no_of_jobs))
 		##2012.8.9 gzip workflow is not needed anymore as binary bed is used instead.
 		##2012.7.21 gzip the final output
 		gzipInputData = PassingData()
@@ -272,24 +262,18 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 					3= 1 & 2 (all individual input binary .bed job&file + the last merging job/file)
 		"""
 		sys.stderr.write("Adding VCF2YuFormat jobs for %s vcf files ... "%(len(inputData.jobDataLs)))
-		no_of_jobs= 0
-		
 		
 		topOutputDir = "%sVCF2BjarniFormat"%(outputDirPrefix)
 		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
-		no_of_jobs += 1
 		
 		mergeOutputDir = "%sVCF2YuFormat"%(outputDirPrefix)
 		mergeOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergeOutputDir)
-		no_of_jobs += 1
 		
 		mergeFnamePrefix = os.path.join(mergeOutputDir, 'merged')
 		mergeFile = File('%s.csv'%(mergeFnamePrefix))
 		#each input has no header
 		mergeFileJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=mergeFile, transferOutput=False, parentJobLs=[mergeOutputDirJob])
-		no_of_jobs += 1
-
 		
 		returnData = PassingData()
 		returnData.jobDataLs = []
@@ -323,8 +307,6 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 					extraArguments="--outputDelimiter ,", extraArgumentList=None, job_max_memory=2000, sshDBTunnel=None, \
 					key2ObjectForJob=None)
 			
-			no_of_jobs += 1
-			
 			#add output to some reduce job
 			self.addInputToStatMergeJob(workflow, statMergeJob=mergeFileJob, \
 								inputF=vcf2BjarniFormatJob.output, \
@@ -349,7 +331,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 #			returnData.jobDataLs.append(PassingData(jobLs=[bjar2YuFormatJob], file=bjar2YuFormatJob.output, \
 #											fileList=bjar2YuFormatJob.outputLs))
 			pass	#too much memory
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs. Done.\n"%(self.no_of_jobs))
 		##2012.8.9 gzip workflow is not needed anymore as binary bed is used instead.
 		##2012.7.21 gzip the final output
 		#newReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
@@ -740,6 +722,8 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		"""
 		2011-11-28
 		"""
+		super(GenericVCFWorkflow, self).registerCustomExecutables(workflow=workflow)
+		#AbstractVervetWorkflow.registerCustomExecutables(self, workflow=workflow)
 		if workflow is None:
 			workflow = self
 		namespace = workflow.namespace
@@ -770,38 +754,9 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 							site_handler))
 		executableClusterSizeMultiplierList.append((ModifyTPED, 1))
 		
-		OutputVRCPedigreeInTFAMGivenOrderFromFile = Executable(namespace=namespace, name="OutputVRCPedigreeInTFAMGivenOrderFromFile", \
-								version=version, os=operatingSystem, arch=architecture, installed=True)
-		OutputVRCPedigreeInTFAMGivenOrderFromFile.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/OutputVRCPedigreeInTFAMGivenOrderFromFile.py"), \
-							site_handler))
-		executableClusterSizeMultiplierList.append((OutputVRCPedigreeInTFAMGivenOrderFromFile, 1))
 		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 		
-	
-	def addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(self, executable=None, inputFile=None, outputFile=None,\
-													treatEveryOneIndependent=False,\
-						parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
-						extraArguments=None, job_max_memory=2000, sshDBTunnel=False, **keywords):
-		"""
-		2012.9.13
-			add argument treatEveryOneIndependent for OutputVRCPedigreeInTFAMGivenOrderFromFile.
-		2012.8.9
-		"""
-		extraArgumentList = []
-		if extraArguments:
-			extraArgumentList.append(extraArguments)
-		if treatEveryOneIndependent:
-			extraArgumentList.append("--treatEveryOneIndependent")
-		
-		job= self.addGenericJob(executable=executable, inputFile=inputFile, outputFile=outputFile, \
-						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
-						extraOutputLs=None,\
-						transferOutput=transferOutput, \
-						extraArgumentList=extraArgumentList, \
-						job_max_memory=job_max_memory, sshDBTunnel=sshDBTunnel, **keywords)
-		self.addDBArgumentsToOneJob(job=job, objectWithDBArguments=self)
-		return job
 	
 	
 	def run(self):
