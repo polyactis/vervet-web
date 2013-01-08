@@ -6,7 +6,7 @@ Examples:
 	# 2011-9-29 (including depth=0 sites, -m 0), all files should stay in "pca" folder (-F pca)
 	# clustering jobs in unit of 5
 	%s -I ./AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/call/ 
-		-o workflow/PCAOnVCF/PCAOnVCFWorkflow_VRC105_Top1000Contigs.xml  -P ./PCAOnVCFWorkflow_VRC105_Top1000Contigs.par
+		-o dags/PCAOnVCF/PCAOnVCFWorkflow_VRC105_Top1000Contigs.xml  -P ./PCAOnVCFWorkflow_VRC105_Top1000Contigs.par
 		-l condorpool -j condorpool  -u yh -z uclaOffice -C 10 -m 0 -F pca
 	
 	# 2011.12.16 run on hoffman2 condor  (site depth >=1, -m 1) (turn on checkEmptyVCFByReading, -E)
