@@ -52,12 +52,12 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-import VervetDB
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
-from AlignmentToCallPipeline import AlignmentToCallPipeline
-from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
-from AbstractVervetWorkflow import AbstractVervetWorkflow
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
+from pymodule import AbstractNGSWorkflow
+from vervet.src import VervetDB
+from vervet.src.genotyping.AlignmentToCallPipeline import AlignmentToCallPipeline
+from vervet.src.pegasus.AbstractVervetWorkflow import AbstractVervetWorkflow
 
 class InspectAlignmentPipeline(AlignmentToCallPipeline):
 	__doc__ = __doc__
@@ -140,30 +140,6 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		#it's either symlink or stage-in
 		job.uses(bamF, transfer=True, register=True, link=Link.INPUT)
 		job.uses(baiF, transfer=True, register=True, link=Link.INPUT)
-		job.uses(outputFile, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		workflow.addJob(job)
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=job)
-		return job
-	
-	def addCalculateDepthMeanMedianModeJob(self, workflow, executable=None, \
-							inputFile=None, outputFile=None, alignmentID=None, fractionToSample=0.001, \
-							noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E7,\
-							parentJobLs=[], job_max_memory = 500, additionalArguments=None, \
-							transferOutput=False,):
-		"""
-		2012.6.15 turn maxNumberOfSamplings into integer when passing it to the job
-		2012.5.7
-			a job to take input of samtoolsDepth
-		"""
-		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
-		job.addArguments("-i", inputFile, "-o", outputFile, "-a %s"%(alignmentID), "-n %s"%(noOfLinesInHeader), "-f %s"%(fractionToSample),\
-						"-w %s"%(whichColumn), '-m %d'%(maxNumberOfSamplings))
-		if additionalArguments:
-			job.addArguments(additionalArguments)
-		#it's either symlink or stage-in
-		job.uses(inputFile, transfer=True, register=True, link=Link.INPUT)
 		job.uses(outputFile, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		workflow.addJob(job)
 		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
@@ -451,6 +427,8 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		2011-11-25
 			split out of run()
 		"""
+		AlignmentToCallPipeline.registerCustomExecutables(self, workflow=workflow)
+		
 		namespace = self.namespace
 		version = self.version
 		operatingSystem = self.operatingSystem
@@ -496,11 +474,6 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		CalculateMedianModeFromSAMtoolsDepthOutput.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mapper/CalculateMedianModeFromSAMtoolsDepthOutput.py"), site_handler))
 		executableClusterSizeMultiplierList.append((CalculateMedianModeFromSAMtoolsDepthOutput, 1))
 		
-		CalculateMedianMeanOfInputColumn = Executable(namespace=namespace, name="CalculateMedianMeanOfInputColumn", version=version, os=operatingSystem,\
-								arch=architecture, installed=True)
-		CalculateMedianMeanOfInputColumn.addPFN(PFN("file://" + os.path.join(self.pymodulePath, "pegasus/mapper/CalculateMedianMeanOfInputColumn"), site_handler))
-		executableClusterSizeMultiplierList.append((CalculateMedianMeanOfInputColumn, 1))
-				
 		
 		PutFlagstatOutput2DB = Executable(namespace=namespace, name="PutFlagstatOutput2DB", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
