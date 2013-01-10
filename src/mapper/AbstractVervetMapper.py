@@ -46,8 +46,8 @@ class AbstractVervetMapper(AbstractDBInteractingClass):
 		2012.4.29
 			split out of __init__() so that derived classes could overwrite this function
 		"""
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user, password=self.db_passwd, \
-									hostname=self.hostname, database=self.dbname, schema=self.schema, port=self.port)
+		db_vervet = VervetDB.VervetDB(drivername=self.drivername, db_user=self.db_user, db_passwd=self.db_passwd, \
+									hostname=self.hostname, dbname=self.dbname, schema=self.schema, port=self.port)
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
 	
