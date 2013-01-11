@@ -174,13 +174,51 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 			extractPopSampleIDJob = sampleRowsJob
 		return extractPopSampleIDJob
 	
+	def addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(self, executable=None, inputFile=None, outputFile=None,\
+						sampleID2FamilyCountF=None, polymuttDatFile=None, treatEveryOneIndependent=False, outputFileFormat=None,\
+						replicateIndividualTag=None,\
+						parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
+						extraArguments=None, job_max_memory=2000, sshDBTunnel=False, **keywords):
+		"""
+		2012.9.13
+			add argument treatEveryOneIndependent for OutputVRCPedigreeInTFAMGivenOrderFromFile.
+		2012.8.9
+		"""
+		extraArgumentList = []
+		extraOutputLs = []
+		if extraArguments:
+			extraArgumentList.append(extraArguments)
+		if outputFileFormat is not None:
+			extraArgumentList.append("--outputFileFormat %s"%(outputFileFormat))
+		if treatEveryOneIndependent:
+			extraArgumentList.append("--treatEveryOneIndependent")
+		if replicateIndividualTag is not None:
+			extraArgumentList.append("--replicateIndividualTag %s"%(replicateIndividualTag))
+		
+		if sampleID2FamilyCountF:
+			extraArgumentList.extend(["--sampleID2FamilyCountFname", sampleID2FamilyCountF])
+			extraOutputLs.append(sampleID2FamilyCountF)
+		if polymuttDatFile:
+			extraArgumentList.extend(["--polymuttDatFname", polymuttDatFile])
+			extraOutputLs.append(polymuttDatFile)
+		
+		job= self.addGenericDBJob(executable=executable, inputFile=inputFile, outputFile=outputFile, \
+						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+						extraOutputLs=extraOutputLs,\
+						transferOutput=transferOutput, \
+						extraArgumentList=extraArgumentList, \
+						job_max_memory=job_max_memory, sshDBTunnel=sshDBTunnel, objectWithDBArguments=self, **keywords)
+		job.sampleID2FamilyCountF = sampleID2FamilyCountF
+		job.polymuttDatFile = polymuttDatFile
+		return job
+	
 	def connectDB(self):
 		"""
 		2012.9.24
 			establish db connection for all derivative classes
 		"""
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
+		db_vervet = VervetDB.VervetDB(drivername=self.drivername, db_user=self.db_user,
+					db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema=self.schema)
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
 		
@@ -205,7 +243,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		if workflow==None:
 			workflow=self
 		
-		AbstractVCFWorkflow.registerCustomExecutables(self, workflow)
+		AbstractVCFWorkflow.registerCustomExecutables(self, workflow=workflow)
 		
 		namespace = workflow.namespace
 		version = workflow.version
@@ -230,6 +268,11 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		SelectRowsWithinCoverageRange.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/SelectRowsWithinCoverageRange.py"), site_handler))
 		executableClusterSizeMultiplierList.append((SelectRowsWithinCoverageRange, 0.5))
 		
+		OutputVRCPedigreeInTFAMGivenOrderFromFile = Executable(namespace=namespace, name="OutputVRCPedigreeInTFAMGivenOrderFromFile", \
+								version=version, os=operatingSystem, arch=architecture, installed=True)
+		OutputVRCPedigreeInTFAMGivenOrderFromFile.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/OutputVRCPedigreeInTFAMGivenOrderFromFile.py"), \
+							site_handler))
+		executableClusterSizeMultiplierList.append((OutputVRCPedigreeInTFAMGivenOrderFromFile, 1))
 		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 		
