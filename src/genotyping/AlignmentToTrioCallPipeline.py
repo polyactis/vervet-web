@@ -3,31 +3,31 @@
 Examples:
 	#2012.04.02 test-run on 40 VRC sequences (at least >1 trios)
 	%s  -i 15-50 -u yh -a 524 -s 2 -z 10.8.0.10 -o AlignmentToTrioCallPipeline_VRC_ISQ_15_50_ReplicateParentsTop2Contigs.xml
-		-j condorpool -l condorpool -N2  -w pedigreeVRC_ISQ_15_50_Merlin.txt -C 1 -O1
-		-n pedigreeVRC_VRC_ISQ_15_50_sampleID2FamilyCount.tsv   -S 447
+		-j condorpool -l condorpool -N2 -C 1 -O1
+		-S 447
 	
 	# 2011.12.14 on all VRC (-S 447) monkeys), top 25 contigs
 	%s -u yh -a 524 -s 2 -z 10.8.0.10 -o AlignmentToTrioCallPipeline_VRC_top25Contigs.xml 
-		-j condorpool -l condorpool -N25 -w pedigreeVRCMerlin.txt -O 5 -S 447
+		-j condorpool -l condorpool -N25 -O 5 -S 447
 	
 	# 2011.12.14 run all VRC on hoffman2, top 7559 contigs. "-O 3" controls clustering of calling programs.
 	# "-C 30" controls clustering for other programs., "-S 447" dictates monkeys from VRC
-	%s -u yh -a 524 -s 2 -z localhost -o workflow/AlignmentToCall/AlignmentToTrioCallPipeline_VRC_top7559Contigs.xml -j hcondor -l hcondor 
-		-N7559 -w pedigreeVRCMerlin.txt -O 3 -C 30 -S 447 -e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/
+	%s -u yh -a 524 -s 2 -z localhost -o dags/AlignmentToCall/AlignmentToTrioCallPipeline_VRC_top7559Contigs.xml -j hcondor -l hcondor 
+		-N7559 -O 3 -C 30 -S 447 -e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ --needSSHDBTunnel
 		
 	# 2012.4.13 run VRC with 5 SK + 5 Nevis, sequenced filtered (-Q1), alignment by method 2 (-G2)
-	%s -u yh -a 524 -s 2  -z localhost -o workflow/AlignmentToCall/AlignmentToTrioCall_ReplicateIndividual_VRC_SK_Nevis_FilteredSeq_top1000Contigs.xml 
-		-j hcondor -l hcondor -N1000 -w aux/pedigreeVRC_SK_Nevis_Merlin.2012.4.13.txt -O 3 -C 30 -S 447,417,420,427,431,432,435,437,439,440,442 
+	%s -u yh -a 524 -s 2  -z localhost -o dags/AlignmentToCall/AlignmentToTrioCall_ReplicateIndividual_VRC_SK_Nevis_FilteredSeq_top1000Contigs.xml 
+		-j hcondor -l hcondor -N1000 -O 3 -C 30 -S 447,417,420,427,431,432,435,437,439,440,442 
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-Q1 -G2  -n aux/VRC_SK_Nevis_sampleID2FamilyCount.2012.5.4.tsv
+		-Q1 -G2 --needSSHDBTunnel
 	
 	# 2012.4.13 run 5 SK + 5 Nevis, sequenced filtered (-Q1), alignment by method 2 (-G2), TrioCaller fails because 10 is too small sample size.
 	# 2012.6.13 supply the alignment depth stat file (-q), maxSNPMissingRate (-L 0.30), onlyKeepBiAllelicSNP (-c) 
-	%s -u yh -a 524 -s 2 -z localhost -o workflow/AlignmentToCall/AlignmentToTrioCall_ReplicateIndividual_SK_Nevis_FilteredSeq_top1000Contigs.xml
-		-j hcondor -l hcondor -N1000 -w aux/pedigreeSK_NV_Merlin.txt -O 2 -C 10 -S 417,420,427,431,432,435,437,439,440,442 
+	%s -u yh -a 524 -s 2 -z localhost -o dags/AlignmentToCall/AlignmentToTrioCall_ReplicateIndividual_SK_Nevis_FilteredSeq_top1000Contigs.xml
+		-j hcondor -l hcondor -N1000 -O 2 -C 10 -S 417,420,427,431,432,435,437,439,440,442 
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-Q1 -G2 -n aux/10SKNV_sampleID2FamilyCount.tsv -q aux/alnStatForFilter.2012.6.13.tsv -c -L 0.30
+		-Q1 -G2 -q aux/alnStatForFilter.2012.6.13.tsv -c -L 0.30 --needSSHDBTunnel
 		
 	# 2012.8.15 run TrioCaller on method 14 samtools calls, contig ID from 96 to 100 (-V 96 -x 100)
 	# sequenced filtered (-Q1), alignment by method 2 (-G2), onlyKeepBiAllelicSNP (-c) 
@@ -36,12 +36,19 @@ Examples:
 	# 3000 (-Z 3000) sites per unit, 500 overlapping between units (-U 500)
 	# add "--treatEveryOneIndependent" if you want to treat everyone independent (no mendelian constraints from TrioCaller)
 	%s -I ~/NetworkData/vervet/db/genotype_file/method_14/
-		-u yh -a 524  -z localhost -o  workflow/AlignmentToCall/TrioCallerOnMethod14Contig96_100.xml
-		-j hcondor -l hcondor  -w aux/pedigreeVRC_2012.8.15T1246.txt
+		-u yh -a 524  -z localhost -o  dags/AlignmentToCall/TrioCallerOnMethod14Contig96_100.xml
+		-j hcondor -l hcondor
 		-O 1 -C 1 -e /u/home/eeskin/polyacti/
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-V 96 -x 100 -Q1 -G2 -n aux/sampleID2FamilyCount_VRC_2012.8.15T1248.tsv  -c
+		-V 96 -x 100 -Q1 -G2  -c --needSSHDBTunnel
 		# -Y -Z 3000 -U 500 --treatEveryOneIndependent
+	
+	#2013.1.4 run polymutt on method 36
+	%s --run_type 3 -I ~/NetworkData/vervet/db/genotype_file/method_36/ -u yh -a 524
+		-z localhost -o dags/AlignmentToCall/PolymuttOnMethod36Contig96_100.xml
+		-j hcondor -l hcondor -O 1 -C 1 -e /u/home/eeskin/polyacti/
+		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		-V 96 -x 100 -Q1 -G2  -c --needSSHDBTunnel
 	
 Description:
 	2011-7-12
@@ -51,7 +58,7 @@ Description:
 		run_type 1: TrioCaller on alignments; 2: TrioCaller on VCF files; 3: polymutt on VCF files
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 
 #bit_number = math.log(sys.maxint)/math.log(2)
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
@@ -72,18 +79,14 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 	option_default_dict.pop(('ind_seq_id_ls', 0, ))
 	#option_default_dict.pop(('inputDir', 0, ))
 	option_default_dict.update({
-						('pedigreeOutputFname', 1, ): ['', 'w', 1, 'the file which would contain the pedigree file in Merlin format'],\
-						("trioCallerPath", 1, ): ["%s/script/vervet/bin/trioCaller/TrioCaller", '', 1, 'path to TrioCaller binary'],\
-						("polymuttPath", 1, ): ["%s/bin/polymutt", '', 1, 'path to the polymutt binary'],\
 						('replicateIndividualTag', 1, ): ['copy', 'T', 1, 'the tag that separates the true ID and its replicate count'],\
-						('sampleID2FamilyCountFname', 1, ): ['', 'n', 1, 'a tab-delimited file that records how many families in which each individual occurs'],\
 						("onlyKeepBiAllelicSNP", 0, int): [0, 'c', 0, 'toggle this to remove all SNPs with >=3 alleles?'],\
 						('alnStatForFilterFname', 0, ): ['', 'q', 1, 'The alignment stat file for FilterVCFByDepthJava. tab-delimited: individual_alignment.id minCoverage maxCoverage minGQ'],\
 						("maxSNPMissingRate", 0, float): [1.0, 'L', 1, 'maximum SNP missing rate in one vcf (denominator is #chromosomes)'],\
 						('depthFoldChange', 1, float): [2.0, 'y', 1, 'a variant is retained if its depth within this fold change of meanDepth,', ],\
 						("notToKnowNoOfLoci", 0, int): [0, 'Y', 0, 'toggle this to not guess the number of loci in one VCF file (for TrioCaller) from the 1st number in its filename'],\
 						("treatEveryOneIndependent", 0, int): [0, '', 0, 'toggle this to treat everyone in the pedigree independent and also no replicates'],\
-						
+						("run_type", 1, int): [1, 'n', 1, '1: TrioCaller on alignments; 2: TrioCaller on VCF files; 3: Polymutt on VCF files'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 	#2012.8.26 run_type 2 lower the default. In the addTrioCallerJobsONVCFFiles(), these two numbers refer to the number of sites, not base pairs. 
@@ -96,200 +99,8 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		"""
 		AlignmentToCallPipeline.__init__(self, **keywords)
 		#self.trioCallerPath = self.trioCallerPath%self.home_path
-		self.trioCallerPath =  self.insertHomePath(self.trioCallerPath, self.home_path)
-		
-		#2012.8.15 change it to run after SAMtools
-		self.run_type = 2
+		#self.trioCallerPath =  self.insertHomePath(self.trioCallerPath, self.home_path)
 	
-	def writeOneLineToPedigreeFile(self, writer=None, family_id=None, individual_alignment=None, father_id=0, mother_id=0,
-								sex=None, replicateIndividualTag='copy', sampleID2FamilyCount=None):
-		"""
-		2012.3.29
-		2011.12.5
-			used by outputPedgreeOfAlignmentsInMerlinFormat()
-		"""
-		if type(individual_alignment)==str:
-			sample_id = individual_alignment
-			sexByGuess = 'x'
-		else:
-			#sample_id = individual_alignment.getReadGroup()
-			sample_id = self.getSampleIDWithReplicateCount(individual_alignment, replicateIndividualTag=replicateIndividualTag, \
-											sampleID2FamilyCount=sampleID2FamilyCount)
-			sexByGuess = individual_alignment.individual_sequence.individual.codeSexInNumber()
-		if sex is None:
-			sex = sexByGuess
-		
-		data_row = [family_id, sample_id, father_id, mother_id, sex]
-		writer.writerow(data_row)
-	
-	def getSampleIDWithReplicateCount(self, alignment, replicateIndividualTag=None, sampleID2FamilyCount=None):
-		"""
-		2012.3.29
-			use alignment.getReadGroup() + someReplicateIndicator to identify each VCF column
-		"""
-		hashedID = '%s%s%s'%(alignment.getReadGroup(), replicateIndividualTag, \
-							sampleID2FamilyCount.get(alignment.getReadGroup()))
-		return hashedID
-
-	def adjustSampleID2FamilyCountFromAlignmentDBEntry(self, alignment, sampleID2FamilyCount=None):
-		"""
-		2012.3.29
-		"""
-		sample_id = alignment.getReadGroup()
-		if sample_id not in sampleID2FamilyCount:
-			sampleID2FamilyCount[sample_id] = 0
-		sampleID2FamilyCount[sample_id] += 1
-		
-	def outputPedgreeOfAlignmentsInMerlinFormat(self, db_vervet=None, alignmentLs=None, pedigreeOutputFname=None, \
-								replicateIndividualTag='copy',\
-								treatEveryOneIndependent=False, ):
-		"""
-		2012.9.26 output is wrong if some members of duo or trio have >1 alignments
-			need to fix this bug 
-		2012.9.26 deal with the case that one individual appear in multiple alignments
-		2012.8.28
-			add argument treatEveryOneIndependent, which removes the family structure and also no replicates
-		2012.3.29
-			every individual gets replicated by the number of families it appears in.
-		2011-11-27
-			
-		2011-11-3
-			find all trios, a list of "father,mother,child", all of which are identified by IndividualSequence.id.
-			
-			for each individual_alignment, -> ind_seq -> individual
-				get its parents from ind2ind
-				check if both parents have also been sequenced and aligned.
-		"""
-		pedigreeGraphData = db_vervet.constructPedgreeGraphOutOfAlignments(alignmentLs)
-		DG = pedigreeGraphData.DG
-		individual_id2alignmentLs = pedigreeGraphData.individual_id2alignmentLs
-		
-		#2012.8.29
-		if treatEveryOneIndependent:
-			removeFamilyFromGraph = True
-		else:
-			removeFamilyFromGraph = False
-		#find trios first
-		trioLs = db_vervet.findFamilyFromPedigreeGivenSize(DG, familySize=3, removeFamilyFromGraph=removeFamilyFromGraph)
-		#find duos
-		duoLs = db_vervet.findFamilyFromPedigreeGivenSize(DG, familySize=2, removeFamilyFromGraph=removeFamilyFromGraph)
-		#find singletons (familySize=1 => noOfIncomingEdges=0, noOfIncomingEdges=0 => will not be parents of others)
-		singletonLs = db_vervet.findFamilyFromPedigreeGivenSize(DG, familySize=1, removeFamilyFromGraph=removeFamilyFromGraph, noOfOutgoingEdges=0)
-		#[[node] for node in DG.nodes()]. this will be good only when removeFamilyFromGraph=True for all sentences above.
-		
-		familyLs = trioLs + duoLs + singletonLs
-		sys.stderr.write("Outputting %s families in units of trios (Merlin format)..."%(len(familyLs)))
-		#time to output
-		sampleID2FamilyCount = {}	#2012.3.29
-		writer = csv.writer(open(pedigreeOutputFname, 'w'), delimiter=' ')
-		noOfFamilies = 0
-		for family in familyLs:
-			familySize = len(family)
-			for memberID in family:	#2012.3.29 make sure to record the occurrence of each member before writing them out
-				# as the occurrence is used in output 
-				for alignment in individual_id2alignmentLs.get(memberID):
-					self.adjustSampleID2FamilyCountFromAlignmentDBEntry(alignment, sampleID2FamilyCount)
-				
-			if familySize==1:
-				individual_id = family[0]
-				for alignment in individual_id2alignmentLs.get(individual_id):
-					sampleID = self.getSampleIDWithReplicateCount(alignment, replicateIndividualTag=replicateIndividualTag, \
-												sampleID2FamilyCount=sampleID2FamilyCount)
-					family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[alignment.getReadGroup()])
-					self.writeOneLineToPedigreeFile(writer, family_id, alignment, father_id=0, mother_id=0,\
-											replicateIndividualTag=replicateIndividualTag, \
-											sampleID2FamilyCount=sampleID2FamilyCount)
-					noOfFamilies += 1
-			elif familySize==2:	#2012.9.26 output below is wrong if some members of duo or trio have >1 alignments 
-				parent1ID, offspring_id = family[:2]
-				#output the single parent first
-				for parent1Alignment in individual_id2alignmentLs.get(parent1ID):
-					parent1SampleID = self.getSampleIDWithReplicateCount(parent1Alignment, replicateIndividualTag=replicateIndividualTag, \
-												sampleID2FamilyCount=sampleID2FamilyCount)
-					family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[parent1Alignment.getReadGroup()])	#2012.3.29 add count to family ID
-					self.writeOneLineToPedigreeFile(writer, family_id, parent1Alignment, father_id=0, mother_id=0,\
-											replicateIndividualTag=replicateIndividualTag, \
-											sampleID2FamilyCount=sampleID2FamilyCount)
-					#output the offspring
-					for childAlignment in individual_id2alignmentLs.get(offspring_id):
-						family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[parent1Alignment.getReadGroup()])	#2012.3.29 add count to family ID
-						if treatEveryOneIndependent:	#2012.8.29
-							father_id = 0
-							mother_id = 0
-						else:
-							#output a fake 2nd parent, with opposite sex
-							sndParentID = 'dummy'
-							sndParentSex = 1-(parent1Alignment.individual_sequence.individual.codeSexInNumber()-1)+1
-							self.writeOneLineToPedigreeFile(writer, family_id, sndParentID, father_id=0, mother_id=0, sex=sndParentSex,\
-													replicateIndividualTag=replicateIndividualTag, \
-													sampleID2FamilyCount=sampleID2FamilyCount)
-							if sndParentSex==1:
-								father_id = sndParentID
-								mother_id = parent1SampleID
-							else:
-								father_id = parent1SampleID
-								mother_id = sndParentID
-						self.writeOneLineToPedigreeFile(writer, family_id, childAlignment, father_id=father_id, mother_id=mother_id,\
-													replicateIndividualTag=replicateIndividualTag, \
-													sampleID2FamilyCount=sampleID2FamilyCount)
-						noOfFamilies += 1
-			elif familySize==3:
-				parent1ID, parent2ID, offspring_id = family[:3]
-				#output one parent
-				for parent1Alignment in individual_id2alignmentLs.get(parent1ID):
-					parent1SampleID = self.getSampleIDWithReplicateCount(parent1Alignment, replicateIndividualTag=replicateIndividualTag, \
-												sampleID2FamilyCount=sampleID2FamilyCount)
-					family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[parent1Alignment.getReadGroup()])
-					self.writeOneLineToPedigreeFile(writer, family_id, parent1Alignment, father_id=0, mother_id=0,\
-											replicateIndividualTag=replicateIndividualTag, \
-											sampleID2FamilyCount=sampleID2FamilyCount)
-					#output 2nd parent
-					for parent2Alignment in individual_id2alignmentLs.get(parent2ID):
-						parent2SampleID = self.getSampleIDWithReplicateCount(parent2Alignment, replicateIndividualTag=replicateIndividualTag, \
-													sampleID2FamilyCount=sampleID2FamilyCount)
-						family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[parent1Alignment.getReadGroup()])
-						self.writeOneLineToPedigreeFile(writer, family_id, parent2Alignment, father_id=0, mother_id=0,\
-												replicateIndividualTag=replicateIndividualTag, \
-												sampleID2FamilyCount=sampleID2FamilyCount)
-						#output offspring
-						for childAlignment in individual_id2alignmentLs.get(offspring_id):
-							if treatEveryOneIndependent:	#2012.8.29
-								#output the offspring
-								father_id = 0
-								mother_id = 0
-							else:
-								parent2Sex = parent2Alignment.individual_sequence.individual.codeSexInNumber()
-								if parent2Sex==1:
-									father_id = parent2SampleID
-									mother_id = parent1SampleID
-								else:
-									father_id = parent1SampleID
-									mother_id = parent2SampleID
-							family_id = "F%s_%s"%(noOfFamilies, sampleID2FamilyCount[parent1Alignment.getReadGroup()])
-							self.writeOneLineToPedigreeFile(writer, family_id, childAlignment, father_id=father_id, mother_id=mother_id,\
-														replicateIndividualTag=replicateIndividualTag, \
-														sampleID2FamilyCount=sampleID2FamilyCount)
-							noOfFamilies += 1
-		del writer
-		sys.stderr.write("%s families.\n"%(noOfFamilies))
-		return sampleID2FamilyCount
-		
-	def outputSampleID2FamilyCount(self, sampleID2FamilyCount, outputFname=None):
-		"""
-		2012.3.29
-		"""
-		sys.stderr.write("Outputting sampleID2FamilyCount (%s entries) to %s ..."%(len(sampleID2FamilyCount), outputFname))
-		header= ['individualID', 'familyCount']
-		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
-		writer.writerow(header)
-		count = 0
-		for individualID, familyCount in sampleID2FamilyCount.iteritems():
-			data_row = [individualID, familyCount]
-			writer.writerow(data_row)
-			count +=1 
-		del writer
-		sys.stderr.write("%s entries outputted.\n"%(len(sampleID2FamilyCount)))
-		
 	
 	def addTrioCallerJob(self, workflow=None, trioCallerWrapper=None, trioCallerPath=None, inputVCF=None, pedFile=None, outputVCF=None, \
 						parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
@@ -335,7 +146,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		extraArgumentList.extend(["-p", pedFile, "-d", datFile])
 		extraDependentInputLs.extend([pedFile, datFile])
 		
-		job = self.addGenericJob(executable=trioCallerWrapper, inputFile=inputVCF, inputArgumentOption="--in_vcf", \
+		job = self.addGenericJob(executable=executable, inputFile=inputVCF, inputArgumentOption="--in_vcf", \
 					outputFile=outputVCF, outputArgumentOption="--out_vcf", \
 					parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, extraOutputLs=extraOutputLs, \
 					transferOutput=transferOutput, \
@@ -351,9 +162,8 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				mergeSamFilesJar=None, \
 				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
 				mv=None, CallVariantBySamtools=None,\
-				trioCallerPath=None, trioCallerWrapper=None, pedFile=None, \
-				sampleID2FamilyCountF=None,\
-				replicateIndividualTag="copy", 
+				trioCallerPath=None, trioCallerWrapper=None, \
+				replicateIndividualTag="copy", treatEveryOneIndependent=False,\
 				bgzip_tabix=None, vcf_convert=None, vcf_isec=None, vcf_concat=None, \
 				concatGATK=None, concatSamtools=None, ligateVcf=None, ligateVcfPerlPath=None,\
 				refFastaFList=None, \
@@ -413,6 +223,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		# add merge jobs for every reference
 		returnData = PassingData()
 		returnData.jobDataLs = []
+		outputPedigreeJob = None	#2013.1.4
 		for chr, intervalDataLs in chr2IntervalDataLs.iteritems():
 			#reduce the number of chunks 1 below needed. last trunk to reach the end of contig
 			#however set it to 1 for contigs smaller than intervalSize 	
@@ -564,21 +375,35 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						refFastaFList=refFastaFList, parentJobLs=[vcf1FilterByvcftoolsJob], \
 						extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
 						extraArguments=None, job_max_memory=job_max_memory, interval=overlapInterval)
+				if outputPedigreeJob is None:
+					outputFileFormat=2	#trioCaller
+					pedFile = File(os.path.join(trioCallerOutputDirJob.output, 'pedigree_outputFileFormat%s.txt'%(outputFileFormat)))
+					sampleID2FamilyCountF = File(os.path.join(trioCallerOutputDirJob.output, 'sampleID2FamilyCount_outputFileFormat%s.txt'%(outputFileFormat)))
+					outputPedigreeJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
+							inputFile=round1_VCF4OutputF, outputFile=pedFile, sampleID2FamilyCountF=sampleID2FamilyCountF,\
+							polymuttDatFile = None,\
+							outputFileFormat=outputFileFormat, replicateIndividualTag=replicateIndividualTag,\
+							treatEveryOneIndependent=treatEveryOneIndependent,\
+							parentJobLs=[round1_vcf_convert_job, trioCallerOutputDirJob], extraDependentInputLs=[], transferOutput=True, \
+							extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
+				
 				
 				#2012.4.2 replicate individuals who appear in more than 1 families
 				round1_IndividualsReplicatedVCF = File( os.path.join(round1CallDirJob.folder, '%s.replicate.vcf'%overlapIntervalFnameSignature))
-				replicateVCFGenotypeColumnsJob = self.addReplicateVCFGenotypeColumnsJob(workflow, executable=workflow.ReplicateVCFGenotypeColumns, inputF=round1_VCF4OutputF, \
-										sampleID2FamilyCountF=sampleID2FamilyCountF, outputF=round1_IndividualsReplicatedVCF, \
-										replicateIndividualTag=replicateIndividualTag,\
-										parentJobLs=[round1_vcf_convert_job], extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
-										extraArguments=None, job_max_memory=500)
+				replicateVCFGenotypeColumnsJob = self.addReplicateVCFGenotypeColumnsJob(workflow, \
+								executable=workflow.ReplicateVCFGenotypeColumns, inputF=round1_VCF4OutputF, \
+								sampleID2FamilyCountF=outputPedigreeJob.sampleID2FamilyCountF, outputF=round1_IndividualsReplicatedVCF, \
+								replicateIndividualTag=replicateIndividualTag,\
+								parentJobLs=[round1_vcf_convert_job, outputPedigreeJob], extraDependentInputLs=[], \
+								transferOutput=tranferIntermediateFilesForDebug, \
+								extraArguments=None, job_max_memory=500)
 				
 				#TrioCaller job
-				trioCallerOutputF = File(os.path.join(trioCallerOutputDirJob.folder, '%s.orig.vcf'%overlapIntervalFnameSignature))
-				trioCallerJob = self.addTrioCallerJob(workflow, trioCallerWrapper=trioCallerWrapper, trioCallerPath=trioCallerPath, \
+				refineGenotypeOutputF = File(os.path.join(trioCallerOutputDirJob.folder, '%s.orig.vcf'%overlapIntervalFnameSignature))
+				refineGenotypeJob = self.addTrioCallerJob(workflow, trioCallerWrapper=trioCallerWrapper, trioCallerPath=trioCallerPath, \
 						inputVCF=round1_IndividualsReplicatedVCF,\
-						pedFile=pedFile, outputVCF=trioCallerOutputF, \
-						parentJobLs=[trioCallerOutputDirJob, replicateVCFGenotypeColumnsJob], \
+						pedFile=outputPedigreeJob.output, outputVCF=refineGenotypeOutputF, \
+						parentJobLs=[trioCallerOutputDirJob, replicateVCFGenotypeColumnsJob, outputPedigreeJob], \
 						extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
 						extraArguments=None, job_max_memory=vcf_job_max_memory)
 				
@@ -592,9 +417,9 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(workflow, \
 									executable=workflow.MergeVCFReplicateHaplotypesJava,\
 									genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-									inputF=trioCallerOutputF, outputF=mergeReplicateOutputF, \
+									inputF=refineGenotypeOutputF, outputF=mergeReplicateOutputF, \
 									replicateIndividualTag=replicateIndividualTag, \
-									refFastaFList=refFastaFList, parentJobLs=[trioCallerJob], \
+									refFastaFList=refFastaFList, parentJobLs=[refineGenotypeJob], \
 									extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
 									extraArguments=None, job_max_memory=memoryRequest)
 				
@@ -651,9 +476,8 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				mergeSamFilesJar=None, \
 				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
 				mv=None, CallVariantBySamtools=None,\
-				trioCallerPath=None, trioCallerWrapper=None, pedFile=None, \
-				sampleID2FamilyCountF=None,\
-				replicateIndividualTag="copy", 
+				trioCallerPath=None, trioCallerWrapper=None, \
+				replicateIndividualTag="copy", treatEveryOneIndependent=False,\
 				bgzip_tabix=None, vcf_convert=None, vcf_isec=None, vcf_concat=None, \
 				concatGATK=None, concatSamtools=None, ligateVcf=None, ligateVcfPerlPath=None,\
 				refFastaFList=None, \
@@ -689,10 +513,12 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			fastaIndexJob = None
 			refFastaIndexF = None
 		
-		trioCallerOutputDir = "%strioCaller"%(outputDirPrefix)
+		trioCallerOutputDir = "%sRefinedCalls"%(outputDirPrefix)
 		trioCallerOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=trioCallerOutputDir)
-		round1CallDir = "%spreTrioCaller"%(outputDirPrefix)
+		round1CallDir = "%sPreRefinedCalls"%(outputDirPrefix)
 		round1CallDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=round1CallDir)
+		
+		outputPedigreeJob = None
 		
 		# add merge jobs for every reference
 		returnData = PassingData()
@@ -748,50 +574,73 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						refFastaFList=refFastaFList, parentJobLs=[round1CallDirJob, splitVCFJob], \
 						extraDependentInputLs=None, transferOutput=tranferIntermediateFilesForDebug, \
 						extraArguments=None, job_max_memory=job_max_memory, interval=overlapInterval)
+				
+				if outputPedigreeJob is None:	#2013.1.2
+					outputFileFormat = run_type
+					pedFile = File(os.path.join(trioCallerOutputDirJob.output, 'pedigree_outputFileFormat%s.txt'%(outputFileFormat)))
+					sampleID2FamilyCountF = File(os.path.join(trioCallerOutputDirJob.output, 'sampleID2FamilyCount_outputFileFormat%s.txt'%(outputFileFormat)))
+					if outputFileFormat==3:	#for polymutt
+						polymuttDatFile = File(os.path.join(trioCallerOutputDirJob.output, 'datFile_outputFileFormat%s.txt'%(outputFileFormat)))
+					else:
+						polymuttDatFile = None
+					outputPedigreeJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
+							inputFile=round1_VCF4OutputF, outputFile=pedFile, sampleID2FamilyCountF=sampleID2FamilyCountF,\
+							polymuttDatFile = polymuttDatFile,\
+							outputFileFormat=outputFileFormat, replicateIndividualTag=replicateIndividualTag,\
+							treatEveryOneIndependent=treatEveryOneIndependent,\
+							parentJobLs=[round1_vcf_convert_job, trioCallerOutputDirJob], extraDependentInputLs=[], transferOutput=True, \
+							extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
+				
+				#2012.4.2 replicate individuals who appear in more than 1 families
+				round1_IndividualsReplicatedVCF = File( os.path.join(round1CallDirJob.folder, \
+													'%s.replicate.vcf'%overlapIntervalFnameSignature))
+				replicateVCFGenotypeColumnsJob = self.addReplicateVCFGenotypeColumnsJob(workflow, \
+							executable=workflow.ReplicateVCFGenotypeColumns, inputF=round1_VCF4OutputF, \
+							sampleID2FamilyCountF=outputPedigreeJob.sampleID2FamilyCountF, outputF=round1_IndividualsReplicatedVCF, \
+							replicateIndividualTag=replicateIndividualTag,\
+							parentJobLs=[round1_vcf_convert_job, outputPedigreeJob], extraDependentInputLs=[], \
+							transferOutput=tranferIntermediateFilesForDebug, \
+							extraArguments=None, job_max_memory=vcf_job_max_memory)
+				
 				if run_type==2:
-					#2012.4.2 replicate individuals who appear in more than 1 families
-					round1_IndividualsReplicatedVCF = File( os.path.join(round1CallDirJob.folder, \
-														'%s.replicate.vcf'%overlapIntervalFnameSignature))
-					replicateVCFGenotypeColumnsJob = self.addReplicateVCFGenotypeColumnsJob(workflow, \
-								executable=workflow.ReplicateVCFGenotypeColumns, inputF=round1_VCF4OutputF, \
-								sampleID2FamilyCountF=sampleID2FamilyCountF, outputF=round1_IndividualsReplicatedVCF, \
-								replicateIndividualTag=replicateIndividualTag,\
-								parentJobLs=[round1_vcf_convert_job], extraDependentInputLs=[], \
-								transferOutput=tranferIntermediateFilesForDebug, \
-								extraArguments=None, job_max_memory=vcf_job_max_memory)
-					
 					#TrioCaller job
-					trioCallerOutputF = File(os.path.join(trioCallerOutputDirJob.folder, '%s.orig.vcf'%overlapIntervalFnameSignature))
-					trioCallerJob = self.addTrioCallerJob(workflow, trioCallerWrapper=trioCallerWrapper, trioCallerPath=trioCallerPath, \
+					refineGenotypeOutputF = File(os.path.join(trioCallerOutputDirJob.folder, '%s.orig.vcf'%overlapIntervalFnameSignature))
+					refineGenotypeJob = self.addTrioCallerJob(workflow, trioCallerWrapper=trioCallerWrapper, trioCallerPath=trioCallerPath, \
 							inputVCF=round1_IndividualsReplicatedVCF,\
-							pedFile=pedFile, outputVCF=trioCallerOutputF, \
-							parentJobLs=[trioCallerOutputDirJob, replicateVCFGenotypeColumnsJob], \
+							pedFile=outputPedigreeJob.output, outputVCF=refineGenotypeOutputF, \
+							parentJobLs=[trioCallerOutputDirJob, replicateVCFGenotypeColumnsJob, outputPedigreeJob], \
 							extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
 							extraArguments=None, job_max_memory=vcf_job_max_memory)	#1.2G memory for 12K loci
-					
-					#2012.4.2
-					mergeReplicateOutputF = File(os.path.join(trioCallerOutputDirJob.folder, \
-															'%s.noReplicate.vcf'%overlapIntervalFnameSignature))
-					noOfAlignments= len(alignmentLs)
-					
-					no_of_loci =  getattr(inputF, 'no_of_loci', None)
-					if no_of_loci is None:
-						no_of_loci = 26000.	#assume 26K
-					memoryRequest = min(10000, max(4000, int(6000*(noOfAlignments/323.0)*(no_of_loci/26000.0))) )
-						#extrapolates from 4000Mb memory for a 323-sample with 26K loci, (2.6 Megabase)
-						#upper bound is 10g. lower bound is 4g.
-					mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(workflow, \
-										executable=workflow.MergeVCFReplicateHaplotypesJava,\
-										genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-										inputF=trioCallerOutputF, outputF=mergeReplicateOutputF, \
-										replicateIndividualTag=replicateIndividualTag, \
-										refFastaFList=refFastaFList, parentJobLs=[trioCallerJob], \
-										extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
-										extraArguments=None, job_max_memory=memoryRequest,\
-										analysis_type='MergeVCFReplicateGenotypeColumns')
 				elif run_type==3:
 					#add polymutt jobs
-					pass
+					#TrioCaller job
+					refineGenotypeOutputF = File(os.path.join(trioCallerOutputDirJob.folder, '%s.polymutt.vcf'%overlapIntervalFnameSignature))
+					refineGenotypeJob = self.addPolyMuttJob(executable=self.polymutt, inputVCF=round1_IndividualsReplicatedVCF, \
+										pedFile=outputPedigreeJob.output, datFile=outputPedigreeJob.polymuttDatFile, \
+										outputVCF=refineGenotypeOutputF, parentJobLs=[trioCallerOutputDirJob, replicateVCFGenotypeColumnsJob, outputPedigreeJob], \
+										extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
+										extraArguments=None, job_max_memory=vcf_job_max_memory*2)
+				#2012.4.2
+				mergeReplicateOutputF = File(os.path.join(trioCallerOutputDirJob.folder, \
+												'%s.noReplicate.vcf'%overlapIntervalFnameSignature))
+				noOfAlignments= len(alignmentLs)
+				
+				no_of_loci =  getattr(inputF, 'no_of_loci', None)
+				if no_of_loci is None:
+					no_of_loci = 26000.	#assume 26K
+				memoryRequest = min(10000, max(4000, int(6000*(noOfAlignments/323.0)*(no_of_loci/26000.0))) )
+					#extrapolates from 4000Mb memory for a 323-sample with 26K loci, (2.6 Megabase)
+					#upper bound is 10g. lower bound is 4g.
+				mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(workflow, \
+									executable=workflow.MergeVCFReplicateHaplotypesJava,\
+									genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+									inputF=refineGenotypeJob.output, outputF=mergeReplicateOutputF, \
+									replicateIndividualTag=replicateIndividualTag, \
+									refFastaFList=refFastaFList, parentJobLs=[refineGenotypeJob], \
+									extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
+									extraArguments=None, job_max_memory=memoryRequest,\
+									analysis_type='MergeVCFReplicateGenotypeColumns')
+				
 				#convert to vcf4 so that other vcftools software could be used.
 				vcf4_trioCallerOutputFname = os.path.join(trioCallerOutputDirJob.folder, '%s.noreplicte.v4.vcf'%overlapIntervalFnameSignature)
 				vcf4_trioCallerOutputF = File(vcf4_trioCallerOutputFname)
@@ -833,7 +682,8 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		extraArgumentList = []
 		extraOutputLs = []
 		key2ObjectForJob = {}
-		extraArgumentList.extend(['-n', sampleID2FamilyCountF, '-T', replicateIndividualTag])
+		extraArgumentList.extend(['--sampleID2FamilyCountFname', sampleID2FamilyCountF, \
+								'--replicateIndividualTag', replicateIndividualTag])
 		extraDependentInputLs.append(sampleID2FamilyCountF)
 		
 		job = self.addGenericJob(executable=executable, inputFile=inputF, inputArgumentOption="-i", \
@@ -869,10 +719,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
+		db_vervet = self.db_vervet
 		
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir
@@ -904,14 +751,6 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 									excludeContaminant=self.excludeContaminant)
 		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
 															defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
-		sampleID2FamilyCount = self.outputPedgreeOfAlignmentsInMerlinFormat(db_vervet, alignmentLs, self.pedigreeOutputFname,\
-																treatEveryOneIndependent=self.treatEveryOneIndependent)
-		
-		self.outputSampleID2FamilyCount(sampleID2FamilyCount, outputFname=self.sampleID2FamilyCountFname)
-		
-		
-		pedFile = yh_pegasus.registerFile(workflow, self.pedigreeOutputFname)
-		sampleID2FamilyCountF = self.registerOneInputFile(workflow, self.sampleID2FamilyCountFname, folderName="")
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.dataDir, refSequence.path)
@@ -951,10 +790,10 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						mergeSamFilesJar=workflow.mergeSamFilesJar, \
 						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools, \
-						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, pedFile=pedFile, \
-						sampleID2FamilyCountF=sampleID2FamilyCountF,\
-						replicateIndividualTag=self.replicateIndividualTag, 
-						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
+						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, \
+						replicateIndividualTag=self.replicateIndividualTag, treatEveryOneIndependent=self.treatEveryOneIndependent,\
+						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, \
+						vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 						concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
 						ligateVcf=self.ligateVcf, ligateVcfPerlPath=self.ligateVcfPerlPath,\
 						refFastaFList=refFastaFList, \
@@ -975,10 +814,10 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						mergeSamFilesJar=workflow.mergeSamFilesJar, \
 						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools, \
-						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, pedFile=pedFile, \
-						sampleID2FamilyCountF=sampleID2FamilyCountF,\
-						replicateIndividualTag=self.replicateIndividualTag, 
-						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
+						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, \
+						replicateIndividualTag=self.replicateIndividualTag, treatEveryOneIndependent=self.treatEveryOneIndependent,\
+						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, \
+						vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 						concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
 						ligateVcf=self.ligateVcf, ligateVcfPerlPath=self.ligateVcfPerlPath,\
 						refFastaFList=refFastaFList, \

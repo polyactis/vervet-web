@@ -124,8 +124,8 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 			pdb.set_trace()
 		
 		#without commenting out db_vervet connection code. schema "genome" wont' be default path.
-		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
-							password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
+							db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema="genome")
 		db_genome.setup(create_tables=False)
 		"""
 		2012.9.13 chr2size is only needed for LD calculation jobs later (commented out right now)
@@ -170,9 +170,7 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 			needToKnowNoOfLoci = False
 			minNoOfLoci = 0
 			
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
+		db_vervet = self.db_vervet
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir
 		

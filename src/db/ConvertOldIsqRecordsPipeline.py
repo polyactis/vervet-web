@@ -30,11 +30,11 @@ else:   #32bit
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-import VervetDB
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, yh_pegasus
 from Pegasus.DAX3 import *
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, yh_pegasus
 from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
-from UnpackAndAddIndividualSequence2DB import UnpackAndAddIndividualSequence2DB
+from vervet.src.UnpackAndAddIndividualSequence2DB import UnpackAndAddIndividualSequence2DB
+from vervet.src import VervetDB
 
 class ConvertOldIsqRecordsPipeline(UnpackAndAddIndividualSequence2DB):
 	__doc__ = __doc__
@@ -98,10 +98,8 @@ class ConvertOldIsqRecordsPipeline(UnpackAndAddIndividualSequence2DB):
 			import pdb
 			pdb.set_trace()
 		
-		import VervetDB
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema,\
-					port=self.port)
+		db_vervet = VervetDB.VervetDB(drivername=self.drivername, db_user=self.db_user,
+					db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema=self.schema)
 		db_vervet.setup(create_tables=False)
 		session = db_vervet.session
 		session.begin()

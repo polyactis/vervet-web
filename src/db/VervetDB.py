@@ -1154,19 +1154,13 @@ class PhenotypeMethod(Entity, TableClass):
 
 class VervetDB(ElixirDB):
 	__doc__ = __doc__
-	option_default_dict = {('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgresql', ],\
+	option_default_dict = ElixirDB.option_default_dict.copy()
+	option_default_dict.update({
+						('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgresql', ],\
 						('hostname', 1, ):['localhost', 'z', 1, 'hostname of the db server', ],\
-						('database', 1, ):['vervetdb', 'd', 1, '',],\
+						('dbname', 1, ):['vervetdb', 'd', 1, '',],\
 						('schema', 0, ): [None, 'k', 1, 'database schema name', ],\
-						('username', 1, ):[None, 'u', 1, 'database username',],\
-						('password', 1, ):[None, 'p', 1, 'database password', ],\
-						('port', 0, ):[None, 'o', 1, 'database port number'],\
-						('pool_recycle', 0, int):[3600, 'l', 1, 'the length of time to keep connections open before recycling them.'],\
-						('sql_echo', 0, bool):[False, 's', 0, 'display SQL Statements'],\
-						('echo_pool', 0, bool):[False, 'e', 0, 'if True, the connection pool will log all checkouts/checkins to the logging stream, which defaults to sys.stdout.'],\
-						('commit',0, int): [0, 'c', 0, 'commit db transaction'],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						})
 	def __init__(self, **keywords):
 		"""
 		2008-10-06
@@ -1473,8 +1467,21 @@ class VervetDB(ElixirDB):
 		if sampleIDList:
 			for read_group in sampleIDList:
 				individualAlignment = self.parseAlignmentReadGroup(read_group).individualAlignment
+				individualAlignment.sampleID = read_group
 				alignmentLs.append(individualAlignment)
 		sys.stderr.write("%s alignments.\n"%(len(alignmentLs)))
+		return alignmentLs
+	
+	def getAlignmentsFromVCFFile(self, inputFname=None):
+		"""
+		2013.1.2. moved from db/OutputVRCPedigreeInTFAMGivenOrderFromFile.py
+			inputFname is a VCFFile containing genotypes from alignments of vervetdb
+		"""
+		from pymodule import VCFFile
+		vcfFile = VCFFile(inputFname=inputFname)
+		alignmentLs = self.getAlignmentsFromVCFSampleIDList(vcfFile.getSampleIDList())
+		#vcfFile.sample_id_ls is not good because its index 0 is "ref"
+		vcfFile.close()
 		return alignmentLs
 	
 	def getMonkeyID2ProperAlignment(self, ref_ind_seq_id=524, alignment_method_id=2, idType=1):
@@ -2573,7 +2580,8 @@ class VervetDB(ElixirDB):
 		"""
 		sys.stderr.write("Construct pedigree out of %s alignments... "%(len(alignmentLs)))
 		import networkx as nx
-		DG=nx.DiGraph()
+		from pymodule.algorithm import graph
+		DG=graph.DiGraphWrapper()
 		
 		individual_id2alignmentLs = {}
 		for alignment in alignmentLs:
@@ -2607,10 +2615,11 @@ class VervetDB(ElixirDB):
 		"""
 		sys.stderr.write("Constructing pedigree from db directionType=%s..."%(directionType))
 		import networkx as nx
+		from pymodule.algorithm import graph
 		if directionType==3:
-			DG = nx.Graph()
+			DG = graph.GraphWrapper()
 		else:
-			DG = nx.DiGraph()
+			DG = graph.DiGraphWrapper()
 		
 		for row in Ind2Ind.query:
 			if directionType==2:

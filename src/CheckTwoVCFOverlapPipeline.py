@@ -5,14 +5,16 @@ Examples:
 	
 	dirPrefix=AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top4Contigs_single_sample_condor_20111105T0143/556_
 	%s -i $dirPrefix\gatk/ -I $dirPrefix\samtools/ -l condorpool -j condorpool
-		-o 4HighCovVRC_isq_15_18_vs_524_top804Contigs_gatk_vs_samtools_overlap_stat.xml -z uclaOffice -u yh -k genome
+		-o dags/CheckTwoVCF/4HighCovVRC_isq_15_18_vs_524_top804Contigs_gatk_vs_samtools_overlap_stat.xml -z uclaOffice -u yh -k genome
 		-C 100
-	#2012.8.3 compare two VCF on hcondor, do per-sample checking (-S)
+	
+	#2012.8.3 compare two VCF on hcondor, do per-sample checking
 	%s -i AlignmentToCall_ISQ643_646_vs_524_Contig731.2012.8.2T1530/samtools/
 		-I AlignmentToCall_ISQ643_646_vs_524_method7Contig731Sites.2012.8.2T1610/samtools/
-		-l hcondor -j hcondor -o workflow/CheckTwoVCF_ISQ643_646_vs_524_MultiSample_vs_Method7ROICalling_Contig731.xml
+		-l hcondor -j hcondor -o dags/CheckTwoVCF/CheckTwoVCF_ISQ643_646_vs_524_MultiSample_vs_Method7ROICalling_Contig731.xml
 		-z localhost -u yh -k genome -C 1
-		-e /u/home/eeskin/polyacti/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -S
+		-e /u/home/eeskin/polyacti/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--perSampleMatchFraction
 	
 Description:
 	2011-11-7 pegasus workflow that compares overlap between two vcf files (mapper/CheckTwoVCFOverlap.py),
@@ -32,14 +34,13 @@ else:   #32bit
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
 from Pegasus.DAX3 import *
-from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
-from vervet.src import VervetDB
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
+from vervet.src import VervetDB, AbstractVervetWorkflow
 
-class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
+class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
 	option_default_dict.pop(('inputDir', 0, ))
 	option_default_dict.update({
 						('vcf1Dir', 1, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
@@ -50,7 +51,7 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 	def __init__(self,  **keywords):
 		"""
 		"""
-		AbstractVCFWorkflow.__init__(self, **keywords)
+		AbstractVervetWorkflow.__init__(self, **keywords)
 	
 	def registerCustomExecutables(self, workflow):
 		"""
@@ -74,14 +75,9 @@ class CheckTwoVCFOverlapPipeline(AbstractVCFWorkflow):
 			import pdb
 			pdb.set_trace()
 		
-		"""
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		"""
 		#without commenting out db_vervet connection code. schema "genome" wont' be default path.
-		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
-						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
+						db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema="genome")
 		db_genome.setup(create_tables=False)
 		chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, sequence_type_id=9)
 		

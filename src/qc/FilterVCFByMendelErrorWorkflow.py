@@ -99,9 +99,7 @@ class FilterVCFByMendelErrorWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow):
 			pdb.set_trace()
 		
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
+		db_vervet = self.db_vervet
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir
 		

@@ -36,12 +36,11 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 import subprocess, cStringIO
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, yh_pegasus
 from Pegasus.DAX3 import *
-from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
-from vervet.src import VervetDB
+from vervet.src import VervetDB, AbstractVervetWorkflow
 
-class FilterShortReadPipeline(AbstractNGSWorkflow):
+class FilterShortReadPipeline(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
+	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
 	option_default_dict.update(
 						{
 						('ind_seq_id_ls', 1, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. \
@@ -56,7 +55,7 @@ class FilterShortReadPipeline(AbstractNGSWorkflow):
 		"""
 		2011-7-11
 		"""
-		AbstractNGSWorkflow.__init__(self, **keywords)
+		AbstractVervetWorkflow.__init__(self, **keywords)
 		if self.ind_seq_id_ls:
 			self.ind_seq_id_ls = getListOutOfStr(self.ind_seq_id_ls, data_type=int)
 		else:
@@ -193,10 +192,7 @@ class FilterShortReadPipeline(AbstractNGSWorkflow):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
+		db_vervet = self.db_vervet
 		session = db_vervet.session
 		session.begin()
 		

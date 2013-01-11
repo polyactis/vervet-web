@@ -67,7 +67,7 @@ import subprocess, cStringIO
 from vervet.src import VervetDB
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
 from Pegasus.DAX3 import *
-from vervet.src.FilterVCFPipeline import FilterVCFPipeline
+from vervet.src.qc.FilterVCFPipeline import FilterVCFPipeline
 from vervet.src.popgen.CalculateVCFStatPipeline import CalculateVCFStatPipeline
 
 class BootstrapFilterCalculateVCFWorkflow(FilterVCFPipeline, CalculateVCFStatPipeline):
@@ -133,16 +133,14 @@ class BootstrapFilterCalculateVCFWorkflow(FilterVCFPipeline, CalculateVCFStatPip
 			pdb.set_trace()
 		
 		#have to be in front of the db_vervet connection code. Otherwise schema "genome" wont' be default path and its visible will not be visible.
-		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
-						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
+						db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema="genome")
 		db_genome.setup(create_tables=False)
 		chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, \
 											sequence_type_id=9)
 		
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
+		db_vervet = self.db_vervet
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir
 		

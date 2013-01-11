@@ -30,7 +30,7 @@ Examples:
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkMendelError/PlinkMendelError_Method14.xml
 		-E -C 4  --needSSHDBTunnel -l hcondor -j hcondor  -u yh -z localhost
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
-		-z localhost  -y1  --locusSamplingRate 0.01 -g ./aux/Method14_LDPrune_merge_list.txt
+		-z localhost  -y1  --locusSamplingRate 0.01
 	
 	# 2012.8.13 sex check using the top 195 contigs (-x 195) (Contig 83, 149,193 are sex chromosomes)
 	# no clustering (-C 1)
@@ -99,32 +99,35 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		if workflow is None:
 			workflow = self
 		sys.stderr.write("Adding plink mendel error jobs for %s  files ... "%(len(inputData.jobDataLs)))
-		no_of_jobs= 0
 		
+		returnData = PassingData()
+		returnData.jobDataLs = []
 		
 		topOutputDir = "%sMendelError"%(outputDirPrefix)
 		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
-		no_of_jobs += 1
 		
 		mergedOutputDir = "%sMerged"%(outputDirPrefix)
 		mergedOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergedOutputDir)
-		no_of_jobs += 1
 		
 		plotOutputDir = "%splot"%(outputDirPrefix)
 		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
-		no_of_jobs += 1
 		
 		mendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_mendel.tsv'))
 		#each input has no header
 		mendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=mendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob])
-		no_of_jobs += 1
+		returnData.jobDataLs.append(PassingData(jobLs=[mendelMergeJob], file=mendelMergeJob.output, \
+											fileList=mendelMergeJob.outputLs))
 		
 		imendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_imendel.tsv'))
 		#each input has no header
 		imendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 							outputF=imendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob], \
 							extraArguments='-k 1 -v 2')
+		
+		returnData.jobDataLs.append(PassingData(jobLs=[imendelMergeJob], file=imendelMergeJob.output, \
+											fileList=imendelMergeJob.outputLs))
+		
 		outputFile = File( os.path.join(plotOutputDir, 'individualMendelErrorHist.png'))
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
 		self.addDrawHistogramJob(executable=workflow.DrawHistogram, inputFileList=[imendelMergeFile], \
@@ -136,17 +139,20 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 					parentJobLs=[plotOutputDirJob, imendelMergeJob], \
 					extraDependentInputLs=None, \
 					extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-		no_of_jobs += 2
 		
 		fmendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_fmendel.tsv'))
 		fmendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=fmendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob])
-		no_of_jobs += 1
+		returnData.jobDataLs.append(PassingData(jobLs=[fmendelMergeJob], file=fmendelMergeJob.output, \
+											fileList=fmendelMergeJob.outputLs))
 		
 		lmendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_lmendel.tsv'))
 		lmendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=lmendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob], \
 							extraArguments='')
+		returnData.jobDataLs.append(PassingData(jobLs=[lmendelMergeJob], file=lmendelMergeJob.output, \
+											fileList=lmendelMergeJob.outputLs))
+		
 		outputFile = File( os.path.join(plotOutputDir, 'locusMendelErrorHist.png'))
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
 		# samplingRate=1 because plink doesn't output zero-mendel-error sites.
@@ -160,10 +166,24 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 					extraDependentInputLs=None, \
 					extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
 		
-		no_of_jobs += 2
+		#2013.1.8
+		meanMedianModePerLocusMendelErrorFile = File(os.path.join(mergedOutputDirJob.output, "meanMedianModePerLocusMendelError.tsv"))
+		meanMedianModePerLocusMendelErrorJob = self.addCalculateDepthMeanMedianModeJob(\
+							executable=workflow.CalculateMedianMeanOfInputColumn, \
+							inputFile=lmendelMergeJob.output, outputFile=meanMedianModePerLocusMendelErrorFile, alignmentID=0, \
+							fractionToSample=1, \
+							noOfLinesInHeader=1, whichColumn=2, maxNumberOfSamplings=1E8, inputStatName="MendelError",\
+							parentJobLs=[mergedOutputDirJob, lmendelMergeJob], job_max_memory = 500, extraArguments=None, \
+							transferOutput=False)
+		returnData.jobDataLs.append(PassingData(jobLs=[meanMedianModePerLocusMendelErrorJob], \
+									file=meanMedianModePerLocusMendelErrorJob.output, \
+									fileList=meanMedianModePerLocusMendelErrorJob.outputLs))
 		
-		returnData = PassingData()
-		returnData.jobDataLs = []
+		#2013.1.8 next add a job that calculates the number of nuclear families (plink definition) and divide above meanMendelError with that
+		# => meanMendelErrorRate per site
+		# the number of nuclear families => the number of unique parents pairs in the tfam file (both parents are not missing)
+		# ...
+		
 		for i in xrange(len(inputData.jobDataLs)):
 			jobData = inputData.jobDataLs[i]
 			inputJob = jobData.jobLs[0]
@@ -209,14 +229,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 								inputF=plinkMendelJob.lmendelFile, \
 								parentJobLs=[plinkMendelJob])
 		
-		returnData.jobDataLs.append(PassingData(jobLs=[mendelMergeJob], file=mendelMergeJob.output, \
-											fileList=mendelMergeJob.outputLs))
-		returnData.jobDataLs.append(PassingData(jobLs=[imendelMergeJob], file=imendelMergeJob.output, \
-											fileList=imendelMergeJob.outputLs))
-		returnData.jobDataLs.append(PassingData(jobLs=[fmendelMergeJob], file=fmendelMergeJob.output, \
-											fileList=fmendelMergeJob.outputLs))
-		returnData.jobDataLs.append(PassingData(jobLs=[lmendelMergeJob], file=lmendelMergeJob.output, \
-											fileList=lmendelMergeJob.outputLs))
 		##2012.7.21 gzip the final output
 		returnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
 					outputDirPrefix=outputDirPrefix)
@@ -246,20 +258,15 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		if workflow is None:
 			workflow = self
 		sys.stderr.write("Adding plink LD pruning jobs for %s  files ... "%(len(inputData.jobDataLs)))
-		no_of_jobs= 0
-		
 		
 		topOutputDir = "%sLDPrune"%(outputDirPrefix)
 		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
-		no_of_jobs += 1
 		
 		mergedOutputDir = "%sMerged"%(outputDirPrefix)
 		mergedOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergedOutputDir)
-		no_of_jobs += 1
 		
 		plotOutputDir = "%splot"%(outputDirPrefix)
 		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
-		no_of_jobs += 1
 		
 		
 		returnData = PassingData()
@@ -298,8 +305,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 					extraArguments=None, job_max_memory=2000,\
 					parentJobLs =[topOutputDirJob]+ jobData.jobLs)
 			
-			no_of_jobs += 1
-			
 			extractFnamePrefix = os.path.join(topOutputDir, '%s_extract'%(commonPrefix))
 			plinkExtractJob = self.addPlinkJob(executable=self.plinkExtract, \
 									bedFile=inputJob.bedFile, famFile=inputJob.famFile, bimFile=inputJob.bimFile, \
@@ -312,7 +317,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			if i>0:	#the 1st one is to be directly added to the plink merge job 
 				extractedFilenameTupleList.append([plinkExtractJob.bedFile.name, plinkExtractJob.bimFile.name, plinkExtractJob.famFile.name])
 				plinkMergeExtraDependentInputList.extend([plinkExtractJob.bedFile, plinkExtractJob.bimFile, plinkExtractJob.famFile])
-			no_of_jobs += 1
 			i += 1
 			if returnMode==2:
 				returnData.jobDataLs.append(PassingData(jobLs=[plinkExtractJob], file=plinkExtractJob.bedFile, \
@@ -332,14 +336,13 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						extraDependentInputLs=plinkMergeExtraDependentInputList, transferOutput=transferOutput, \
 						extraArguments=None, job_max_memory=2000,\
 						parentJobLs =[mergedOutputDirJob] + plinkExtractJobList)
-		no_of_jobs += 1
 		
 		
 		if returnMode==1 or returnMode==3:
 			returnData.jobDataLs.append(PassingData(jobLs=[plinkMergeJob], file=plinkMergeJob.bedFile, \
 											fileList=plinkMergeJob.outputLs))
 			
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
 	def addDetectWrongLabelByCompKinshipVsIBDJob(self, workflow=None, executable=None, inputFile=None, \
@@ -463,20 +466,16 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		if workflow is None:
 			workflow = self
 		sys.stderr.write("Adding plink IBD checking jobs for %s  files ... "%(len(inputData.jobDataLs)))
-		no_of_jobs= 0
 		
 		
 		topOutputDir = "%sIBDCheck"%(outputDirPrefix)
 		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
-		no_of_jobs += 1
 		
 		mergedOutputDir = "%sMerged"%(outputDirPrefix)
 		mergedOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergedOutputDir)
-		no_of_jobs += 1
 		
 		plotOutputDir = "%splot"%(outputDirPrefix)
 		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
-		no_of_jobs += 1
 		
 		
 		returnData = PassingData()
@@ -526,7 +525,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 					parentJobLs=[topOutputDirJob, plinkIBDCheckJob], \
 					extraDependentInputLs=None, \
 					extraArguments=None, transferOutput=transferOutput, job_max_memory=2000)
-			no_of_jobs += 2
 			
 			outputFile = File( os.path.join(plotOutputDir, '%s_ibdCheck_PI_HAT_hist.png'%(commonPrefix)))
 			#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -539,7 +537,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						parentJobLs=[plotOutputDirJob, toTsvMatrixJob], \
 						extraDependentInputLs=None, \
 						extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-			no_of_jobs += 1
 			
 			returnData.jobDataLs.append(PassingData(jobLs=[toTsvMatrixJob], file=toTsvMatrixJob.output, \
 											fileList=toTsvMatrixJob.outputLs))
@@ -553,7 +550,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[toTsvMatrixJob, topOutputDirJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
-				no_of_jobs += 1
 				
 				if fontFile:
 					#maxBlockSize is the max number of individuals to be put in one block of image. \
@@ -569,7 +565,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							extraOutputLs=None,\
 							transferOutput=transferOutput, \
 							extraArgumentList=['--font_size 10', '--font_path', fontFile, '--no_grid --blockColUnit %s --blockRowUnit %s'%(maxBlockSize, maxBlockSize)], job_max_memory=4000)
-					no_of_jobs += 1
 				
 				outputFile = File(os.path.join(plotOutputDir, '%s_chiSqPvalue_hist.png'%(wrongLabelOutputFnamePrefix)))
 				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -583,7 +578,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[plotOutputDirJob, detectWrongLabelJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-				no_of_jobs += 1
 				
 				outputFnamePrefix = os.path.join(plotOutputDir, '%s_KinshipVsIBDPI'%(commonPrefix))
 				plotPedigreeKinshipVsIBDJob = self.addPlotPedigreeKinshipVsGeneticIBDJob(workflow=workflow, executable=self.PlotPedigreeKinshipVsGeneticIBD, \
@@ -595,7 +589,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 								parentJobLs=[toTsvMatrixJob, plotOutputDirJob], \
 								extraDependentInputLs=None, \
 								extraArguments=None, transferOutput=transferOutput, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
-				no_of_jobs += 1
 				
 				outputFile = File('%s_sumAbsDelta_hist.png'%(outputFnamePrefix))
 				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -609,7 +602,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-				no_of_jobs += 1
 				
 				outputFile = File('%s_avgAbsDelta_hist.png'%(outputFnamePrefix))
 				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -623,7 +615,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-				no_of_jobs += 1
 				
 				outputFile = File('%s_medianAbsDelta_hist.png'%(outputFnamePrefix))
 				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -637,7 +628,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-				no_of_jobs += 1
 				
 				outputFile = File('%s_sumAbsDelta_vs_medianAbsDelta.png'%(outputFnamePrefix))
 				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -652,7 +642,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-				no_of_jobs +=1
 				
 				outputFile = File('%s_noOfNonMissing_vs_medianAbsDelta.png'%(outputFnamePrefix))
 				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -667,7 +656,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-				no_of_jobs +=1
 				
 				outputFile = File('%s_pairwiseCorOfKinshipIBDDelta_hist.png'%(outputFnamePrefix))
 				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -681,7 +669,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-				no_of_jobs += 1
 				
 				outputFile = File('%s_pairwiseCorOfKinshipIBDDelta_vs_monkey1_medianAbsDelta.png'%(outputFnamePrefix))
 				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -696,7 +683,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-				no_of_jobs +=1
 				
 				outputFile = File('%s_pairwiseCorOfKinshipIBDDelta_vs_monkey2_medianAbsDelta.png'%(outputFnamePrefix))
 				#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -711,9 +697,8 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							parentJobLs=[plotOutputDirJob, plotPedigreeKinshipVsIBDJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-				no_of_jobs +=1
 			
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
 	def addPlinkSexCheckJobs(self, workflow=None, inputData=None, transferOutput=True,\
@@ -832,7 +817,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		"""
 		#GenericVCFWorkflow.registerCustomExecutables(self, workflow=workflow)
 		#2013.1.6 equivalent to above
-		super(PlinkOnVCFWorkflow ,self).registerCustomExecutables(workflow=workflow)
+		GenericVCFWorkflow.registerCustomExecutables(self, workflow=workflow)
 		
 		if workflow is None:
 			workflow = self
@@ -874,8 +859,8 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		
 		if self.run_type!=1:	#all run_types that involve LD-pruning
 			#without commenting out db_vervet connection code. schema "genome" wont' be default path.
-			db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
-							password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
+			db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
+							db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema="genome")
 			db_genome.setup(create_tables=False)
 			#chrOrder=2 means chromosomes are not ordered alphabetically but by their sizes (descendingly)
 			oneGenomeData = db_genome.getOneGenomeData(tax_id=60711, chr_gap=0, chrOrder=2, sequence_type_id=9,\
@@ -914,10 +899,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			needToKnowNoOfLoci = False
 			minNoOfLoci = None	#2012.10.19 bugfix
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
+		db_vervet = self.db_vervet
 		
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir

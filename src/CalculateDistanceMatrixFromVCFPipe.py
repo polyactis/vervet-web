@@ -32,10 +32,9 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
-from AbstractVervetWorkflow import AbstractVervetWorkflow
-from vervet.src import VervetDB
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
+from vervet.src import VervetDB, AbstractVervetWorkflow
 
 class CalculateDistanceMatrixFromVCFPipe(AbstractVervetWorkflow):
 	__doc__ = __doc__
@@ -191,9 +190,7 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVervetWorkflow):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
+		db_vervet = self.db_vervet
 		
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir

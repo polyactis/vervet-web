@@ -43,7 +43,7 @@ Examples:
 		-u yh -z localhost -N 7559 -S "" -Q1 -G 2 -l hcondor -j hcondor -e /u/home/eeskin/polyacti 
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db 
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java -O 5 -Z 2000000
-		-o workflow/AlignmentToCall_130PoplationVervets_vs_524_top7559Contigs.xml
+		-o dags/AlignmentToCall_130PoplationVervets_vs_524_top7559Contigs.xml
 	
 	# 2012.7.30 genotype-call 723 alignments on method 7 sites (-R ...). "-N ..." (top number of contigs) doesn't matter here.
 	# 2000 method 7 sites for each calling job (-K 2000)
@@ -51,7 +51,7 @@ Examples:
 		-l hcondor -j hcondor
 		-e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
-		-O 5  -o workflow/AlignmentToCall_AllVRC_vs_524_top1000Contigs.xml -R method7_BED.tsv -K 2000
+		-O 5  -o dags/AlignmentToCall_AllVRC_vs_524_top1000Contigs.xml -R method7_BED.tsv -K 2000
 	
 	#2012.8.2 testing calling at known sites (-R method7_BED.n10k.tsv, Contig731 and partial Contig645) 
 	#			with 500 regions for each job (-K 500),
@@ -62,7 +62,7 @@ Examples:
 		-e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
 		-O 1 -C1
-		-o workflow/AlignmentToCall_ISQ643_646_vs_524_method7n10kSites.xml -R method7_BED.n10k.tsv -T -K 500
+		-o dags/AlignmentToCall_ISQ643_646_vs_524_method7n10kSites.xml -R method7_BED.n10k.tsv -T -K 500
 	# 2012.8.2 part of the test above, now run multi-sample on Contig731 on all sites
 	# use -x 731 (maxContigID) -V 731 (minContigID) to restrict the top 1000 contigs to only Contig731.
 	# run on intervals of 200kb (-Z), with both GATK (-T) and SAMtools
@@ -75,7 +75,7 @@ Examples:
 		-l hcondor -j hcondor
 		-e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java -O 1 -C1
-		-o workflow/AlignmentToCall/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml -T -N 1000 -x 731 -V 731 -Z 200000
+		-o dags/AlignmentToCall/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml -T -N 1000 -x 731 -V 731 -Z 200000
 		#--individual_sequence_file_raw_id_type 2 --country_id_ls 135,136,144,148,151 --tax_id_ls 60711 #sabaeus
 	
 Description:
@@ -115,6 +115,8 @@ class AlignmentToCallPipeline(parentClass):
 						("site_type", 1, int): [2, 's', 1, '1: all genome sites, 2: variants only'],\
 						("noOfCallingJobsPerNode", 1, int): [1, 'O', 1, 'this parameter controls how many genotype calling jobs should be clustered together to run on one node. \
 									Increase it to above 1 only when your average genotyping job is short and the number of input bam files are short.'],\
+						("polymuttPath", 1, ): ["%s/bin/polymutt", '', 1, 'path to the polymutt binary'],\
+						("trioCallerPath", 1, ): ["%s/script/vervet/bin/trioCaller/TrioCaller", '', 1, 'path to TrioCaller binary'],\
 						}
 	
 	commonCallPipelineOptionDict.update(parentClass.partitionWorkflowOptionDict.copy())
@@ -132,6 +134,8 @@ class AlignmentToCallPipeline(parentClass):
 		2012.9.17 call parentClass.__init__() directly
 		2011-7-11
 		"""
+		self.pathToInsertHomePathList.extend(['polymuttPath', 'trioCallerPath'])
+		
 		parentClass.__init__(self, **keywords)
 	
 	
@@ -1101,6 +1105,13 @@ class AlignmentToCallPipeline(parentClass):
 		executableClusterSizeMultiplierList.append((trioCallerWrapper, 0))
 		genotypingExecutableSet.add(trioCallerWrapper)
 		
+		#2012.1.3. added polymutt
+		polymutt = Executable(namespace=namespace, name="polymutt", version=version, os=operatingSystem,\
+									arch=architecture, installed=True)
+		polymutt.addPFN(PFN("file://" + os.path.expanduser(self.polymuttPath), site_handler))
+		executableClusterSizeMultiplierList.append((polymutt, 0))
+		genotypingExecutableSet.add(polymutt)
+		
 		MergeVCFReplicateGenotypeColumnsJava = Executable(namespace=namespace, name="MergeVCFReplicateGenotypeColumnsJava", \
 											version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
@@ -1152,10 +1163,7 @@ class AlignmentToCallPipeline(parentClass):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
+		db_vervet = self.db_vervet
 		
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir

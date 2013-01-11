@@ -35,15 +35,14 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq
 from Pegasus.DAX3 import *
-from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
-from pymodule.VCFFile import VCFFile
-from vervet.src import VervetDB
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq
+from pymodule import VCFFile
+from vervet.src import VervetDB, AbstractVervetWorkflow
 
-class PCAOnVCFWorkflow(AbstractVCFWorkflow):
+class PCAOnVCFWorkflow(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
 	option_default_dict.update({
 						('smartpca_path', 1, ): ['%s/script/polyactis/EIG3.0/bin/smartpca', '', 1, 'path to smartpca binary', ],\
 						('smartpcaParameterFname', 1, ): ['', 'P', 1, 'file to store the smartpca parameters', ],\
@@ -55,7 +54,7 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 		"""
 		2011-7-11
 		"""
-		AbstractVCFWorkflow.__init__(self, **keywords)
+		AbstractVervetWorkflow.__init__(self, **keywords)
 		self.inputDir = os.path.abspath(self.inputDir)
 		self.smartpca_path = self.insertHomePath(self.smartpca_path, self.home_path)
 	
@@ -278,10 +277,7 @@ class PCAOnVCFWorkflow(AbstractVCFWorkflow):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
+		db_vervet = self.db_vervet
 		
 		# Create a abstract dag
 		

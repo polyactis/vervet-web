@@ -43,9 +43,8 @@ else:   #32bit
 import subprocess, cStringIO
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq
 from Pegasus.DAX3 import *
-from AbstractVervetWorkflow import AbstractVervetWorkflow
-from pymodule.VCFFile import VCFFile
-from vervet.src import VervetDB
+from pymodule import VCFFile
+from vervet.src import VervetDB, AbstractVervetWorkflow
 
 class CalculateTrioInconsistencyPipeline(AbstractVervetWorkflow):
 	__doc__ = __doc__
@@ -624,10 +623,7 @@ class CalculateTrioInconsistencyPipeline(AbstractVervetWorkflow):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
+		db_vervet = self.db_vervet
 		
 		# Create a abstract dag
 		

@@ -78,12 +78,11 @@ import subprocess, re, csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from pymodule.utils import runLocalCommand, getColName2IndexFromHeader
 from Pegasus.DAX3 import *
-from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
-from vervet.src import VervetDB
+from vervet.src import VervetDB, AbstractVervetWorkflow
 
-class UnpackAndAddIndividualSequence2DB(AbstractNGSWorkflow):
+class UnpackAndAddIndividualSequence2DB(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractNGSWorkflow.option_default_dict.copy()
+	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
 	option_default_dict.update({
 						('input', 1, ): ['', 'i', 1, 'if it is a folder, take all .bam/.sam/.fastq files recursively. If it is a file, every line should be a path to the input file.', ],\
 						('bamFname2MonkeyIDMapFname', 0, ): ['', 'm', 1, 'a tsv version of WUSTL xls file detailing what monkey is in which bam file.', ],\
@@ -103,7 +102,7 @@ class UnpackAndAddIndividualSequence2DB(AbstractNGSWorkflow):
 		"""
 		2011-8-3
 		"""
-		AbstractNGSWorkflow.__init__(self, **keywords)
+		AbstractVervetWorkflow.__init__(self, **keywords)
 		self.addJobsDict = {1: self.addJobsToProcessWUSTLData,\
 						2: self.addJobsToProcessMcGillData,\
 						3: self.addJobsToProcessSouthAfricanRNAData,\
@@ -757,11 +756,7 @@ echo %s
 			import pdb
 			pdb.set_trace()
 		
-		import VervetDB
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema,\
-					port=self.port)
-		db_vervet.setup(create_tables=False)
+		db_vervet = self.db_vervet
 		session = db_vervet.session
 		session.begin()
 		
