@@ -846,8 +846,8 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		"""
 		
 		#have to be in front of the db_vervet connection code. Otherwise schema "genome" wont' be default path and its visible will not be visible.
-		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
-						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
+						db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema="genome")
 		db_genome.setup(create_tables=False)
 		self.chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, \
 											sequence_type_id=9)
@@ -870,16 +870,14 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		self.registerCustomExecutables(workflow)
 		
 		#have to be in front of the db_vervet connection code. Otherwise schema "genome" wont' be default path and its visible will not be visible.
-		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
 						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
 		db_genome.setup(create_tables=False)
 		chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, \
 											sequence_type_id=9)
 		
 		#2011.11.16 initiate vervet db connection after genome db connection
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
+		db_vervet = self.db_vervet
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)

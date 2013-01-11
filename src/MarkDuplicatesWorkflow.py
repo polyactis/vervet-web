@@ -34,8 +34,7 @@ import subprocess, cStringIO
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
 from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
-from ShortRead2AlignmentPipeline import ShortRead2AlignmentPipeline
-from vervet.src import VervetDB
+from vervet.src.alignment.ShortRead2AlignmentPipeline import ShortRead2AlignmentPipeline
 
 class MarkDuplicatesWorkflow(ShortRead2AlignmentPipeline):
 	__doc__ = __doc__
@@ -116,17 +115,6 @@ class MarkDuplicatesWorkflow(ShortRead2AlignmentPipeline):
 			import pdb
 			pdb.set_trace()
 		
-		"""
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
-		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
-		"""
 		
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
 		workflow = self.initiateWorkflow(workflowName)

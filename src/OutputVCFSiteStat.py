@@ -43,8 +43,8 @@ from Pegasus.DAX3 import *
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
 from pymodule.pegasus.AbstractNGSWorkflow import AbstractNGSWorkflow
 from pymodule.utils import runLocalCommand
-from FilterVCFPipeline import FilterVCFPipeline
-from vervet.src import VervetDB
+from vervet.src import VervetDB, AbstractVervetWorkflow
+from vervet.src.qc.FilterVCFPipeline import FilterVCFPipeline
 
 class OutputVCFSiteStat(FilterVCFPipeline):
 	__doc__ = __doc__
@@ -66,7 +66,7 @@ class OutputVCFSiteStat(FilterVCFPipeline):
 	def __init__(self,  **keywords):
 		"""
 		"""
-		AbstractNGSWorkflow.__init__(self, **keywords)
+		FilterVCFPipeline.__init__(self, **keywords)
 	
 	def registerCustomExecutables(self, workflow):
 		"""
@@ -112,9 +112,7 @@ class OutputVCFSiteStat(FilterVCFPipeline):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
+		db_vervet = self.db_vervet
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir
 		

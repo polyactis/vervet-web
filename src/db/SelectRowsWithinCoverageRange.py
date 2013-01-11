@@ -30,9 +30,9 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2In
 from pymodule import yh_matplotlib, SNP
 import numpy, random
 from pymodule.AbstractMatrixFileWalker import AbstractMatrixFileWalker
-from vervet.src import VervetDB
+from vervet.src import VervetDB, AbstractVervetMapper
 
-class SelectRowsWithinCoverageRange(AbstractMatrixFileWalker):
+class SelectRowsWithinCoverageRange(AbstractMatrixFileWalker, AbstractVervetMapper):
 	__doc__ = __doc__
 	option_default_dict = AbstractMatrixFileWalker.option_default_dict.copy()
 	option_default_dict.update(AbstractMatrixFileWalker.db_option_dict.copy())
@@ -51,10 +51,7 @@ class SelectRowsWithinCoverageRange(AbstractMatrixFileWalker):
 		"""
 		2012.10.15
 		"""
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user, password=self.db_passwd, \
-									hostname=self.hostname, database=self.dbname, schema=self.schema, port=self.port)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
+		AbstractVervetMapper.connectDB(self)
 	
 	def processRow(self, row=None, pdata=None):
 		"""

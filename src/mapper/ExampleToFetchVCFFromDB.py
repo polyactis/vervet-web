@@ -52,13 +52,10 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 		2012.4.29
 			split out of __init__() so that derived classes could overwrite this function
 		"""
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user, password=self.db_passwd, \
-									hostname=self.hostname, database=self.dbname, schema=self.schema, port=self.port)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
+		AbstractVervetMapper.connectDB(self)
 		
-		db_taxonomy = TaxonomyDB.TaxonomyDB(drivername=self.drivername, username=self.db_user, password=self.db_passwd, \
-									hostname=self.hostname, database=self.dbname, schema="taxonomy", port=self.port)
+		db_taxonomy = TaxonomyDB.TaxonomyDB(drivername=self.drivername, db_user=self.db_user, db_passwd=self.db_passwd, \
+									hostname=self.hostname, dbname=self.dbname, schema="taxonomy", port=self.port)
 		db_taxonomy.setup(create_tables=False)
 		self.db_taxonomy = db_taxonomy
 	
@@ -87,7 +84,7 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 		filename = os.path.join(dataDir, genotypeFile.path)
 		if os.path.isfile(filename):
 			counter= 0
-			from pymodule.VCFFile import VCFFile
+			from pymodule import VCFFile
 			
 			vcfFile = VCFFile(inputFname=filename, minDepth=0)
 			sampleIDList = vcfFile.getSampleIDList()

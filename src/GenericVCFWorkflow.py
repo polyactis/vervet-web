@@ -722,8 +722,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		"""
 		2011-11-28
 		"""
-		super(GenericVCFWorkflow, self).registerCustomExecutables(workflow=workflow)
-		#AbstractVervetWorkflow.registerCustomExecutables(self, workflow=workflow)
+		AbstractVervetWorkflow.registerCustomExecutables(self, workflow=workflow)
 		if workflow is None:
 			workflow = self
 		namespace = workflow.namespace
@@ -767,8 +766,6 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		if self.debug:
 			import pdb
 			pdb.set_trace()
-		
-		self.connectDB()
 		
 		# Create a abstract dag
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]

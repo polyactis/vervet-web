@@ -85,7 +85,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 	def addDepthOfCoverageJob(self, workflow, DOCWalkerJava=None, genomeAnalysisTKJar=None,\
 							refFastaFList=None, bamF=None, baiF=None, DOCOutputFnamePrefix=None,\
 							fractionToSample=None,\
-							parentJobLs=[], job_max_memory = 1000, additionalArguments="", \
+							parentJobLs=[], job_max_memory = 1000, extraArguments="", \
 							transferOutput=False, minMappingQuality=30, minBaseQuality=20):
 		"""
 		2012.5.7
@@ -109,8 +109,8 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		DOCJob.addArguments("-I", bamF)
 		if fractionToSample and fractionToSample>0 and fractionToSample<=1:
 			DOCJob.addArguments("--fractionToSample %s"%(fractionToSample))
-		if additionalArguments:
-			DOCJob.addArguments(additionalArguments)
+		if extraArguments:
+			DOCJob.addArguments(extraArguments)
 		#it's either symlink or stage-in
 		DOCJob.uses(bamF, transfer=True, register=True, link=Link.INPUT)
 		DOCJob.uses(baiF, transfer=True, register=True, link=Link.INPUT)
@@ -127,7 +127,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 	
 	def addSAMtoolsDepthJob(self, workflow, samtoolsDepth=None, samtools_path=None,\
 							bamF=None, outputFile=None, baiF=None, \
-							parentJobLs=[], job_max_memory = 500, additionalArguments="", \
+							parentJobLs=[], job_max_memory = 500, extraArguments="", \
 							transferOutput=False, minMappingQuality=30, minBaseQuality=20):
 		"""
 		2012.5.7
@@ -135,8 +135,8 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		"""
 		job = Job(namespace=workflow.namespace, name=samtoolsDepth.name, version=workflow.version)
 		job.addArguments(samtools_path, bamF, outputFile, "%s"%minMappingQuality, "%s"%minBaseQuality)
-		if additionalArguments:
-			job.addArguments(additionalArguments)
+		if extraArguments:
+			job.addArguments(extraArguments)
 		#it's either symlink or stage-in
 		job.uses(bamF, transfer=True, register=True, link=Link.INPUT)
 		job.uses(baiF, transfer=True, register=True, link=Link.INPUT)
@@ -149,7 +149,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 	
 	def addReadCountJob(self, workflow, VariousReadCountJava=None, genomeAnalysisTKJar=None,\
 					refFastaFList=None, bamF=None, baiF=None, readCountOutputF=None,\
-					parentJobLs=[], job_max_memory = 1000, additionalArguments="", \
+					parentJobLs=[], job_max_memory = 1000, extraArguments="", \
 					transferOutput=False):
 		"""
 		2011-11-25
@@ -160,8 +160,8 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		job.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "VariousReadCount",\
 			'-R', refFastaF, '-o', readCountOutputF, "-mmq 30")
 		job.addArguments("-I", bamF)
-		if additionalArguments:
-			job.addArguments(additionalArguments)
+		if extraArguments:
+			job.addArguments(extraArguments)
 		job.uses(bamF, transfer=True, register=True, link=Link.INPUT)
 		job.uses(baiF, transfer=True, register=True, link=Link.INPUT)
 		self.registerFilesAsInputToJob(job, refFastaFList)
@@ -287,14 +287,14 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				depthOutputFile = File('%s_DOC.tsv'%(alignment.id))
 				samtoolsDepthJob = self.addSAMtoolsDepthJob(workflow, samtoolsDepth=samtoolsDepth, samtools_path=samtools_path,\
 							bamF=bamF, outputFile=depthOutputFile, baiF=baiF, \
-							parentJobLs=alignmentData.jobLs, job_max_memory = 500, additionalArguments="", \
+							parentJobLs=alignmentData.jobLs, job_max_memory = 500, extraArguments="", \
 							transferOutput=False)
 				meanMedianModeDepthFile = File("%s_meanMedianModeDepth.tsv"%(alignment.id))
 				meanMedianModeDepthJob = self.addCalculateDepthMeanMedianModeJob(workflow, \
 							executable=workflow.CalculateMedianMeanOfInputColumn, \
 							inputFile=depthOutputFile, outputFile=meanMedianModeDepthFile, alignmentID=alignment.id, fractionToSample=self.fractionToSample, \
 							noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E6,\
-							parentJobLs=[samtoolsDepthJob], job_max_memory = 500, additionalArguments=None, \
+							parentJobLs=[samtoolsDepthJob], job_max_memory = 500, extraArguments=None, \
 							transferOutput=False)
 				"""
 				DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=DOCWalkerJava, genomeAnalysisTKJar=genomeAnalysisTKJar,\
@@ -364,7 +364,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				depthOutputFile = File(os.path.join(statOutputDir, '%s_%s_DOC.tsv'%(alignment.id, refName)))
 				samtoolsDepthJob = self.addSAMtoolsDepthJob(workflow, samtoolsDepth=samtoolsDepth, samtools_path=samtools_path,\
 							bamF=bamF, outputFile=depthOutputFile, baiF=baiF, \
-							parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = 500, additionalArguments="", \
+							parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = 500, extraArguments="", \
 							transferOutput=False)
 				meanMedianModeDepthFile = File(os.path.join(statOutputDir, "%s_%s_meanMedianModeDepth.tsv"%(alignment.id, refName)))
 				meanMedianModeDepthJob = self.addCalculateDepthMeanMedianModeJob(workflow, \
@@ -372,7 +372,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 							inputFile=depthOutputFile, outputFile=meanMedianModeDepthFile, alignmentID="%s-%s"%(alignment.id, refName), \
 							fractionToSample=self.fractionToSample, \
 							noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E6,\
-							parentJobLs=[samtoolsDepthJob], job_max_memory = 500, additionalArguments="-r %s"%(refName), \
+							parentJobLs=[samtoolsDepthJob], job_max_memory = 500, extraArguments="-r %s"%(refName), \
 							transferOutput=False)
 				
 				self.addInputToStatMergeJob(workflow, statMergeJob=depthOfCoveragePerChrOutputMergeJob, inputF=meanMedianModeDepthFile,\
@@ -383,7 +383,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 						genomeAnalysisTKJar=genomeAnalysisTKJar,\
 						refFastaFList=refFastaFList, bamF=bamF, baiF=baiF, \
 						DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
-						parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = perContigJobMaxMemory*3, additionalArguments="-L %s"%(refName),\
+						parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = perContigJobMaxMemory*3, extraArguments="-L %s"%(refName),\
 						transferOutput=False,\
 						fractionToSample=self.fractionToSample)
 				
@@ -399,7 +399,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				readCountJob = self.addReadCountJob(workflow, VariousReadCountJava=ContigVariousReadCountJava, \
 							genomeAnalysisTKJar=genomeAnalysisTKJar, refFastaFList=refFastaFList, \
 							bamF=bamF, baiF=baiF, readCountOutputF=readCountOutputF,\
-							parentJobLs=statOutputDirJob, job_max_memory = perContigJobMaxMemory, additionalArguments="-L %s"%(refName), \
+							parentJobLs=statOutputDirJob, job_max_memory = perContigJobMaxMemory, extraArguments="-L %s"%(refName), \
 							transferOutput=False)
 				
 				reduceVariousReadCountJob.addArguments(readCountOutputF)
@@ -497,10 +497,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
+		db_vervet = self.db_vervet
 		
 		if not self.dataDir:
 			self.dataDir = db_vervet.data_dir

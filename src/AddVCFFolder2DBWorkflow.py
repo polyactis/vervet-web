@@ -36,14 +36,13 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 import csv
 from Pegasus.DAX3 import *
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, figureOutDelimiter, getColName2IndexFromHeader
-from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 from pymodule import VCFFile
 from GenericVCFWorkflow import GenericVCFWorkflow
-from vervet.src import VervetDB
+from vervet.src import VervetDB, AbstractVervetWorkflow
 
 class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
 	option_default_dict.update({
 						('inputDir', 0, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						('maxContigID', 0, int): [None, 'x', 1, 'if contig ID is beyond this number, it will not be included. If None or 0, no restriction.', ],\
@@ -56,7 +55,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 	def __init__(self,  **keywords):
 		"""
 		"""
-		AbstractVCFWorkflow.__init__(self, **keywords)
+		AbstractVervetWorkflow.__init__(self, **keywords)
 		self.inputDir = os.path.abspath(self.inputDir)
 	
 	def registerCustomJars(self, workflow, ):
@@ -213,10 +212,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 			import pdb
 			pdb.set_trace()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
-					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
+		db_vervet = self.db_vervet
 		
 		# Create a abstract dag
 		workflow = self.initiateWorkflow()
