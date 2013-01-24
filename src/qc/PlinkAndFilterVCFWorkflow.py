@@ -106,11 +106,6 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 							site_handler))
 		executableClusterSizeMultiplierList.append((OutputSitesBelowMaxMendelError, 0))
 		
-		ConvertPlinkBIM = Executable(namespace=namespace, name="ConvertPlinkBIM", version=version, \
-							os=operatingSystem, arch=architecture, installed=True)
-		ConvertPlinkBIM.addPFN(PFN("file://" + os.path.join(self.pymodulePath, "pegasus/mapper/ConvertPlinkBIM.py"), \
-							site_handler))
-		executableClusterSizeMultiplierList.append((ConvertPlinkBIM, 0))
 		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 		
