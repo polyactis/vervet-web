@@ -27,6 +27,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		2012.6.12
 		"""
 		AbstractVCFWorkflow.__init__(self, **keywords)
+		self.connectDB()
 	
 	def outputAlignmentDepthAndOthersForFilter(self, db_vervet=None, outputFname=None, ref_ind_seq_id=524, \
 											foldChange=2, minGQ=30):
