@@ -60,7 +60,7 @@ from pymodule import GenomeDB
 from Pegasus.DAX3 import *
 from pymodule import AbstractVCFWorkflow
 from pymodule import VCFFile
-from GenericVCFWorkflow import GenericVCFWorkflow
+from vervet.src.pegasus.GenericVCFWorkflow import GenericVCFWorkflow
 from vervet.src import VervetDB
 
 class PlinkOnVCFWorkflow(GenericVCFWorkflow):
