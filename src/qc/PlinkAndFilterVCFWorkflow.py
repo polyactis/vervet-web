@@ -48,12 +48,11 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 import subprocess, cStringIO
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
 from Pegasus.DAX3 import *
-from AbstractVervetWorkflow import AbstractVervetWorkflow
 #from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
-from FilterVCFPipeline import FilterVCFPipeline
-from PlinkOnVCFWorkflow import PlinkOnVCFWorkflow
-from CalculateVCFStatPipeline import CalculateVCFStatPipeline
-from vervet.src import VervetDB
+from vervet.src.qc.FilterVCFPipeline import FilterVCFPipeline
+from vervet.src.PlinkOnVCFWorkflow import PlinkOnVCFWorkflow
+from vervet.src.popgen.CalculateVCFStatPipeline import CalculateVCFStatPipeline
+from vervet.src import VervetDB, AbstractVervetWorkflow
 
 class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, CalculateVCFStatPipeline):
 	__doc__ = __doc__
