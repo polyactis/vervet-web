@@ -37,7 +37,7 @@ from sqlalchemy import and_, or_, not_
 
 from datetime import datetime
 
-from pymodule.db import ElixirDB, TableClass
+from pymodule.db import ElixirDB, TableClass, AbstractTableWithFilename
 from pymodule import ProcessOptions, utils, NextGenSeq, PassingData
 import hashlib
 
@@ -384,7 +384,7 @@ class RelationshipType(Entity, TableClass):
 	using_options(tablename='relationship_type', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 
-class AlignmentMethod(Entity, TableClass):
+class AlignmentMethod(Entity):
 	"""
 	2011-9-1
 		add column command
@@ -401,7 +401,7 @@ class AlignmentMethod(Entity, TableClass):
 	using_options(tablename='alignment_method', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 
-class IndividualAlignment(Entity, TableClass):
+class IndividualAlignment(Entity, AbstractTableWithFilename):
 	"""
 	2012.9.21 rename IndividualAlignment.ind_sequence to individual_sequence
 		add file_size
@@ -513,7 +513,7 @@ class IndividualAlignment(Entity, TableClass):
 		
 		return dst_relative_path
 	
-class IndividualSequence(Entity, TableClass):
+class IndividualSequence(Entity, AbstractTableWithFilename):
 	"""
 	2012.2.27
 		add column read_count
@@ -591,7 +591,7 @@ class SequenceBatch(Entity, TableClass):
 	using_options(tablename='sequence_batch', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 	
-class IndividualSequenceFile(Entity, TableClass):
+class IndividualSequenceFile(Entity, AbstractTableWithFilename):
 	"""
 	2012.7.14 add md5sum
 	2012.2.27
@@ -638,7 +638,7 @@ class IndividualSequenceFile(Entity, TableClass):
 	
 
 
-class IndividualSequenceFileRaw(Entity, TableClass):
+class IndividualSequenceFileRaw(Entity, AbstractTableWithFilename):
 	"""
 	2012.7.12 add column file_size
 	2012.4.30
@@ -958,7 +958,7 @@ class Genotype(Entity, TableClass):
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('individual_id', 'locus_id', 'allele_order'))
 
-class GenotypeMethod(Entity, TableClass):
+class GenotypeMethod(Entity, AbstractTableWithFilename):
 	"""
 	2012.9.6 add column min_neighbor_distance
 	2012.7.12 add meta-columns: min_depth ... min_MAF
@@ -1011,7 +1011,7 @@ class GenotypeMethod(Entity, TableClass):
 			data_dir = VervetDB.get_data_dir()
 		return utils.getFileOrFolderSize(os.path.join(data_dir, self.path))
 	
-class GenotypeFile(Entity, TableClass):
+class GenotypeFile(Entity, AbstractTableWithFilename):
 	"""
 	2012.8.30 add column no_of_chromosomes
 	2012.7.11
