@@ -844,6 +844,12 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							site_handler))
 		executableClusterSizeMultiplierList.append((DetectWrongLabelByCompKinshipVsIBD, 0))
 		
+		ConvertPlinkBIM = Executable(namespace=namespace, name="ConvertPlinkBIM", version=version, \
+							os=operatingSystem, arch=architecture, installed=True)
+		ConvertPlinkBIM.addPFN(PFN("file://" + os.path.join(self.pymodulePath, "pegasus/mapper/converter/ConvertPlinkBIM.py"), \
+							site_handler))
+		executableClusterSizeMultiplierList.append((ConvertPlinkBIM, 0))
+		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 	
 	
