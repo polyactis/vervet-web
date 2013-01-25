@@ -54,7 +54,7 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import csv
+import csv, copy
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, \
 	figureOutDelimiter, getColName2IndexFromHeader, utils
 from Pegasus.DAX3 import *
@@ -64,7 +64,7 @@ from vervet.src import VervetDB, AbstractVervetWorkflow
 
 class GenericVCFWorkflow(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
+	option_default_dict = copy.deepcopy(AbstractVervetWorkflow.option_default_dict)
 	option_default_dict.update({
 						('individualUCLAIDFname', 0, ): [None, 'i', 1, 'a file containing individual ucla_id in each row. one column with header UCLAID. ', ],\
 						('vcfSampleIDFname', 0, ): [None, 'w', 1, 'a file containing the sample ID (a composite ID including ucla_id) each row. \
@@ -628,7 +628,6 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		
 		#second, read a sample VCF file and output the samples that have been in the given set
 		writer = csv.writer(open(vcfSampleIDFname, 'w'), delimiter='\t')
-		from pymodule.VCFFile import VCFFile
 		vcfFile = VCFFile(inputFname=oneSampleVCFFname, minDepth=0)
 		no_of_samples = 0
 		for sample_id in vcfFile.sample_id_ls:
@@ -749,7 +748,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 	
 		ModifyTPED = Executable(namespace=namespace, name="ModifyTPED", version=version, \
 							os=operatingSystem, arch=architecture, installed=True)
-		ModifyTPED.addPFN(PFN("file://" + os.path.join(self.pymodulePath, "pegasus/mapper/ModifyTPED.py"), \
+		ModifyTPED.addPFN(PFN("file://" + os.path.join(self.pymodulePath, "pegasus/mapper/filter/ModifyTPED.py"), \
 							site_handler))
 		executableClusterSizeMultiplierList.append((ModifyTPED, 1))
 		
