@@ -45,7 +45,7 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 import subprocess, cStringIO
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
-from vervet.src.AbstractVervetWorkflow import AbstractVervetWorkflow
+from vervet.src.pegasus.AbstractVervetWorkflow import AbstractVervetWorkflow
 
 class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkflow):
 	__doc__ = __doc__
