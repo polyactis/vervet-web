@@ -13,16 +13,17 @@ __doc__ = __doc__%()
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
+import copy
 import subprocess, cStringIO
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
-from AbstractVervetWorkflow import AbstractVervetWorkflow
 from Pegasus.DAX3 import *
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from vervet.src import VervetDB
+from vervet.src.pegasus.AbstractVervetWorkflow import AbstractVervetWorkflow
 
 
 class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
+	option_default_dict = copy.deepcopy(AbstractVervetWorkflow.option_default_dict)
 	#change the short option to nothing to avoid conflict
 	option_default_dict[('inputDir', 0, )] = ['', 'L', 1, 'input folder that contains vcf or vcf.gz files', ]
 
@@ -282,7 +283,7 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 			
 			mapEachAlignmentData = self.mapEachAlignment(workflow=workflow, passingData=passingData, transferOutput=False, \
 												preReduceReturnData=preReduceReturnData, **keywords)
-			mapEachAlignmentDataLs.append(mapEachAlignmentData)
+			passingData.mapEachAlignmentDataLs.append(mapEachAlignmentData)
 			passingData.mapEachAlignmentData = mapEachAlignmentData
 			
 			reduceBeforeEachAlignmentData = self.reduceBeforeEachAlignment(workflow=workflow, passingData=passingData, \
@@ -348,11 +349,11 @@ class AbstractAlignmentAndVCFWorkflow(AbstractVervetWorkflow):
 				passingData.gzipReduceAfterEachChromosomeFolderJob = gzipReduceAfterEachChromosomeData.topOutputDirJob
 				
 			reduceAfterEachAlignmentData = self.reduceAfterEachAlignment(workflow=workflow, \
-													mapEachAlignmentData=mapEachAlignmentData,\
-													mapEachChromosomeDataLs=mapEachChromosomeDataLs,\
-													reduceAfterEachChromosomeDataLs=reduceAfterEachChromosomeDataLs,\
-													passingData=passingData, \
-													transferOutput=False, dataDir=dataDir, **keywords)
+												mapEachAlignmentData=mapEachAlignmentData,\
+												mapEachChromosomeDataLs=mapEachChromosomeDataLs,\
+												reduceAfterEachChromosomeDataLs=passingData.reduceAfterEachChromosomeDataLs,\
+												passingData=passingData, \
+												transferOutput=False, dataDir=dataDir, **keywords)
 			passingData.reduceAfterEachAlignmentData = reduceAfterEachAlignmentData
 			passingData.reduceAfterEachAlignmentDataLs.append(reduceAfterEachAlignmentData)
 			
