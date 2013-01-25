@@ -99,8 +99,8 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from Pegasus.DAX3 import *
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from vervet.src import AbstractAlignmentAndVCFWorkflow, AbstractVervetWorkflow, VervetDB
 
 parentClass = AbstractAlignmentAndVCFWorkflow
