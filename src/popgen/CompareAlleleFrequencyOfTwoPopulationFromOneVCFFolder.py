@@ -42,14 +42,14 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import subprocess, cStringIO
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
+import subprocess, cStringIO, copy
 from Pegasus.DAX3 import *
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from vervet.src.pegasus.AbstractVervetWorkflow import AbstractVervetWorkflow
 
 class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
+	option_default_dict = copy.deepcopy(AbstractVervetWorkflow.option_default_dict)
 	option_default_dict.update({
 				("pop1_sampleSize", 0, int): [None, '', 1, 'if specified (>1), a sampling of individuals from population1 is used instead. otherwise, all.'],\
 				("pop2_sampleSize", 0, int): [None, '', 1, 'if specified (>1), a sampling of individuals from population2 is used instead. otherwise, all.'],\
