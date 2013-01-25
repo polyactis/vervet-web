@@ -34,10 +34,10 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, N
 	figureOutDelimiter, getColName2IndexFromHeader, utils
 from Pegasus.DAX3 import *
 #from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
-from pymodule.VCFFile import VCFFile
+from pymodule import VCFFile
 #from AlignmentToCallPipeline import AlignmentToCallPipeline
 #from AbstractVervetWorkflow import AbstractVervetWorkflow
-from AbstractAlignmentAndVCFWorkflow import AbstractAlignmentAndVCFWorkflow
+from vervet.src.pegasus.AbstractAlignmentAndVCFWorkflow import AbstractAlignmentAndVCFWorkflow
 from vervet.src import VervetDB
 
 parentClass = AbstractAlignmentAndVCFWorkflow
@@ -245,11 +245,6 @@ class HaplotypeScoreWorkflow(parentClass):
 		
 		#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
 		executableClusterSizeMultiplierList = []
-		
-		ExtractInfoFromVCF = Executable(namespace=namespace, name="ExtractInfoFromVCF", version=version, os=operatingSystem,\
-									arch=architecture, installed=True)
-		ExtractInfoFromVCF.addPFN(PFN("file://" + os.path.join(self.pymodulePath, "pegasus/mapper/ExtractInfoFromVCF.py"), site_handler))
-		executableClusterSizeMultiplierList.append((ExtractInfoFromVCF, 1))
 		
 		annotateVariantJava = Executable(namespace=namespace, name="annotateVariantJava", version=version, os=operatingSystem,\
 											arch=architecture, installed=True)
