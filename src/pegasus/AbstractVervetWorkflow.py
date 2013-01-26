@@ -1,21 +1,21 @@
 #!/usr/bin/env python
 """
-2012.6.12
-	a NGS-workflow that derives from AbstractVCFWorkflow and specific for vervet repository
+2012.6.12 a NGS-workflow that derives from AbstractVCFWorkflow and specific for vervet repository
 """
 import sys, os, math
 
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq
+import copy
 from Pegasus.DAX3 import *
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq
 from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 from vervet.src import VervetDB
 
 class AbstractVervetWorkflow(AbstractVCFWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict = copy.deepcopy(AbstractVCFWorkflow.option_default_dict)
 	option_default_dict.update(AbstractVCFWorkflow.db_option_dict.copy())
 	
 	option_default_dict.update({
@@ -27,8 +27,9 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		2012.6.12
 		"""
 		AbstractVCFWorkflow.__init__(self, **keywords)
-		self.connectDB()
-	
+		
+		self.db = self.db_vervet	#2013.1.25 main db
+
 	def outputAlignmentDepthAndOthersForFilter(self, db_vervet=None, outputFname=None, ref_ind_seq_id=524, \
 											foldChange=2, minGQ=30):
 		"""
@@ -228,14 +229,22 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		
 		if not self.localDataDir:
 			self.localDataDir = db_vervet.data_dir
-			
+		
+		#self.refFastaFList = self.getReferenceSequence(workflow=self)	#2013.1.25 done in run()
+	
+	def getReferenceSequence(self, workflow=None, **keywords):
+		"""
+		2013.1.25 placeholder
+		"""
+		if workflow is None:
+			workflow = self
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.dataDir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(self, refFastaFname, registerAffiliateFiles=True, \
+		refFastaFList = yh_pegasus.registerRefFastaFile(workflow=workflow, refFastaFname=refFastaFname, \
+							registerAffiliateFiles=True, \
 							input_site_handler=self.input_site_handler,\
 							checkAffiliateFileExistence=True)
-		self.refFastaFList = refFastaFList
-	
+		return refFastaFList
 	
 	def registerCustomExecutables(self, workflow=None):
 		"""
@@ -276,4 +285,9 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		executableClusterSizeMultiplierList.append((OutputVRCPedigreeInTFAMGivenOrderFromFile, 1))
 		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
-		
+
+if __name__ == '__main__':
+	main_class = AbstractVervetWorkflow
+	po = ProcessOptions(sys.argv, main_class.option_default_dict, error_doc=main_class.__doc__)
+	instance = main_class(**po.long_option2value)
+	instance.run()

@@ -37,10 +37,9 @@ from Pegasus.DAX3 import *
 from pymodule import VCFFile
 #from AlignmentToCallPipeline import AlignmentToCallPipeline
 #from AbstractVervetWorkflow import AbstractVervetWorkflow
-from vervet.src.pegasus.AbstractAlignmentAndVCFWorkflow import AbstractAlignmentAndVCFWorkflow
-from vervet.src import VervetDB
+from vervet.src import VervetDB, AbstractVervetAlignmentAndVCFWorkflow
 
-parentClass = AbstractAlignmentAndVCFWorkflow
+parentClass = AbstractVervetAlignmentAndVCFWorkflow
 class HaplotypeScoreWorkflow(parentClass):
 	__doc__ = __doc__
 	option_default_dict = parentClass.option_default_dict.copy()

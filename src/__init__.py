@@ -2,4 +2,5 @@
 
 from db import VervetDB
 from pegasus.AbstractVervetWorkflow import AbstractVervetWorkflow
-from pegasus.AbstractAlignmentAndVCFWorkflow import AbstractAlignmentAndVCFWorkflow
+from pegasus.AbstractVervetAlignmentWorkflow import AbstractVervetAlignmentWorkflow
+from pegasus.AbstractVervetAlignmentAndVCFWorkflow import AbstractVervetAlignmentAndVCFWorkflow
