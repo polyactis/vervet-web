@@ -101,9 +101,9 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 from Pegasus.DAX3 import *
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
-from vervet.src import AbstractAlignmentAndVCFWorkflow, AbstractVervetWorkflow, VervetDB
+from vervet.src import AbstractVervetWorkflow, VervetDB, AbstractVervetAlignmentAndVCFWorkflow
 
-parentClass = AbstractAlignmentAndVCFWorkflow
+parentClass = AbstractVervetAlignmentAndVCFWorkflow
 class AlignmentToCallPipeline(parentClass):
 	__doc__ = __doc__
 	option_default_dict = parentClass.option_default_dict.copy()
@@ -1185,14 +1185,7 @@ class AlignmentToCallPipeline(parentClass):
 		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
 										defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
 		
-		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
-		refFastaFname = os.path.join(self.dataDir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
-							input_site_handler=self.input_site_handler,\
-							checkAffiliateFileExistence=True)
-		refFastaF = refFastaFList[0]
-		
-		vervetSrcPath = self.vervetSrcPath
+		refFastaFList = self.getReferenceSequence(workflow=self)
 		
 		self.registerJars()
 		self.registerExecutables()

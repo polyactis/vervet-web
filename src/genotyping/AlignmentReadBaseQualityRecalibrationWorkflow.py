@@ -47,10 +47,10 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, N
 from pymodule import VCFFile
 #from AlignmentToCallPipeline import AlignmentToCallPipeline
 #from AbstractVervetWorkflow import AbstractVervetWorkflow
-from vervet.src.pegasus.AbstractAlignmentAndVCFWorkflow import AbstractAlignmentAndVCFWorkflow
-from vervet.src import VervetDB
+#from vervet.src.pegasus.AbstractVervetAlignmentAndVCFWorkflow import AbstractVervetAlignmentAndVCFWorkflow
+from vervet.src import VervetDB, AbstractVervetAlignmentAndVCFWorkflow
 
-parentClass = AbstractAlignmentAndVCFWorkflow
+parentClass = AbstractVervetAlignmentAndVCFWorkflow
 class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 	__doc__ = __doc__
 	option_default_dict = parentClass.option_default_dict.copy()
