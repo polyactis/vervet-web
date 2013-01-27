@@ -34,7 +34,7 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import subprocess, cStringIO
+import copy
 from Pegasus.DAX3 import *
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq
 from pymodule import VCFFile
@@ -42,7 +42,7 @@ from vervet.src import VervetDB, AbstractVervetWorkflow
 
 class PCAOnVCFWorkflow(AbstractVervetWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
+	option_default_dict = copy.deepcopy(AbstractVervetWorkflow.option_default_dict)
 	option_default_dict.update({
 						('smartpca_path', 1, ): ['%s/script/polyactis/EIG3.0/bin/smartpca', '', 1, 'path to smartpca binary', ],\
 						('smartpcaParameterFname', 1, ): ['', 'P', 1, 'file to store the smartpca parameters', ],\
