@@ -53,19 +53,17 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import csv
+import copy
+from Pegasus.DAX3 import *
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, \
 	figureOutDelimiter, getColName2IndexFromHeader, utils
 from pymodule import GenomeDB
-from Pegasus.DAX3 import *
 from pymodule import AbstractVCFWorkflow
-from pymodule import VCFFile
 from vervet.src.pegasus.GenericVCFWorkflow import GenericVCFWorkflow
-from vervet.src import VervetDB
 
 class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 	__doc__ = __doc__
-	option_default_dict = AbstractVCFWorkflow.option_default_dict.copy()
+	option_default_dict = copy.deepcopy(AbstractVCFWorkflow.option_default_dict)
 	plinkWorkflowOptionDict= {
 						('LDPruneMinR2', 0, float): [0.4, 'R', 1, 'minimum r2 for LD pruning', ],\
 						('locusSamplingRate', 0, float): [0.0001, 'c', 1, 'how many loci to sample', ],\
