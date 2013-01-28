@@ -304,8 +304,13 @@ class FindLocusContext(AbstractVervetMapper):
 				geneSegKey = node.key
 				for oneGeneData in node.value:
 					# geneSegKey.span_ls expands 20kb upstream or downstream of the gene.
-					overlap1, overlap2, overlap_length, overlap_start_pos, overlap_stop_pos = get_overlap_ratio(segmentKey.span_ls, \
-															[oneGeneData.gene_start, oneGeneData.gene_stop])[:5]
+					overlapData = get_overlap_ratio(segmentKey.span_ls, \
+															[oneGeneData.gene_start, oneGeneData.gene_stop])
+					overlapFraction1 = overlapData.overlapFraction1
+					overlapFraction2 = overlapData.overlapFraction2
+					overlap_length = overlapData.overlap_length
+					overlap_start_pos = overlapData.overlap_start_pos
+					overlap_stop_pos = overlapData.overlap_stop_pos 
 					if overlap_length>0:	#use fraction of length as coordinates.
 						gene_length = oneGeneData.gene_stop - oneGeneData.gene_start + 1
 						try:
@@ -333,9 +338,7 @@ class FindLocusContext(AbstractVervetMapper):
 					locus_context = db_vervet.getLocusContext(locus_id=row.id, gene_id=oneGeneData.gene_id, \
 											gene_strand=oneGeneData.strand, disp_pos=term5_disp_pos, \
 											overlap_length=overlap_length,\
-											overlap_fraction_in_locus=overlap1, overlap_fraction_in_gene=overlap2)
-					
-					if locus_context.id:
+											overlap_fraction_in_locus=overlapFraction1, overlap_fraction_in_gene=overlap2overlapFraction2					if locus_context.id:
 						param_obj.no_of_locus_contexts_already_in_db += 1
 					else:
 						param_obj.no_of_into_db += 1
@@ -347,8 +350,13 @@ class FindLocusContext(AbstractVervetMapper):
 						for geneSegmentNode in gene_box_node_ls:
 							geneSegmentKey = geneSegmentNode.key
 							if row.stop!=row.start: 	#2012.5.14 structural variation, not single-base locus 
-								overlap1, overlap2, overlap_length, overlap_start_pos, overlap_stop_pos = get_overlap_ratio(segmentKey.span_ls, \
-														geneSegmentKey.span_ls)[:5]
+								overlapData = get_overlap_ratio(segmentKey.span_ls, geneSegmentKey.span_ls)
+								overlapFraction1 = overlapData.overlapFraction1
+								overlapFraction2 = overlapData.overlapFraction2
+								overlap_length = overlapData.overlap_length
+								overlap_start_pos = overlapData.overlap_start_pos
+								overlap_stop_pos = overlapData.overlap_stop_pos
+								
 								locus_annotation = db_vervet.getLocusAnnotation(locus_id=row.id, locus_context_id=locus_context.id, locus_context=locus_context, \
 														gene_id=oneGeneData.gene_id,
 														gene_commentary_id=geneCommentaryRBDict.gene_commentary_id, \
@@ -359,7 +367,7 @@ class FindLocusContext(AbstractVervetMapper):
 														utr_number=geneSegmentKey.utr_number, cds_number=geneSegmentKey.cds_number, \
 														intron_number=geneSegmentKey.intron_number,\
 														exon_number=geneSegmentKey.exon_number, overlap_length=overlap_length, \
-														overlap_fraction_in_locus=overlap1, overlap_fraction_in_gene=overlap2,\
+														overlap_fraction_in_locus=overlapFraction1, overlap_fraction_in_gene=overlapFraction2,\
 														comment=None)
 								if locus_annotation:
 									param_obj.no_of_locus_annotations_already_in_db += 1
