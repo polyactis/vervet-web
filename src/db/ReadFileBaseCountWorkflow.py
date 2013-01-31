@@ -117,13 +117,13 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		2012.3.14
 		"""
 		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
-		job.addArguments("-v", self.drivername, "-z", self.hostname, "-d", self.dbname, \
-						"-u", self.db_user, "-p", self.db_passwd, \
+		job.addArguments("--drivername", self.drivername, "--hostname", self.hostname, "--dbname", self.dbname, \
+						"--db_user", self.db_user, "--db_passwd", self.db_passwd, \
 						"--logFilename", logFile)
 		if extraArguments:
 			job.addArguments(extraArguments)
 		if commit:
-			job.addArguments("-c")
+			job.addArguments("--commit")
 		for inputFile in inputFileLs:
 			job.addArguments(inputFile)
 			job.uses(inputFile, transfer=True, register=True, link=Link.INPUT)
@@ -146,11 +146,11 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		2012.3.14
 		"""
 		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
-		job.addArguments("-i", inputFile, "-o", outputFile)
+		job.addArguments("--inputFname", inputFile, "--outputFname", outputFile)
 		if isq_id:
-			job.addArguments("-q %s"%(isq_id))
+			job.addArguments("--isq_id %s"%(isq_id))
 		if isqf_id:
-			job.addArguments("-f %s"%(isqf_id))
+			job.addArguments("--isqf_id %s"%(isqf_id))
 		if extraArguments:
 			job.addArguments(extraArguments)
 		job.uses(inputFile, transfer=True, register=True, link=Link.INPUT)
@@ -194,7 +194,7 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		no_of_jobs += 2
 		for jobData in inputData.jobDataLs:
 			#add the read count job
-			outputFile = os.path.join(topOutputDir, 'read_count_isq_%s_isqf_%s.tsv'%(jobData.isq_id, jobData.isqf_id))
+			outputFile = File(os.path.join(topOutputDir, 'read_count_isq_%s_isqf_%s.tsv'%(jobData.isq_id, jobData.isqf_id)))
 			readCountJob = self.addCountFastqReadBaseCountJob(workflow, executable=workflow.CountFastqReadBaseCount, \
 								inputFile=jobData.output, outputFile=outputFile, isq_id=jobData.isq_id, isqf_id=jobData.isqf_id, \
 								parentJobLs=jobData.jobLs + [topOutputDirJob], extraDependentInputLs=[], transferOutput=False, extraArguments=None, \
