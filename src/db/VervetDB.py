@@ -24,6 +24,7 @@ from sqlalchemy.types import LargeBinary
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
+import hashlib
 from sqlalchemy.engine.url import URL
 from elixir import Unicode, DateTime, String, BigInteger, Integer, UnicodeText, Text, Boolean, Float, Binary, Enum
 from elixir import Entity, Field, using_options, using_table_options
@@ -39,7 +40,7 @@ from datetime import datetime
 
 from pymodule.db import ElixirDB, TableClass, AbstractTableWithFilename
 from pymodule import ProcessOptions, utils, NextGenSeq, PassingData
-import hashlib
+from vervet.src.mapper.CountFastqReadBaseCount import CountFastqReadBaseCount
 
 
 __session__ = scoped_session(sessionmaker(autoflush=False, autocommit=True))
@@ -2442,7 +2443,6 @@ class VervetDB(ElixirDB):
 		if not dataDir:
 			dataDir = self.data_dir
 		counter = 0
-		from mapper.CountFastqReadBaseCount import CountFastqReadBaseCount
 		
 		for individualSequenceID in individualSequenceIDList:
 			individual_sequence = IndividualSequence.get(individualSequenceID)
@@ -2495,9 +2495,7 @@ class VervetDB(ElixirDB):
 		isqLs = []
 		if not dataDir:
 			dataDir = self.data_dir
-		counter = 0
-		from mapper.CountFastqReadBaseCount import CountFastqReadBaseCount
-		
+		counter = 0		
 		for individualSequenceID in individualSequenceIDList:
 			individual_sequence = IndividualSequence.get(individualSequenceID)
 			if not individual_sequence:	#not present in db, ignore
