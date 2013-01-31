@@ -18,9 +18,8 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import csv, re
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
-from pymodule.VCFFile import VCFFile
+from pymodule import VCFFile
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
-
 from vervet.src import VervetDB
 
 class RegisterAndMoveSplitSequenceFiles(AbstractVervetMapper):
@@ -32,7 +31,7 @@ class RegisterAndMoveSplitSequenceFiles(AbstractVervetMapper):
 	option_default_dict.update({
 						('inputDir', 1, ): ['', 'i', 1, 'input folder that contains split fastq files', ],\
 						('outputDir', 1, ): ['', 'o', 1, 'output folder to which split files from inputDir will be moved', ],\
-						('relativeOutputDir', 1, ): ['', 't', 1, 'path of the output folder relative to db.dataDir. it should form the last part of outputDir.', ],\
+						('relativeOutputDir', 1, ): ['', '', 1, 'path of the output folder relative to db.dataDir. it should form the last part of outputDir.', ],\
 						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
 						("individual_sequence_id", 1, int): [None, 'n', 1, 'individual_sequence.id that is affiliated to the split files in inputDir'],\
 						("bamFilePath", 0, ): [None, 'a', 1, 'the original bam file from which the files in inputDir came'],\
