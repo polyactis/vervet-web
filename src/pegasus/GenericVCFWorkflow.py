@@ -103,6 +103,12 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 						treatEveryOneIndependent=False,\
 						returnMode=3, ModifyTPEDRunType=1, chr_id2cumu_chr_start=None):
 		"""
+		2013.1.29
+			returnMode
+				1= only the final merged binary .bed , .fam file and its generation job(s)
+				2= only the individual contig/chromosome (whatever in inputDat.jobDataLs) binary .bed, .fam files and the associated jobs
+				3= 1 & 2 (all individual binary .bed jobs&files + the last merged file/job)
+				4= the individual contig/chr non-binary job data
 		2012.10.22
 			change transferOutput of outputPedigreeInTFAMJob to True
 		2012.9.13
@@ -192,7 +198,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 						maxSNPMissingRate=maxSNPMissingRate,\
 						extraDependentInputLs=[jobData.tbi_F], outputFormat='--plink-tped', transferOutput=transferOneContigPlinkOutput)
 			#2012.7.20 modify the TPED 2nd column, to become chr_pos (rather than 0)
-			modifyTPEDFnamePrefix = os.path.join(topOutputDir, '%s_snpID'%(commonPrefix))
+			modifyTPEDFnamePrefix = os.path.join(topOutputDir, '%s_SNPID_M'%(commonPrefix))
 			outputF = File('%s.tped'%(modifyTPEDFnamePrefix))
 			modifyTPEDJobExtraArguments = "-y %s "%(ModifyTPEDRunType)
 			if ModifyTPEDRunType==3 and chr_id2cumu_chr_start:
@@ -203,7 +209,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 						parentJobLs=[vcf2plinkJob], transferOutput=False, job_max_memory=200,\
 						extraArguments=modifyTPEDJobExtraArguments, extraDependentInputLs=[])
 			
-			#add output to some reduce job
+			#add output to the tped merge job
 			self.addInputToStatMergeJob(workflow, statMergeJob=tpedFileMergeJob, \
 								inputF=modifyTPEDJob.output, \
 								parentJobLs=[modifyTPEDJob])
@@ -214,7 +220,13 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			else:
 				tfamJob = outputPedigreeInTFAMJob
 				convertSingleTPED2BEDParentJobLs = [modifyTPEDJob, outputPedigreeInTFAMJob]
-			if returnMode==2 or returnMode==3:
+			returnData.tfamJob = tfamJob	#2013.1.29
+			if returnMode==4:	#2013.1.29
+				returnData.jobDataLs.append(PassingData(jobLs=[modifyTPEDJob], file=modifyTPEDJob.output, \
+											fileList=modifyTPEDJob.outputLs))
+			elif returnMode==2 or returnMode==3:
+				#convert single plink tped file into binary bed file
+				#add it to 
 				bedFnamePrefix = os.path.join(topOutputDir, '%s_bed'%(commonPrefix))
 				convertSingleTPED2BEDJob = self.addPlinkJob(executable=self.plinkConvert, inputFileList=[], 
 									tpedFile=modifyTPEDJob.output, tfamFile=tfamJob.tfamFile,\
@@ -226,10 +238,10 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 					parentJobLs = convertSingleTPED2BEDParentJobLs)
 				returnData.jobDataLs.append(PassingData(jobLs=[convertSingleTPED2BEDJob], file=convertSingleTPED2BEDJob.bedFile, \
 											fileList=convertSingleTPED2BEDJob.outputLs))
-			
-
+		
 		if returnMode==1 or returnMode==3:
-			mergedPlinkBEDFnamePrefix = os.path.join(mergedOutputDir, 'mergedPlink')
+			#convert merged plain tped file into binary bed files
+			mergedPlinkBEDFnamePrefix = os.path.join(mergedOutputDir, 'mergedPlinkBED')
 			convertMergedTPED2BEDJob = self.addPlinkJob(executable=self.plinkMerge, inputFileList=[], \
 									tpedFile=tpedFileMergeJob.output, tfamFile=tfamJob.tfamFile,\
 									inputFnamePrefix=None, inputOption=None, \
@@ -239,15 +251,16 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 					extraArguments=None, job_max_memory=2000, parentJobLs=[mergedOutputDirJob, tpedFileMergeJob, tfamJob])
 			returnData.jobDataLs.append(PassingData(jobLs=[convertMergedTPED2BEDJob], file=convertMergedTPED2BEDJob.bedFile, \
 											fileList=convertMergedTPED2BEDJob.outputLs))
-		sys.stderr.write("%s jobs. Done.\n"%(self.no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		##2012.8.9 gzip workflow is not needed anymore as binary bed is used instead.
 		##2012.7.21 gzip the final output
 		gzipInputData = PassingData()
 		gzipInputData.jobDataLs = []
 		gzipInputData.jobDataLs.append(PassingData(jobLs=[tpedFileMergeJob], file=tpedFileMergeJob.output, \
 												fileList=tpedFileMergeJob.outputLs))
-		newReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=gzipInputData, transferOutput=transferOutput,\
+		self.addGzipSubWorkflow(workflow=workflow, inputData=gzipInputData, transferOutput=transferOutput,\
 						outputDirPrefix="gzipMergedTPED")
+		#2013.1.29 return the un-gzipped data so that downstream sub-workflows could work on un-gzipped files
 		return returnData
 	
 	def addVCF2YuFormatJobs(self, workflow=None, inputData=None, transferOutput=True,\
