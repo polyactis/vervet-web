@@ -338,7 +338,8 @@ class FindLocusContext(AbstractVervetMapper):
 					locus_context = db_vervet.getLocusContext(locus_id=row.id, gene_id=oneGeneData.gene_id, \
 											gene_strand=oneGeneData.strand, disp_pos=term5_disp_pos, \
 											overlap_length=overlap_length,\
-											overlap_fraction_in_locus=overlapFraction1, overlap_fraction_in_gene=overlap2overlapFraction2					if locus_context.id:
+											overlap_fraction_in_locus=overlapFraction1, overlap_fraction_in_gene=overlapFraction2)
+					if locus_context.id:
 						param_obj.no_of_locus_contexts_already_in_db += 1
 					else:
 						param_obj.no_of_into_db += 1
