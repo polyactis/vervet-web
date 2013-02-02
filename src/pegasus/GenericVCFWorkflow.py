@@ -148,7 +148,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		#each input has no header
 		tpedFileMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=mergedTPEDFile, transferOutput=False, parentJobLs=[mergedOutputDirJob], \
-							extraArguments='-n')
+							extraArguments='--noHeader')
 		
 		#2012.8.20
 		if outputPedigreeAsTFAMInputJobData is None:
@@ -200,10 +200,10 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			#2012.7.20 modify the TPED 2nd column, to become chr_pos (rather than 0)
 			modifyTPEDFnamePrefix = os.path.join(topOutputDir, '%s_SNPID_M'%(commonPrefix))
 			outputF = File('%s.tped'%(modifyTPEDFnamePrefix))
-			modifyTPEDJobExtraArguments = "-y %s "%(ModifyTPEDRunType)
+			modifyTPEDJobExtraArguments = "--run_type %s "%(ModifyTPEDRunType)
 			if ModifyTPEDRunType==3 and chr_id2cumu_chr_start:
 				newChrID, newCumuStart = chr_id2cumu_chr_start.get(chr_id, (1,0))
-				modifyTPEDJobExtraArguments += ' -n %s -p %s '%(newChrID, newCumuStart)
+				modifyTPEDJobExtraArguments += ' --newChr %s --positionStartBase %s '%(newChrID, newCumuStart)
 			modifyTPEDJob = self.addAbstractMapperLikeJob(workflow, executable=workflow.ModifyTPED, \
 						inputF=vcf2plinkJob.tpedFile, outputF=outputF, \
 						parentJobLs=[vcf2plinkJob], transferOutput=False, job_max_memory=200,\
@@ -422,8 +422,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 									tbi_F=VCFGzipOutput_tbi_F, \
 									fileList=[VCFGzipOutputF, VCFGzipOutput_tbi_F]))
 			
-			no_of_jobs += 2
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
 
@@ -485,8 +484,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 									tbi_F=VCFGzipOutput_tbi_F, \
 									fileList=[VCFGzipOutputF, VCFGzipOutput_tbi_F]))
 			
-			no_of_jobs += 2
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
 	def addSplitNamVCFJobs(self, workflow, inputData=None, db_vervet=None, transferOutput=True,\
@@ -537,7 +535,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 									fileList=[VCFGzipOutputF, VCFGzipOutput_tbi_F]))
 			
 			no_of_jobs += 2
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
 	def addMergeVCFReplicateHaplotypesJobs(self, workflow, inputData=None, db_vervet=None, transferOutput=True,\
