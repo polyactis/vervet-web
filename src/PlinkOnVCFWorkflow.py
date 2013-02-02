@@ -4,41 +4,50 @@ Examples:
 	#2012.5.11 convert alignment read group (sample id) into UCLAID
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/ 
 		-o dags/SampleIDInUCLAID_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
-		-u yh -y4 -l hcondor -j hcondor  -z localhost
-		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
+		--db_user yh -y4 --site_handler hcondor --input_site_handler hcondor  --hostname localhost
+		--home_path /u/home/eeskin/polyacti/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
-	# 2012.8.10 IBD check, locusSamplingRate=0.01 (--locusSamplingRate 0.01)
-	# add -s kinshipFile if you want comparison (table&figures) between IBD pi-hat and kinship 
-	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkIBDCheck/PlinkIBDCheck_Method14.xml -C 1 
-		--needSSHDBTunnel -l hcondor -j hcondor  -u yh -z localhost
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		 -z localhost  -y3 --locusSamplingRate 0.01 -g ./aux/Method14_LDPrune_merge_list.2012.8.10T0441.txt
-		 #-s ~/NetworkData/vervet/Kinx2Apr2012.txt
+	# 2012.8.10 IBD check
+	# add --kinshipFname kinshipFile if you want comparison (table&figures) between IBD pi-hat and kinship 
+	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkIBDCheck/PlinkIBDCheck_Method14.xml --clusters_size 1 
+		--needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor  --db_user yh --hostname localhost
+		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		 --hostname localhost  -y3 --mergeListFname ./aux/Method14_LDPrune_merge_list.2012.8.10T0441.txt
+		 #--kinshipFname ~/NetworkData/vervet/Kinx2Apr2012.txt
 	
 	# 2012.8.9 LD-prune a folder of VCF files into plink, need the db tunnel (--needSSHDBTunnel) for output pedigree in tfam
-	# "-V 90 -x 100" are used to restrict contig IDs between 90 and 100.
-	# --locusSamplingRate 1 is to sample all locus data (samplingRate). LDPruneMinR2=0.3 (-R), LDPruneWindowSize=500 (-W), 
+	# "--minContigID 90 --maxContigID 100" are used to restrict contig IDs between 90 and 100.
+	# LDPruneMinR2=0.3 (--LDPruneMinR2), LDPruneWindowSize=500 (--LDPruneWindowSize), 
 	# LDPruneWindowShiftSize=100 (--LDPruneWindowShiftSize)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719/trioCaller_vcftoolsFilter/ 
 		-o dags/ToPlinkFilterVCF/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
-		-y 2  -E
-		-l condorpool -j condorpool
-		-u yh -z uclaOffice  -C 4 --needSSHDBTunnel -R 0.3 -W 500 --LDPruneWindowShiftSize 100
-		#-V 90 -x 100 --locusSamplingRate 1
+		-y 2  --checkEmptyVCFByReading
+		--site_handler condorpool --input_site_handler condorpool
+		--db_user yh --hostname uclaOffice  --clusters_size 4 --needSSHDBTunnel --LDPruneMinR2 0.3 --LDPruneWindowSize 500 --LDPruneWindowShiftSize 100
+		#--minContigID 90 --maxContigID 100
 	
 	# 2012.8.10 LD pruning
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkMendelError/PlinkMendelError_Method14.xml
-		-E -C 4  --needSSHDBTunnel -l hcondor -j hcondor  -u yh -z localhost
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
-		-z localhost  -y1  --locusSamplingRate 0.01
+		--checkEmptyVCFByReading --clusters_size 4  --needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor  --db_user yh --hostname localhost
+		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
+		-y1
 	
-	# 2012.8.13 sex check using the top 195 contigs (-x 195) (Contig 83, 149,193 are sex chromosomes)
-	# no clustering (-C 1)
+	# 2012.8.13 sex check using the top 195 contigs (--maxContigID 195) (Contig 83, 149,193 are sex chromosomes)
+	# no clustering (--clusters_size 1)
 	%s -I ~/NetworkData/vervet/db/genotype_file/method_14/
 		-o dags/PlinkSexCheck/PlinkSexCheck_Method14_W100Z10R0.4_maxContigID195.xml
-		-W 100 --LDPruneWindowShiftSize 10 -R 0.4 -C 1  --needSSHDBTunnel -l hcondor -j hcondor  -u yh -z localhost
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-z localhost  -y4 --locusSamplingRate 0.01 -g ./aux/Method14_LDPrune_merge_list.2012.8.13T1702.txt -x 195
+		--LDPruneWindowSize 100 --LDPruneWindowShiftSize 10 --LDPruneMinR2 0.4 --clusters_size 1  --needSSHDBTunnel
+		--site_handler hcondor --input_site_handler hcondor  --db_user yh --hostname localhost
+		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--hostname localhost  -y4 --mergeListFname ./aux/Method14_LDPrune_merge_list.2012.8.13T1702.txt --maxContigID 195
+	
+	#2013.2.1 mark mendel error-calls missing (-y5)
+	%s -I ~/NetworkData/vervet/db/genotype_file/method_38/
+		-o dags/MarkMendelErrorCallMissing/MarkMendelErrorCallMissing_method38.xml
+		-y5 --clusters_size 1  --needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor
+		--db_user yh --hostname localhost
+		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--mergeListFname ./aux/Method38_MarkMendelErrorCallMissing_merge_list.20130201.txt --minContigID 90 --maxContigID 100
 		
 Description:
 	2012.8.14 a plink workflow on folder of VCF files.
@@ -48,7 +57,7 @@ Description:
 		4: sex check,
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
@@ -66,13 +75,14 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 	option_default_dict = copy.deepcopy(AbstractVCFWorkflow.option_default_dict)
 	plinkWorkflowOptionDict= {
 						('LDPruneMinR2', 0, float): [0.4, 'R', 1, 'minimum r2 for LD pruning', ],\
-						('locusSamplingRate', 0, float): [0.0001, 'c', 1, 'how many loci to sample', ],\
+						('locusSamplingRate', 0, float): [0.0001, 'c', 1, 'how many loci to sample (unused)', ],\
 						('mergeListFname', 0, ): [None, 'g', 1, 'the file to contain the merge-list for plink, required for run_type>1', ],\
 						('run_type', 1, int): [1, 'y', 1, 'which run_type to run. \n\
-		1: mendel errors,\n\
-		2: LD pruning, \n\
-		3: IBD check,\n\
-		4: sex check,\n', ],\
+	1: mendel errors,\n\
+	2: LD pruning, \n\
+	3: IBD check,\n\
+	4: sex check,\n\
+	5: mark genotype calls associated with mendel inconsistency as missing', ],\
 						('LDPruneWindowSize', 1, int): [50, 'W', 1, ' window size (in the number of SNPs, not bp) for plink LD pruning'],\
 						('LDPruneWindowShiftSize', 1, int): [20, '', 1, 'adjacent window shift (in the number of SNPs), not bp '],\
 						('kinshipFname', 0, ): ["", 's', 1, 'the kinship file from Sue (in turn from Solar, based on pedigree )\
@@ -90,7 +100,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		GenericVCFWorkflow.__init__(self, **keywords)
 
 	def addPlinkMendelErrorJobs(self, workflow=None, inputData=None, transferOutput=True,\
-						maxContigID=None, locusSamplingRate=0.0001, outputDirPrefix="", returnMode=2, **keywords):
+						maxContigID=None, outputDirPrefix="", returnMode=2, **keywords):
 		"""
 		2012.8.9
 		"""
@@ -121,7 +131,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		#each input has no header
 		imendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 							outputF=imendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob], \
-							extraArguments='-k 1 -v 2')
+							extraArguments='--keyColumnLs 1 --valueColumnLs 2')
 		
 		returnData.jobDataLs.append(PassingData(jobLs=[imendelMergeJob], file=imendelMergeJob.output, \
 											fileList=imendelMergeJob.outputLs))
@@ -198,7 +208,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 					traceback.print_exc()
 			inputFBaseName = os.path.basename(inputF.name)
 			commonPrefix = inputFBaseName.split('.')[0]
-			outputFnamePrefix = os.path.join(topOutputDir, '%s'%(commonPrefix))
 			if i ==0:	#need at least one tfam file. 
 				transferOneContigPlinkOutput = True
 			else:
@@ -243,10 +252,167 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							(outputFname))
 			sys.exit(2)
 		outf = open(outputFname, 'w')
-		for tuple in extractedFilenameTupleList:
-			outf.write('%s %s %s\n'%(tuple[0], tuple[1], tuple[2]))
+		for data_tuple in extractedFilenameTupleList:
+			outf.write('%s %s %s\n'%(data_tuple[0], data_tuple[1], data_tuple[2]))
 		del outf
+	
+	def markMendelErrorLociMissingSubWorkflow(self, workflow=None, inputData=None, transferOutput=True,\
+						maxContigID=None, tfamJob=None, outputDirPrefix="", **keywords):
+		"""
+		2013.1.29
+		"""
+		if workflow is None:
+			workflow = self
+		sys.stderr.write("Adding jobs that mark mendel-error loci missing for %s  files ... "%(len(inputData.jobDataLs)))
 		
+		topOutputDir = "%sMarkMendelLocusMissing"%(outputDirPrefix)
+		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		
+		
+		returnData = PassingData()
+		returnData.jobDataLs = []
+		for i in xrange(len(inputData.jobDataLs)):
+			jobData = inputData.jobDataLs[i]
+			inputJob = jobData.jobLs[0]
+			inputF = jobData.file
+			if maxContigID:
+				contig_id = self.getContigIDFromFname(inputF.name)
+				try:
+					contig_id = int(contig_id)
+					if contig_id>maxContigID:	#skip the small contigs
+						continue
+				except:
+					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+					import traceback
+					traceback.print_exc()
+			inputFBaseName = os.path.basename(inputF.name)
+			commonPrefix = inputFBaseName.split('.')[0]
+			if i ==0:	#need at least one tfam file. 
+				transferOneContigPlinkOutput = True
+				transferOneContigModifyTPEDOutput = True
+			else:
+				transferOneContigPlinkOutput = False
+				transferOneContigModifyTPEDOutput = transferOutput
+				
+			mendelFnamePrefix = os.path.join(topOutputDir, '%s'%(commonPrefix))
+			plinkMendelJob = self.addPlinkJob(executable=self.plink, \
+									tpedFile=inputJob.output, tfamFile=tfamJob.tfamFile,\
+					outputFnamePrefix=mendelFnamePrefix, outputOption='--out',\
+					calculateMendelError=True, \
+					extraDependentInputLs=None, transferOutput=transferOneContigPlinkOutput, \
+					extraArguments=None, job_max_memory=2000,\
+					parentJobLs =[topOutputDirJob, tfamJob]+ jobData.jobLs)
+			
+			
+			#2012.7.20 modify the TPED 2nd column, to become chr_pos (rather than 0)
+			modifyTPEDFnamePrefix = os.path.join(topOutputDir, '%s_markMissing'%(commonPrefix))
+			outputF = File('%s.tped'%(modifyTPEDFnamePrefix))
+			modifyTPEDJobExtraArguments = "--run_type 4"
+			extraArgumentList = [" --mendelErrorFname", plinkMendelJob.mendelFile, \
+								"--tfamFname ",tfamJob.tfamFile ]
+			modifyTPEDJob = self.addAbstractMapperLikeJob(workflow, executable=workflow.ModifyTPED, \
+						inputF=inputJob.output, outputF=outputF, \
+						parentJobLs=jobData.jobLs + [plinkMendelJob, tfamJob], \
+						transferOutput=transferOneContigModifyTPEDOutput, job_max_memory=200,\
+						extraArguments=modifyTPEDJobExtraArguments, extraArgumentList=extraArgumentList,\
+						extraDependentInputLs=[plinkMendelJob.mendelFile, tfamJob.tfamFile])
+			returnData.jobDataLs.append(PassingData(jobLs=[modifyTPEDJob], file=modifyTPEDJob.output, \
+											fileList=modifyTPEDJob.outputLs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
+		return returnData
+	
+	def addPlinkBinaryConversionJobs(self, workflow=None, inputData=None, transferOutput=True,\
+						maxContigID=None, tfamJob=None, outputDirPrefix="", returnMode=1, \
+						mergeListFile=None, **keywords):
+		"""
+		2013.1.29	returnMode:
+			1: individual contig/chr binary file/job
+			2: final merged binary file/job 
+		"""
+		if workflow is None:
+			workflow = self
+		sys.stderr.write("Adding plink binary converting jobs for %s  files ... "%(len(inputData.jobDataLs)))
+		
+		topOutputDir = "%sPlinkBinary"%(outputDirPrefix)
+		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		
+		mergedOutputDir = "%sPlinkMerged"%(outputDirPrefix)
+		mergedOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergedOutputDir)
+		
+		returnData = PassingData()
+		returnData.jobDataLs = []
+		plinkTPED2BEDJobList = []
+		extractedFilenameTupleList = []
+		plinkMergeExtraDependentInputList = []
+		
+		for i in xrange(len(inputData.jobDataLs)):
+			jobData = inputData.jobDataLs[i]
+			inputJob = jobData.jobLs[0]
+			inputF = jobData.file
+			if maxContigID:
+				contig_id = self.getContigIDFromFname(inputF.name)
+				try:
+					contig_id = int(contig_id)
+					if contig_id>maxContigID:	#skip the small contigs
+						continue
+				except:
+					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+					import traceback
+					traceback.print_exc()
+			inputFBaseName = os.path.basename(inputF.name)
+			commonPrefix = inputFBaseName.split('.')[0]
+			
+			if i ==0:	#need at least one tfam file. 
+				transferOneContigPlinkOutput = True
+			else:
+				transferOneContigPlinkOutput = False
+			
+			#convert single plink tped file into binary bed file
+			bedFnamePrefix = os.path.join(topOutputDirJob.output, '%s_bed'%(commonPrefix))
+			convertSingleTPED2BEDJob = self.addPlinkJob(executable=self.plinkConvert, inputFileList=[], 
+								tpedFile=inputJob.output, tfamFile=tfamJob.tfamFile,\
+								inputFnamePrefix=None, inputOption=None, \
+						outputFnamePrefix=bedFnamePrefix, outputOption='--out',\
+						makeBED=True, \
+						extraDependentInputLs=None, transferOutput=transferOutput, \
+						extraArguments=None, job_max_memory=2000,\
+						parentJobLs = [inputJob, topOutputDirJob, tfamJob])
+			plinkTPED2BEDJobList.append(convertSingleTPED2BEDJob)
+			
+			#returnData.jobDataLs.append(PassingData(jobLs=[convertSingleTPED2BEDJob], file=convertSingleTPED2BEDJob.bedFile, \
+			#							fileList=convertSingleTPED2BEDJob.outputLs))
+		
+			if i>0:	#the 1st one is to be directly added to the plink merge job 
+				extractedFilenameTupleList.append([convertSingleTPED2BEDJob.bedFile.name, convertSingleTPED2BEDJob.bimFile.name, convertSingleTPED2BEDJob.famFile.name])
+				plinkMergeExtraDependentInputList.extend([convertSingleTPED2BEDJob.bedFile, convertSingleTPED2BEDJob.bimFile, convertSingleTPED2BEDJob.famFile])
+			i += 1
+			if returnMode==1:
+				returnData.jobDataLs.append(PassingData(jobLs=[convertSingleTPED2BEDJob], file=convertSingleTPED2BEDJob.bedFile, \
+											fileList=convertSingleTPED2BEDJob.outputLs))
+		
+		#fill up the mergeListFile
+		self.writePlinkMergeListFile(outputFname=yh_pegasus.getAbsPathOutOfFile(mergeListFile),\
+									extractedFilenameTupleList=extractedFilenameTupleList)
+		
+		plinkMergeFnamePrefix = os.path.join(mergedOutputDir, 'LDPrunedMerged')
+		firstPlinkTPED2BEDJob = plinkTPED2BEDJobList[0]
+		plinkMergeJob = self.addPlinkJob(executable=self.plinkMerge, \
+						bedFile=firstPlinkTPED2BEDJob.bedFile, famFile=firstPlinkTPED2BEDJob.famFile, \
+						bimFile=firstPlinkTPED2BEDJob.bimFile, \
+						outputFnamePrefix=plinkMergeFnamePrefix, outputOption='--out',\
+						mergeListFile=mergeListFile, makeBED=True, \
+						extraDependentInputLs=plinkMergeExtraDependentInputList, transferOutput=transferOutput, \
+						extraArguments=None, job_max_memory=2000,\
+						parentJobLs =[mergedOutputDirJob] + plinkTPED2BEDJobList)
+		
+		if returnMode==2:
+			returnData.jobDataLs.append(PassingData(jobLs=[plinkMergeJob], file=plinkMergeJob.bedFile, \
+											fileList=plinkMergeJob.outputLs))
+		
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
+		return returnData
+	
+	
 	def addPlinkLDPruneJobs(self, workflow=None, inputData=None, transferOutput=True,\
 						maxContigID=None, LDPruneMinR2=0.1, outputDirPrefix="", returnMode=1, \
 						LDPruneWindowSize=100, LDPruneWindowShiftSize=5, mergeListFile=None, **keywords):
@@ -411,7 +577,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		if extraDependentInputLs is None:
 			extraDependentInputLs = []
 		extraArgumentList = ['--minNoOfTotal %s'%(minNoOfTotal), \
-							'-f %s'%(figureDPI), '-s %s'%(samplingRate)]
+							'--figureDPI %s'%(figureDPI), '--samplingRate %s'%(samplingRate)]
 		key2ObjectForJob = {}
 		extraOutputLs = []
 		suffixAndNameTupleList = []	# a list of tuples , in each tuple, 1st element is the suffix. 2nd element is the proper name of the suffix.
@@ -768,7 +934,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						samplingRate=1,\
 						parentJobLs=[topOutputDirJob, plinkJob], \
 						extraDependentInputLs=None, \
-						extraArguments="-V 1 -x 1", transferOutput=False,  job_max_memory=2000)
+						extraArguments="--minWhichColumnValue 1 --maxWhichColumnValue 1", transferOutput=False,  job_max_memory=2000)
 			outputFile = File( os.path.join(plotOutputDir, '%s.maleInbreedCoeffByChrX_Hist.png'%(commonPrefix)))
 			#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
 			self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[selectMaleDataJob.output], \
@@ -792,7 +958,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						samplingRate=1,\
 						parentJobLs=[topOutputDirJob, plinkJob], \
 						extraDependentInputLs=None, \
-						extraArguments="-V 2 -x 2", transferOutput=False,  job_max_memory=2000)
+						extraArguments="--minWhichColumnValue 2 --maxWhichColumnValue 2", transferOutput=False,  job_max_memory=2000)
 			outputFile = File( os.path.join(plotOutputDir, '%s.femaleInbreedCoeffByChrX_Hist.png'%(commonPrefix)))
 			#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
 			self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[selectFemaleDataJob.output], \
@@ -861,7 +1027,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			import pdb
 			pdb.set_trace()
 		
-		if self.run_type!=1:	#all run_types that involve LD-pruning
+		if self.run_type not in [1,5]:	#the run_types that involve LD-pruning
 			#without commenting out db_vervet connection code. schema "genome" wont' be default path.
 			db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
 							db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema="genome")
@@ -894,7 +1060,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			#only plink mendel job needs full VRC pedigree
 			treatEveryOneIndependent = True
 		else:
-			#only plink mendel job needs full VRC pedigree
+			#only plink mendel-error (-y1) and mark mendel-error-call missing (-y5) job needs full VRC pedigree
 			treatEveryOneIndependent = False
 			
 			chr_id2cumu_chr_start = None
@@ -930,17 +1096,20 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			sys.stderr.write("No VCF files in this folder , %s.\n"%self.inputDir)
 			sys.exit(0)
 		
-		sampleIDFile = None
-		
-		
+		if self.run_type==5:
+			vcf2PlinkReturnMode = 4
+		else:
+			vcf2PlinkReturnMode = 2
 		vcf2PlinkJobData = self.addVCF2PlinkJobs(workflow, inputData=inputData, db_vervet=db_vervet, minMAC=None, minMAF=None,\
 						maxSNPMissingRate=None, transferOutput=False,\
 						maxContigID=self.maxContigID, outputDirPrefix="vcf2plink", outputPedigreeAsTFAM=True,\
 						treatEveryOneIndependent=treatEveryOneIndependent,\
-						returnMode=2, ModifyTPEDRunType=ModifyTPEDRunType, chr_id2cumu_chr_start=chr_id2cumu_chr_start)
+						returnMode=vcf2PlinkReturnMode, ModifyTPEDRunType=ModifyTPEDRunType, \
+						chr_id2cumu_chr_start=chr_id2cumu_chr_start)
+		
 		if self.run_type==1:	#plink mendel
 			mendelJobData = self.addPlinkMendelErrorJobs(inputData=vcf2PlinkJobData, transferOutput=True,\
-						maxContigID=self.maxContigID, outputDirPrefix="mendel", locusSamplingRate=self.locusSamplingRate, 
+						maxContigID=self.maxContigID, outputDirPrefix="mendel", \
 						returnMode=2)
 		elif self.run_type==2:	#LD-prune
 			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName)
@@ -976,6 +1145,15 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						mergeListFile=mergeListFile)
 			self.addPlinkSexCheckJobs(workflow=None, inputData=LDPruneJobData, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="sexCheck")
+		elif self.run_type==5:
+			missingJobData = self.markMendelErrorLociMissingSubWorkflow(inputData=vcf2PlinkJobData, \
+													transferOutput=False, \
+													maxContigID=self.maxContigID, tfamJob=vcf2PlinkJobData.tfamJob, \
+													outputDirPrefix='markMendelErrorLociMissing')
+			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName)
+			self.addPlinkBinaryConversionJobs(inputData=missingJobData, transferOutput=True, maxContigID=self.maxContigID, \
+											tfamJob=vcf2PlinkJobData.tfamJob, \
+											outputDirPrefix='plinkBinary', returnMode=1, mergeListFile=mergeListFile)
 		else:
 			sys.stderr.write("run_type %s not supported.\n"%(self.run_type))
 			sys.exit(0)
