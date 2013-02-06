@@ -23,9 +23,10 @@ from AbstractVervetWorkflow import AbstractVervetWorkflow
 from AbstractVervetAlignmentWorkflow import AbstractVervetAlignmentWorkflow
 
 
-class AbstractVervetAlignmentAndVCFWorkflow(AbstractAlignmentAndVCFWorkflow, AbstractVervetWorkflow, AbstractVervetAlignmentWorkflow):
+class AbstractVervetAlignmentAndVCFWorkflow(AbstractVervetWorkflow, AbstractAlignmentAndVCFWorkflow, AbstractVervetAlignmentWorkflow):
 	__doc__ = __doc__
 	option_default_dict = copy.deepcopy(AbstractVervetWorkflow.option_default_dict)
+	option_default_dict.update(copy.deepcopy(AbstractAlignmentAndVCFWorkflow.option_default_dict))
 	#change the short option to nothing to avoid conflict
 	#option_default_dict[('inputDir', 0, )] = ['', 'L', 1, 'input folder that contains vcf or vcf.gz files', ]
 	

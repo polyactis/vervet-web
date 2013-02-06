@@ -236,6 +236,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		"""
 		2013.1.25 placeholder
 		"""
+		sys.stderr.write("Getting reference sequences ...")
 		if workflow is None:
 			workflow = self
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
@@ -244,6 +245,8 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 							registerAffiliateFiles=True, \
 							input_site_handler=self.input_site_handler,\
 							checkAffiliateFileExistence=True)
+		
+		sys.stderr.write(" %s files.\n"%(len(refFastaFList)))
 		return refFastaFList
 	
 	def registerCustomExecutables(self, workflow=None):

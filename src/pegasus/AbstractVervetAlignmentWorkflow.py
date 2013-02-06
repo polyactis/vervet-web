@@ -21,7 +21,7 @@ from vervet.src import VervetDB
 from vervet.src.pegasus.AbstractVervetWorkflow import AbstractVervetWorkflow
 
 
-class AbstractVervetAlignmentWorkflow(AbstractVervetWorkflow, AbstractAlignmentWorkflow):
+class AbstractVervetAlignmentWorkflow(AbstractAlignmentWorkflow, AbstractVervetWorkflow):
 	__doc__ = __doc__
 	option_default_dict = copy.deepcopy(AbstractAlignmentWorkflow.option_default_dict)
 	#change the short option to nothing to avoid conflict
@@ -35,6 +35,42 @@ class AbstractVervetAlignmentWorkflow(AbstractVervetWorkflow, AbstractAlignmentW
 		2011-7-11
 		"""
 		AbstractAlignmentWorkflow.__init__(self, **keywords)
+		self.db = self.db_vervet	#2013.1.25 main db
+		
+		#2013.2.4 this will screw up the arguments like self.ind_seq_id_ls, that require extra processing in AbstractAlignmentWorkflow.__init__
+		#AbstractVervetWorkflow.__init__(self, **keywords)
+	
+	getReferenceSequence=AbstractVervetWorkflow.getReferenceSequence
+	
+	def connectDB(self):
+		"""
+		"""
+		AbstractVervetWorkflow.connectDB(self)
+	
+	def registerCustomExecutables(self, workflow=None):
+		
+		"""
+		"""
+		AbstractVervetWorkflow.registerCustomExecutables(self, workflow=workflow)
+		AbstractAlignmentWorkflow.registerCustomExecutables(self, workflow=workflow)
+		
+		if workflow is None:
+			workflow = self
+		namespace = workflow.namespace
+		version = workflow.version
+		operatingSystem = workflow.operatingSystem
+		architecture = workflow.architecture
+		clusters_size = workflow.clusters_size
+		site_handler = workflow.site_handler
+		vervetSrcPath = self.vervetSrcPath
+		
+		#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
+		executableClusterSizeMultiplierList = []
+		
+		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
+	
+	
+	#run=AbstractAlignmentWorkflow.run
 
 if __name__ == '__main__':
 	main_class = AbstractVervetAlignmentWorkflow
