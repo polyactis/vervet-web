@@ -5,15 +5,16 @@ Examples:
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/ 
 		-o dags/SampleIDInUCLAID_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
 		--db_user yh -y4 --site_handler hcondor --input_site_handler hcondor  --hostname localhost
-		--home_path /u/home/eeskin/polyacti/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
+		--home_path /u/home/eeskin/polyacti/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
 	# 2012.8.10 IBD check
 	# add --kinshipFname kinshipFile if you want comparison (table&figures) between IBD pi-hat and kinship 
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkIBDCheck/PlinkIBDCheck_Method14.xml --clusters_size 1 
 		--needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor  --db_user yh --hostname localhost
 		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		 --hostname localhost  -y3 --mergeListFname ./aux/Method14_LDPrune_merge_list.2012.8.10T0441.txt
-		 #--kinshipFname ~/NetworkData/vervet/Kinx2Apr2012.txt
+		--hostname localhost  -y3 --mergeListFname ./aux/Method14_LDPrune_merge_list.2012.8.10T0441.txt
+		#--kinshipFname ~/NetworkData/vervet/Kinx2Apr2012.txt
 	
 	# 2012.8.9 LD-prune a folder of VCF files into plink, need the db tunnel (--needSSHDBTunnel) for output pedigree in tfam
 	# "--minContigID 90 --maxContigID 100" are used to restrict contig IDs between 90 and 100.
@@ -23,12 +24,14 @@ Examples:
 		-o dags/ToPlinkFilterVCF/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
 		-y 2  --checkEmptyVCFByReading
 		--site_handler condorpool --input_site_handler condorpool
-		--db_user yh --hostname uclaOffice  --clusters_size 4 --needSSHDBTunnel --LDPruneMinR2 0.3 --LDPruneWindowSize 500 --LDPruneWindowShiftSize 100
+		--db_user yh --hostname uclaOffice  --clusters_size 4 --needSSHDBTunnel --LDPruneMinR2 0.3 --LDPruneWindowSize 500
+		--LDPruneWindowShiftSize 100
 		#--minContigID 90 --maxContigID 100
 	
-	# 2012.8.10 LD pruning
+	# 2012.8.10 Plink Mendel Error
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkMendelError/PlinkMendelError_Method14.xml
-		--checkEmptyVCFByReading --clusters_size 4  --needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor  --db_user yh --hostname localhost
+		--checkEmptyVCFByReading --clusters_size 4  --needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor
+		--db_user yh --hostname localhost
 		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 		-y1
 	
@@ -48,7 +51,7 @@ Examples:
 		--db_user yh --hostname localhost
 		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--mergeListFname ./aux/Method38_MarkMendelErrorCallMissing_merge_list.20130201.txt --minContigID 90 --maxContigID 100
-		
+	
 Description:
 	2012.8.14 a plink workflow on folder of VCF files.
 		1: mendel errors,\
