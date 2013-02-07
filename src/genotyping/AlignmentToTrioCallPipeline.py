@@ -3,52 +3,55 @@
 Examples:
 	#2012.04.02 test-run on 40 VRC sequences (at least >1 trios)
 	%s  -i 15-50 -u yh -a 524 -s 2 -z 10.8.0.10 -o AlignmentToTrioCallPipeline_VRC_ISQ_15_50_ReplicateParentsTop2Contigs.xml
-		-j condorpool -l condorpool -N2 -C 1 -O1
+		-j condorpool -l condorpool -N2 --clusters_size 1 --noOfCallingJobsPerNode1
 		-S 447
 	
 	# 2011.12.14 on all VRC (-S 447) monkeys), top 25 contigs
 	%s -u yh -a 524 -s 2 -z 10.8.0.10 -o AlignmentToTrioCallPipeline_VRC_top25Contigs.xml 
-		-j condorpool -l condorpool -N25 -O 5 -S 447
+		-j condorpool -l condorpool -N25 --noOfCallingJobsPerNode 5 -S 447
 	
-	# 2011.12.14 run all VRC on hoffman2, top 7559 contigs. "-O 3" controls clustering of calling programs.
-	# "-C 30" controls clustering for other programs., "-S 447" dictates monkeys from VRC
+	# 2011.12.14 run all VRC on hoffman2, top 7559 contigs. "--noOfCallingJobsPerNode 3" controls clustering of calling programs.
+	# "--clusters_size 30" controls clustering for other programs., "-S 447" dictates monkeys from VRC
 	%s -u yh -a 524 -s 2 -z localhost -o dags/AlignmentToCall/AlignmentToTrioCallPipeline_VRC_top7559Contigs.xml -j hcondor -l hcondor 
-		-N7559 -O 3 -C 30 -S 447 -e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ --needSSHDBTunnel
+		-N7559 --noOfCallingJobsPerNode 3 --clusters_size 30 -S 447 -e /u/home/eeskin/polyacti/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --needSSHDBTunnel
 		
-	# 2012.4.13 run VRC with 5 SK + 5 Nevis, sequenced filtered (-Q1), alignment by method 2 (-G2)
+	# 2012.4.13 run VRC with 5 SK + 5 Nevis, sequenced filtered (--sequence_filtered 1), alignment by method 2 (--alignment_method_id 2)
 	%s -u yh -a 524 -s 2  -z localhost -o dags/AlignmentToCall/AlignmentToTrioCall_ReplicateIndividual_VRC_SK_Nevis_FilteredSeq_top1000Contigs.xml 
-		-j hcondor -l hcondor -N1000 -O 3 -C 30 -S 447,417,420,427,431,432,435,437,439,440,442 
-		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-Q1 -G2 --needSSHDBTunnel
+		-j hcondor -l hcondor -N1000 --noOfCallingJobsPerNode 3 --clusters_size 30 -S 447,417,420,427,431,432,435,437,439,440,442 
+		-e /u/home/eeskin/polyacti/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--sequence_filtered 1 --alignment_method_id 2 --needSSHDBTunnel
 	
-	# 2012.4.13 run 5 SK + 5 Nevis, sequenced filtered (-Q1), alignment by method 2 (-G2), TrioCaller fails because 10 is too small sample size.
-	# 2012.6.13 supply the alignment depth stat file (-q), maxSNPMissingRate (-L 0.30), onlyKeepBiAllelicSNP (-c) 
+	# 2012.4.13 run 5 SK + 5 Nevis, sequenced filtered (--sequence_filtered 1), alignment by method 2 (--alignment_method_id 2), 
+	# TrioCaller fails because 10 is too small sample size.
+	# 2012.6.13 supply the alignment depth stat file (-q), maxSNPMissingRate (-L 0.30), onlyKeepBiAllelicSNP (--onlyKeepBiAllelicSNP) 
 	%s -u yh -a 524 -s 2 -z localhost -o dags/AlignmentToCall/AlignmentToTrioCall_ReplicateIndividual_SK_Nevis_FilteredSeq_top1000Contigs.xml
-		-j hcondor -l hcondor -N1000 -O 2 -C 10 -S 417,420,427,431,432,435,437,439,440,442 
-		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-Q1 -G2 -q aux/alnStatForFilter.2012.6.13.tsv -c -L 0.30 --needSSHDBTunnel
+		-j hcondor -l hcondor -N1000 --noOfCallingJobsPerNode 2 --clusters_size 10 -S 417,420,427,431,432,435,437,439,440,442 
+		-e /u/home/eeskin/polyacti/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--sequence_filtered 1 --alignment_method_id 2 -q aux/alnStatForFilter.2012.6.13.tsv --onlyKeepBiAllelicSNP -L 0.30 --needSSHDBTunnel
 		
-	# 2012.8.15 run TrioCaller on method 14 samtools calls, contig ID from 96 to 100 (-V 96 -x 100)
-	# sequenced filtered (-Q1), alignment by method 2 (-G2), onlyKeepBiAllelicSNP (-c) 
-	# calling job clusters size=1, others =1 (-O 1 -C 1)
+	# 2012.8.15 run TrioCaller on method 14 samtools calls, contig ID from 96 to 100 (--minContigID 96 --maxContigID 100)
+	# sequenced filtered (--sequence_filtered 1), alignment by method 2 (--alignment_method_id 2), onlyKeepBiAllelicSNP (--onlyKeepBiAllelicSNP) 
+	# calling job clusters size=1, others =1 (--noOfCallingJobsPerNode 1 --clusters_size 1)
 	# add -Y (not guess #loci from 1st number in filename) if the input VCF is not db affiliated
 	# 3000 (-Z 3000) sites per unit, 500 overlapping between units (-U 500)
 	# add "--treatEveryOneIndependent" if you want to treat everyone independent (no mendelian constraints from TrioCaller)
-	%s -I ~/NetworkData/vervet/db/genotype_file/method_14/
+	%s --run_type 2 -I ~/NetworkData/vervet/db/genotype_file/method_14/
 		-u yh -a 524  -z localhost -o  dags/AlignmentToCall/TrioCallerOnMethod14Contig96_100.xml
 		-j hcondor -l hcondor
-		-O 1 -C 1 -e /u/home/eeskin/polyacti/
-		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-V 96 -x 100 -Q1 -G2  -c --needSSHDBTunnel
+		--noOfCallingJobsPerNode 1 --clusters_size 1 -e /u/home/eeskin/polyacti/
+		--dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--minContigID 96 --maxContigID 100 --sequence_filtered 1 --alignment_method_id 2  --onlyKeepBiAllelicSNP --needSSHDBTunnel
 		# -Y -Z 3000 -U 500 --treatEveryOneIndependent
 	
 	#2013.1.4 run polymutt on method 36
 	%s --run_type 3 -I ~/NetworkData/vervet/db/genotype_file/method_36/ -u yh -a 524
 		-z localhost -o dags/AlignmentToCall/PolymuttOnMethod36Contig96_100.xml
-		-j hcondor -l hcondor -O 1 -C 1 -e /u/home/eeskin/polyacti/
-		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-V 96 -x 100 -Q1 -G2  -c --needSSHDBTunnel
+		-j hcondor -l hcondor --noOfCallingJobsPerNode 1 --clusters_size 1 -e /u/home/eeskin/polyacti/
+		--dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--minContigID 96 --maxContigID 100 --sequence_filtered 1 --alignment_method_id 2  --onlyKeepBiAllelicSNP --needSSHDBTunnel
 	
 Description:
 	2011-7-12
@@ -64,7 +67,7 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import csv
+import copy
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, utils
 from pymodule import VCFFile
 from Pegasus.DAX3 import *
@@ -73,10 +76,10 @@ from AlignmentToCallPipeline import AlignmentToCallPipeline
 
 class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 	__doc__ = __doc__
-	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
+	option_default_dict = copy.deepcopy(AbstractVervetWorkflow.option_default_dict)
 	option_default_dict.update(AlignmentToCallPipeline.commonCallPipelineOptionDict)
-	option_default_dict.pop(('ind_aln_id_ls', 0, ))
-	option_default_dict.pop(('ind_seq_id_ls', 0, ))
+	#option_default_dict.pop(('ind_aln_id_ls', 0, ))
+	#option_default_dict.pop(('ind_seq_id_ls', 0, ))
 	#option_default_dict.pop(('inputDir', 0, ))
 	option_default_dict.update({
 						('replicateIndividualTag', 1, ): ['copy', 'T', 1, 'the tag that separates the true ID and its replicate count'],\
@@ -334,7 +337,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						genomeAnalysisTKJar=genomeAnalysisTKJar, inputF=vcf1FilterByvcftoolsJob.output, outputF=round1_NonOverlapOutputF, \
 						refFastaFList=refFastaFList, parentJobLs=[vcf1FilterByvcftoolsJob], \
 						extraDependentInputLs=[], transferOutput=False, \
-						extraArguments=None, job_max_memory=job_max_memory, interval=interval)
+						extraArguments=None, job_max_memory=job_max_memory, interval=mpileupInterval)
 				
 				#convert to vcf4 so that other vcftools software could be used.
 				round1_VCF4NonOverlapOutputFname = os.path.join(round1CallDirJob.folder, '%s.v4.vcf'%intervalFnameSignature)
