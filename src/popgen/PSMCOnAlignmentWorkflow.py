@@ -304,7 +304,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 					inputArgumentOption=None, \
 					outputFile=psmcOutputFile, outputArgumentOption="-o", inputFileList=[splitPSMCInputFile], \
 					parentJob=None, parentJobLs=[splitfaJob, bootstrapOutputDirJob], \
-					extraDependentInputLs=[], extraOutputLs=[], transferOutput=True, \
+					extraDependentInputLs=[], extraOutputLs=[], transferOutput=False, \
 					extraArguments='-N%s -t%s -r%s -p %s -b'%(self.maxNoOfIterations, self.max2N0CoalescentTime, \
 									self.initThetaRhoRatio, self.patternOfPSMCTimeIntervals), \
 					extraArgumentList=[], \
