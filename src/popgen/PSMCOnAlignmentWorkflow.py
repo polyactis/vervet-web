@@ -259,6 +259,13 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 											plotOutputFnamePrefix, inputFile], \
 					job_max_memory=job_max_memory,  sshDBTunnel=None, \
 					key2ObjectForJob=None, no_of_cpus=no_of_cpus, max_walltime=max_walltime)
+		
+		plotPNGOutputFile = File('%s.png'%(plotOutputFnamePrefix))
+		self.addConvertImageJob(inputFile=plotOutputFile, \
+					outputFile=plotPNGOutputFile, density=300, \
+					resizeDimension=None, \
+					parentJobLs=[psmc_plotJob], extraDependentInputLs=None, extraOutputLs=None, transferOutput=True, \
+					frontArgumentList=None, extraArguments=None, extraArgumentList=None, job_max_memory=500)
 		return psmc_plotJob
 	
 	def mapReduceOneAlignment(self, workflow=None, alignmentData=None, passingData=None, \
