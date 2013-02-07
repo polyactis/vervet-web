@@ -15,53 +15,54 @@ Examples:
 	
 	# 2011-7-21 use GATK + coverage filter on hoffman2 and site_handler, top 5 contigs
 	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 -i 1-8
-		-N 5 -y1 -l hoffman2 -e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db  -s2
+		-N 5 -y1 --site_handler hoffman2 -e /u/home/eeskin/polyacti --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db  -s2
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
 	
 	#2011-8-31 work 10 VWP and one VRC ref monkeys, variants only
-	%s -a 9 -I 495,498-507 -u yh  
-		-l condorpool -y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC.xml -s2 -q /tmp/all_isq_coverage.tsv
+	%s -a 9 --ind_aln_id_ls 495,498-507 -u yh  
+		--site_handler condorpool -y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC.xml -s2 -q /tmp/all_isq_coverage.tsv
 	
-	%s -a 120 -I 34,38 -u yh -l hoffman2
+	%s -a 120 --ind_aln_id_ls 34,38 -u yh --site_handler hoffman2
 	-y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC_hoffman2.xml  -s2 -e /u/home/eeskin/polyacti
-	-t /u/home/eeskin/polyacti/NetworkData/vervet/db -N 4 -q /tmp/all_isq_coverage.tsv
+	--dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db -N 4 -q /tmp/all_isq_coverage.tsv
 	
 	#2011-9-14 top 25 contigs, variants only, run on uschpc cluster
-	%s -I 559-656 -j uschpc -l uschpc -u yh -a 524 -s 2 -e /home/cmb-03/mn/yuhuang -t /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/
-		-z 10.8.0.10 -o ./AlignmentToCallPipeline_559_656_vs_524_top_25Contigs_uschpc.xml
-		-D ~/mnt/hpc-cmb_home/NetworkData/vervet/db/ -N25
+	%s --ind_aln_id_ls 559-656 --input_site_handler uschpc --site_handler uschpc -u yh -a 524 -s 2 -e /home/cmb-03/mn/yuhuang
+		--dataDir /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/
+		--hostname 10.8.0.10 -o ./AlignmentToCallPipeline_559_656_vs_524_top_25Contigs_uschpc.xml
+		--localDataDir ~/mnt/hpc-cmb_home/NetworkData/vervet/db/ -N25
 	
 	# 2011-11-4 run GATK/samtools on single-sample at a time, for 4 high-coverage VRC monkeys, top 804 contigs
-	%s -a 524 -i 15-18 -u yh -l condorpool -j condorpool -s 2 -N 804
-		-o AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top804Contigs_single_sample_condor.xml -z uclaOffice -n 2
-		-O 5
+	%s -a 524 -i 15-18 -u yh --site_handler condorpool --input_site_handler condorpool -s 2 -N 804
+		-o AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top804Contigs_single_sample_condor.xml --hostname uclaOffice -n 2
+		--noOfCallingJobsPerNode 5
 	
 	# 2012.6.26 run on hoffman2 condor pool (hcondor), filtered sequences (-Q 1), alignment method 2 (-G 2)
-	# no site ID filtering (-S ""), clustering size =5 for calling jobs (-O 5).
+	# no site ID filtering (-S ""), clustering size =5 for calling jobs (--noOfCallingJobsPerNode 5).
 	# with 2million bp interval (-Z 2000000).
 	%s -a 524 -i 633,1495,...,1524,1459,1505,1478,1486,1442,1472,1516,1453
-		-u yh -z localhost -N 7559 -S "" -Q1 -G 2 -l hcondor -j hcondor -e /u/home/eeskin/polyacti 
-		-t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db 
-		-J /u/home/eeskin/polyacti/bin/jdk/bin/java -O 5 -Z 2000000
+		-u yh --hostname localhost -N 7559 -S "" -Q1 -G 2 --site_handler hcondor --input_site_handler hcondor -e /u/home/eeskin/polyacti 
+		--dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db 
+		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 5 -Z 2000000
 		-o dags/AlignmentToCall_130PoplationVervets_vs_524_top7559Contigs.xml
 	
 	# 2012.7.30 genotype-call 723 alignments on method 7 sites (-R ...). "-N ..." (top number of contigs) doesn't matter here.
 	# 2000 method 7 sites for each calling job (-K 2000)
-	%s -a 524 -S 447 -u yh -z localhost -Q1 -G2
-		-l hcondor -j hcondor
-		-e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db
+	%s -a 524 -S 447 -u yh --hostname localhost -Q1 -G2
+		--site_handler hcondor --input_site_handler hcondor
+		-e /u/home/eeskin/polyacti --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
-		-O 5  -o dags/AlignmentToCall_AllVRC_vs_524_top1000Contigs.xml -R method7_BED.tsv -K 2000
+		--noOfCallingJobsPerNode 5  -o dags/AlignmentToCall_AllVRC_vs_524_top1000Contigs.xml -R method7_BED.tsv -K 2000
 	
 	#2012.8.2 testing calling at known sites (-R method7_BED.n10k.tsv, Contig731 and partial Contig645) 
 	#			with 500 regions for each job (-K 500),
-	# run GATK along with samtools (-T), no clustering for any job (-O 1 -C1)
+	# run GATK along with samtools (-T), no clustering for any job (--noOfCallingJobsPerNode 1 --clusters_size1)
 	# only on four alignments of isq-id (-i 643-646)
-	%s -a 524 -i 643-646 -S 447 -u yh -z localhost  -Q1 -G2 
-		-l hcondor -j hcondor
-		-e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db
+	%s -a 524 -i 643-646 -S 447 -u yh --hostname localhost  -Q1 -G2 
+		--site_handler hcondor --input_site_handler hcondor
+		-e /u/home/eeskin/polyacti --dataDir /u/h--dataDire/eeskin/polyacti/NetworkData/vervet/db --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
-		-O 1 -C1
+		--noOfCallingJobsPerNode 1 --clusters_size1
 		-o dags/AlignmentToCall_ISQ643_646_vs_524_method7n10kSites.xml -R method7_BED.n10k.tsv -T -K 500
 	# 2012.8.2 part of the test above, now run multi-sample on Contig731 on all sites
 	# use -x 731 (maxContigID) -V 731 (minContigID) to restrict the top 1000 contigs to only Contig731.
@@ -71,10 +72,10 @@ Examples:
 	# add "--country_id_ls 135,136,144,148,151" to limit individuals from US,Barbados,StKitts,Nevis,Gambia (AND with -S, )
 	%s -a 524 -i 643-646
 		#-S 447
-		-u yh -z localhost -Q1 -G2
-		-l hcondor -j hcondor
-		-e /u/home/eeskin/polyacti -t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db
-		-J /u/home/eeskin/polyacti/bin/jdk/bin/java -O 1 -C1
+		-u yh --hostname localhost -Q1 -G2
+		--site_handler hcondor --input_site_handler hcondor
+		-e /u/home/eeskin/polyacti --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db
+		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 1 --clusters_size1
 		-o dags/AlignmentToCall/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml -T -N 1000 -x 731 -V 731 -Z 200000
 		#--individual_sequence_file_raw_id_type 2 --country_id_ls 135,136,144,148,151 --tax_id_ls 60711 #sabaeus
 	
