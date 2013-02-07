@@ -19,8 +19,8 @@ from Pegasus.DAX3 import *
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus,\
 	AbstractAlignmentAndVCFWorkflow
 from vervet.src import VervetDB
-from AbstractVervetWorkflow import AbstractVervetWorkflow
-from AbstractVervetAlignmentWorkflow import AbstractVervetAlignmentWorkflow
+from vervet.src.pegasus.AbstractVervetWorkflow import AbstractVervetWorkflow
+from vervet.src.pegasus.AbstractVervetAlignmentWorkflow import AbstractVervetAlignmentWorkflow
 
 
 class AbstractVervetAlignmentAndVCFWorkflow(AbstractVervetWorkflow, AbstractAlignmentAndVCFWorkflow, AbstractVervetAlignmentWorkflow):
