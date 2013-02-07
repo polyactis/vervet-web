@@ -46,12 +46,14 @@ Examples:
 		--minContigID 96 --maxContigID 100 --sequence_filtered 1 --alignment_method_id 2  --onlyKeepBiAllelicSNP --needSSHDBTunnel
 		# -Y -Z 3000 -U 500 --treatEveryOneIndependent
 	
-	#2013.1.4 run polymutt on method 36
+	#2013.1.4 run polymutt on method 36, no overlapping between intervals, --intervalOverlapSize 0
+	#(because polymutt runs on loci one by one, no dependency)
 	%s --run_type 3 -I ~/NetworkData/vervet/db/genotype_file/method_36/ -u yh -a 524
 		-z localhost -o dags/AlignmentToCall/PolymuttOnMethod36Contig96_100.xml
 		-j hcondor -l hcondor --noOfCallingJobsPerNode 1 --clusters_size 1 -e /u/home/eeskin/polyacti/
 		--dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--minContigID 96 --maxContigID 100 --sequence_filtered 1 --alignment_method_id 2  --onlyKeepBiAllelicSNP --needSSHDBTunnel
+		--intervalOverlapSize 0 --intervalSize 2000
 	
 Description:
 	2011-7-12
