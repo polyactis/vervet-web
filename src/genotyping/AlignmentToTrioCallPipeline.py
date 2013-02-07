@@ -74,7 +74,7 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, u
 from pymodule import VCFFile
 from Pegasus.DAX3 import *
 from vervet.src import VervetDB, AbstractVervetWorkflow
-from AlignmentToCallPipeline import AlignmentToCallPipeline
+from vervet.src.genotyping.AlignmentToCallPipeline import AlignmentToCallPipeline
 
 class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 	__doc__ = __doc__
