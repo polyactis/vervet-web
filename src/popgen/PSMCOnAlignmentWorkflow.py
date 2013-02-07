@@ -150,7 +150,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 					extraDependentInputLs=[refFastaFile, bamF, baiF], extraOutputLs=[consensusSequenceFile], transferOutput=True, \
 					extraArguments=None, extraArgumentList=[refFastaFile, bamF, consensusSequenceFile, '%s %s'%(minDP, maxDP)], \
 					job_max_memory=1000,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=360)	#max_walltime is in minutes
+					key2ObjectForJob=None, no_of_cpus=None, max_walltime=3000)	#max_walltime is in minutes, 50 hours
 		
 		psmcInputFile = File(os.path.join(topOutputDirJob.output, '%s.psmcfa'%(passingData.bamFnamePrefix)))
 		fq2psmcfaJob = self.addGenericJob(executable=self.fq2psmcfa, \
@@ -173,7 +173,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 									self.initThetaRhoRatio, self.patternOfPSMCTimeIntervals), \
 					extraArgumentList=[], \
 					job_max_memory=1000,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=360)
+					key2ObjectForJob=None, no_of_cpus=None, max_walltime=600)	#10 hours
 		
 		passingData.wholeGenomePSMCJob = psmcJob
 		
@@ -309,7 +309,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 									self.initThetaRhoRatio, self.patternOfPSMCTimeIntervals), \
 					extraArgumentList=[], \
 					job_max_memory=1000,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=360)
+					key2ObjectForJob=None, no_of_cpus=None, max_walltime=600)
 			self.addInputToStatMergeJob(workflow, statMergeJob=mergeBootstrapPSMCOutputJob, \
 								inputF=psmcJob.output, parentJobLs=[psmcJob])
 		
@@ -317,18 +317,18 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		plotOutputFnamePrefix = os.path.join(bootstrapOutputDirJob.output, '%s.wholeGenome_%sBootstrap'%\
 											(passingData.bamFnamePrefix, self.noOfBootstraps))
 		
-		psmc_plotJob= self.addPSMCPlotJob(inputFile=psmcOutputFile, plotOutputFnamePrefix=plotOutputFnamePrefix, \
+		psmc_plotJob= self.addPSMCPlotJob(inputFile=mergeBootstrapPSMCOutputJob.output, plotOutputFnamePrefix=plotOutputFnamePrefix, \
 						absMutationRatePerNucleotide=self.absMutationRatePerNucleotide, \
 						minNoOfGenerations=self.minNoOfGenerations, maxNoOfGenerations=self.maxNoOfGenerations, \
 						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
-						parentJobLs=[psmcJob, bootstrapOutputDirJob], extraDependentInputLs=[psmcOutputFile], \
+						parentJobLs=[mergeBootstrapPSMCOutputJob, bootstrapOutputDirJob], extraDependentInputLs=[psmcOutputFile], \
 						transferOutput=True, job_max_memory=2000, no_of_cpus=None, max_walltime=None)
 		#2013.2.5 twice the minNoOfGenerations	#estimates close to 10^4 is not accurate
-		psmc_plotJob= self.addPSMCPlotJob(inputFile=psmcOutputFile, plotOutputFnamePrefix=plotOutputFnamePrefix, \
+		psmc_plotJob= self.addPSMCPlotJob(inputFile=mergeBootstrapPSMCOutputJob.output, plotOutputFnamePrefix=plotOutputFnamePrefix, \
 						absMutationRatePerNucleotide=self.absMutationRatePerNucleotide, \
 						minNoOfGenerations=self.minNoOfGenerations*2, maxNoOfGenerations=self.maxNoOfGenerations, \
 						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
-						parentJobLs=[psmcJob, bootstrapOutputDirJob], extraDependentInputLs=[psmcOutputFile], \
+						parentJobLs=[mergeBootstrapPSMCOutputJob, bootstrapOutputDirJob], extraDependentInputLs=[psmcOutputFile], \
 						transferOutput=True, job_max_memory=2000, no_of_cpus=None, max_walltime=None)
 		return
 	
