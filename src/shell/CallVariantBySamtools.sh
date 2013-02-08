@@ -98,7 +98,7 @@ bamFiles=$*
 #Notes: Assuming diploid individuals.
 
 
-###### aruments for $vcfutilsPath
+###### aruments for $vcfutilsPath varFilter
 #-D100: maximum depth=100
 #-w 10:	SNP within 10 bp around a gap to be filtered.
 #-d 3:	minimum read depth is 3.
