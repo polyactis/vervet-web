@@ -17,15 +17,16 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0])
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import csv
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, figureOutDelimiter
+import copy
+from pymodule import ProcessOptions
+from pymodule import VCFFile
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
 from vervet.src import VervetDB
 
 
 class AddLocusFromVCF2DB(AbstractVervetMapper):
 	__doc__ = __doc__
-	option_default_dict = AbstractVervetMapper.option_default_dict.copy()
+	option_default_dict = copy.deepcopy(AbstractVervetMapper.option_default_dict)
 	#option_default_dict.pop(('inputFname', 0, ))
 	option_default_dict.pop(('outputFname', 0, ))
 	option_default_dict.pop(('outputFnamePrefix', 0, ))
@@ -56,7 +57,6 @@ class AddLocusFromVCF2DB(AbstractVervetMapper):
 			given a VCF file, find all the loci and submit them into db
 		"""
 		sys.stderr.write("Adding loci from %s into db ... "%(inputFname))
-		from pymodule.VCFFile import VCFFile
 		vcfFile = VCFFile(inputFname=inputFname, minDepth=minDepth)
 		
 		counter = 0
