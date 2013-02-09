@@ -31,8 +31,6 @@ class AbstractVervetMapper(AbstractDBInteractingClass):
 	option_default_dict.update({
 							('logFilename', 0, ): [None, '', 1, 'file to contain logs. use it only if this program is at the end of pegasus workflow \
 		and has no output file'],\
-							("data_dir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
-									If not given, use the default stored in db.'],\
 							})
 	option_default_dict.update(AbstractMapper.db_option_dict)
 	def __init__(self, inputFnameLs=None, **keywords):
