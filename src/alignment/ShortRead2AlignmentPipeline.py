@@ -11,7 +11,7 @@ Examples:
 		-z dl324b-1.cmb.usc.edu -c
 		--tmpDir /work/ -H
 	
-	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (-D changes localDataDir. -t changes dataDir.)
+	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (-D changes local_data_dir. -t changes data_dir.)
 	# 2012.3.20 use /work/ or /u/scratch/p/polyacti/tmp as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
 	# 2012.5.4 cluster 10 alignment jobs (before merging) as a unit (--cluster_size_for_aln_jobs 10), skip done alignment (-K)
 	# 2012.9.21 add "-H" because AddAlignmentFile2DB need db conneciton
@@ -123,7 +123,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 			self.ind_seq_id_ls = getListOutOfStr(self.ind_seq_id_ls, data_type=int)
 	
 	def addAllAlignmentJobs(self, db_vervet, individualSequenceID2FilePairLs=None, \
-					dataDir=None, \
+					data_dir=None, \
 					isqLs=None,\
 					refSequence=None, refFastaFList=None, refIndexJob=None,
 					workflow=None, bwa=None, additionalArguments=None, samtools=None, mkdirWrap=None, mv=None,\
@@ -150,7 +150,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 			fetch the alignment_method directly based on the alignment_method_name, except for 454 sequences.
 				officially merges "bwa-short-read-SR" (single-read) into "bwa-short-read"
 		2012.2.24
-			pass dataDir to db_vervet.getAlignment()
+			pass data_dir to db_vervet.getAlignment()
 			add stampy part
 		2011-9-15
 			adjust alignment_method_name according to individual_sequence.sequencer and individual_sequence.sequence_type
@@ -196,10 +196,10 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 									ref_individual_sequence_id=refSequence.id, \
 									alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
 									individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
-									dataDir=dataDir)
+									data_dir=data_dir)
 				skipIndividualAlignment = False
 				if individual_alignment.path:
-					alignmentAbsPath= os.path.join(dataDir, individual_alignment.path)
+					alignmentAbsPath= os.path.join(data_dir, individual_alignment.path)
 					#2012.3.29	check if the alignment exists or not. if it already exists, no alignment jobs.
 					if skipDoneAlignment and os.path.isfile(alignmentAbsPath):
 						skipIndividualAlignment = True
@@ -224,10 +224,10 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 									ref_individual_sequence_id=refSequence.id, \
 									alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
 									individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
-									dataDir=dataDir, individual_sequence_file_raw_id=minIsqFileRawID)
+									data_dir=data_dir, individual_sequence_file_raw_id=minIsqFileRawID)
 						skipLibraryAlignment = False
 						if oneLibraryAlignmentEntry.path:
-							alignmentAbsPath= os.path.join(dataDir, oneLibraryAlignmentEntry.path)
+							alignmentAbsPath= os.path.join(data_dir, oneLibraryAlignmentEntry.path)
 							#2012.3.29	check if the alignment exists or not. if it already exists, no alignment jobs.
 							if skipDoneAlignment and os.path.isfile(alignmentAbsPath):
 								skipLibraryAlignment = True
@@ -242,12 +242,12 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 						if mkdirJob is None:	#now it's time to add the mkdirJob
 							# add a mkdir job
 							mkdirJob = self.addMKDIRJob(workflow, mkdirWrap=mkdirWrap, dirName=tmpOutputDir)
-						#newFilePair = self.registerFileToWorkflow(filePair, workflow, dataDir=dataDir)
+						#newFilePair = self.registerFileToWorkflow(filePair, workflow, data_dir=data_dir)
 						newFileObjLs = self.registerISQFileObjLsToWorkflow(fileObjectLs=fileObjectLs, workflow=workflow)
 						#2012.9.19 individual_alignment is passed as None so that ReadGroup addition job is not added in addAlignmentJob()
 						alignmentJob, alignmentOutput = self.addAlignmentJob(workflow=workflow, fileObjectLs=newFileObjLs, \
 																			individual_alignment=None, \
-							dataDir=dataDir, refFastaFList=refFastaFList, bwa=bwa, \
+							data_dir=data_dir, refFastaFList=refFastaFList, bwa=bwa, \
 							additionalArguments=additionalArguments, samtools=samtools, \
 							refIndexJob=refIndexJob, parentJobLs=[refIndexJob, mkdirJob], \
 							alignment_method=alignment_method, \
@@ -312,7 +312,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 											inputFile=markDupJob.output, otherInputFileList=[markDupJob.MarkDupOutputMetricF], \
 											individual_alignment_id=oneLibraryAlignmentEntry.id, \
 											individual_sequence_file_raw_id=minIsqFileRawID,\
-											logFile=logFile, dataDir=dataDir, \
+											logFile=logFile, data_dir=data_dir, \
 											parentJobLs=[markDupJob, markDupBamIndexJob], \
 											extraDependentInputLs=[markDupBamIndexJob.output,], \
 											extraArguments=None, transferOutput=transferOutput, \
@@ -347,7 +347,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					alignment2DBJob = self.addAddAlignmentFile2DBJob(workflow=workflow, executable=self.AddAlignmentFile2DB, \
 										inputFile=markDupJob.output, otherInputFileList=[markDupJob.MarkDupOutputMetricF],\
 										individual_alignment_id=individual_alignment.id, \
-										logFile=logFile, dataDir=dataDir, \
+										logFile=logFile, data_dir=data_dir, \
 										parentJobLs=[markDupJob, markDupBamIndexJob], \
 										extraDependentInputLs=[markDupBamIndexJob.output], \
 										extraArguments=None, transferOutput=transferOutput, \
@@ -355,7 +355,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					
 		sys.stderr.write("%s alignment jobs; %s merge alignment jobs.\n"%(no_of_alignment_jobs, no_of_merging_jobs))
 	
-	def registerFileToWorkflow(self, filePair, workflow, dataDir=None):
+	def registerFileToWorkflow(self, filePair, workflow, data_dir=None):
 		'''
 		2011-8-30
 		'''
@@ -364,7 +364,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		for fileRecord in filePair:
 			relativePath = fileRecord[0]
 			fastqF = File(relativePath)
-			fastqF.addPFN(PFN("file://" + os.path.join(dataDir, relativePath), self.input_site_handler))
+			fastqF.addPFN(PFN("file://" + os.path.join(data_dir, relativePath), self.input_site_handler))
 			workflow.addFile(fastqF)
 			newFileRecord = [fastqF] + fileRecord[1:]
 			newFilePair.append(newFileRecord)
@@ -383,7 +383,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		#workflow.addJob(mkdirJob)
 		#return mkdirJob
 	
-	def addAlignmentJobPipe(self, workflow, filePair, dataDir=None, refFastaFile=None, bwa=None, additionalArguments=None, \
+	def addAlignmentJobPipe(self, workflow, filePair, data_dir=None, refFastaFile=None, bwa=None, additionalArguments=None, \
 					samtools=None, refIndexJob=None, mkdirJob=None,\
 					alignment_method=None, outputDir=None, namespace='workflow', version='1.0',\
 					PEAlignmentByBWA=None, ShortSEAlignmentByBWA=None, LongSEAlignmentByBWA=None,\
@@ -442,7 +442,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 			workflow.depends(parent=mkdirJob, child=alignmentJob)
 		return alignmentJob, sortBamF
 	
-	def addAlignmentJobNoPipe(self, workflow, filePair, dataDir=None, refFastaFile=None, bwa=None, additionalArguments=None, \
+	def addAlignmentJobNoPipe(self, workflow, filePair, data_dir=None, refFastaFile=None, bwa=None, additionalArguments=None, \
 					samtools=None, refIndexJob=None, mkdirJob=None,\
 					alignment_method=None, outputDir=None, namespace='workflow', version='1.0',\
 					PEAlignmentByBWA=None, ShortSEAlignmentByBWA=None, LongSEAlignmentByBWA=None,\
@@ -641,10 +641,10 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		session = db_vervet.session
 		session.begin()
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		# Create a abstract dag
 		workflow = self.initiateWorkflow()
@@ -655,14 +655,14 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		self.registerCustomExecutables(workflow)
 		
 		
-		#individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, dataDir=self.localDataDir)
-		isqLs = db_vervet.getISQDBEntryLsForAlignment(self.ind_seq_id_ls, dataDir=self.dataDir, \
+		#individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, data_dir=self.local_data_dir)
+		isqLs = db_vervet.getISQDBEntryLsForAlignment(self.ind_seq_id_ls, data_dir=self.data_dir, \
 												filtered=None, ignoreEmptyReadFile=self.ignoreEmptyReadFile)
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		
 		
 		#2011-11-16 new way of registering reference fasta file. but still dont' want to trasnfer 7Gb of data
-		refFastaFname = os.path.join(self.dataDir, refSequence.path)
+		refFastaFname = os.path.join(self.data_dir, refSequence.path)
 		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
 		refFastaFile = refFastaFList[0]
@@ -683,7 +683,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		
 		self.addAllAlignmentJobs(db_vervet, individualSequenceID2FilePairLs=None, \
 					isqLs = isqLs,\
-					dataDir=self.dataDir,\
+					data_dir=self.data_dir,\
 					refSequence=refSequence, refFastaFList=refFastaFList, refIndexJob=refIndexJob,
 					workflow=workflow, bwa=workflow.bwa, additionalArguments=self.additionalArguments, \
 					samtools=workflow.samtools, \

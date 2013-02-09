@@ -196,11 +196,11 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 		session = db_vervet.session
 		session.begin()
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		workflow = self.initiateWorkflow()
 		
@@ -209,7 +209,7 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 		self.registerExecutables(workflow)
 		self.registerCustomExecutables(workflow)
 		
-		isq_id2LibrarySplitOrder2FileLs = db_vervet.getISQ_ID2LibrarySplitOrder2FileLs(self.ind_seq_id_ls, dataDir=self.dataDir, \
+		isq_id2LibrarySplitOrder2FileLs = db_vervet.getISQ_ID2LibrarySplitOrder2FileLs(self.ind_seq_id_ls, data_dir=self.data_dir, \
 													filtered=0, ignoreEmptyReadFile=False)	#2012.6.1 unfiltered read file shoudn't be empty
 		no_of_jobs = 0
 		for ind_seq_id, LibrarySplitOrder2FileLs in isq_id2LibrarySplitOrder2FileLs.iteritems():
@@ -221,18 +221,18 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 				#2012.6.8
 				individual_sequence = db_vervet.copyParentIndividualSequence(parent_individual_sequence=parent_individual_sequence, \
 									parent_individual_sequence_id=ind_seq_id,\
-									quality_score_format='Standard', filtered=1, dataDir=self.dataDir)
+									quality_score_format='Standard', filtered=1, data_dir=self.data_dir)
 				"""
 				# 2012.6.8 use db_vervet.copyParentIndividualSequence() instead.
 				individual_sequence = db_vervet.getIndividualSequence(individual_id=parent_individual_sequence.individual_id, \
 						sequencer=parent_individual_sequence.sequencer, sequence_type=parent_individual_sequence.sequence_type,\
 						sequence_format=parent_individual_sequence.format, path_to_original_sequence=None, tissue_name=None, coverage=None,\
 						quality_score_format='Standard', filtered=1,\
-						parent_individual_sequence_id=parent_individual_sequence.id, dataDir=self.dataDir)
+						parent_individual_sequence_id=parent_individual_sequence.id, data_dir=self.data_dir)
 				"""
 				library_split_order2filtered_db_entry_ls = self.getLibrarySplitOrder2DBEntryLs(individual_sequence)
 				
-				sequenceOutputDir = os.path.join(self.dataDir, individual_sequence.path)
+				sequenceOutputDir = os.path.join(self.data_dir, individual_sequence.path)
 				sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
 				no_of_jobs += 1
 				

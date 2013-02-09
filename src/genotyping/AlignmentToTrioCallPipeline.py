@@ -13,14 +13,14 @@ Examples:
 	# 2011.12.14 run all VRC on hoffman2, top 7559 contigs. "--noOfCallingJobsPerNode 3" controls clustering of calling programs.
 	# "--clusters_size 30" controls clustering for other programs., "-S 447" dictates monkeys from VRC
 	%s -u yh -a 524 -s 2 -z localhost -o dags/AlignmentToCall/AlignmentToTrioCallPipeline_VRC_top7559Contigs.xml -j hcondor -l hcondor 
-		-N7559 --noOfCallingJobsPerNode 3 --clusters_size 30 -S 447 -e /u/home/eeskin/polyacti/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --needSSHDBTunnel
+		-N7559 --noOfCallingJobsPerNode 3 --clusters_size 30 -S 447 -e /u/home/eeskin/polyacti/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --needSSHDBTunnel
 		
 	# 2012.4.13 run VRC with 5 SK + 5 Nevis, sequenced filtered (--sequence_filtered 1), alignment by method 2 (--alignment_method_id 2)
 	%s -u yh -a 524 -s 2  -z localhost -o dags/AlignmentToCall/AlignmentToTrioCall_ReplicateIndividual_VRC_SK_Nevis_FilteredSeq_top1000Contigs.xml 
 		-j hcondor -l hcondor -N1000 --noOfCallingJobsPerNode 3 --clusters_size 30 -S 447,417,420,427,431,432,435,437,439,440,442 
-		-e /u/home/eeskin/polyacti/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		-e /u/home/eeskin/polyacti/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--sequence_filtered 1 --alignment_method_id 2 --needSSHDBTunnel
 	
 	# 2012.4.13 run 5 SK + 5 Nevis, sequenced filtered (--sequence_filtered 1), alignment by method 2 (--alignment_method_id 2), 
@@ -28,8 +28,8 @@ Examples:
 	# 2012.6.13 supply the alignment depth stat file (-q), maxSNPMissingRate (-L 0.30), onlyKeepBiAllelicSNP (--onlyKeepBiAllelicSNP) 
 	%s -u yh -a 524 -s 2 -z localhost -o dags/AlignmentToCall/AlignmentToTrioCall_ReplicateIndividual_SK_Nevis_FilteredSeq_top1000Contigs.xml
 		-j hcondor -l hcondor -N1000 --noOfCallingJobsPerNode 2 --clusters_size 10 -S 417,420,427,431,432,435,437,439,440,442 
-		-e /u/home/eeskin/polyacti/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		-e /u/home/eeskin/polyacti/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--sequence_filtered 1 --alignment_method_id 2 -q aux/alnStatForFilter.2012.6.13.tsv --onlyKeepBiAllelicSNP -L 0.30 --needSSHDBTunnel
 		
 	# 2012.8.15 run TrioCaller on method 14 samtools calls, contig ID from 96 to 100 (--minContigID 96 --maxContigID 100)
@@ -42,7 +42,7 @@ Examples:
 		-u yh -a 524  -z localhost -o  dags/AlignmentToCall/TrioCallerOnMethod14Contig96_100.xml
 		-j hcondor -l hcondor
 		--noOfCallingJobsPerNode 1 --clusters_size 1 -e /u/home/eeskin/polyacti/
-		--dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--minContigID 96 --maxContigID 100 --sequence_filtered 1 --alignment_method_id 2  --onlyKeepBiAllelicSNP --needSSHDBTunnel
 		# -Y -Z 3000 -U 500 --treatEveryOneIndependent
 	
@@ -51,7 +51,7 @@ Examples:
 	%s --run_type 3 -I ~/NetworkData/vervet/db/genotype_file/method_36/ -u yh -a 524
 		-z localhost -o dags/AlignmentToCall/PolymuttOnMethod36Contig96_100.xml
 		-j hcondor -l hcondor --noOfCallingJobsPerNode 1 --clusters_size 1 -e /u/home/eeskin/polyacti/
-		--dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--minContigID 96 --maxContigID 100 --sequence_filtered 1 --alignment_method_id 2  --onlyKeepBiAllelicSNP --needSSHDBTunnel
 		--intervalOverlapSize 0 --intervalSize 2000
 	
@@ -174,7 +174,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				refFastaFList=None, \
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				needFastaIndexJob=False, needFastaDictJob=False, \
-				intervalSize=2000000, intervalOverlapSize=100000, site_type=1, dataDir=None, no_of_gatk_threads = 1, \
+				intervalSize=2000000, intervalOverlapSize=100000, site_type=1, data_dir=None, no_of_gatk_threads = 1, \
 				outputDirPrefix="", \
 				maxSNPMissingRate=None, alnStatForFilterF=None, onlyKeepBiAllelicSNP=True, \
 				cumulativeMedianDepth=5000, job_max_memory = 2000, vcf_job_max_memory = 1000,\
@@ -223,7 +223,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
 					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
-					mv=mv, namespace=namespace, version=version, dataDir=dataDir)
+					mv=mv, namespace=namespace, version=version, data_dir=data_dir)
 		
 		# add merge jobs for every reference
 		returnData = PassingData()
@@ -488,7 +488,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				refFastaFList=None, \
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				needFastaIndexJob=False, needFastaDictJob=False, \
-				intervalSize=2000000, intervalOverlapSize=100000, site_type=1, dataDir=None, no_of_gatk_threads = 1, \
+				intervalSize=2000000, intervalOverlapSize=100000, site_type=1, data_dir=None, no_of_gatk_threads = 1, \
 				outputDirPrefix="", \
 				maxSNPMissingRate=None, alnStatForFilterF=None, onlyKeepBiAllelicSNP=True, \
 				cumulativeMedianDepth=5000, job_max_memory = 2000, vcf_job_max_memory = 1000,\
@@ -726,16 +726,16 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		
 		db_vervet = self.db_vervet
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		workflow = self.initiateWorkflow()
 		if self.run_type==1:
 			alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										alignment_method_id=self.alignment_method_id, dataDir=self.localDataDir)
+										alignment_method_id=self.alignment_method_id, data_dir=self.local_data_dir)
 		elif self.run_type in [2,3]:
 			inputData = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler, \
 									checkEmptyVCFByReading=self.checkEmptyVCFByReading,\
@@ -758,7 +758,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 															defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
-		refFastaFname = os.path.join(self.dataDir, refSequence.path)
+		refFastaFname = os.path.join(self.data_dir, refSequence.path)
 		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 							input_site_handler=self.input_site_handler,\
 							checkAffiliateFileExistence=True)
@@ -769,7 +769,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		self.registerCustomExecutables(workflow)
 		
 		if self.run_type==1:
-			alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, dataDir=self.dataDir)
+			alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, data_dir=self.data_dir)
 			chr2size = self.getTopNumberOfContigs(self.topNumberOfContigs, contigMinRankBySize=self.contigMinRankBySize)
 			#chr2size = set(['Contig149'])	#temporary when testing Contig149
 			#chr2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
@@ -805,7 +805,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 						intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, \
-						site_type=self.site_type, dataDir=self.dataDir,\
+						site_type=self.site_type, data_dir=self.data_dir,\
 						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, maxSNPMissingRate=self.maxSNPMissingRate,\
 						alnStatForFilterF=alnStatForFilterF, cumulativeMedianDepth=cumulativeMedianDepth,\
 						transferOutput=True)
@@ -829,7 +829,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 						intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, \
-						site_type=self.site_type, dataDir=self.dataDir,\
+						site_type=self.site_type, data_dir=self.data_dir,\
 						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, maxSNPMissingRate=self.maxSNPMissingRate,\
 						alnStatForFilterF=None, cumulativeMedianDepth=cumulativeMedianDepth,\
 						run_type=self.run_type, transferOutput=True)

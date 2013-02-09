@@ -15,7 +15,7 @@ Examples:
 	
 	# 2011-7-21 use GATK + coverage filter on hoffman2 and site_handler, top 5 contigs
 	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 -i 1-8
-		-N 5 -y1 --site_handler hoffman2 -e /u/home/eeskin/polyacti --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db  -s2
+		-N 5 -y1 --site_handler hoffman2 -e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db  -s2
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
 	
 	#2011-8-31 work 10 VWP and one VRC ref monkeys, variants only
@@ -24,13 +24,13 @@ Examples:
 	
 	%s -a 120 --ind_aln_id_ls 34,38 -u yh --site_handler hoffman2
 	-y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC_hoffman2.xml  -s2 -e /u/home/eeskin/polyacti
-	--dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db -N 4 -q /tmp/all_isq_coverage.tsv
+	--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db -N 4 -q /tmp/all_isq_coverage.tsv
 	
 	#2011-9-14 top 25 contigs, variants only, run on uschpc cluster
 	%s --ind_aln_id_ls 559-656 --input_site_handler uschpc --site_handler uschpc -u yh -a 524 -s 2 -e /home/cmb-03/mn/yuhuang
-		--dataDir /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/
+		--data_dir /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/
 		--hostname 10.8.0.10 -o ./AlignmentToCallPipeline_559_656_vs_524_top_25Contigs_uschpc.xml
-		--localDataDir ~/mnt/hpc-cmb_home/NetworkData/vervet/db/ -N25
+		--local_data_dir ~/mnt/hpc-cmb_home/NetworkData/vervet/db/ -N25
 	
 	# 2011-11-4 run GATK/samtools on single-sample at a time, for 4 high-coverage VRC monkeys, top 804 contigs
 	%s -a 524 -i 15-18 -u yh --site_handler condorpool --input_site_handler condorpool -s 2 -N 804
@@ -42,7 +42,7 @@ Examples:
 	# with 2million bp interval (-Z 2000000).
 	%s -a 524 -i 633,1495,...,1524,1459,1505,1478,1486,1442,1472,1516,1453
 		-u yh --hostname localhost -N 7559 -S "" -Q1 -G 2 --site_handler hcondor --input_site_handler hcondor -e /u/home/eeskin/polyacti 
-		--dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db 
+		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db 
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 5 -Z 2000000
 		-o dags/AlignmentToCall_130PoplationVervets_vs_524_top7559Contigs.xml
 	
@@ -50,7 +50,7 @@ Examples:
 	# 2000 method 7 sites for each calling job (-K 2000)
 	%s -a 524 -S 447 -u yh --hostname localhost -Q1 -G2
 		--site_handler hcondor --input_site_handler hcondor
-		-e /u/home/eeskin/polyacti --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db
+		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
 		--noOfCallingJobsPerNode 5  -o dags/AlignmentToCall_AllVRC_vs_524_top1000Contigs.xml -R method7_BED.tsv -K 2000
 	
@@ -60,7 +60,7 @@ Examples:
 	# only on four alignments of isq-id (-i 643-646)
 	%s -a 524 -i 643-646 -S 447 -u yh --hostname localhost  -Q1 -G2 
 		--site_handler hcondor --input_site_handler hcondor
-		-e /u/home/eeskin/polyacti --dataDir /u/h--dataDire/eeskin/polyacti/NetworkData/vervet/db --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db
+		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
 		--noOfCallingJobsPerNode 1 --clusters_size1
 		-o dags/AlignmentToCall_ISQ643_646_vs_524_method7n10kSites.xml -R method7_BED.n10k.tsv -T -K 500
@@ -74,7 +74,7 @@ Examples:
 		#-S 447
 		-u yh --hostname localhost -Q1 -G2
 		--site_handler hcondor --input_site_handler hcondor
-		-e /u/home/eeskin/polyacti --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db
+		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 1 --clusters_size1
 		-o dags/AlignmentToCall/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml -T -N 1000 -x 731 -V 731 -Z 200000
 		#--individual_sequence_file_raw_id_type 2 --country_id_ls 135,136,144,148,151 --tax_id_ls 60711 #sabaeus
@@ -202,7 +202,7 @@ class AlignmentToCallPipeline(parentClass):
 	def addSelectAndSplitBamJobs(self, db_vervet, workflow, alignmentLs, site_handler, maxContigID, chrLs, samtools=None, \
 							java=None, addOrReplaceReadGroupsAndCleanSQHeaderJar=None, BuildBamIndexFilesJar=None, mkdir=None, namespace="workflow",\
 							version="1.0", mkCallDirJob=None,\
-							addRGExecutable=None, dataDir=None):
+							addRGExecutable=None, data_dir=None):
 		"""
 		2011-7-14
 			1. select reference out of whole-alignment
@@ -214,7 +214,7 @@ class AlignmentToCallPipeline(parentClass):
 		chr2jobDataLs = {}
 		for alignment in alignmentLs:
 			# Add input file to the DAX-level replica catalog
-			inputFname = os.path.join(dataDir, alignment.path)
+			inputFname = os.path.join(data_dir, alignment.path)
 			input = File(inputFname)
 			input.addPFN(PFN("file://" + inputFname, site_handler))
 			workflow.addFile(input)
@@ -515,7 +515,7 @@ class AlignmentToCallPipeline(parentClass):
 							addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
 							BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
 							mv=None, namespace="workflow", version="1.0", \
-							dataDir=None, tmpDir="/tmp"):
+							data_dir=None, tmpDir="/tmp"):
 		"""
 		2012.4.5
 			fix some bugs here
@@ -639,7 +639,7 @@ class AlignmentToCallPipeline(parentClass):
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				seqCoverageF=None, \
 				needFastaIndexJob=False, needFastaDictJob=False, \
-				intervalSize=2000000, site_type=1, dataDir=None, no_of_gatk_threads = 1,\
+				intervalSize=2000000, site_type=1, data_dir=None, no_of_gatk_threads = 1,\
 				outputDirPrefix="", addGATKJobs=False, cumulativeMedianDepth=5000, **keywords):
 		"""
 		2012.7.31
@@ -677,7 +677,7 @@ class AlignmentToCallPipeline(parentClass):
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
 					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
-					mv=mv, namespace=namespace, version=version, dataDir=dataDir)
+					mv=mv, namespace=namespace, version=version, data_dir=data_dir)
 		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
 		
 		# add merge jobs for every reference
@@ -955,7 +955,7 @@ class AlignmentToCallPipeline(parentClass):
 		del writer
 		sys.stderr.write("%s entries fetched.\n"%(counter))
 	
-	def outputListOfBam(self, alignmentLs, dataDir=None, outputFname=None, workflow=None, site_handler=None):
+	def outputListOfBam(self, alignmentLs, data_dir=None, outputFname=None, workflow=None, site_handler=None):
 		"""
 		2011-9-15
 			deprecated. CallVariantBySamtools.sh doesn't need this file anymore.
@@ -966,7 +966,7 @@ class AlignmentToCallPipeline(parentClass):
 		sys.stderr.write("Outputting path to %s alignments to %s ..."%(len(alignmentLs), outputFname))
 		outf = open(outputFname, 'w')
 		for alignment in alignmentLs:
-			#abs_path = os.path.join(dataDir, alignment.path)
+			#abs_path = os.path.join(data_dir, alignment.path)
 			outf.write("%s\n"%alignment.path)	#using relative path, alignments are symlinked or transferred
 		del outf
 		bamListF = File(os.path.basename(outputFname))
@@ -1166,16 +1166,16 @@ class AlignmentToCallPipeline(parentClass):
 		
 		db_vervet = self.db_vervet
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		workflow = self.initiateWorkflow()
 		
 		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										alignment_method_id=self.alignment_method_id, dataDir=self.localDataDir,\
+										alignment_method_id=self.alignment_method_id, data_dir=self.local_data_dir,\
 										individual_sequence_file_raw_id_type=self.individual_sequence_file_raw_id_type)
 		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
 									individual_site_id_set=set(self.site_id_ls),\
@@ -1191,7 +1191,7 @@ class AlignmentToCallPipeline(parentClass):
 		self.registerJars()
 		self.registerExecutables()
 		self.registerCustomExecutables()
-		alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, dataDir=self.dataDir)
+		alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, data_dir=self.data_dir)
 		
 		if self.selectedRegionFname:
 			chr2IntervalDataLs = self.getChr2IntervalDataLsBySplitBEDFile(intervalFname=self.selectedRegionFname, \
@@ -1246,7 +1246,7 @@ class AlignmentToCallPipeline(parentClass):
 					namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 					seqCoverageF=None, \
 					needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-					intervalSize=self.intervalSize, site_type=self.site_type, dataDir=self.dataDir, addGATKJobs=self.addGATKJobs,\
+					intervalSize=self.intervalSize, site_type=self.site_type, data_dir=self.data_dir, addGATKJobs=self.addGATKJobs,\
 					cumulativeMedianDepth=cumulativeMedianDepth)
 		elif self.run_type==2:
 			#2011-11-4 for single-alignment-calling pipeline, adjust the folder name so that they are unique from each other
@@ -1279,7 +1279,7 @@ class AlignmentToCallPipeline(parentClass):
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						seqCoverageF=None, \
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-						intervalSize=self.intervalSize, site_type=self.site_type, dataDir=self.dataDir)
+						intervalSize=self.intervalSize, site_type=self.site_type, data_dir=self.data_dir)
 				
 		
 		"""
@@ -1289,7 +1289,7 @@ class AlignmentToCallPipeline(parentClass):
 							BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar,\
 							mkdir=workflow.mkdirWrap, namespace=workflow.namespace, \
 							version=workflow.version, mkCallDirJob=callOutputDirJob,\
-							addRGExecutable=workflow.addRGToBAM, dataDir=self.dataDir)
+							addRGExecutable=workflow.addRGToBAM, data_dir=self.data_dir)
 		chr2jobDataLs = addSelectAndSplitBamReturnData.chr2jobDataLs
 		
 		returnData3 = self.addRefFastaFileSplitJobs(workflow, refFastaF, selectAndSplitFasta, chrLs, mkdir=workflow.mkdirWrap, samtools=workflow.samtools,

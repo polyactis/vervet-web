@@ -172,17 +172,17 @@ class UnpackAndAddIndividualSequence2DB(AbstractVervetWorkflow):
 				self.getAllBamFiles(inputFname, bamFnameLs)
 		
 	def addMonkeySequence(self, db_vervet, monkeyID, sequencer='GA', sequence_type='PE', sequence_format='fastq',\
-						path_to_original_sequence=None, dataDir=None):
+						path_to_original_sequence=None, data_dir=None):
 		"""
 		2012.4.30
-			add argument dataDir
+			add argument data_dir
 		2011-8-3
 		"""
 		individual = db_vervet.getIndividual(code=monkeyID)
 		individual_sequence = db_vervet.getIndividualSequence(individual_id=individual.id, sequencer=sequencer, \
 						sequence_type=sequence_type, sequence_format=sequence_format, \
 						path_to_original_sequence=path_to_original_sequence, tissue_name=None, coverage=None,\
-						subFolder='individual_sequence', dataDir=dataDir)
+						subFolder='individual_sequence', data_dir=data_dir)
 		
 		return individual_sequence
 	
@@ -412,7 +412,7 @@ echo %s
 		sys.stderr.write(" %s monkeys and %s files in the dictionary.\n"%(len(monkeyID2FastqObjectLs), real_counter))
 		return monkeyID2FastqObjectLs
 
-	def addJobsToProcessSouthAfricanDNAData(self, workflow=None, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, dataDir=None, \
+	def addJobsToProcessSouthAfricanDNAData(self, workflow=None, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, data_dir=None, \
 			minNoOfReads=None, commit=None,\
 			sequencer=None, sequence_type=None, sequence_format=None):
 		"""
@@ -422,7 +422,7 @@ echo %s
 		"""
 		fastqFnameLs = self.getInputFnameLsFromInput(input, suffixSet=set(['.fastq']), fakeSuffix='.gz')	#doesn't matter if fastq is not gzipped
 		monkeyID2FastqObjectLs = self.getMonkeyID2FastqObjectLsForSouthAfricanDNAData(fastqFnameLs=fastqFnameLs)
-		self.addJobsToSplitAndRegisterSequenceFiles(workflow=workflow, db_vervet=db_vervet, monkeyID2FastqObjectLs=monkeyID2FastqObjectLs, dataDir=dataDir, \
+		self.addJobsToSplitAndRegisterSequenceFiles(workflow=workflow, db_vervet=db_vervet, monkeyID2FastqObjectLs=monkeyID2FastqObjectLs, data_dir=data_dir, \
 									minNoOfReads=minNoOfReads, commit=commit,\
 									sequencer=sequencer, sequence_type=sequence_type, sequence_format=sequence_format)		
 	
@@ -512,7 +512,7 @@ echo %s
 		sys.stderr.write(" %s monkeys and %s files in the dictionary.\n"%(len(monkeyID2FastqObjectLs), real_counter))
 		return monkeyID2FastqObjectLs
 	
-	def addJobsToProcessSouthAfricanRNAData(self, workflow, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, dataDir=None, \
+	def addJobsToProcessSouthAfricanRNAData(self, workflow, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, data_dir=None, \
 			minNoOfReads=None, commit=None,\
 			sequencer=None, sequence_type=None, sequence_format=None):
 		"""
@@ -525,7 +525,7 @@ echo %s
 		fastqFnameLs = self.getInputFnameLsFromInput(input, suffixSet=set(['.fastq']), fakeSuffix='.gz')	#doesn't matter if fastq is not gzipped
 		monkeyID2FastqObjectLs = self.getMonkeyID2FastqObjectLsForNamSouthAfricanRNAData(fastqFnameLs=fastqFnameLs, \
 																	filenameSignature2MonkeyID=filenameSignature2MonkeyID)
-		self.addJobsToSplitAndRegisterSequenceFiles(workflow=workflow, db_vervet=db_vervet, monkeyID2FastqObjectLs=monkeyID2FastqObjectLs, dataDir=dataDir, \
+		self.addJobsToSplitAndRegisterSequenceFiles(workflow=workflow, db_vervet=db_vervet, monkeyID2FastqObjectLs=monkeyID2FastqObjectLs, data_dir=data_dir, \
 									minNoOfReads=minNoOfReads, commit=commit,\
 									sequencer=sequencer, sequence_type=sequence_type, sequence_format=sequence_format)		
 	
@@ -579,7 +579,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		sys.stderr.write(" %s monkeys and %s files in the dictionary.\n"%(len(monkeyID2FastqObjectLs), real_counter))
 		return monkeyID2FastqObjectLs
 	
-	def addJobsToSplitAndRegisterSequenceFiles(self, workflow=None, db_vervet=None, monkeyID2FastqObjectLs=None, dataDir=None, \
+	def addJobsToSplitAndRegisterSequenceFiles(self, workflow=None, db_vervet=None, monkeyID2FastqObjectLs=None, data_dir=None, \
 			minNoOfReads=None, commit=None,\
 			sequencer=None, sequence_type=None, sequence_format=None):
 		"""
@@ -593,9 +593,9 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		filenameKey2PegasusFile = {}
 		for monkeyID, fastqObjectLs in monkeyID2FastqObjectLs.iteritems():
 			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer=sequencer, sequence_type=sequence_type, \
-										sequence_format=sequence_format, dataDir=dataDir)
+										sequence_format=sequence_format, data_dir=data_dir)
 			
-			sequenceOutputDir = os.path.join(dataDir, individual_sequence.path)
+			sequenceOutputDir = os.path.join(data_dir, individual_sequence.path)
 			sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
 			
 			splitOutputDir = '%s'%(individual_sequence.id)
@@ -643,7 +643,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 	
-	def addJobsToProcessMcGillData(self, workflow=None, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, dataDir=None, \
+	def addJobsToProcessMcGillData(self, workflow=None, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, data_dir=None, \
 			minNoOfReads=None, commit=None,\
 			sequencer=None, sequence_type=None, sequence_format=None):
 		"""
@@ -653,12 +653,12 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		monkeyID2FastqObjectLs = self.getMonkeyID2FastqObjectLsForMcGillData(fastqFnameLs)
 		
 		self.addJobsToSplitAndRegisterSequenceFiles(workflow=workflow, db_vervet=db_vervet, \
-									monkeyID2FastqObjectLs=monkeyID2FastqObjectLs, dataDir=dataDir, \
+									monkeyID2FastqObjectLs=monkeyID2FastqObjectLs, data_dir=data_dir, \
 									minNoOfReads=minNoOfReads, commit=commit,\
 									sequencer=sequencer, sequence_type=sequence_type, sequence_format=sequence_format)
 		
 	
-	def addJobsToProcessWUSTLData(self, workflow, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, dataDir=None, \
+	def addJobsToProcessWUSTLData(self, workflow, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, data_dir=None, \
 			minNoOfReads=None, commit=None,\
 			sequencer=None, sequence_type=None, sequence_format=None):
 		"""
@@ -679,7 +679,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 				continue
 			monkeyID = bamBaseFname2MonkeyID.get(bamBaseFname)
 			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer=sequencer, sequence_type=sequence_type, \
-										sequence_format=sequence_format, dataDir=dataDir)
+										sequence_format=sequence_format, data_dir=data_dir)
 			#2012.2.10 stop passing path_to_original_sequence=bamFname to self.addMonkeySequence()
 			
 			"""
@@ -692,7 +692,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 				session.flush()
 			"""
 			
-			sequenceOutputDir = os.path.join(dataDir, individual_sequence.path)
+			sequenceOutputDir = os.path.join(data_dir, individual_sequence.path)
 			sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
 			
 			bamInputF = yh_pegasus.registerFile(workflow, bamFname)
@@ -754,7 +754,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			"""
 			
 			jobFname = os.path.join(self.jobFileDir, 'job%s.bam2fastq.sh'%(monkeyID))
-			self.writeQsubJob(jobFname, bamFname, os.path.join(self.dataDir, individual_sequence.path), self.vervet_path)
+			self.writeQsubJob(jobFname, bamFname, os.path.join(self.data_dir, individual_sequence.path), self.vervet_path)
 			commandline = 'qsub %s'%(jobFname)
 			if self.commit:	#qsub only when db transaction will be committed.
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
@@ -773,11 +773,11 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		session = db_vervet.session
 		session.begin()
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		workflow = self.initiateWorkflow()
 		
@@ -787,7 +787,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		
 		self.addJobsDict[self.inputType](workflow, db_vervet=db_vervet, bamFname2MonkeyIDMapFname=self.bamFname2MonkeyIDMapFname, \
 											input=self.input, \
-					dataDir=self.dataDir, minNoOfReads=self.minNoOfReads, commit=self.commit,\
+					data_dir=self.data_dir, minNoOfReads=self.minNoOfReads, commit=self.commit,\
 					sequencer=self.sequencer, sequence_type=self.sequence_type, sequence_format=self.sequence_format)
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')

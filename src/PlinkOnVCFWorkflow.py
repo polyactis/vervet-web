@@ -5,14 +5,14 @@ Examples:
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/ 
 		-o dags/SampleIDInUCLAID_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
 		--db_user yh -y4 --site_handler hcondor --input_site_handler hcondor  --hostname localhost
-		--home_path /u/home/eeskin/polyacti/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
+		--home_path /u/home/eeskin/polyacti/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
 	# 2012.8.10 IBD check
 	# add --kinshipFname kinshipFile if you want comparison (table&figures) between IBD pi-hat and kinship 
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkIBDCheck/PlinkIBDCheck_Method14.xml --clusters_size 1 
 		--needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor  --db_user yh --hostname localhost
-		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--hostname localhost  -y3 --mergeListFname ./aux/Method14_LDPrune_merge_list.2012.8.10T0441.txt
 		#--kinshipFname ~/NetworkData/vervet/Kinx2Apr2012.txt
 	
@@ -32,7 +32,7 @@ Examples:
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkMendelError/PlinkMendelError_Method14.xml
 		--checkEmptyVCFByReading --clusters_size 4  --needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor
 		--db_user yh --hostname localhost
-		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 		-y1
 	
 	# 2012.8.13 sex check using the top 195 contigs (--maxContigID 195) (Contig 83, 149,193 are sex chromosomes)
@@ -41,7 +41,7 @@ Examples:
 		-o dags/PlinkSexCheck/PlinkSexCheck_Method14_W100Z10R0.4_maxContigID195.xml
 		--LDPruneWindowSize 100 --LDPruneWindowShiftSize 10 --LDPruneMinR2 0.4 --clusters_size 1  --needSSHDBTunnel
 		--site_handler hcondor --input_site_handler hcondor  --db_user yh --hostname localhost
-		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--hostname localhost  -y4 --mergeListFname ./aux/Method14_LDPrune_merge_list.2012.8.13T1702.txt --maxContigID 195
 	
 	#2013.2.1 mark mendel error-calls missing (-y5)
@@ -49,7 +49,7 @@ Examples:
 		-o dags/MarkMendelErrorCallMissing/MarkMendelErrorCallMissing_method38.xml
 		-y5 --clusters_size 1  --needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor
 		--db_user yh --hostname localhost
-		--localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--mergeListFname ./aux/Method38_MarkMendelErrorCallMissing_merge_list.20130201.txt --minContigID 90 --maxContigID 100
 	
 Description:
@@ -1074,11 +1074,11 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		
 		db_vervet = self.db_vervet
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		# Create a abstract dag
 		workflow = self.initiateWorkflow()

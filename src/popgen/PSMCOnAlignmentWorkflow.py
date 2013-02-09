@@ -8,8 +8,8 @@ Examples:
 		-u yh -a 524  -z localhost -o  dags/PSMCOnAlignment/PSMCOnAlignmentOnSubspecies.xml
 		-j hcondor -l hcondor
 		--clusters_size 1 -e /u/home/eeskin/polyacti/
-		--dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --localDataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		--sequence_filtered 1 --alignment_method_id 2
+		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--sequence_filtered 1 --alignment_method_id 2 --needSSHDBTunnel --commit
 		# -Y
 		#--minContigID 96 --maxContigID 100	#useless right now
 	
@@ -35,10 +35,15 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 	option_default_dict.update({
 					("psmcFolderPath", 1, ): ["%s/script/psmc", '', 1, \
 							'path to the folder that contains the source/binaries of PSMC (Li, Durbin 2011)'],\
-					('patternOfPSMCTimeIntervals', 1, ):["4+25*2+4+6", '', 1, 'pattern of parameters, -p of psmc '],\
+					('minBaseQ', 1, int):[20, '', 1, 'inferred consensus base quality '],\
+					('minMapQ', 1, int):[30, '', 1, 'read alignment mapping quality'],\
+					('minRMSMapQ', 1, int):[10, '', 1, 'root mean squared mapping quality of reads covering the locus'],\
+					('minDistanceToIndel', 1, int):[5, '', 1, 'min distance to predicted short insertions or deletions'],\
+					
+					('patternOfPSMCTimeIntervals', 1, ):["4+25*1+4+6", '', 1, 'pattern of parameters, -p of psmc '],\
 					('maxNoOfIterations', 1, int):[25, '', 1, 'number of iterations for the EM algorithm, -N of psmc'],\
 					('initThetaRhoRatio', 1, float):[4, '', 1, 'initial theta/rho ratio, -r of psmc'],\
-					('max2N0CoalescentTime', 1, float):[25, '', 1, 'maximum 2N0 coalescent time, -t of psmc '],\
+					('max2N0CoalescentTime', 1, float):[15, '', 1, 'maximum 2N0 coalescent time, -t of psmc '],\
 					
 					('absMutationRatePerNucleotide', 1, float):[5e-09, '', 1, 'absolute mutation rate per nucleotide per generation, -u FLOAT of psmc_plot'],\
 					('maxNoOfGenerations', 1, int):[0, '', 1, 'maximum generations, 0 for auto , -X of psmc_plot'],\
@@ -115,6 +120,11 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 	
+	
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'db/input/AddIndividualAlignmentConsensusSequence2DB.py'), \
+													name='AddIndividualAlignmentConsensusSequence2DB', clusterSizeMultipler=0.2)
+		
+		
 	def mapEachAlignment(self, workflow=None, alignmentData=None, passingData=None, transferOutput=True, **keywords):
 		"""
 		2013.1.25
@@ -138,27 +148,51 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		bamF = alignmentData.bamF
 		baiF = alignmentData.baiF
 		
-		bamFnamePrefix = alignment.getReadGroup()
-		
-		minDP = max(1, alignment.median_depth/2)
-		maxDP = alignment.median_depth*2
-		consensusSequenceFile = File(os.path.join(topOutputDirJob.output, '%s.fq.gz'%(passingData.bamFnamePrefix)))
-		ExtractConsensusSequenceFromAlignmentJob = self.addGenericJob(executable=self.ExtractConsensusSequenceFromAlignment, \
-					inputArgumentOption=None, \
-					outputArgumentOption=None, inputFileList=[], \
-					parentJob=None, parentJobLs=parentJobLs+[topOutputDirJob], \
-					extraDependentInputLs=[refFastaFile, bamF, baiF], extraOutputLs=[consensusSequenceFile], transferOutput=True, \
-					extraArguments=None, extraArgumentList=[refFastaFile, bamF, consensusSequenceFile, '%s %s'%(minDP, maxDP)], \
-					job_max_memory=1000,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=3000)	#max_walltime is in minutes, 50 hours
+		minDP = int(max(1, alignment.median_depth/2))
+		maxDP = int(alignment.median_depth*2)
+		individual_alignment_consensus_sequence = self.db_vervet.checkIndividualAlignmentConsensusSequence(individual_alignment_id=alignment.id, \
+									minDP=minDP, \
+									maxDP=maxDP, minBaseQ=self.minBaseQ, minMapQ=self.minMapQ,\
+									minRMSMapQ=self.minRMSMapQ, minDistanceToIndel=self.minDistanceToIndel)
+		if individual_alignment_consensus_sequence:
+			consensusSequenceFname = individual_alignment_consensus_sequence.getFileAbsPath(oldDataDir=self.db_vervet.data_dir, \
+												newDataDir=self.data_dir)
+			consensusSequenceFile = self.registerOneInputFile(inputFname=consensusSequenceFname, \
+										folderName=self.pegasusFolderName)
+			extractConsensusSequenceFromAlignmentJob = PassingData(output=consensusSequenceFile)
+		else:
+			consensusSequenceFile = File(os.path.join(topOutputDirJob.output, '%s.fq.gz'%(passingData.bamFnamePrefix)))
+			extractConsensusSequenceFromAlignmentJob = self.addGenericJob(executable=self.ExtractConsensusSequenceFromAlignment, \
+						inputArgumentOption=None, \
+						outputArgumentOption=None, inputFileList=[], \
+						parentJob=None, parentJobLs=parentJobLs+[topOutputDirJob], \
+						extraDependentInputLs=[refFastaFile, bamF, baiF], extraOutputLs=[consensusSequenceFile], transferOutput=True, \
+						extraArguments=None, extraArgumentList=[refFastaFile, bamF, consensusSequenceFile, \
+										'%s %s %s %s %s %s'%(minDP, maxDP, self.minBaseQ, self.minMapQ, self.minRMSMapQ, self.minDistanceToIndel)], \
+						job_max_memory=1000,  sshDBTunnel=None, \
+						key2ObjectForJob=None, no_of_cpus=None, max_walltime=3000)	#max_walltime is in minutes, 50 hours
+			
+			logFile = File(os.path.join(topOutputDirJob.output, '%s_alignment%s_2DB.log'%(passingData.bamFnamePrefix, alignment.id)))
+			self.addGenericFile2DBJob(executable=self.AddIndividualAlignmentConsensusSequence2DB, \
+									inputFile=extractConsensusSequenceFromAlignmentJob.output, \
+									inputArgumentOption="-i", \
+						data_dir=self.data_dir, logFile=logFile, commit=self.commit,\
+						parentJobLs=[extractConsensusSequenceFromAlignmentJob], extraDependentInputLs=None, \
+						extraOutputLs=None, transferOutput=True, \
+						extraArgumentList=["--individual_alignment_id %s"%(alignment.id), " --format fastq", "--minDP %s"%(minDP), \
+										"--maxDP=%s"%(maxDP), "--minBaseQ=%s"%(self.minBaseQ), \
+										"--minMapQ %s"%(self.minMapQ), "--minRMSMapQ %s"%(self.minRMSMapQ), \
+										"--minDistanceToIndel %s"%(self.minDistanceToIndel)], \
+						job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, \
+						key2ObjectForJob=None)
 		
 		psmcInputFile = File(os.path.join(topOutputDirJob.output, '%s.psmcfa'%(passingData.bamFnamePrefix)))
 		fq2psmcfaJob = self.addGenericJob(executable=self.fq2psmcfa, \
 					inputArgumentOption=None, \
 					outputArgumentOption=None, inputFileList=[], \
-					parentJob=None, parentJobLs=[ExtractConsensusSequenceFromAlignmentJob, topOutputDirJob], \
-					extraDependentInputLs=[consensusSequenceFile], extraOutputLs=[psmcInputFile], transferOutput=False, \
-					extraArguments=None, extraArgumentList=[self.psmcFolderPath, consensusSequenceFile, psmcInputFile], \
+					parentJob=None, parentJobLs=[extractConsensusSequenceFromAlignmentJob, topOutputDirJob], \
+					extraDependentInputLs=[extractConsensusSequenceFromAlignmentJob.output], extraOutputLs=[psmcInputFile], transferOutput=False, \
+					extraArguments=None, extraArgumentList=[self.psmcFolderPath, extractConsensusSequenceFromAlignmentJob.output, psmcInputFile], \
 					job_max_memory=1000,  sshDBTunnel=None, \
 					key2ObjectForJob=None, no_of_cpus=None, max_walltime=360)
 		passingData.fq2psmcfaJob = fq2psmcfaJob
@@ -247,12 +281,12 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 									maxNoOfGenerations, \
 									maxPopulationSize, noOfYearsPerGeneration)
 		plotOutputFile = File('%s.eps'%(plotOutputFnamePrefix))
-		plotPDFOutputFile  = File('%s.pdf'%(plotOutputFnamePrefix))
+		#plotPDFOutputFile  = File('%s.pdf'%(plotOutputFnamePrefix))
 		psmc_plotJob = self.addGenericJob(executable=self.psmc_plot, \
 					inputArgumentOption=None, \
 					outputArgumentOption=None, inputFileList=None, \
 					parentJobLs=parentJobLs, \
-					extraDependentInputLs=[inputFile], extraOutputLs=[plotOutputFile, plotPDFOutputFile], transferOutput=transferOutput, \
+					extraDependentInputLs=[inputFile], extraOutputLs=[plotOutputFile], transferOutput=transferOutput, \
 					extraArguments=extraArguments, extraArgumentList=["-u %s -x %s -X %s -Y %s -g %s -p -R"%\
 								(absMutationRatePerNucleotide, minNoOfGenerations, maxNoOfGenerations, \
 								maxPopulationSize, noOfYearsPerGeneration),\

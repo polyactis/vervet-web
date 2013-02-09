@@ -30,8 +30,10 @@ import sys, os, math
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
+import csv
 import matplotlib; matplotlib.use("Agg")	#to disable pop-up requirement
-
+from vervet.src.db import VervetDB
+from pymodule.utils import runLocalCommand
 
 class PhastCons(object):
 	"""
@@ -97,7 +99,6 @@ class PhastCons(object):
 		2011-4-6
 			first check database to see if same locus exists in db
 		"""
-		import VervetDB
 		locus_method = VervetDB.LocusMethod.get(locus_method_id)
 		db_entry = VervetDB.Locus.query.filter_by(chromosome=chromosome).filter_by(start=start).filter_by(stop=stop).\
 			filter_by(ref_ind_seq_id=ref_ind_seq_id).first()
@@ -119,7 +120,6 @@ class PhastCons(object):
 		2011-4-6
 			
 		"""
-		import VervetDB
 		if locus.id:
 			db_entry = VervetDB.LocusScore.query.filter_by(score_method_id).filter_by(locus_id=locus.id).first()
 		else:
@@ -144,7 +144,6 @@ class PhastCons(object):
 		"""
 		sys.stderr.write("Saving segments of high phastCons score (>=%s) from %s into db ... \n"%\
 						(minPhastConsScore, os.path.basename(inputFname)))
-		import VervetDB
 		import gzip, random, re, numpy
 		if inputFname[-2:]=='gz':
 			inf = gzip.open(inputFname, 'rb')
@@ -2366,7 +2365,7 @@ class VariantDiscovery(object):
 		"""
 		sys.stderr.write("Beautifying the mendelian inconsistency output in %s ..."%(inputFname))
 		from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, figureOutDelimiter
-		import csv, VervetDB
+		import csv
 		delimiter = figureOutDelimiter(inputFname)
 		reader = csv.reader(open(inputFname), delimiter=delimiter)
 		writer = csv.writer(open(outputFname, 'w'), delimiter=delimiter)
@@ -2424,14 +2423,13 @@ class VariantDiscovery(object):
 			output the data in a matrix fashion that the web MotionChartAppMCPanel app would recognize 
 		"""
 		vectorData = cls.readContigDistVector(inputDir)
-
 		# run PCA
 		sys.stderr.write("Carrying out contig-wise PCA ...")
 		phenotypePCA_fname = '%s_VRefContig.tsv'%outputFnamePrefix
 		phenotypePCA_writer = csv.writer(open(phenotypePCA_fname, 'w'), delimiter='\t')
 		
 		import pca_module
-		from pymodule.PCA import PCA
+		from pymodule import PCA
 		#T, P, explained_var = pca_module.PCA_svd(phenData_trans.data_matrix, standardize=True)
 		T, P, explained_var = PCA.eig(vectorData.data_matrix, normalize=False)	#normalize=True causes missing value in the covariance matrix
 		# get the category information for each phenotype
@@ -2940,7 +2938,7 @@ class VariantDiscovery(object):
 			
 		"""
 		sys.stderr.write("Count the number of homozygous-ref/alt & het from %s .\n"%(inputFname))
-		from pymodule.VCFFile import VCFFile
+		from pymodule import VCFFile
 		vcfFile = VCFFile(inputFname=inputFname)
 		
 		sampleID2data = {}	#key is sampleID, value is a list of 3 numbers. 'NoOfHomoRef', 'NoOfHomoAlt', 'NoOfHet'
@@ -3538,18 +3536,17 @@ class DBVervet(object):
 		2011-5-9
 		"""
 		sys.stderr.write("Generating index files for all un-indexed bam alignment files in db ... \n")
-		import VervetDB
 		query = VervetDB.IndividualAlignment.query.filter_by(format='bam')
 		from pymodule.utils import runLocalCommand
 		counter = 0
 		real_counter = 0
 		for row in query:
 			counter += 1
-			sys.stderr.write('%s: %s'%(counter, row.path))
-			bam_pathname = os.path.join(db_vervet.data_dir, row.path)
+			sys.stderr.write('%s: %s'%(counter, row.getFilePath()))
+			absFilePath = os.path.join(db_vervet.data_dir, row.getFilePath())
 			bam_index_pathname = os.path.join(db_vervet.data_dir, '%s.bai'%(row.path))
 			if not os.path.isfile(bam_index_pathname):	#index doesn't exist
-				commandline = '%s index %s'%(samtools_path, bam_pathname)
+				commandline = '%s index %s'%(samtools_path, absFilePath)
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 				real_counter += 1
 			sys.stderr.write('.\n')
@@ -3564,14 +3561,86 @@ class DBVervet(object):
 	"""
 	
 	@classmethod
-	def pokeBamReadGroupPresence(cls, db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), dataDir=None, commit=False):
+	def removeOutdatedAndUnusedAlignmentFiles(cls, db_vervet=None, data_dir=None, commit=False):
+		"""
+		2013.2.5
+			outdated_index=1
+			alignment_method_id=4 (4=stampy)
+			sequence filtered=0
+		"""
+		sys.stderr.write("Removing alignment files (not db entries) that are no longer used or outdated ... \n")
+		if data_dir is None:
+			data_dir = db_vervet.data_dir
+		session = db_vervet.session
+		session.begin()
+		query = VervetDB.IndividualAlignment.query.filter_by(outdated_index=1).filter_by(alignment_method_id=4).\
+			filter(VervetDB.IndividualAlignment.individual_sequence.has(filtered=0))
+		counter = 0
+		real_counter = 0
+		for row in query:
+			counter += 1
+			sys.stderr.write('%s: %s'%(counter, row.path))
+			
+			absFilePath = os.path.join(data_dir, row.getFilePath())
+			if os.path.isfile(absFilePath):
+				real_counter += 1
+				if commit:
+					commandline = 'rm %s'%(absFilePath)
+					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+			sys.stderr.write('.\n')
+		sys.stderr.write("%s/%s alignment files deleted.\n"%(real_counter, counter))
+	
+	"""
+		#2013.2.5
+		data_dir = 
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, commit=False)
+		sys.exit(0)
+		
+	"""
+	
+	@classmethod
+	def removeUnfilteredSequenceFiles(cls, db_vervet=None, data_dir=None, commit=False):
+		"""
+		2013.2.5
+			sequence filtered=0
+		"""
+		sys.stderr.write("Removing sequence files (not db entries) that are raw (filtered=0) ... \n")
+		if data_dir is None:
+			data_dir = db_vervet.data_dir
+		session = db_vervet.session
+		session.begin()
+		query = VervetDB.IndividualSequence.query.filter_by(filtered=0)
+		counter = 0
+		real_counter = 0
+		for row in query:
+			counter += 1
+			sys.stderr.write('%s: %s'%(counter, row.path))
+			
+			absFilePath = os.path.join(data_dir, row.getFilePath())
+			if os.path.isfile(absFilePath):
+				real_counter += 1
+				if commit:
+					commandline = 'rm %s'%(absFilePath)
+					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+			sys.stderr.write('.\n')
+		sys.stderr.write("%s/%s alignment files deleted.\n"%(real_counter, counter))
+	
+	"""
+		#2013.2.5
+		data_dir = 
+		DBVervet.removeUnfilteredSequenceFiles(db_vervet=db_vervet, data_dir=data_dir, commit=False)
+		sys.exit(0)
+		
+	"""
+	
+	@classmethod
+	def pokeBamReadGroupPresence(cls, db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), data_dir=None, commit=False):
 		"""
 		2011-5-9
 		"""
 		sys.stderr.write("checking which bam file in individual_alignment table has read group or not ... \n")
-		import VervetDB
-		if dataDir is None:
-			dataDir = db_vervet.data_dir
+		if data_dir is None:
+			data_dir = db_vervet.data_dir
 		session = db_vervet.session
 		session.begin()
 		import pysam
@@ -3582,9 +3651,9 @@ class DBVervet(object):
 			counter += 1
 			sys.stderr.write('%s: %s'%(counter, row.path))
 			
-			bam_pathname = os.path.join(dataDir, row.path)
-			if os.path.isfile(bam_pathname):
-				samfile = pysam.Samfile(bam_pathname, "rb" )
+			absFilePath = os.path.join(data_dir, row.path)
+			if os.path.isfile(absFilePath):
+				samfile = pysam.Samfile(absFilePath, "rb" )
 				if "RG" not in samfile.header:
 					read_group_added=0
 				else:
@@ -3605,32 +3674,31 @@ class DBVervet(object):
 	
 	"""
 		#2011-9-15
-		dataDir = os.path.expanduser("~/mnt/hpc-cmb_home/NetworkData/vervet/db/")
-		DBVervet.pokeBamReadGroupPresence(db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), dataDir=dataDir, commit=True)
+		data_dir = os.path.expanduser("~/mnt/hpc-cmb_home/NetworkData/vervet/db/")
+		DBVervet.pokeBamReadGroupPresence(db_vervet, samtools_path=os.path.expanduser("~/bin/samtools"), data_dir=data_dir, commit=True)
 		sys.exit(0)
 		
 	"""
 	
 	@classmethod
-	def moveLostIndividualSeqFileIntoCorrespondingFolder(cls, db_vervet, dataDir=None, inputDir=None, outputDir=None):
+	def moveLostIndividualSeqFileIntoCorrespondingFolder(cls, db_vervet, data_dir=None, inputDir=None, outputDir=None):
 		"""
 		2011-9-7
-			dataDir is where the vanilla copy of db-affiliated storage is, used to generate the fname2folder dict
+			data_dir is where the vanilla copy of db-affiliated storage is, used to generate the fname2folder dict
 			inputDir is where "lost" individual_sequence files are.
 			outputDir is where all "lost" files should be moved into. new folder will be created to house "lost files".
 			
 			If files in respective folder already exist, no move happens.
 		"""
 		sys.stderr.write("Moving lost individual_sequence files in %s into corresponding folders in %s ... \n"%(inputDir, outputDir))
-		import VervetDB
 		query = VervetDB.IndividualSequence.query.filter(VervetDB.IndividualSequence.id>=167)
-		if dataDir is None:
-			dataDir = db_vervet.data_dir
+		if data_dir is None:
+			data_dir = db_vervet.data_dir
 		fname2folder = {}
 		no_of_folders = 0
 		for row in query:
 			if row.path:
-				abs_path = os.path.join(dataDir, row.path)
+				abs_path = os.path.join(data_dir, row.path)
 				if os.path.isdir(abs_path):
 					files = os.listdir(abs_path)
 					folder = os.path.basename(abs_path)
@@ -3665,7 +3733,7 @@ class DBVervet(object):
 	"""
 		#2011-9-7
 		inputDir=os.path.expanduser('~/mnt/hpc-cmb_home/NetworkData/vervet/db/individual_sequence/')
-		DBVervet.moveLostIndividualSeqFileIntoCorrespondingFolder(db_vervet, dataDir=None, \
+		DBVervet.moveLostIndividualSeqFileIntoCorrespondingFolder(db_vervet, data_dir=None, \
 			inputDir=inputDir, outputDir=inputDir)
 		sys.exit(0)
 		
@@ -3760,7 +3828,6 @@ class DBVervet(object):
 		from datetime import datetime
 		from pymodule import PassingData, utils
 		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
-		import VervetDB
 		
 		inf = utils.openGzipFile(inputFname)
 		delimiter = figureOutDelimiter(inf)
@@ -3887,7 +3954,6 @@ class DBVervet(object):
 		from datetime import datetime
 		from pymodule import PassingData
 		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
-		import VervetDB
 		
 		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
 		header = reader.next()
@@ -3959,7 +4025,6 @@ class DBVervet(object):
 		from datetime import datetime
 		from pymodule import PassingData
 		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
-		import VervetDB
 		
 		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
 		header = reader.next()
@@ -4034,7 +4099,6 @@ class DBVervet(object):
 		from datetime import datetime
 		from pymodule import PassingData
 		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
-		import VervetDB
 		
 		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
 		header = reader.next()
@@ -4125,7 +4189,6 @@ class DBVervet(object):
 		from datetime import datetime
 		from pymodule import PassingData
 		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
-		import VervetDB
 		
 		reader = csv.reader(open(inputFname,), delimiter=figureOutDelimiter(inputFname))
 		header = reader.next()
@@ -4200,7 +4263,6 @@ class DBVervet(object):
 		"""
 		
 		db_vervet.session.begin()
-		import VervetDB
 		Table = VervetDB.IndividualSequenceFile
 		query = Table.query.filter(Table.id<=maxDBID)
 		counter = 0
@@ -4589,8 +4651,6 @@ class DBVervet(object):
 			inputFname is output of SequencingStrategy.assignVRCSequencePriorityBasedOnPedigree() + manual change of top ones
 		"""
 		from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
-		import VervetDB
-		import csv
 		sys.stderr.write("Reading the list of ranked monkeys from %s ..."%(inputFname))
 		reader = csv.reader(open(inputFname), delimiter=figureOutDelimiter(inputFname))
 		header = reader.next()
@@ -4678,7 +4738,6 @@ class DBVervet(object):
 		monkey_id_pair2kinship = cls.getMonkeyIDPair2Coverage(kinshipFname)
 		monkey_id2coverage = cls.getMonkeyID2Coverage(monkeyCoverageFname)
 		
-		import VervetDB
 		import networkx as nx
 		from pymodule import yh_matplotlib
 		
@@ -4725,7 +4784,6 @@ class DBVervet(object):
 			
 			output the data in a matrix fashion that the web MotionChartAppMCPanel app would recognize 
 		"""
-		import VervetDB
 		if monkeyType==1:
 			restrictMonkeyIDSet= None
 		elif monkeyType==2 or monkeyType==3:
@@ -4861,7 +4919,6 @@ class DBVervet(object):
 		monkey_id_pair2genotype_correlation = cls.getMonkeyIDPair2Correlation(smartpcaCorrelationFname=smartpcaCorrelationFname)
 		
 		import csv
-		import VervetDB
 		tableOutputWriter = csv.writer(open("%s_table.tsv"%(outputFnamePrefix), 'w'), delimiter='\t')
 		header = ['monkey_pair', 'pedigree_kinship', 'genotype_correlation', 'age_difference']
 		tableOutputWriter.writerow(header)
@@ -4911,7 +4968,6 @@ class DBVervet(object):
 		"""
 		
 		import csv
-		import VervetDB
 		tableOutputWriter = csv.writer(open(outputFname, 'w'), delimiter='\t')
 		header = ['monkey_id', 'age', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6']
 		tableOutputWriter.writerow(header)
@@ -5005,7 +5061,6 @@ class DBVervet(object):
 		2011-5-6
 			
 		"""
-		import VervetDB
 		import networkx as nx
 		DG = db_vervet.constructPedgree()
 		from pymodule import yh_matplotlib
@@ -5240,7 +5295,6 @@ class DBVervet(object):
 			individual_id2rank_data = {}
 			children_set = set()
 			
-			import VervetDB
 			unranked_nodes = set(DG.nodes())
 			
 			while len(unranked_nodes)>0:
@@ -5280,13 +5334,12 @@ class DBVervet(object):
 		
 		@classmethod
 		def getToBeSequencedMonkeysFromFile(cls, inputFnameWithMonkeysToBeSequenced, monkey_id2preDeterminedCoverage=None,\
-										sequenced_monkey_id_set=None):
+										sequenced_monkey_id_set=None, defaultCoverageForSequenced=4):
 			"""
 			2012.2.8
 				split out of assignVRCSequencePriorityBasedOnPedigree()
 			"""
 			from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
-			import VervetDB
 			import csv
 			sys.stderr.write("Reading the list of monkeys to be sequenced from %s ..."%(inputFnameWithMonkeysToBeSequenced))
 			reader = csv.reader(open(inputFnameWithMonkeysToBeSequenced), delimiter=figureOutDelimiter(inputFnameWithMonkeysToBeSequenced))
@@ -5527,7 +5580,7 @@ class DBVervet(object):
 			2012.2.7
 			"""
 			sys.stderr.write("Sampling monkeys ...")
-			import random, VervetDB
+			import random
 			smaller_set= set()
 			bigger_set = set()
 			smaller_set_size_limit = partitionId2size[1]
@@ -5605,7 +5658,6 @@ class DBVervet(object):
 			"""
 			#read the input first
 			from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
-			import VervetDB
 			import csv
 			
 			sys.stderr.write("Reading from %s ... "%(inputFname))
@@ -5736,7 +5788,6 @@ class DBVervet(object):
 																	monkey_id2preDeterminedCoverage=None)
 			
 			from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
-			import VervetDB
 			import csv
 			
 			sys.stderr.write("Reading the list of ranked monkeys from %s ..."%(inputFnameWithRankedMonkeys))
@@ -5835,8 +5886,6 @@ class DBVervet(object):
 		sys.stderr.write("Getting pedigree from db ...")
 		import networkx as nx
 		DG=nx.Graph()
-		
-		import VervetDB
 		
 		for row in VervetDB.Ind2Ind.query:
 			DG.add_edge(row.individual1_id, row.individual2_id)
@@ -6587,7 +6636,6 @@ class DBVervet(object):
 			animal ID, target coverage, actual coverage, no of descendant
 		"""
 		sys.stderr.write("Outputting VRC monkeys with target coverage, actual coverage, #descendant ...")
-		import VervetDB
 		import csv
 		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
 		header = ['UCLAID', 'targetCoverage', 'actualCoverage', 'noOfDescendants','batchNumberList','batchCoverageList']
@@ -6677,7 +6725,6 @@ class DBVervet(object):
 		counter = 0
 		real_counter = 0
 		no_of_isq_entries = 0
-		import VervetDB
 		for row in reader:
 			monkey_id = row[monkey_id_index].strip()
 			individual = db_vervet.getIndividual(ucla_id=monkey_id)
@@ -6714,7 +6761,6 @@ class DBVervet(object):
 			
 			this function updates IndividualAlignment.pass_qc_read_base_count and median_depth, mean_depth
 		"""
-		import VervetDB
 		import csv
 		from pymodule import PassingData
 		db_vervet.session.begin()
@@ -6784,7 +6830,7 @@ class DBVervet(object):
 			2012.7.11
 			"""
 			from pymodule import utils
-			import VervetDB, random
+			import random
 			if bamFilePath:
 				bamFilePath = os.path.realpath(bamFilePath)
 				md5sum = utils.get_md5sum(bamFilePath)
@@ -7939,7 +7985,7 @@ class Main(object):
 						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
 						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
 						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
+						("data_dir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. \
 									If not given, use the default stored in db.'],\
 						('input', 0, ): ['', 'i', 1, 'common input.', ],\
 						('output', 0, ): ['', 'o', 1, 'common output', ],\
@@ -7986,7 +8032,7 @@ class Main(object):
 				continue
 			if db_entry.file_size is None:
 				sys.stderr.write("file_size on %s %s ... "%(counter, db_entry.path))
-				db_vervet.updateDBEntryPathFileSize(db_entry=db_entry, data_dir=self.dataDir)
+				db_vervet.updateDBEntryPathFileSize(db_entry=db_entry, data_dir=self.data_dir)
 				sys.stderr.write("\n")
 			counter += 1
 		db_vervet.session.flush()
@@ -8002,7 +8048,7 @@ class Main(object):
 				continue
 			if db_entry.md5sum is None:
 				sys.stderr.write("md5sum on %s %s ... "%(counter, db_entry.path))
-				db_vervet.updateDBEntryMD5SUM(db_entry=db_entry, data_dir=self.dataDir)
+				db_vervet.updateDBEntryMD5SUM(db_entry=db_entry, data_dir=self.data_dir)
 				sys.stderr.write("\n")
 			counter += 1
 				

@@ -42,7 +42,7 @@ class InspectBaseQualityPipeline(object):
 						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
 						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
 						('ind_seq_id_ls', 1, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. non-fastq entries will be discarded.', ],\
-						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. If not given, use the default stored in db.'],\
+						("data_dir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. If not given, use the default stored in db.'],\
 						("vervetSrcPath", 1, ): ["%s/script/vervet/src", '', 1, 'vervet source code folder'],\
 						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
 						("site_handler", 1, ): ["condorpool", 'l', 1, 'which site to run the jobs: condorpool, hoffman2'],\
@@ -76,8 +76,8 @@ class InspectBaseQualityPipeline(object):
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
 		
 		
@@ -106,8 +106,8 @@ class InspectBaseQualityPipeline(object):
 		workflow.addExecutable(inspectBaseQuality)
 		
 		#must use db_vervet.data_dir.
-		# If self.dataDir differs from db_vervet.data_dir, this program (must be run on submission host) won't find files.
-		individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, dataDir=db_vervet.data_dir)
+		# If self.data_dir differs from db_vervet.data_dir, this program (must be run on submission host) won't find files.
+		individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, data_dir=db_vervet.data_dir)
 		
 		for ind_seq_id, FilePairLs in individualSequenceID2FilePairLs.iteritems():
 			individual_sequence = VervetDB.IndividualSequence.get(ind_seq_id)
@@ -117,7 +117,7 @@ class InspectBaseQualityPipeline(object):
 				for filePair in FilePairLs:
 					for fileRecord in filePair:
 						relativePath, format, sequence_type = fileRecord[:3]
-						filename = os.path.join(self.dataDir, relativePath)
+						filename = os.path.join(self.data_dir, relativePath)
 						inputFnameLs.append(filename)
 				
 				#create jobs

@@ -87,11 +87,11 @@ class AlignmentToCallPipelineForLowPass(AlignmentToCallPipeline):
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		refName2size = self.getTopNumberOfContigs(self.topNumberOfContigs, contigMinRankBySize=self.contigMinRankBySize)
 		#refName2size = set(['Contig149'])	#temporary when testing Contig149
@@ -99,7 +99,7 @@ class AlignmentToCallPipelineForLowPass(AlignmentToCallPipeline):
 		refNameLs = refName2size.keys()
 		
 		alignmentLs = self.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										alignment_method_id=2, dataDir=self.localDataDir)
+										alignment_method_id=2, data_dir=self.local_data_dir)
 		
 		#site id 447 is the VRC site
 		alignmentLs = self.filterAlignments(alignmentLs, max_coverage=self.max_coverage, individual_site_id=self.site_id)
@@ -108,7 +108,7 @@ class AlignmentToCallPipelineForLowPass(AlignmentToCallPipeline):
 		workflow = self.initiateWorkflow(workflowName)
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
-		refFastaFname = os.path.join(self.dataDir, refSequence.path)
+		refFastaFname = os.path.join(self.data_dir, refSequence.path)
 		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 							input_site_handler=self.input_site_handler,\
 							checkAffiliateFileExistence=True)
@@ -154,7 +154,7 @@ class AlignmentToCallPipelineForLowPass(AlignmentToCallPipeline):
 					namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 					seqCoverageF=None, \
 					needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-					chunkSize=2000000, site_type=self.site_type, dataDir=self.dataDir)
+					chunkSize=2000000, site_type=self.site_type, data_dir=self.data_dir)
 		
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')

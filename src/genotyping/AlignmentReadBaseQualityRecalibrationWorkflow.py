@@ -212,7 +212,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		return returnData
 	
 
-	def reduceAfterEachAlignment(self, workflow=None, passingData=None, transferOutput=False, dataDir=None, **keywords):
+	def reduceAfterEachAlignment(self, workflow=None, passingData=None, transferOutput=False, data_dir=None, **keywords):
 		"""
 		"""
 		returnData = PassingData(no_of_jobs = 0)
@@ -241,7 +241,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 								inputFile=alignmentMergeJob.output, otherInputFileList=[],\
 								parent_individual_alignment_id=individual_alignment.id, \
 								mask_genotype_method_id=self.mask_genotype_method_id,\
-								logFile=logFile, dataDir=dataDir, \
+								logFile=logFile, data_dir=data_dir, \
 								parentJobLs=[alignmentMergeJob, bamIndexJob], \
 								extraDependentInputLs=[bamIndexJob.output], \
 								extraArguments=None, transferOutput=transferOutput, \

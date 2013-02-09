@@ -5,7 +5,7 @@ Examples:
 	
 	%s  -i  OneLibAlignment/2278_634_vs_524_by_2_r4043_sequence_628C2AAXX_6_dupMarked.bam
 		--logFilename  OneLibAlignment/2278_634_vs_524_by_2_r4043_sequence_628C2AAXX_6_2db.log
-		--individual_alignment_id 2278 --dataDir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--individual_alignment_id 2278 --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--drivername postgresql --hostname localhost --dbname vervetdb --db_user yh
 		--schema public OneLibAlignment/2278_634_vs_524_by_2_r4043_sequence_628C2AAXX_6_dupMarked.metric
 
@@ -68,9 +68,9 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 		session = self.db_vervet.session
 		
 		session.begin()
-		if not self.dataDir:
-			self.dataDir = self.db_vervet.data_dir
-		dataDir = self.dataDir
+		if not self.data_dir:
+			self.data_dir = self.db_vervet.data_dir
+		data_dir = self.data_dir
 		
 		realPath = os.path.realpath(self.inputFname)
 		logMessage = "Adding file %s to db .\n"%(self.inputFname)
@@ -81,7 +81,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 			elif self.parent_individual_alignment_id:
 				individual_alignment = self.db_vervet.copyParentIndividualAlignment(parent_individual_alignment_id=self.parent_individual_alignment_id,\
 																	mask_genotype_method_id=self.mask_genotype_method_id,\
-																	dataDir=self.dataDir)
+																	data_dir=self.data_dir)
 			else:
 				#alignment for this library of the individual_sequence
 				individual_sequence = VervetDB.IndividualSequence.get(self.individual_sequence_id)
@@ -92,7 +92,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 										ref_individual_sequence_id=self.ref_sequence_id, \
 										alignment_method_id=self.alignment_method_id, alignment_format=self.format,\
 										individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
-										dataDir=dataDir, \
+										data_dir=data_dir, \
 										mask_genotype_method_id=self.mask_genotype_method_id, \
 										parent_individual_alignment_id=self.parent_individual_alignment_id,\
 										individual_sequence_file_raw_id=self.individual_sequence_file_raw_id)
@@ -123,7 +123,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				self.cleanUpAndExitOnFailure(exitCode=4)
 			
 			db_entry = VervetDB.IndividualAlignment.query.filter_by(md5sum=md5sum).first()
-			if db_entry and db_entry.id!=individual_alignment.id and db_entry.path and os.path.isfile(os.path.join(dataDir, db_entry.path)):
+			if db_entry and db_entry.id!=individual_alignment.id and db_entry.path and os.path.isfile(os.path.join(data_dir, db_entry.path)):
 				sys.stderr.write("Warning: another file %s with the identical md5sum %s as this file %s, is already in db.\n"%\
 								(db_entry.path, md5sum, realPath))
 				session.rollback()
@@ -137,7 +137,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 			
 			#move the file and update the db_entry's path as well
 			exitCode = self.db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=individual_alignment, filename=os.path.basename(realPath), \
-									inputDir=os.path.split(realPath)[0], dstFilename=os.path.join(self.dataDir, individual_alignment.path), \
+									inputDir=os.path.split(realPath)[0], dstFilename=os.path.join(self.data_dir, individual_alignment.path), \
 									relativeOutputDir=None, shellCommand='cp -rL', \
 									srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs,\
 									constructRelativePathFunction=individual_alignment.constructRelativePath)
@@ -153,18 +153,18 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 					for inputFname in self.inputFnameLs:
 						logMessage = self.db_vervet.copyFileWithAnotherFilePrefix(inputFname=inputFname, \
 												filenameWithPrefix=individual_alignment.path, \
-												outputDir=self.dataDir,\
+												outputDir=self.data_dir,\
 												logMessage=logMessage, srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs)
 				
-				self.db_vervet.updateDBEntryPathFileSize(db_entry=individual_alignment, data_dir=dataDir)
+				self.db_vervet.updateDBEntryPathFileSize(db_entry=individual_alignment, data_dir=data_dir)
 				
 				## 2012.7.17 commented out because md5sum is calculated above
-				#db_vervet.updateDBEntryMD5SUM(db_entry=genotypeFile, data_dir=dataDir)
+				#db_vervet.updateDBEntryMD5SUM(db_entry=genotypeFile, data_dir=data_dir)
 				#copy the bai index file if it exists
 				baiFilename = '%s.bai'%(realPath)
 				if os.path.isfile(baiFilename):
 					srcFilename = baiFilename
-					dstFilename = os.path.join(self.dataDir, '%s.bai'%(individual_alignment.path))
+					dstFilename = os.path.join(self.data_dir, '%s.bai'%(individual_alignment.path))
 					utils.copyFile(srcFilename=srcFilename, dstFilename=dstFilename)
 					logMessage += "bai file %s has been copied to %s.\n"%(srcFilename, dstFilename)
 					self.srcFilenameLs.append(srcFilename)

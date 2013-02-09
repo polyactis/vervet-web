@@ -208,7 +208,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				refFastaFList=None, \
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				needFastaIndexJob=False, needFastaDictJob=False, \
-				dataDir=None, needPerContigJob=False, skipAlignmentWithStats=False,\
+				data_dir=None, needPerContigJob=False, skipAlignmentWithStats=False,\
 				needSSHDBTunnel=0):
 		"""
 		2012.6.15
@@ -268,7 +268,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
 					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
-					mv=mv, namespace=namespace, version=version, dataDir=dataDir, tmpDir=tmpDir)
+					mv=mv, namespace=namespace, version=version, data_dir=data_dir, tmpDir=tmpDir)
 		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
 		no_of_jobs += 2
 		no_of_alns_with_depth_jobs = 0
@@ -499,11 +499,11 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		
 		db_vervet = self.db_vervet
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		workflow = self.initiateWorkflow()
 		
@@ -518,7 +518,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 			refName2size = {}
 		
 		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										alignment_method_id=self.alignment_method_id, dataDir=self.localDataDir,\
+										alignment_method_id=self.alignment_method_id, data_dir=self.local_data_dir,\
 										individual_sequence_file_raw_id_type=self.individual_sequence_file_raw_id_type)
 		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
 									individual_site_id_set=set(self.site_id_ls),\
@@ -526,7 +526,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 									country_id_set=set(self.country_id_ls), tax_id_set=set(self.tax_id_ls))
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
-		refFastaFname = os.path.join(self.dataDir, refSequence.path)
+		refFastaFname = os.path.join(self.data_dir, refSequence.path)
 		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 							input_site_handler=self.input_site_handler,\
 							checkAffiliateFileExistence=True)
@@ -537,7 +537,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		self.registerExecutables(workflow)
 		self.registerCustomExecutables(workflow)
 		
-		alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, dataDir=self.dataDir)
+		alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, data_dir=self.data_dir)
 		
 		self.addJobs(workflow, alignmentDataLs, refName2size, samtools=workflow.samtools, DOCWalkerJava=workflow.DOCWalkerJava, 
 				ContigDOCWalkerJava=workflow.ContigDOCWalkerJava, \
@@ -557,7 +557,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				refFastaFList=refFastaFList, \
 				namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 				needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-				dataDir=self.dataDir, needPerContigJob=self.needPerContigJob,\
+				data_dir=self.data_dir, needPerContigJob=self.needPerContigJob,\
 				skipAlignmentWithStats=self.skipAlignmentWithStats,\
 				needSSHDBTunnel=self.needSSHDBTunnel)
 		

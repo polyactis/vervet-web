@@ -99,7 +99,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 	
 	
 	def addAddGenotypeMethod2DBJob(self, executable=None, inputFile=None, genotypeMethodShortName=None,\
-								logFile=None, dataDir=None, commit=False, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+								logFile=None, data_dir=None, commit=False, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
 								extraArguments=None, job_max_memory=2000, **keywords):
 		"""
 		2012.6.27
@@ -107,8 +107,8 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		extraArgumentList = ['--genotypeMethodShortName', genotypeMethodShortName]
 		if logFile:
 			extraArgumentList.extend(["--logFilename", logFile])
-		if dataDir:
-			extraArgumentList.extend(['--dataDir', dataDir])
+		if data_dir:
+			extraArgumentList.extend(['--data_dir', data_dir])
 		if commit:
 			extraArgumentList.append('--commit')
 		if extraArguments:
@@ -123,7 +123,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		return job
 	
 	def addUpdateGenotypeMethodNoOfLociJob(self, executable=None, genotypeMethodShortName=None, genotypeMethodID=None,\
-								logFile=None, dataDir=None, commit=False, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+								logFile=None, data_dir=None, commit=False, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
 								extraArguments=None, job_max_memory=2000, **keywords):
 		"""
 		2012.6.27
@@ -131,8 +131,8 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		extraArgumentList = []
 		if logFile:
 			extraArgumentList.extend(["--logFilename", logFile])
-		if dataDir:
-			extraArgumentList.extend(['--dataDir', dataDir])
+		if data_dir:
+			extraArgumentList.extend(['--data_dir', data_dir])
 		if commit:
 			extraArgumentList.append('--commit')
 		if genotypeMethodShortName:
@@ -151,7 +151,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		return job
 	
 	def addJobs(self, workflow=None, inputData=None, db_vervet=None, genotypeMethodShortName=None, commit=None,\
-			dataDir=None, checkEmptyVCFByReading=False, transferOutput=True,\
+			data_dir=None, checkEmptyVCFByReading=False, transferOutput=True,\
 			maxContigID=None, outputDirPrefix="", needSSHDBTunnel=False):
 		"""
 		2012.5.9
@@ -167,12 +167,12 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		firstVCFFile = inputData.jobDataLs[0].vcfFile
 		addGM2DBJob = self.addAddGenotypeMethod2DBJob(executable=self.AddGenotypeMethod2DB, inputFile=firstVCFFile, \
 												genotypeMethodShortName=genotypeMethodShortName,\
-								logFile=None, dataDir=dataDir, commit=commit, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+								logFile=None, data_dir=data_dir, commit=commit, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
 								extraArguments=None, job_max_memory=10, sshDBTunnel=needSSHDBTunnel)
 		updateGMlogFile = File(os.path.join(topOutputDir, 'updateGM.log'))
 		updateGMNoOfLociJob = self.addUpdateGenotypeMethodNoOfLociJob(executable=self.UpdateGenotypeMethodNoOfLoci, \
 																	genotypeMethodShortName=genotypeMethodShortName,\
-								logFile=updateGMlogFile, dataDir=dataDir, commit=commit, parentJobLs=[topOutputDirJob], \
+								logFile=updateGMlogFile, data_dir=data_dir, commit=commit, parentJobLs=[topOutputDirJob], \
 								extraDependentInputLs=[], transferOutput=True, \
 								extraArguments=None, job_max_memory=20, sshDBTunnel=needSSHDBTunnel)
 		
@@ -192,7 +192,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 					import traceback
 					traceback.print_exc()
 			addVCFJob = self.addAddVCFFile2DBJob(executable=self.AddVCFFile2DB, inputFile=inputF, genotypeMethodShortName=genotypeMethodShortName,\
-						logFile=None, format="VCF", dataDir=dataDir, checkEmptyVCFByReading=checkEmptyVCFByReading, commit=commit, \
+						logFile=None, format="VCF", data_dir=data_dir, checkEmptyVCFByReading=checkEmptyVCFByReading, commit=commit, \
 						parentJobLs=[addGM2DBJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=True, \
 						extraArguments=None, job_max_memory=1000, sshDBTunnel=needSSHDBTunnel)
 			workflow.depends(parent=addVCFJob, child=updateGMNoOfLociJob)
@@ -231,7 +231,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		if self.run_type==1:
 			self.addJobs(workflow=workflow, inputData=inputData, db_vervet=db_vervet, genotypeMethodShortName=self.genotypeMethodShortName, \
 						commit=True,\
-						dataDir=self.dataDir, checkEmptyVCFByReading=self.checkEmptyVCFByReading, transferOutput=True,\
+						data_dir=self.data_dir, checkEmptyVCFByReading=self.checkEmptyVCFByReading, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="", needSSHDBTunnel=self.needSSHDBTunnel)
 		else:
 			sys.stderr.write("run_type %s not supported.\n"%(self.run_type))

@@ -217,7 +217,7 @@ Available Options
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 		
 	def addJobs(self, workflow=None, alignmentDataLs=None, refName2size=None, inputVCF=None, verifyBamID=None, \
-				dataDir=None, needPerContigJob=False, needSSHDBTunnel=0, outputDirPrefix="",\
+				data_dir=None, needPerContigJob=False, needSSHDBTunnel=0, outputDirPrefix="",\
 				transferOutput=True):
 		"""
 		2012.8.30
@@ -477,11 +477,11 @@ Available Options
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		workflow = self.initiateWorkflow()
 		
@@ -493,7 +493,7 @@ Available Options
 			refName2size = {}
 		
 		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										alignment_method_id=self.alignment_method_id, dataDir=self.localDataDir)
+										alignment_method_id=self.alignment_method_id, data_dir=self.local_data_dir)
 		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
 												individual_site_id_set=set(self.site_id_ls))
 		
@@ -502,13 +502,13 @@ Available Options
 		self.registerExecutables(workflow)
 		self.registerCustomExecutables(workflow)
 		
-		alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, dataDir=self.dataDir)
+		alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, data_dir=self.data_dir)
 		
 		inputVCF = self.registerOneInputFile(workflow=workflow, inputFname=self.inputVCFFname, \
 											folderName=self.pegasusFolderName)
 		self.addJobs(alignmentDataLs=alignmentDataLs, refName2size=refName2size, inputVCF=inputVCF, \
 				verifyBamID=self.verifyBamID, \
-				dataDir=self.dataDir, needPerContigJob=self.needPerContigJob, needSSHDBTunnel=self.needSSHDBTunnel, \
+				data_dir=self.data_dir, needPerContigJob=self.needPerContigJob, needSSHDBTunnel=self.needSSHDBTunnel, \
 				outputDirPrefix="", transferOutput=True)
 		
 		# Write the DAX to stdout
