@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
-from pymodule.VCFFile import VCFFile
+from pymodule import VCFFile
 from AbstractVCFMapper import AbstractVCFMapper
 
 class SplitNamVCFIntoMultipleSingleChrVCF(AbstractVCFMapper):
