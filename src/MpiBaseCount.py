@@ -52,7 +52,7 @@ class MpiBaseCount(MPI4pywrapper):
 						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
 						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
 						('db_passwd', 1, ): [None, 'p', 1, 'database password', ],\
-						("dataDir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. If not given, use the default stored in db.'],\
+						("data_dir", 0, ): ["", 't', 1, 'the base directory where all db-affiliated files are stored. If not given, use the default stored in db.'],\
 						("outputFname", 1, ): [None, 'o', 1, 'output file to with 2 columns: individual_sequence.id baseCount'],\
 						('individualSequenceIDList', 1, ): ["", 'i', 1, 'comma,space-separated list of id in table individual_sequence'],\
 						('genomeSize', 1, int): [3000000000, '', 1, 'the estimated genome size for calculating coverage=baseCount/genomeSize'],\
@@ -77,16 +77,16 @@ class MpiBaseCount(MPI4pywrapper):
 	
 	
 	def generate_params(self, individualSequenceID2FilePairLs, \
-					param_obj=None, dataDir=None, debug=None,):
+					param_obj=None, data_dir=None, debug=None,):
 		"""
 		2011-8-30
-			add argument dataDir
-			pass dataDir to computing node as well
+			add argument data_dir
+			pass data_dir to computing node as well
 		"""
 		for individualSequenceID, FilePairLs in individualSequenceID2FilePairLs.iteritems():
 			for filePair in FilePairLs:
 				#filename, format, sequence_type
-				yield (individualSequenceID, filePair, dataDir)
+				yield (individualSequenceID, filePair, data_dir)
 	
 	def computing_node_handler(self, communicator, data, param_obj):
 		"""
@@ -104,11 +104,11 @@ class MpiBaseCount(MPI4pywrapper):
 		for one_data in data:
 			sys.stderr.write("Node no.%s working on %s ...\n"%(node_rank, one_data))
 			
-			individualSequenceID, filePair, dataDir = one_data[:3]
+			individualSequenceID, filePair, data_dir = one_data[:3]
 			baseCount = 0
 			for fileRecord in filePair:
 				relativePath, format, sequence_type = fileRecord[:3]
-				filename = os.path.join(dataDir, relativePath)
+				filename = os.path.join(data_dir, relativePath)
 				fname_prefix, fname_suffix = os.path.splitext(filename)
 				if fname_suffix=='.gz':	#the input file is gzipped. get the new prefix
 					import gzip
@@ -160,11 +160,11 @@ class MpiBaseCount(MPI4pywrapper):
 			session = db_vervet.session
 			#session.begin()	#no transaction for input node as there is no data insertion
 			
-			if not self.dataDir:
-				self.dataDir = db_vervet.data_dir
+			if not self.data_dir:
+				self.data_dir = db_vervet.data_dir
 			
-			individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.individualSequenceIDList, self.dataDir)
-			param_ls = self.generate_params(individualSequenceID2FilePairLs, dataDir=self.dataDir, debug=self.debug)
+			individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.individualSequenceIDList, self.data_dir)
+			param_ls = self.generate_params(individualSequenceID2FilePairLs, data_dir=self.data_dir, debug=self.debug)
 			
 		elif node_rank in free_computing_node_set:
 			pass

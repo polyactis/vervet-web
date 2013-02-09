@@ -165,11 +165,11 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 			minNoOfLoci = 0
 			
 		db_vervet = self.db_vervet
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		"""
 		#without commenting out db_vervet connection code. schema "genome" wont' be default path.
 		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
@@ -187,7 +187,7 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		
-		refFastaFname = os.path.join(self.dataDir, refSequence.path)
+		refFastaFname = os.path.join(self.data_dir, refSequence.path)
 		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 						input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)

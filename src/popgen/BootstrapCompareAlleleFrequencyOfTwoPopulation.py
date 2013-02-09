@@ -76,7 +76,7 @@ class BootstrapCompareAlleleFrequencyOfTwoPopulation(CompareAlleleFrequencyOfTwo
 				mv=None, \
 				refFastaFList=None, \
 				needFastaIndexJob=False, needFastaDictJob=False, \
-				dataDir=None, no_of_gatk_threads = 1, \
+				data_dir=None, no_of_gatk_threads = 1, \
 				intervalSize=3000, intervalOverlapSize=0, \
 				outputDirPrefix="", transferOutput=True, job_max_memory=2000, **keywords):
 		"""
@@ -95,7 +95,7 @@ class BootstrapCompareAlleleFrequencyOfTwoPopulation(CompareAlleleFrequencyOfTwo
 				mv=mv, \
 				refFastaFList=refFastaFList,\
 				needFastaIndexJob=needFastaIndexJob, needFastaDictJob=needFastaDictJob, \
-				dataDir=dataDir, no_of_gatk_threads = 1, \
+				data_dir=data_dir, no_of_gatk_threads = 1, \
 				intervalSize=intervalSize, intervalOverlapSize=intervalOverlapSize, \
 				outputDirPrefix='%s_%s_'%(outputDirPrefix, i), transferOutput=transferOutput, job_max_memory=job_max_memory,\
 				**keywords)

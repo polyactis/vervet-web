@@ -103,9 +103,9 @@ class AddVCFFile2DB(AbstractVervetMapper):
 		session = self.db_vervet.session
 		
 		session.begin()
-		if not self.dataDir:
-			self.dataDir = self.db_vervet.data_dir
-		dataDir = self.dataDir
+		if not self.data_dir:
+			self.data_dir = self.db_vervet.data_dir
+		data_dir = self.data_dir
 		
 		realPath = os.path.realpath(self.inputFname)
 		logMessage = "file %s.\n"%(self.inputFname)
@@ -118,7 +118,7 @@ class AddVCFFile2DB(AbstractVervetMapper):
 			genotypeMethod = self.db_vervet.getGenotypeMethod(short_name=self.genotypeMethodShortName, \
 															individualAlignmentLs=individualAlignmentLs,\
 															no_of_individuals=len(individualAlignmentLs), no_of_loci=None,\
-															dataDir=self.dataDir)
+															data_dir=self.data_dir)
 			self.checkIfAlignmentListMatchDB(individualAlignmentLs, genotypeMethod, session)
 			
 			pdata = self.getNoOfLociFromVCFFile(vcfFile)
@@ -153,9 +153,9 @@ class AddVCFFile2DB(AbstractVervetMapper):
 			genotypeFile = self.db_vervet.getGenotypeFile(genotype_method=genotypeMethod,\
 										chromosome=chromosome, format=self.format, path=None, file_size=None, md5sum=md5sum,\
 										original_path=realPath, no_of_individuals=no_of_individuals, no_of_loci=no_of_loci,\
-										dataDir=self.dataDir, no_of_chromosomes=no_of_chromosomes)
+										data_dir=self.data_dir, no_of_chromosomes=no_of_chromosomes)
 			if genotypeFile.id and genotypeFile.path:
-				isPathInDB = self.db_vervet.isPathInDBAffiliatedStorage(relativePath=genotypeFile.path, dataDir=self.dataDir)
+				isPathInDB = self.db_vervet.isPathInDBAffiliatedStorage(relativePath=genotypeFile.path, data_dir=self.data_dir)
 				if isPathInDB==-1:
 					sys.stderr.write("Error while updating genotypeFile.path with the new path, %s.\n"%(genotypeFile.path))
 					self.cleanUpAndExitOnFailure(exitCode=isPathInDB)
@@ -170,7 +170,7 @@ class AddVCFFile2DB(AbstractVervetMapper):
 			inputFileBasename = os.path.basename(self.inputFname)
 			relativePath = genotypeFile.constructRelativePath(sourceFilename=inputFileBasename)
 			exitCode = self.db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=genotypeFile, filename=inputFileBasename, \
-									inputDir=os.path.split(self.inputFname)[0], dstFilename=os.path.join(self.dataDir, relativePath), \
+									inputDir=os.path.split(self.inputFname)[0], dstFilename=os.path.join(self.data_dir, relativePath), \
 									relativeOutputDir=None, shellCommand='cp -rL', \
 									srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs,\
 									constructRelativePathFunction=genotypeFile.constructRelativePath)
@@ -184,13 +184,13 @@ class AddVCFFile2DB(AbstractVervetMapper):
 			tbiFilename = '%s.tbi'%(realPath)
 			if os.path.isfile(tbiFilename):
 				srcFilename = tbiFilename
-				dstFilename = os.path.join(self.dataDir, '%s.tbi'%(genotypeFile.path))
+				dstFilename = os.path.join(self.data_dir, '%s.tbi'%(genotypeFile.path))
 				utils.copyFile(srcFilename=srcFilename, dstFilename=dstFilename)
 				logMessage += "tbi file %s has been copied to %s.\n"%(srcFilename, dstFilename)
 			## 2012.7.17 commented out because md5sum is calcualted above
-			#db_vervet.updateDBEntryMD5SUM(db_entry=genotypeFile, data_dir=dataDir)
+			#db_vervet.updateDBEntryMD5SUM(db_entry=genotypeFile, data_dir=data_dir)
 			# #2012.7.17 record the size of db_entry.path (folder or file)
-			self.db_vervet.updateDBEntryPathFileSize(db_entry=genotypeFile, data_dir=self.dataDir)
+			self.db_vervet.updateDBEntryPathFileSize(db_entry=genotypeFile, data_dir=self.data_dir)
 			
 			vcfFile.close()
 			logMessage += "%s individuals, %s loci, md5sum=%s.\n"%(no_of_individuals, no_of_loci, md5sum)

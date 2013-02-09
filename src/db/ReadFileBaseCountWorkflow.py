@@ -72,7 +72,7 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		workflow.PutReadBaseCountIntoDB = PutReadBaseCountIntoDB
 		
 	
-	def registerISQFiles(self, workflow=None, db_vervet=None, ind_seq_id_ls=[], localDataDir='', pegasusFolderName='', \
+	def registerISQFiles(self, workflow=None, db_vervet=None, ind_seq_id_ls=[], local_data_dir='', pegasusFolderName='', \
 						input_site_handler='local'):
 		"""
 		2012.3.14
@@ -85,7 +85,7 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		for individual_sequence in query:
 			if individual_sequence.individual_sequence_file_ls:	#not empty
 				for individual_sequence_file in individual_sequence.individual_sequence_file_ls:
-					absPath = os.path.join(localDataDir, individual_sequence_file.path)
+					absPath = os.path.join(local_data_dir, individual_sequence_file.path)
 					inputF = File(os.path.join(pegasusFolderName, individual_sequence_file.path))
 					inputF.addPFN(PFN("file://" + absPath, input_site_handler))
 					inputF.absPath = absPath
@@ -93,7 +93,7 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 					returnData.jobDataLs.append(PassingData(output=inputF, jobLs=[], isq_id=individual_sequence.id,\
 														isqf_id=individual_sequence_file.id))
 			elif individual_sequence.path:
-				absPath = os.path.join(localDataDir, individual_sequence.path)
+				absPath = os.path.join(local_data_dir, individual_sequence.path)
 				if os.path.isfile(absPath):
 					inputF = File(os.path.join(pegasusFolderName, individual_sequence.path))
 					inputF.addPFN(PFN("file://" + absPath, input_site_handler))
@@ -220,10 +220,10 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		session = db_vervet.session
 		session.begin()
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		# Create a abstract dag
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
@@ -235,7 +235,7 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		self.registerCustomExecutables(workflow)
 		
 		inputData = self.registerISQFiles(workflow=workflow, db_vervet=db_vervet, ind_seq_id_ls=self.ind_seq_id_ls, \
-										localDataDir=self.localDataDir, pegasusFolderName=self.pegasusFolderName,\
+										local_data_dir=self.local_data_dir, pegasusFolderName=self.pegasusFolderName,\
 										input_site_handler=self.input_site_handler)
 		self.addJobs(workflow, inputData=inputData, pegasusFolderName=self.pegasusFolderName,
 					needSSHDBTunnel=self.needSSHDBTunnel)

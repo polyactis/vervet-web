@@ -70,9 +70,9 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 		session = self.db_vervet.session
 		
 		session.begin()
-		if not self.dataDir:
-			self.dataDir = self.db_vervet.data_dir
-		dataDir = self.dataDir
+		if not self.data_dir:
+			self.data_dir = self.db_vervet.data_dir
+		data_dir = self.data_dir
 		
 		genotypeFile = self.db_vervet.getGenotypeFile(genotype_method_id=self.genotypeMethodID, chromosome=self.chromosome, format=self.format)
 		#query = VervetDB.GenotypeFile.query.filter_by(genotype_method_id=self.genotypeMethodID).filter_by(format=self.format)
@@ -81,7 +81,7 @@ class ExampleToFetchVCFFromDB(AbstractVervetMapper):
 			
 			sys.stderr.write("Error: genotype_method_id %s, chromosome %s does not exist.\n"%(self.genotypeMethodID, self.chromosome))
 			sys.exit(2)
-		filename = os.path.join(dataDir, genotypeFile.path)
+		filename = os.path.join(data_dir, genotypeFile.path)
 		if os.path.isfile(filename):
 			counter= 0
 			from pymodule import VCFFile

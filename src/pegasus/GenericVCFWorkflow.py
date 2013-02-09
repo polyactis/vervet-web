@@ -649,7 +649,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		del writer, vcfFile
 		sys.stderr.write("%s vcf samples selected.\n"%(no_of_samples))
 	
-	def addCombineVCFIntoOneJobs(self, workflow=None, inputData=None, dataDir=None, \
+	def addCombineVCFIntoOneJobs(self, workflow=None, inputData=None, data_dir=None, \
 						maxContigID=None, outputDirPrefix="", genotypeMethodShortName=None, needSSHDBTunnel=False,\
 						transferOutput=True):
 		"""
@@ -716,7 +716,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			logFile = File(os.path.join(topOutputDir, 'addVCF2DB.log'))
 			addVCFJob = self.addAddVCFFile2DBJob(executable=self.AddVCFFile2DB, inputFile=unionJob.output, \
 						genotypeMethodShortName=genotypeMethodShortName,\
-						logFile=logFile, format="VCF", dataDir=dataDir, checkEmptyVCFByReading=True, commit=True, \
+						logFile=logFile, format="VCF", data_dir=data_dir, checkEmptyVCFByReading=True, commit=True, \
 						parentJobLs=[unionJob], extraDependentInputLs=[unionJob.tbi_F], transferOutput=transferOutput, \
 						extraArguments=None, job_max_memory=1000, sshDBTunnel=needSSHDBTunnel)
 			no_of_jobs += 1
@@ -830,7 +830,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 						maxContigID=self.maxContigID, outputDirPrefix="")
 		elif self.run_type==5:
 			refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
-			refFastaFname = os.path.join(self.dataDir, refSequence.path)
+			refFastaFname = os.path.join(self.data_dir, refSequence.path)
 			refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 								input_site_handler=self.input_site_handler,\
 								checkAffiliateFileExistence=True)
@@ -856,7 +856,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 						outputPedigreeAsTFAM=True, outputPedigreeAsTFAMInputJobData=inputData.jobDataLs[0], \
 						maxContigID=self.maxContigID, outputDirPrefix="", returnMode=3)
 		elif self.run_type==9:
-			self.addCombineVCFIntoOneJobs(inputData=inputData, dataDir=self.dataDir,\
+			self.addCombineVCFIntoOneJobs(inputData=inputData, data_dir=self.data_dir,\
 						maxContigID=self.maxContigID, outputDirPrefix="", genotypeMethodShortName=self.genotypeMethodShortName, \
 						needSSHDBTunnel=self.needSSHDBTunnel, \
 						transferOutput=True)

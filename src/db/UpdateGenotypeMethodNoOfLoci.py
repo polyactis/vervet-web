@@ -50,8 +50,8 @@ class UpdateGenotypeMethodNoOfLoci(AbstractVervetMapper):
 		session = self.db_vervet.session
 		
 		session.begin()
-		if not self.dataDir:
-			self.dataDir = self.db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = self.db_vervet.data_dir
 		
 		if self.genotypeMethodID:
 			genotypeMethod = VervetDB.GenotypeMethod.get(self.genotypeMethodID)

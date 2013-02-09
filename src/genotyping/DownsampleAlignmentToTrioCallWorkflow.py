@@ -192,11 +192,11 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		refName2size = self.getTopNumberOfContigs(self.topNumberOfContigs)
 		#refName2size = set(['Contig149'])	#temporary when testing Contig149
@@ -204,7 +204,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 		refNameLs = refName2size.keys()
 		
 		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										alignment_method_id=self.alignment_method_id, dataDir=self.localDataDir)
+										alignment_method_id=self.alignment_method_id, data_dir=self.local_data_dir)
 		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
 												individual_site_id_set=set(self.site_id_ls))
 		sampleID2FamilyCount = self.outputPedgreeOfAlignmentsInMerlinFormat(db_vervet, alignmentLs, self.pedigreeOutputFname)
@@ -218,7 +218,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 		sampleID2FamilyCountF = self.registerOneInputFile(workflow, self.sampleID2FamilyCountFname, folderName="")
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
-		refFastaFname = os.path.join(self.dataDir, refSequence.path)
+		refFastaFname = os.path.join(self.data_dir, refSequence.path)
 		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 						input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
@@ -233,7 +233,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 							schema=self.schema, db_user=self.db_user, db_passwd=self.db_passwd, ref_ind_seq_id=self.ref_ind_seq_id, \
 							samtools_path=self.samtools_path, picard_path=self.picard_path, gatk_path=self.gatk_path,\
 							vervetSrcPath=self.vervetSrcPath, home_path=self.home_path, tabixPath=self.tabixPath, javaPath=self.javaPath,\
-							dataDir=self.dataDir, localDataDir=self.localDataDir, site_handler=self.site_handler,\
+							data_dir=self.data_dir, local_data_dir=self.local_data_dir, site_handler=self.site_handler,\
 							input_site_handler=self.input_site_handler, clusters_size=self.clusters_size,
 							outputFname=self.outputFname, checkEmptyVCFByReading=False,\
 							debug=self.debug, report=self.report, inputDir="random", maxContigID=self.topNumberOfContigs+10,\
@@ -241,7 +241,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 							#checkEmptyVCFByReading is not used in addJobs()
 		calculateTrioInconsistencyPipeline_ins.registerCustomExecutables(workflow)
 		
-		origAlignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, dataDir=self.dataDir)
+		origAlignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, data_dir=self.data_dir)
 		
 		#reduce the trio consistency by the same trio across different samplings 
 		allTrioInconsistencyFile = File('trio_inconsistency_avg_all_samples.tsv')
@@ -271,7 +271,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 						refFastaFList=refFastaFList, \
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-						intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, site_type=self.site_type, dataDir=self.dataDir,\
+						intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, site_type=self.site_type, data_dir=self.data_dir,\
 						outputDirPrefix="downsampleBam_%s/"%(i+1))
 			
 			

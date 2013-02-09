@@ -104,11 +104,11 @@ class ConvertOldIsqRecordsPipeline(UnpackAndAddIndividualSequence2DB):
 		session = db_vervet.session
 		session.begin()
 		
-		if not self.dataDir:
-			self.dataDir = db_vervet.data_dir
+		if not self.data_dir:
+			self.data_dir = db_vervet.data_dir
 		
-		if not self.localDataDir:
-			self.localDataDir = db_vervet.data_dir
+		if not self.local_data_dir:
+			self.local_data_dir = db_vervet.data_dir
 		
 		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
 		workflow = self.initiateWorkflow(workflowName)
@@ -123,7 +123,7 @@ class ConvertOldIsqRecordsPipeline(UnpackAndAddIndividualSequence2DB):
 		no_of_jobs = 1
 		
 		individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs([isq.id for isq in isq_ls], \
-													dataDir=self.localDataDir, checkOldPath=True)
+													data_dir=self.local_data_dir, checkOldPath=True)
 		
 		for individualSequenceID, FilePairLs in individualSequenceID2FilePairLs.iteritems():
 			individual_sequence = VervetDB.IndividualSequence.get(individualSequenceID)
@@ -135,13 +135,13 @@ class ConvertOldIsqRecordsPipeline(UnpackAndAddIndividualSequence2DB):
 				session.add(individual_sequence)
 				session.flush()
 			
-			sequenceOutputDir = os.path.join(self.dataDir, individual_sequence.path)
+			sequenceOutputDir = os.path.join(self.data_dir, individual_sequence.path)
 			sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
 			
 			for filePair in FilePairLs:
 				for fileRecord in filePair:
 					filename = fileRecord[0]
-					absPath = os.path.join(self.localDataDir, filename)
+					absPath = os.path.join(self.local_data_dir, filename)
 					fastqFile = self.registerOneInputFile(workflow, absPath)
 					library, mate_id = self.parseLibraryMateIDFromFilename(filename)[:2]
 					if library is None:
