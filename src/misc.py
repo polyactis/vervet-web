@@ -3569,26 +3569,36 @@ class DBVervet(object):
 			sequence filtered=0
 		"""
 		sys.stderr.write("Removing alignment files (not db entries) that are no longer used or outdated ... \n")
+		from sqlalchemy import and_, or_
 		if data_dir is None:
 			data_dir = db_vervet.data_dir
 		session = db_vervet.session
 		session.begin()
-		query = VervetDB.IndividualAlignment.query.filter_by(outdated_index=1).filter_by(alignment_method_id=4).\
-			filter(VervetDB.IndividualAlignment.individual_sequence.has(filtered=0))
+		
+		TableClass = VervetDB.IndividualAlignment
+		query = TableClass.query.filter(or_(TableClass.outdated_index==1, TableClass.alignment_method_id==4, \
+										TableClass.individual_sequence.has(filtered=0)))
 		counter = 0
 		real_counter = 0
+		total_file_size = 0
+		no_of_files_without_size= 0 
 		for row in query:
 			counter += 1
+			if row.file_size:
+				total_file_size += row.file_size
+			else:
+				no_of_files_without_size += 1
 			sys.stderr.write('%s: %s'%(counter, row.path))
 			
-			absFilePath = os.path.join(data_dir, row.getFilePath())
+			absFilePath = row.getFileAbsPath(oldDataDir=None, newDataDir=data_dir)
 			if os.path.isfile(absFilePath):
 				real_counter += 1
 				if commit:
 					commandline = 'rm %s'%(absFilePath)
 					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 			sys.stderr.write('.\n')
-		sys.stderr.write("%s/%s alignment files deleted.\n"%(real_counter, counter))
+		sys.stderr.write(" total_file_size=%s for %s files, %s/%s alignment files deleted.\n"%(total_file_size, counter-no_of_files_without_size,\
+																				real_counter, counter))
 	
 	"""
 		#2013.2.5
@@ -3616,7 +3626,7 @@ class DBVervet(object):
 			counter += 1
 			sys.stderr.write('%s: %s'%(counter, row.path))
 			
-			absFilePath = os.path.join(data_dir, row.getFilePath())
+			absFilePath = row.getFileAbsPath(oldDataDir=None, newDataDir=data_dir)
 			if os.path.isfile(absFilePath):
 				real_counter += 1
 				if commit:
@@ -3811,6 +3821,7 @@ class DBVervet(object):
 		#2012.12.6
 		DBVervet.moveIndividualLatLonAltToSiteTable(db_vervet=db_vervet, commit=True)
 		sys.exit(0)
+		
 	"""
 	@classmethod
 	def putPedigreeIntoDB(cls, db_vervet=None, inputFname=None, monkeyIDPrefix="", \
@@ -8018,9 +8029,11 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2012.12.6
-		DBVervet.moveIndividualLatLonAltToSiteTable(db_vervet=db_vervet, commit=True)
+		#2013.2.5
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True)
 		sys.exit(0)
+		
 		
 		
 		#2012.9.25 update the file_size for the existing db entries
