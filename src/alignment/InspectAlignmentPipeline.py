@@ -340,8 +340,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				continue
 			
 			statOutputDir = '%s'%(alignment.id)
-			statOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=mkdirWrap, outputDir=statOutputDir, namespace=namespace, \
-													version=version)
+			statOutputDirJob = self.addMkDirJob(outputDir=statOutputDir)
 			
 			"""
 				#2012.4.3 no more VariousReadCountJava job
@@ -474,19 +473,12 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		CalculateMedianModeFromSAMtoolsDepthOutput.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mapper/CalculateMedianModeFromSAMtoolsDepthOutput.py"), site_handler))
 		executableClusterSizeMultiplierList.append((CalculateMedianModeFromSAMtoolsDepthOutput, 1))
 		
-		
-		PutFlagstatOutput2DB = Executable(namespace=namespace, name="PutFlagstatOutput2DB", version=version, os=operatingSystem,\
-								arch=architecture, installed=True)
-		PutFlagstatOutput2DB.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/PutFlagstatOutput2DB.py"), site_handler))
-		executableClusterSizeMultiplierList.append((PutFlagstatOutput2DB, 0))
-		
-		PutDOCOutput2DB = Executable(namespace=namespace, name="PutDOCOutput2DB", version=version, os=operatingSystem,\
-								arch=architecture, installed=True)
-		PutDOCOutput2DB.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/PutDOCOutput2DB.py"), site_handler))
-		executableClusterSizeMultiplierList.append((PutDOCOutput2DB, 0))
-		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
-
+		
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'db/input/PutFlagstatOutput2DB.py'), \
+										name='PutFlagstatOutput2DB', clusterSizeMultipler=0)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'db/input/PutDOCOutput2DB.py'), \
+										name='PutDOCOutput2DB', clusterSizeMultipler=0)
 
 	def run(self):
 		"""
