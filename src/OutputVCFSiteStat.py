@@ -81,15 +81,6 @@ class OutputVCFSiteStat(FilterVCFPipeline):
 		clusters_size = workflow.clusters_size
 		site_handler = workflow.site_handler
 		vervetSrcPath = self.vervetSrcPath
-		
-		ReduceMatrixByMergeColumnsWithSameKey = Executable(namespace=namespace, name="ReduceMatrixByMergeColumnsWithSameKey", \
-								version=version, os=operatingSystem,\
-								arch=architecture, installed=True)
-		ReduceMatrixByMergeColumnsWithSameKey.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/ReduceMatrixByMergeColumnsWithSameKey.py"), \
-												site_handler))
-		ReduceMatrixByMergeColumnsWithSameKey.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(ReduceMatrixByMergeColumnsWithSameKey)
-		workflow.ReduceMatrixByMergeColumnsWithSameKey = ReduceMatrixByMergeColumnsWithSameKey
 	
 	def getChrListInTrioInconsistencyFile(self, tabixPath, trioInconsistencyByPosistionFname=None):
 		"""
@@ -147,16 +138,16 @@ class OutputVCFSiteStat(FilterVCFPipeline):
 		
 		no_of_jobs = 0
 		vcf1DepthFilterDir = "%s_DepthFilter"%(vcf1Name)
-		vcf1DepthFilterDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=vcf1DepthFilterDir)
+		vcf1DepthFilterDirJob = self.addMkDirJob(outputDir=vcf1DepthFilterDir)
 		#vcf2DepthFilterDir = "%s_DepthFilter"%(vcf2Name)
 		#vcf2DepthFilterDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=vcf2DepthFilterDir)
 		
 		trioInconsistencyDir = "trioInconsistency"
-		trioInconsistencyDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=trioInconsistencyDir)
+		trioInconsistencyDirJob = self.addMkDirJob(outputDir=trioInconsistencyDir)
 		
 		
 		SNPMismatchStatDir = "SNPMismatchStat"
-		SNPMismatchStatDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=SNPMismatchStatDir)
+		SNPMismatchStatDirJob = self.addMkDirJob(outputDir=SNPMismatchStatDir)
 		
 		input_site_handler = self.input_site_handler
 		
