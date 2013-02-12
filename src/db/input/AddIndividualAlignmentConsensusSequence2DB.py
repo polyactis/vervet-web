@@ -23,7 +23,6 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import copy
-from Bio import SeqIO
 from pymodule import ProcessOptions, PassingData, utils, NextGenSeq
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
 from vervet.src import VervetDB
@@ -59,26 +58,19 @@ class AddIndividualAlignmentConsensusSequence2DB(AbstractVervetMapper):
 		session = db.session
 		session.begin()
 		
-		no_of_chromosomes = 0
-		no_of_bases = 0
-		
-		sys.stderr.write("Counting #chromosomes, #bases ...")
-		inf = utils.openGzipFile(inputFname)
-		for seq_record in SeqIO.parse(inf, 'fastq'):
-			no_of_chromosomes += 1
-			no_of_bases += len(seq_record)
-		inf.close()
-		sys.stderr.write("%s chromosomes, %s bases\n"%(no_of_chromosomes, no_of_bases))
-		
 		#2012.11.13 check if it's in db already
 		db_entry = db.checkIndividualAlignmentConsensusSequence(individual_alignment_id=individual_alignment_id, minDP=minDP, \
 									maxDP=maxDP, minBaseQ=minBaseQ, minMapQ=minMapQ,\
-									minRMSMapQ=minRMSMapQ, minDistanceToIndel=minDistanceToIndel, no_of_chromosomes=no_of_chromosomes)
+									minRMSMapQ=minRMSMapQ, minDistanceToIndel=minDistanceToIndel)
 		if db_entry:
 			sys.stderr.write("Warning: IndividualAlignmentConsensusSequence of (individual_alignment_id=%s, minDP %s, maxDP %s, etc.) already in db with id=%s.\n"%\
 							(individual_alignment_id, minDP, maxDP, db_entry.id))
 			sys.exit(3)
 		else:
+			countData = NextGenSeq.countNoOfChromosomesBasesInFastQFile(inputFname)
+			no_of_chromosomes = countData.no_of_chromosomes
+			no_of_bases = countData.no_of_bases
+			
 			db_entry = db.getIndividualAlignmentConsensusSequence(individual_alignment_id=individual_alignment_id, format=format, \
 									minDP=minDP, maxDP=maxDP, minBaseQ=minBaseQ, \
 									minMapQ=minMapQ, minRMSMapQ=minRMSMapQ, minDistanceToIndel=minDistanceToIndel, \
