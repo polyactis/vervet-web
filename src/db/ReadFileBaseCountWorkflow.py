@@ -54,22 +54,11 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		clusters_size = workflow.clusters_size
 		site_handler = workflow.site_handler
 		
-		CountFastqReadBaseCount = Executable(namespace=namespace, name="CountFastqReadBaseCount", version=version, \
-						os=operatingSystem, arch=architecture, installed=True)
-		CountFastqReadBaseCount.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "mapper/CountFastqReadBaseCount.py"), \
-										site_handler))
-		CountFastqReadBaseCount.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(CountFastqReadBaseCount)
-		workflow.CountFastqReadBaseCount = CountFastqReadBaseCount
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'mapper/CountFastqReadBaseCount.py'), \
+										name='CountFastqReadBaseCount', clusterSizeMultipler=1)
 		
-		
-		PutReadBaseCountIntoDB = Executable(namespace=namespace, name="PutReadBaseCountIntoDB", version=version, \
-						os=operatingSystem, arch=architecture, installed=True)
-		PutReadBaseCountIntoDB.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "reducer/PutReadBaseCountIntoDB.py"), \
-										site_handler))
-		PutReadBaseCountIntoDB.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(PutReadBaseCountIntoDB)
-		workflow.PutReadBaseCountIntoDB = PutReadBaseCountIntoDB
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'db/input/PutReadBaseCountIntoDB.py'), \
+										name='PutReadBaseCountIntoDB', clusterSizeMultipler=0.2)
 		
 	
 	def registerISQFiles(self, workflow=None, db_vervet=None, ind_seq_id_ls=[], local_data_dir='', pegasusFolderName='', \
@@ -176,7 +165,7 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		
 		topOutputDir = pegasusFolderName
 		if topOutputDir:
-			topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+			topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 			no_of_jobs += 1
 		else:
 			topOutputDirJob = None
