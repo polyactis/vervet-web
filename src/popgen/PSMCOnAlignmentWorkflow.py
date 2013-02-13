@@ -66,7 +66,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 					
 					('bootstrapTrunkSize', 1, int):[50000, '', 1, 'number of 100bp fragments for each bootstrap psmc input. option for splitfa'],\
 					('noOfBootstraps', 1, int):[100, '', 1, 'number of bootstraps for each whole-alignment psmc job'],\
-					('noOfSimulations', 1, int):[10, '', 1, 'number of simulations via ms for each whole-alignment psmc job'],\
+					('noOfSimulations', 1, int):[50, '', 1, 'number of simulations via ms for each whole-alignment psmc job'],\
 					('msPath', 0, ): ["%s/script/lh3_foreign/msHOT-lite/msHOT-lite", '', 1, 'path to the ms or msHOT, msHOT-lite program, '],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
@@ -520,7 +520,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 											(passingData.bamFnamePrefix, self.noOfSimulations))
 		psmc_plotJob= self.addPSMCPlotJob(inputFileList=[mergeSimulatePSMCOutputJob.output], \
 						figureLegendList=[self.getPSMCPlotLabelForOneAlignment(alignment)],\
-						figureTitle = '%sSimulations'%(self.noOfBootstraps),\
+						figureTitle = '%sSimulations'%(self.noOfSimulations),\
 						plotOutputFnamePrefix=plotOutputFnamePrefix, \
 						mutationRatePerNucleotidePerGeneration=self.mutationRatePerNucleotidePerGeneration, \
 						minNoOfGenerations=self.minNoOfGenerations, maxNoOfGenerations=self.maxNoOfGenerations, \
