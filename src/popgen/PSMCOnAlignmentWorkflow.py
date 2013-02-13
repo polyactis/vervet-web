@@ -550,7 +550,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 			psmc_plot_inputFileList.append(wholeGenomePSMCJob.output)
 			psmc_plot_parentJobList.append(wholeGenomePSMCJob)
 			alignment = wholeGenomePSMCJob.alignmentData.alignment
-			legend = '%s_M%s'%(alignment.individual_sequence.individual.code, alignment.median_depth)
+			legend = self.getPSMCPlotLabelForOneAlignment(alignment)
 			figureLegendList.append(legend)
 			
 		plotOutputFnamePrefix = os.path.join(plotOutputDirJob.output, 'MultiLine_%sAlignments'%\
