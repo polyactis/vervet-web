@@ -1,17 +1,23 @@
 #!/usr/bin/env python
 """
 Examples:
-	%s
-	
 	#2013.2.4
 	%s --ind_aln_id_ls 929,1508,1510,926,1577,1507,1534,1524,1512
 		-u yh -a 524  -z localhost -o  dags/PSMCOnAlignment/PSMCOnAlignmentOnSubspecies.xml
 		-j hcondor -l hcondor
-		--clusters_size 1 -e /u/home/eeskin/polyacti/
+		--clusters_size 25 -e /u/home/eeskin/polyacti/
 		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--sequence_filtered 1 --alignment_method_id 2 --needSSHDBTunnel --commit
 		# -Y
 		#--minContigID 96 --maxContigID 100	#useless right now
+	
+	#2013.2.12 more refined pattern: 4*2+40*1+5*2
+	%s --ind_aln_id_ls 929,1508,1510,926,1577,1507,1534 --patternOfPSMCTimeIntervals 4*2+40*1+5*2
+		-u yh -a 524  -z localhost -o  dags/PSMCOnAlignment/PSMCOn7AlignmentOnSubspeciesRefinedPattern.xml
+		-j hcondor -l hcondor
+		--clusters_size 25 -e /u/home/eeskin/polyacti/
+		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--sequence_filtered 1 --alignment_method_id 2 --needSSHDBTunnel --commit
 	
 Description:
 	2013.1.25 run psmc (Li, Durbin 2011) on alignments
@@ -40,16 +46,23 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 					('minRMSMapQ', 1, int):[10, '', 1, 'root mean squared mapping quality of reads covering the locus'],\
 					('minDistanceToIndel', 1, int):[5, '', 1, 'min distance to predicted short insertions or deletions'],\
 					
-					('patternOfPSMCTimeIntervals', 1, ):["4+25*1+4+6", '', 1, 'pattern of parameters, -p of psmc '],\
+					('patternOfPSMCTimeIntervals', 1, ):["4+25*1+4+6", '', 1, 'pattern of parameters, -p of psmc.\n\
+	The first (most recent) parameter spans the first 4 atomic time intervals;\n\
+	each of the next 25 parameters spans 1 intervals;\n\
+	the 27th spans 4 intervals and the last parameter spans the last 6 time intervals.'],\
 					('maxNoOfIterations', 1, int):[25, '', 1, 'number of iterations for the EM algorithm, -N of psmc'],\
 					('initThetaRhoRatio', 1, float):[4, '', 1, 'initial theta/rho ratio, -r of psmc'],\
 					('max2N0CoalescentTime', 1, float):[15, '', 1, 'maximum 2N0 coalescent time, -t of psmc '],\
 					
-					('absMutationRatePerNucleotide', 1, float):[5e-09, '', 1, 'absolute mutation rate per nucleotide per generation, -u FLOAT of psmc_plot'],\
+					('mutationRatePerNucleotidePerGeneration', 1, float):[5e-09, '', 1, 'absolute mutation rate per nucleotide per generation, -u FLOAT of psmc_plot'],\
 					('maxNoOfGenerations', 1, int):[0, '', 1, 'maximum generations, 0 for auto , -X of psmc_plot'],\
 					('minNoOfGenerations', 1, int):[10000, '', 1, 'minimum number of generations, 0 for auto , -x of psmc_plot'],\
 					('noOfYearsPerGeneration', 1, int):[5, '', 1, 'number of years per generation, -g of psmc_plot.pl'],\
 					('maxPopulationSize', 1, int):[30, '', 1, 'maximum popsize in terms of 10^4, 0 for auto, -Y of psmc_plot.pl'],\
+					
+					('chromosomeLengthToSimulate', 1, int):[20000000, '', 1, 'passed to history2ms.pl. ms/msHOT would segment-fault if it is too long, i.e. 300Mb, or even 30Mb occasionally'],\
+					('recombinationHotSpotRateMultipler', 1, float):[10, '', 1, 'passed to history2ms.pl. recombination rate in hotspots are FLOAT times larger. used in ms simulation. '],\
+					('divergenceTimeToSimulate', 1, int):[0, '', 1, "no idea of what it is, passed to history2ms.pl"],\
 					
 					('bootstrapTrunkSize', 1, int):[50000, '', 1, 'number of 100bp fragments for each bootstrap psmc input. option for splitfa'],\
 					('noOfBootstraps', 1, int):[100, '', 1, 'number of bootstraps for each whole-alignment psmc job'],\
@@ -240,7 +253,9 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 					outputArgumentOption=None, inputFileList=[], \
 					parentJob=None, parentJobLs=[psmcJob, topOutputDirJob], \
 					extraDependentInputLs=[psmcJob.output], extraOutputLs=[msCommandFile], transferOutput=True, \
-					extraArguments='', extraArgumentList=[self.psmcFolderPath, psmcJob.output, msCommandFile], \
+					extraArguments='', extraArgumentList=[self.psmcFolderPath, psmcJob.output, msCommandFile, \
+						"-L %s -u %s -g %s -R %s -d %s"%\
+						(self.chromosomeLengthToSimulate, self.mutationRatePerNucleotidePerGeneration, self.noOfYearsPerGeneration, self.recombinationHotSpotRateMultipler, self.divergenceTimeToSimulate)], \
 					job_max_memory=1000,  sshDBTunnel=None, \
 					key2ObjectForJob=None, no_of_cpus=None, max_walltime=None)
 		
@@ -250,10 +265,10 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		
 		plotOutputFnamePrefix = os.path.join(plotOutputDirJob.output, '%s'%(passingData.bamFnamePrefix))
 		self.addPSMCPlotJob(inputFileList=[psmcJob.output], \
-						figureLegendList=['%sM%d'%(alignment.individual_sequence.individual.code, alignment.median_depth)], \
+						figureLegendList=[self.getPSMCPlotLabelForOneAlignment(alignment)], \
 						figureTitle = 'depth%s-%s'%(minDP, maxDP),\
 						plotOutputFnamePrefix=plotOutputFnamePrefix, \
-						absMutationRatePerNucleotide=self.absMutationRatePerNucleotide, \
+						mutationRatePerNucleotidePerGeneration=self.mutationRatePerNucleotidePerGeneration, \
 						minNoOfGenerations=self.minNoOfGenerations, maxNoOfGenerations=self.maxNoOfGenerations, \
 						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
 						parentJobLs=[psmcJob, plotOutputDirJob], extraDependentInputLs=[psmcJob.output], \
@@ -261,10 +276,15 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		
 		return returnData
 	
+	def getPSMCPlotLabelForOneAlignment(self, individual_alignment=None):
+		"""
+		2013.2.12
+		"""
+		return '%s_%s%dMD'%(individual_alignment.individual_sequence.individual.code, individual_alignment.individual_sequence.individual.sex, individual_alignment.median_depth)
 	
 	def addPSMCPlotJob(self, inputFileList=None, figureLegendList=None, figureTitle=None, \
 					plotOutputFnamePrefix=None, \
-					absMutationRatePerNucleotide=None,\
+					mutationRatePerNucleotidePerGeneration=None,\
 					minNoOfGenerations=None, maxNoOfGenerations=None, maxPopulationSize=None, noOfYearsPerGeneration=None,\
 					parentJob=None, parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 					extraArguments=None, job_max_memory=1000,  \
@@ -299,7 +319,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 			-G		plot grid
 		
 		"""
-		plotOutputFnamePrefix = "%s_u%s_x%s_X%s_Y%s_g%s"%(plotOutputFnamePrefix, absMutationRatePerNucleotide, minNoOfGenerations, \
+		plotOutputFnamePrefix = "%s_u%s_x%s_X%s_Y%s_g%s"%(plotOutputFnamePrefix, mutationRatePerNucleotidePerGeneration, minNoOfGenerations, \
 									maxNoOfGenerations, \
 									maxPopulationSize, noOfYearsPerGeneration)
 		plotOutputFile = File('%s.eps'%(plotOutputFnamePrefix))
@@ -319,7 +339,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 					parentJobLs=parentJobLs, \
 					extraDependentInputLs=None, extraOutputLs=[plotOutputFile], transferOutput=transferOutput, \
 					extraArguments=extraArguments, frontArgumentList=["-u %s -x %s -X %s -Y %s -g %s %s %s -R"%\
-								(absMutationRatePerNucleotide, minNoOfGenerations, maxNoOfGenerations, \
+								(mutationRatePerNucleotidePerGeneration, minNoOfGenerations, maxNoOfGenerations, \
 									maxPopulationSize, noOfYearsPerGeneration, figureLegendArgument, figureTitleArgument),\
 							plotOutputFnamePrefix], \
 					job_max_memory=job_max_memory,  sshDBTunnel=None, \
@@ -367,7 +387,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		mergeBootstrapPSMCOutputFile = File(os.path.join(bootstrapOutputDirJob.output, \
 									'%s.wholeGenome_%sBootstrap.psmc'%(passingData.bamFnamePrefix, self.noOfBootstraps))) 
 		mergeBootstrapPSMCOutputJob = self.addStatMergeJob(statMergeProgram=self.MergeSameHeaderTablesIntoOne, \
-				outputF=mergeBootstrapPSMCOutputFile, transferOutput=True, extraArguments='--noHeader', parentJobLs=[bootstrapOutputDirJob])
+				outputF=mergeBootstrapPSMCOutputFile, transferOutput=True, extraArguments='--noHeader --exitNonZeroIfAnyInputFileInexistent', parentJobLs=[bootstrapOutputDirJob])
 		#first add the whole-genome psmc output
 		wholeGenomePSMCJob = passingData.wholeGenomePSMCJob 
 		self.addInputToStatMergeJob(workflow, statMergeJob=mergeBootstrapPSMCOutputJob, \
@@ -392,10 +412,10 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		plotOutputFnamePrefix = os.path.join(plotOutputDirJob.output, '%s.wholeGenome_%sBootstrap'%\
 											(passingData.bamFnamePrefix, self.noOfBootstraps))
 		psmc_plotJob= self.addPSMCPlotJob(inputFileList=[mergeBootstrapPSMCOutputJob.output], \
-						figureLegendList=['%sM%d'%(alignment.individual_sequence.individual.code, int(alignment.median_depth))],\
+						figureLegendList=[self.getPSMCPlotLabelForOneAlignment(alignment)],\
 						figureTitle = '%sBootstraps'%(self.noOfBootstraps),\
 						plotOutputFnamePrefix=plotOutputFnamePrefix, \
-						absMutationRatePerNucleotide=self.absMutationRatePerNucleotide, \
+						mutationRatePerNucleotidePerGeneration=self.mutationRatePerNucleotidePerGeneration, \
 						minNoOfGenerations=self.minNoOfGenerations, maxNoOfGenerations=self.maxNoOfGenerations, \
 						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
 						parentJobLs=[mergeBootstrapPSMCOutputJob, plotOutputDirJob], \
@@ -425,7 +445,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		mergeSimulatePSMCOutputFile = File(os.path.join(simulateOutputDirJob.output, \
 									'%s.wholeGenome_%sSimulations.psmc'%(passingData.bamFnamePrefix, self.noOfSimulations))) 
 		mergeSimulatePSMCOutputJob = self.addStatMergeJob(statMergeProgram=self.MergeSameHeaderTablesIntoOne, \
-				outputF=mergeSimulatePSMCOutputFile, transferOutput=True, extraArguments='--noHeader', parentJobLs=[simulateOutputDirJob])
+				outputF=mergeSimulatePSMCOutputFile, transferOutput=True, extraArguments='--noHeader --exitNonZeroIfAnyInputFileInexistent', parentJobLs=[simulateOutputDirJob])
 		#first add the whole-genome psmc output
 		wholeGenomePSMCJob = passingData.wholeGenomePSMCJob 
 		self.addInputToStatMergeJob(self, statMergeJob=mergeSimulatePSMCOutputJob, \
@@ -497,12 +517,12 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		
 		
 		plotOutputFnamePrefix = os.path.join(plotOutputDirJob.output, '%s.%sMSSimulations'%\
-											(passingData.bamFnamePrefix, self.noOfBootstraps))
+											(passingData.bamFnamePrefix, self.noOfSimulations))
 		psmc_plotJob= self.addPSMCPlotJob(inputFileList=[mergeSimulatePSMCOutputJob.output], \
-						figureLegendList=['%sM%d'%(alignment.individual_sequence.individual.code, alignment.median_depth)],\
+						figureLegendList=[self.getPSMCPlotLabelForOneAlignment(alignment)],\
 						figureTitle = '%sSimulations'%(self.noOfBootstraps),\
 						plotOutputFnamePrefix=plotOutputFnamePrefix, \
-						absMutationRatePerNucleotide=self.absMutationRatePerNucleotide, \
+						mutationRatePerNucleotidePerGeneration=self.mutationRatePerNucleotidePerGeneration, \
 						minNoOfGenerations=self.minNoOfGenerations, maxNoOfGenerations=self.maxNoOfGenerations, \
 						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
 						parentJobLs=[mergeSimulatePSMCOutputJob, plotOutputDirJob], \
@@ -540,7 +560,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 						figureLegendList=figureLegendList,\
 						figureTitle = '%sAlignments'%(len(psmc_plot_inputFileList)),\
 						plotOutputFnamePrefix=plotOutputFnamePrefix, \
-						absMutationRatePerNucleotide=self.absMutationRatePerNucleotide, \
+						mutationRatePerNucleotidePerGeneration=self.mutationRatePerNucleotidePerGeneration, \
 						minNoOfGenerations=self.minNoOfGenerations, maxNoOfGenerations=self.maxNoOfGenerations, \
 						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
 						parentJobLs=psmc_plot_parentJobList + [plotOutputDirJob], \
