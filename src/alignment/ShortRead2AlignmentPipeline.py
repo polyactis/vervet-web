@@ -7,16 +7,16 @@ Examples:
 	
 	# 2011-8-30 a workflow with 454 long-read and short-read PE. need a ref index job (-n1). 
 	%s -i 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9
-		-e /u/home/eeskin/polyacti -l hoffman2 -t /u/home/eeskin/polyacti/NetworkData/vervet/db -n1
+		-e /u/home/eeskin/polyacti -l hoffman2 --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db -n1
 		-z dl324b-1.cmb.usc.edu -c
 		--tmpDir /work/ -H
 	
-	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (-D changes local_data_dir. -t changes data_dir.)
+	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (--local_data_dir changes local_data_dir. --data_dir changes data_dir.)
 	# 2012.3.20 use /work/ or /u/scratch/p/polyacti/tmp as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
 	# 2012.5.4 cluster 10 alignment jobs (before merging) as a unit (--cluster_size_for_aln_jobs 10), skip done alignment (-K)
 	# 2012.9.21 add "-H" because AddAlignmentFile2DB need db conneciton
 	# 2012.9.21 add "--alignmentPerLibrary" to also get alignment for each library within one individual_sequence
-	%s  -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
+	%s  --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 		-l hcondor -j hcondor 
 		-z localhost -u yh -c
 		-i 631-700 -o workflow/ShortRead2Alignment_Isq_631-700_vs_524_hcondor.xml  -a 524 
@@ -43,12 +43,12 @@ Examples:
 		-j local -l uschpc -n1 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10 -p secret  -c -H
 
 	# 2011-8-30 a workflow to run on uschpc, Need ref index job (--needRefIndexJob), and 4 threads for each alignment job 
-	# Note the site_handler, input_site_handler and "-t ..." to enable symlink
+	# Note the site_handler, input_site_handler and "--data_dir ..." to enable symlink
 	%s -i 391-397,456,473,493
 		-o ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
 		-j uschpc -l uschpc --needRefIndexJob -p secret -c --no_of_aln_threads 4 -H
 		-e /home/cmb-03/mn/yuhuang -z 10.8.0.10 
-		-t /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/ -J /home/cmb-03/mn/yuhuang/bin/jdk/bin/java
+		--data_dir /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/ --javaPath /home/cmb-03/mn/yuhuang/bin/jdk/bin/java
 	
 	# 2011-11-16 a workflow to run on uschpc, Need ref index job (--needRefIndexJob), and 4 threads for each alignment job 
 	# Note the site_handler, input_site_handler. this will stage in all input and output (--notStageOutFinalOutput).
@@ -56,14 +56,14 @@ Examples:
 		-o workflow/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_local2usc.xml -u yh -a 9
 		-j local -l uschpc --needRefIndexJob -p secret -c --no_of_aln_threads 4
 		-e /home/cmb-03/mn/yuhuang -z 10.8.0.10 
-		-J /home/cmb-03/mn/yuhuang/bin/jdk/bin/java  -H
+		--javaPath /home/cmb-03/mn/yuhuang/bin/jdk/bin/java  -H
 	
 	
 	#2011-9-13 no ref index job, staging input files from localhost to uschpc, stage output files back to localhost
 	# modify the refFastaFile's path in xml manually
 	%s -i 1-3 -o ShortRead2Alignment_1_3_vs_524_local2uschpc.xml -u yh -a 524
 		-j local -l uschpc --needRefIndexJob -p secret -c --no_of_aln_threads 4 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10
-		-t /Network/Data/vervet/db/  -H
+		--data_dir /Network/Data/vervet/db/  -H
 	
 	# 2011-8-31 output the same workflow above but for condorpool
 	%s -i 391-397,456,473,493, -o workflow/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_condorpool.xml
@@ -90,16 +90,16 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import subprocess, cStringIO
-import VervetDB
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, yh_pegasus
+import copy
 from Pegasus.DAX3 import *
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, yh_pegasus
 from pymodule.pegasus.ShortRead2AlignmentWorkflow import ShortRead2AlignmentWorkflow
+from vervet.src import VervetDB
 
 
 class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 	__doc__ = __doc__
-	option_default_dict = ShortRead2AlignmentWorkflow.option_default_dict.copy()
+	option_default_dict = copy.deepcopy(ShortRead2AlignmentWorkflow.option_default_dict)
 	option_default_dict.pop(('refSequenceFname', 1, ))
 	option_default_dict.update({
 						('ref_ind_seq_id', 1, int): [120, 'a', 1, 'IndividualSequence.id. To pick alignments with this sequence as reference', ],\
@@ -165,10 +165,10 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		no_of_merging_jobs = 0
 		
 		alignmentFolder = "%sAlignment"%(outputDirPrefix)
-		alignmentFolderJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=alignmentFolder)
+		alignmentFolderJob = self.addMkDirJob(outputDir=alignmentFolder)
 		
 		oneLibraryAlignmentFolder = "%sOneLibAlignment"%(outputDirPrefix)
-		oneLibraryAlignmentFolderJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=oneLibraryAlignmentFolder)
+		oneLibraryAlignmentFolderJob = self.addMkDirJob(outputDir=oneLibraryAlignmentFolder)
 		
 		
 		for individual_sequence  in isqLs:
@@ -376,8 +376,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		"""
 		if workflow is None:
 			workflow = self
-		return yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, \
-										outputDir=dirName)
+		return self.addMkDirJob(outputDir=dirName)
 		#mkdirJob = Job(namespace=namespace, name=mkdirWrap.name, version=version)
 		#mkdirJob.addArguments(dirName)
 		#workflow.addJob(mkdirJob)
