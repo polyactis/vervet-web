@@ -272,7 +272,7 @@ echo %s
 			workflow.depends(parent=parentJob, child=job)
 		return job
 	
-	def addSplitReadFileJob(self, workflow, executable=None, \
+	def addSplitReadFileJob(self, workflow=None, executable=None, \
 							inputF=None, outputFnamePrefix=None, outputFnamePrefixTail="",\
 							minNoOfReads=5000000, logFile=None, parentJobLs=[], job_max_memory=2000, job_max_walltime = 800, \
 							extraDependentInputLs=[], \
@@ -292,10 +292,12 @@ echo %s
 			job_max_walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			
 		"""
+		if workflow is None:
+			workflow = self
 		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
 		job.addArguments(self.javaPath, repr(job_max_memory), workflow.SplitReadFileJar, inputF, outputFnamePrefix, \
 						repr(minNoOfReads))
-		
+		self.addJobUse(job, file=workflow.SplitReadFileJar, transfer=True, register=True, link=Link.INPUT)
 		job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
 		if logFile:
 			job.addArguments(logFile)

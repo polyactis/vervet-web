@@ -165,7 +165,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
 				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
 				MergeSamFilesJar=None, \
-				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
+				BuildBamIndexFilesJava=None, BuildBamIndexJar=None,\
 				mv=None, CallVariantBySamtools=None,\
 				trioCallerPath=None, trioCallerWrapper=None, \
 				replicateIndividualTag="copy", treatEveryOneIndependent=False,\
@@ -222,7 +222,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
-					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexJar=BuildBamIndexJar, \
 					mv=mv, namespace=namespace, version=version, data_dir=data_dir)
 		
 		# add merge jobs for every reference
@@ -479,7 +479,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
 				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
 				MergeSamFilesJar=None, \
-				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
+				BuildBamIndexFilesJava=None, BuildBamIndexJar=None,\
 				mv=None, CallVariantBySamtools=None,\
 				trioCallerPath=None, trioCallerWrapper=None, \
 				replicateIndividualTag="copy", treatEveryOneIndependent=False,\
@@ -793,7 +793,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
 						CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
 						MergeSamFilesJar=workflow.MergeSamFilesJar, \
-						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools, \
 						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, \
 						replicateIndividualTag=self.replicateIndividualTag, treatEveryOneIndependent=self.treatEveryOneIndependent,\
@@ -817,7 +817,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
 						CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
 						MergeSamFilesJar=workflow.MergeSamFilesJar, \
-						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools, \
 						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, \
 						replicateIndividualTag=self.replicateIndividualTag, treatEveryOneIndependent=self.treatEveryOneIndependent,\

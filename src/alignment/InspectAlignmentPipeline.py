@@ -106,6 +106,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 			'-R', refFastaF, '-o', DOCOutputFnamePrefix, "-pt sample", "--omitDepthOutputAtEachBase",\
 			"-mmq %s"%(minMappingQuality), "-mbq %s"%(minBaseQuality), "--read_filter BadCigar", \
 			'--omitLocusTable', '--omitIntervalStatistics')
+		self.addJobUse(DOCJob, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
 		DOCJob.addArguments("-I", bamF)
 		if fractionToSample and fractionToSample>0 and fractionToSample<=1:
 			DOCJob.addArguments("--fractionToSample %s"%(fractionToSample))
@@ -162,6 +163,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		job.addArguments("-I", bamF)
 		if extraArguments:
 			job.addArguments(extraArguments)
+		self.addJobUse(job, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
 		job.uses(bamF, transfer=True, register=True, link=Link.INPUT)
 		job.uses(baiF, transfer=True, register=True, link=Link.INPUT)
 		self.registerFilesAsInputToJob(job, refFastaFList)
@@ -199,7 +201,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				VariousReadCountJava=None,  GenomeAnalysisTKJar=None, \
 				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
 				addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
-				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
+				BuildBamIndexFilesJava=None, BuildBamIndexJar=None,\
 				MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir="/Network/Data/vervet/vervetPipeline/tmp/",\
 				mkdirWrap=None, mv=None, \
 				ReformatFlagstatOutput=None, PutFlagstatOutput2DB=None, PutDOCOutput2DB=None,\
@@ -267,7 +269,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
-					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexJar=BuildBamIndexJar, \
 					mv=mv, namespace=namespace, version=version, data_dir=data_dir, tmpDir=tmpDir)
 		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
 		no_of_jobs += 2
@@ -538,7 +540,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 				CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
 				addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
-				BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar,\
+				BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar,\
 				MarkDuplicatesJava=workflow.MarkDuplicatesJava, MarkDuplicatesJar=workflow.MarkDuplicatesJar, tmpDir=self.tmpDir,\
 				mkdirWrap=workflow.mkdirWrap, mv=workflow.mv, \
 				ReformatFlagstatOutput=workflow.ReformatFlagstatOutput, PutFlagstatOutput2DB=workflow.PutFlagstatOutput2DB, \

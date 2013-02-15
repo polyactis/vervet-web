@@ -229,7 +229,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 					outputBamFile=mergedBamFile, \
 					samtools=workflow.samtools, java=workflow.java, \
 					MergeSamFilesJava=workflow.MergeSamFilesJava, MergeSamFilesJar=workflow.MergeSamFilesJar, \
-					BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+					BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 					mv=workflow.mv, parentJobLs=[topOutputDirJob], \
 					transferOutput=False)
 			self.no_of_jobs += 1
@@ -284,7 +284,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 			extraArgumentList.append(extraArguments)
 		if extraDependentInputLs is None:
 			extraDependentInputLs=[]
-		extraDependentInputLs.extend([inputFile, VCFFile] + refFastaFList)
+		extraDependentInputLs.extend([inputFile, VCFFile, GenomeAnalysisTKJar] + refFastaFList)
 		
 		job= self.addGenericJob(executable=executable, inputFile=None, outputFile=None, \
 						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
@@ -324,7 +324,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 			extraArgumentList.append(extraArguments)
 		if extraDependentInputLs is None:
 			extraDependentInputLs=[]
-		extraDependentInputLs.extend([inputFile, recalFile] + refFastaFList)
+		extraDependentInputLs.extend([inputFile, recalFile, GenomeAnalysisTKJar] + refFastaFList)
 		
 		job= self.addGenericJob(executable=executable, inputFile=None, outputFile=None, \
 						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
@@ -334,7 +334,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		if needBAMIndexJob:
 			# add the index job on the bam file
 			bamIndexJob = self.addBAMIndexJob(BuildBamIndexFilesJava=self.BuildBamIndexFilesJava, \
-						BuildBamIndexFilesJar=self.BuildBamIndexFilesJar, \
+						BuildBamIndexJar=self.BuildBamIndexJar, \
 						inputBamF=job.output, parentJobLs=[job], \
 						transferOutput=transferOutput, job_max_memory=job_max_memory)
 		else:

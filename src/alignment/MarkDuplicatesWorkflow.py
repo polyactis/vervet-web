@@ -85,7 +85,7 @@ class MarkDuplicatesWorkflow(ShortRead2AlignmentPipeline):
 			inputFile = jobData.output
 			
 			bamIndexJob = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, \
-											BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+											BuildBamIndexJar=workflow.BuildBamIndexJar, \
 											inputBamF=inputFile,\
 											parentJobLs=[topOutputDirJob]+jobData.jobLs, transferOutput=False)
 			
@@ -98,7 +98,7 @@ class MarkDuplicatesWorkflow(ShortRead2AlignmentPipeline):
 						inputBamF=bamIndexJob.bamFile, \
 						inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
 						MarkDuplicatesJava=workflow.MarkDuplicatesJava, MarkDuplicatesJar=workflow.MarkDuplicatesJar, tmpDir=tmpDir,\
-						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 						transferOutput=True)
 			
 			no_of_jobs += 3

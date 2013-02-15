@@ -162,7 +162,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 					downsampleJob = self.addDownsampleSamJob(workflow, workflow.downsampleSamJava, workflow.downsampleSamJar, inputF=bamF, \
 									probToSample=probToSample, outputF=outputBamF, parentJobLs=parentJobLs+[downsampleDirJob], \
 									job_max_memory=downsamplerMaxMemory, extraDependentInputLs=[baiF], transferOutput=False)
-					index_sam_job = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+					index_sam_job = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 						inputBamF=outputBamF, parentJobLs=[downsampleJob], transferOutput=False, javaMaxMemory=2500)
 					newAlignmentData = PassingData(alignment=alignment)
 					#don't modify the old alignmentData as it will affect the original alignmentDataLs, which should remain same across different samplings
@@ -261,7 +261,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
 						CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
 						MergeSamFilesJar=workflow.MergeSamFilesJar, \
-						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools, \
 						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, pedFile=pedFile, \
 						sampleID2FamilyCountF=sampleID2FamilyCountF,\
