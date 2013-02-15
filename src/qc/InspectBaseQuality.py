@@ -27,9 +27,9 @@ else:   #32bit
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import random
-import VervetDB
 import matplotlib; matplotlib.use("Agg")	#to disable pop-up requirement
 from pymodule import PassingData, ProcessOptions, utils, yh_matplotlib
+from vervet.src import VervetDB
 
 class InspectBaseQuality(object):
 	__doc__ = __doc__
