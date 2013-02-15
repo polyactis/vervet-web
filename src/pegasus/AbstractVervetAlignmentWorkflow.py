@@ -42,11 +42,9 @@ class AbstractVervetAlignmentWorkflow(AbstractAlignmentWorkflow, AbstractVervetW
 	
 	getReferenceSequence=AbstractVervetWorkflow.getReferenceSequence
 	
-	def connectDB(self):
-		"""
-		"""
-		AbstractVervetWorkflow.connectDB(self)
+	connectDB =	AbstractVervetWorkflow.connectDB
 	
+		
 	def registerCustomExecutables(self, workflow=None):
 		
 		"""

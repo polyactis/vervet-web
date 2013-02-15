@@ -6,7 +6,7 @@ Examples:
 	# -N 1000 (top 1000 contigs)
 	#  -Z 10000000 (10 million bp for each interval) -B 30000 (30kb overlap between intervals),
 	%s -L ~/NetworkData/vervet/db/genotype_file/method_17/ -i 639-642
-		-S 447 -u yh -z localhost -Q1 -G2 -a 524 -o workflow/BaseQualityRecalibration/BaseQualityRecalibration_VRC447_vsMethod17.xml
+		-S 447 -u yh -z localhost -Q1 -G2 -a 524 -o dags/BaseQualityRecalibration/BaseQualityRecalibration_VRC447_vsMethod17.xml
 		-l hcondor -j hcondor -z localhost -u yh -N 1000  -Z 10000000 -B 30000
 		-e /u/home/eeskin/polyacti
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
@@ -14,7 +14,7 @@ Examples:
 
 	# 2012.9.18
 	%s  -L ~/NetworkData/vervet/db/genotype_file/method_41 -i 633,634,635,636,637,638 
-		-a 524 -o workflow/BaseQualityRecalibration/BaseQualityRecalibration_ISQ633_638_vsMethod41.xml -l hcondor
+		-a 524 -o dags/BaseQualityRecalibration/BaseQualityRecalibration_ISQ633_638_vsMethod41.xml -l hcondor
 		-j hcondor -z localhost -u yh -Z 10000000 -B 30000
 		-e /u/home/eeskin/polyacti
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
@@ -122,8 +122,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		"""
 		#2012.9.21 count covariates job is moved to map()
 		recalFile = File(os.path.join(topOutputDirJob.output, '%s_%s.recal_data.csv'%(bamFnamePrefix, chromosome)))
-		countCovariatesJob = self.addGATKCountCovariatesJob(workflow, executable=workflow.CountCovariatesJava, \
-								GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, inputFile=bamF, \
+		countCovariatesJob = self.addGATKBaseRecalibratorJob(GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, inputFile=bamF, \
 								VCFFile=VCFFile, interval=chromosome, outputFile=recalFile, \
 								refFastaFList=passingData.refFastaFList, parentJobLs=[topOutputDirJob]+parentJobLs, 
 								extraDependentInputLs=[baiF, VCFFile.tbi_F], \
@@ -178,8 +177,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		"""
 		
 		recalFile = File(os.path.join(topOutputDirJob.output, '%s_%s.recal_data.grp'%(bamFnamePrefix, overlapFilenameSignature)))
-		countCovariatesJob = self.addGATKCountCovariatesJob(workflow, executable=workflow.CountCovariatesJava, \
-								GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, inputFile=bamF, \
+		countCovariatesJob = self.addGATKBaseRecalibratorJob(GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, inputFile=bamF, \
 								VCFFile=VCFFile, interval=overlapInterval, outputFile=recalFile, \
 								refFastaFList=passingData.refFastaFList, parentJobLs=[topOutputDirJob]+parentJobLs, 
 								extraDependentInputLs=[baiF, VCFFile.tbi_F], \
@@ -190,8 +188,8 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		"""
 		
 		recalBAMFile = File(os.path.join(topOutputDirJob.output, '%s_%s.recal_data.bam'%(bamFnamePrefix, overlapFilenameSignature)))
-		tableRecalibrationJob, bamIndexJob2 = self.addGATKTableRecalibrationJob(workflow, executable=workflow.TableRecalibrationJava, \
-							GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, inputFile=bamF, \
+		tableRecalibrationJob, bamIndexJob2 = self.addGATKPrintRecalibratedReadsJob(GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, \
+							inputFile=bamF, \
 							recalFile=countCovariatesJob.recalFile, interval=overlapInterval, outputFile=recalBAMFile, \
 							refFastaFList=passingData.refFastaFList, parentJobLs=[countCovariatesJob] + parentJobLs, \
 							extraDependentInputLs=[baiF, VCFFile.tbi_F], transferOutput=False, \
@@ -252,7 +250,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 
 	
 	
-	def addGATKCountCovariatesJob(self, workflow=None, executable=None, GenomeAnalysisTKJar=None, inputFile=None, \
+	def addGATKBaseRecalibratorJob(self, workflow=None, executable=None, GenomeAnalysisTKJar=None, inputFile=None, \
 								VCFFile=None, interval=None, outputFile=None, \
 					refFastaFList=[], parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 					extraArguments=None, job_max_memory=2000, no_of_gatk_threads=1, **keywords):
@@ -274,6 +272,12 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 				-recalFile  454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.recal_data.csv
 				-B:mask,VCF 454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.GATK.vcf
 		"""
+		if workflow is None:
+			workflow = self
+		if executable is None:
+			executable = workflow.BaseRecalibratorJava
+		if GenomeAnalysisTKJar is None:
+			GenomeAnalysisTKJar = workflow.GenomeAnalysisTK2Jar
 		#GATK job
 		#MaxPermSize= min(35000, max(1024, job_max_memory*7/9))
 		memRequirementData = self.getJVMMemRequirment(job_max_memory=job_max_memory)
@@ -301,7 +305,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		job.recalFile = outputFile
 		return job
 	
-	def addGATKTableRecalibrationJob(self, workflow=None, executable=None, GenomeAnalysisTKJar=None, inputFile=None, \
+	def addGATKPrintRecalibratedReadsJob(self, workflow=None, executable=None, GenomeAnalysisTKJar=None, inputFile=None, \
 								recalFile=None, interval=None, outputFile=None, \
 					refFastaFList=[], parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 					extraArguments=None, job_max_memory=2000, no_of_gatk_threads=1, needBAMIndexJob=False, **keywords):
@@ -315,7 +319,12 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 				-T TableRecalibration  --out 454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.recal.bam 
 				-recalFile 454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.recal_data.csv
 		"""
-		#GATK job
+		if workflow is None:
+			workflow = self
+		if executable is None:
+			executable = workflow.PrintRecalibratedReadsJava
+		if GenomeAnalysisTKJar is None:
+			GenomeAnalysisTKJar = workflow.GenomeAnalysisTK2Jar
 		memRequirementData = self.getJVMMemRequirment(job_max_memory=job_max_memory)
 		#MaxPermSize= min(35000, max(1024, job_max_memory*7/9))
 		javaMemRequirement = memRequirementData.memRequirementInStr
@@ -361,8 +370,8 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 		
-		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='CountCovariatesJava', clusterSizeMultipler=0.5)
-		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='TableRecalibrationJava', clusterSizeMultipler=0.5)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='BaseRecalibratorJava', clusterSizeMultipler=0.5)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='PrintRecalibratedReadsJava', clusterSizeMultipler=0.5)
 
 if __name__ == '__main__':
 	main_class = AlignmentReadBaseQualityRecalibrationWorkflow
