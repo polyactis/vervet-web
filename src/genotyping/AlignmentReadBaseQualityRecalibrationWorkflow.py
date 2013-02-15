@@ -123,7 +123,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		#2012.9.21 count covariates job is moved to map()
 		recalFile = File(os.path.join(topOutputDirJob.output, '%s_%s.recal_data.csv'%(bamFnamePrefix, chromosome)))
 		countCovariatesJob = self.addGATKCountCovariatesJob(workflow, executable=workflow.CountCovariatesJava, \
-								GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, inputFile=bamF, \
+								GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, inputFile=bamF, \
 								VCFFile=VCFFile, interval=chromosome, outputFile=recalFile, \
 								refFastaFList=passingData.refFastaFList, parentJobLs=[topOutputDirJob]+parentJobLs, 
 								extraDependentInputLs=[baiF, VCFFile.tbi_F], \
@@ -177,13 +177,13 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 				extraArguments=None, job_max_memory=2000, needBAMIndexJob=True)
 		"""
 		
-		recalFile = File(os.path.join(topOutputDirJob.output, '%s_%s.recal_data.csv'%(bamFnamePrefix, overlapFilenameSignature)))
+		recalFile = File(os.path.join(topOutputDirJob.output, '%s_%s.recal_data.grp'%(bamFnamePrefix, overlapFilenameSignature)))
 		countCovariatesJob = self.addGATKCountCovariatesJob(workflow, executable=workflow.CountCovariatesJava, \
-								GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, inputFile=bamF, \
+								GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, inputFile=bamF, \
 								VCFFile=VCFFile, interval=overlapInterval, outputFile=recalFile, \
 								refFastaFList=passingData.refFastaFList, parentJobLs=[topOutputDirJob]+parentJobLs, 
 								extraDependentInputLs=[baiF, VCFFile.tbi_F], \
-								transferOutput=False, \
+								transferOutput=True, \
 								extraArguments=None, job_max_memory=4000)
 		"""
 		countCovariatesJob = mapEachChromosomeData.countCovariatesJob
@@ -191,7 +191,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		
 		recalBAMFile = File(os.path.join(topOutputDirJob.output, '%s_%s.recal_data.bam'%(bamFnamePrefix, overlapFilenameSignature)))
 		tableRecalibrationJob, bamIndexJob2 = self.addGATKTableRecalibrationJob(workflow, executable=workflow.TableRecalibrationJava, \
-							GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, inputFile=bamF, \
+							GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, inputFile=bamF, \
 							recalFile=countCovariatesJob.recalFile, interval=overlapInterval, outputFile=recalBAMFile, \
 							refFastaFList=passingData.refFastaFList, parentJobLs=[countCovariatesJob] + parentJobLs, \
 							extraDependentInputLs=[baiF, VCFFile.tbi_F], transferOutput=False, \
@@ -252,11 +252,17 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 
 	
 	
-	def addGATKCountCovariatesJob(self, workflow, executable=None, GenomeAnalysisTKJar=None, inputFile=None, \
+	def addGATKCountCovariatesJob(self, workflow=None, executable=None, GenomeAnalysisTKJar=None, inputFile=None, \
 								VCFFile=None, interval=None, outputFile=None, \
 					refFastaFList=[], parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 					extraArguments=None, job_max_memory=2000, no_of_gatk_threads=1, **keywords):
 		"""
+		2013.2.14 upgraded to GATK2's "-T BaseRecalibrator"
+		http://gatkforums.broadinstitute.org/discussion/44/base-quality-score-recalibration-bqsr
+			java -Xmx4g -jar GenomeAnalysisTK.jar -T BaseRecalibrator -I my_reads.bam -R resources/Homo_sapiens_assembly18.fasta
+				-knownSites bundle/hg18/dbsnp_132.hg18.vcf \
+				-knownSites another/optional/setOfSitesToMask.vcf \
+				-o recal_data.grp
 		2011-12-4
 			inputFile is a bam file.
 			outputFile is recalFile (csv file).
@@ -274,12 +280,11 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		#javaMemRequirement = "-Xms%sm -Xmx%sm -XX:PermSize=%sm -XX:MaxPermSize=%sm"%(job_max_memory*50/100, job_max_memory, \
 		#																			MaxPermSize*50/100, MaxPermSize)
 		refFastaFile = refFastaFList[0]
-		extraArgumentList = [memRequirementData.memRequirementInStr, '-jar', GenomeAnalysisTKJar, "-T", "CountCovariates",\
-						"-cov ReadGroupCovariate", "-cov QualityScoreCovariate", \
-						"-cov CycleCovariate", "-cov DinucCovariate", "-I", inputFile, "-R", refFastaFile,\
+		extraArgumentList = [memRequirementData.memRequirementInStr, '-jar', GenomeAnalysisTKJar, "-T BaseRecalibrator",\
+						"-I", inputFile, "-R", refFastaFile,\
 						"-L", interval, self.defaultGATKArguments, \
-						"-recalFile", outputFile,\
-						"-knownSites", VCFFile]
+						"-knownSites", VCFFile,\
+						"--out", outputFile]
 		if extraArguments:
 			extraArgumentList.append(extraArguments)
 		if extraDependentInputLs is None:
@@ -296,11 +301,14 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		job.recalFile = outputFile
 		return job
 	
-	def addGATKTableRecalibrationJob(self, workflow, executable=None, GenomeAnalysisTKJar=None, inputFile=None, \
+	def addGATKTableRecalibrationJob(self, workflow=None, executable=None, GenomeAnalysisTKJar=None, inputFile=None, \
 								recalFile=None, interval=None, outputFile=None, \
 					refFastaFList=[], parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 					extraArguments=None, job_max_memory=2000, no_of_gatk_threads=1, needBAMIndexJob=False, **keywords):
 		"""
+		2013.2.14 upgraded to GATK2's "-T PrintReads"
+			java -jar GenomeAnalysisTK.jar -T PrintReads -R reference.fasta -I input.bam -BQSR recalibration_report.grp 
+					-o output.bam
 		2012.7.27
 			java -jar ~/script/vervet/bin/GenomeAnalysisTK-1.0.4705/GenomeAnalysisTK.jar -l INFO 
 				-R ../../../../NCBI/hs_genome.fasta -I 454_vs_hg19.3eQTL.minPerBaseAS0.4.minMapQ125.score2.bam 
@@ -316,10 +324,10 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		#"-Xms%sm -Xmx%sm -XX:PermSize=%sm -XX:MaxPermSize=%sm"%(job_max_memory*50/100, job_max_memory, \
 		#																			MaxPermSize*50/100, MaxPermSize)
 		refFastaFile = refFastaFList[0]
-		extraArgumentList = [javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T", "TableRecalibration",\
+		extraArgumentList = [javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T PrintReads",\
 						"-I", inputFile, "-R", refFastaFile,\
 						"-L", interval, self.defaultGATKArguments,\
-						"-recalFile", recalFile, "--out", outputFile]
+						"-BQSR", recalFile, "--out", outputFile]
 		if extraArguments:
 			extraArgumentList.append(extraArguments)
 		if extraDependentInputLs is None:
@@ -342,7 +350,6 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		return job, bamIndexJob
 	
 	def registerCustomExecutables(self, workflow=None):
-		
 		"""
 		2011-11-28
 		"""
@@ -350,28 +357,12 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		
 		if workflow is None:
 			workflow = self
-		namespace = workflow.namespace
-		version = workflow.version
-		operatingSystem = workflow.operatingSystem
-		architecture = workflow.architecture
-		clusters_size = workflow.clusters_size
-		site_handler = workflow.site_handler
-		vervetSrcPath = self.vervetSrcPath
 		
 		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
-		
-		CountCovariatesJava = Executable(namespace=namespace, name="CountCovariatesJava", version=version, os=operatingSystem,\
-										arch=architecture, installed=True)
-		CountCovariatesJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		executableClusterSizeMultiplierList.append((CountCovariatesJava, 1))
-		
-		TableRecalibrationJava = Executable(namespace=namespace, name="TableRecalibrationJava", version=version, os=operatingSystem,\
-										arch=architecture, installed=True)
-		TableRecalibrationJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		executableClusterSizeMultiplierList.append((TableRecalibrationJava, 1))
-		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
-	
+		
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='CountCovariatesJava', clusterSizeMultipler=0.5)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='TableRecalibrationJava', clusterSizeMultipler=0.5)
 
 if __name__ == '__main__':
 	main_class = AlignmentReadBaseQualityRecalibrationWorkflow
