@@ -352,19 +352,19 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		return returnData
 	
 	def addVCFSubsetJobs(self, workflow=None, inputData=None, db_vervet=None, sampleIDFile=None, transferOutput=True,\
-						refFastaFList=None, genomeAnalysisTKJar=None,\
+						refFastaFList=None, GenomeAnalysisTKJar=None,\
 						maxContigID=None, outputDirPrefix=""):
 		"""
 		2012.10.5
 			add a GATK SelectVariants job to update AC/AF of the final VCF file
-			add argument refFastaFList, genomeAnalysisTKJar
+			add argument refFastaFList, GenomeAnalysisTKJar
 			
 		2012.5.9
 		"""
 		if workflow is None:
 			workflow = self
-		if genomeAnalysisTKJar is None:
-			genomeAnalysisTKJar = workflow.genomeAnalysisTKJar
+		if GenomeAnalysisTKJar is None:
+			GenomeAnalysisTKJar = workflow.GenomeAnalysisTKJar
 		if refFastaFList is None:
 			refFastaFList = self.refFastaFList
 		
@@ -405,7 +405,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 			VCF4OutputF = File(os.path.join(topOutputDir, '%s.niceformat.vcf'%commonPrefix))
 			vcfConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=workflow.SelectVariantsJava, \
-					genomeAnalysisTKJar=genomeAnalysisTKJar, inputF=vcfSubsetJob.output, outputF=VCF4OutputF, \
+					GenomeAnalysisTKJar=GenomeAnalysisTKJar, inputF=vcfSubsetJob.output, outputF=VCF4OutputF, \
 					refFastaFList=refFastaFList, parentJobLs=[vcfSubsetJob], \
 					extraDependentInputLs=[], transferOutput=False, \
 					extraArguments=None, job_max_memory=2000, interval=chr)
@@ -588,7 +588,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 				#upper bound is 42g. lower bound is 4g.
 			mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(workflow, \
 								executable=workflow.MergeVCFReplicateHaplotypesJava,\
-								genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+								GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 								inputF=inputF, outputF=outputVCF, \
 								replicateIndividualTag=replicateIndividualTag, \
 								refFastaFList=refFastaFList, \
@@ -810,7 +810,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 				sys.exit(0)
 			self.addVCFSubsetJobs(workflow, inputData=inputData, db_vervet=self.db_vervet, sampleIDFile=sampleIDFile, \
 						transferOutput=True,\
-						refFastaFList=self.refFastaFList, genomeAnalysisTKJar=self.genomeAnalysisTKJar,\
+						refFastaFList=self.refFastaFList, GenomeAnalysisTKJar=self.GenomeAnalysisTKJar,\
 						maxContigID=self.maxContigID, outputDirPrefix="")
 		elif self.run_type==2:
 			self.addVCF2PlinkJobs(workflow, inputData=inputData, db_vervet=self.db_vervet, minMAC=self.minMAC, minMAF=self.minMAF,\

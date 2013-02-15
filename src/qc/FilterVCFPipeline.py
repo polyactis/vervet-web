@@ -258,7 +258,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 						vcf2filterByDepthExtraDependentInputLs=[vcf2.tbi_F]
 					vcf1AfterDepthFilter = File(os.path.join(vcf1DepthFilterDir, '%s.depthFiltered.vcf'%(commonPrefix)))
 					vcf1FilterByDepthJob = self.addFilterVCFByDepthJob(workflow, FilterVCFByDepthJava=workflow.FilterVCFByDepthJava, \
-							genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+							GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 							refFastaFList=refFastaFList, inputVCFF=vcf1filterByDepthInput, outputVCFF=vcf1AfterDepthFilter, \
 							parentJobLs=lastRoundJobLs, \
 							alnStatForFilterF=alnStatForFilterF, \
@@ -273,7 +273,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 					
 					vcf2AfterDepthFilter = File(os.path.join(vcf2DepthFilterDir, '%s.depthFiltered.vcf'%(commonPrefix)))
 					vcf2FilterByDepthJob = self.addFilterVCFByDepthJob(workflow, FilterVCFByDepthJava=workflow.FilterVCFByDepth2Java, \
-							genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+							GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 							refFastaFList=refFastaFList, inputVCFF=vcf2filterByDepthInput, outputVCFF=vcf2AfterDepthFilter, \
 							parentJobLs=vcf2filterByDepthParentJobLs, \
 							alnStatForFilterF=alnStatForFilterF, \
@@ -504,7 +504,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			if alnStatForFilterF:
 				vcf1AfterDepthFilter = File(os.path.join(vcf1DepthFilterDir, '%s.filterByDepth.vcf'%(commonPrefix)))
 				vcf1FilterByDepthJob = self.addFilterVCFByDepthJob(workflow, FilterVCFByDepthJava=workflow.FilterVCFByDepthJava, \
-						genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+						GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 						refFastaFList=refFastaFList, inputVCFF=lastBGZipTabixJob.output, outputVCFF=vcf1AfterDepthFilter, \
 						parentJobLs=lastRoundJobLs, \
 						alnStatForFilterF=alnStatForFilterF, \

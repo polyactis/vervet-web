@@ -257,10 +257,10 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 			
 			genotypeCallJobData = self.addGenotypeCallJobs(workflow, alignmentDataLs, refName2size, samtools=workflow.samtools, \
 						genotyperJava=workflow.genotyperJava,  SelectVariantsJava=workflow.SelectVariantsJava, \
-						genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar, \
-						createSequenceDictionaryJava=workflow.createSequenceDictionaryJava, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, \
-						mergeSamFilesJar=workflow.mergeSamFilesJar, \
+						GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
+						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
+						CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
+						MergeSamFilesJar=workflow.MergeSamFilesJar, \
 						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools, \
 						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, pedFile=pedFile, \

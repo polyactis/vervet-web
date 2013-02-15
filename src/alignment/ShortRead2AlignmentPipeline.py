@@ -127,11 +127,11 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					isqLs=None,\
 					refSequence=None, refFastaFList=None, refIndexJob=None,
 					workflow=None, bwa=None, additionalArguments=None, samtools=None, mkdirWrap=None, mv=None,\
-					java=None, mergeSamFilesJava=None, mergeSamFilesJar=None, \
+					java=None, MergeSamFilesJava=None, MergeSamFilesJar=None, \
 					MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir='/tmp',\
 					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
-					SortSamFilesJava=None, SortSamFilesJar=None, \
-					addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None,\
+					SortSamFilesJava=None, SortSamJar=None, \
+					addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None,\
 					alignment_method_name='bwa-short-read', alignment_format='bam',\
 					namespace='workflow', version='1.0', transferOutput=False,\
 					PEAlignmentByBWA=None, ShortSEAlignmentByBWA=None, LongSEAlignmentByBWA=None, \
@@ -254,8 +254,8 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 							outputDir=tmpOutputDir, namespace=namespace, version=version,\
 							PEAlignmentByBWA=PEAlignmentByBWA, ShortSEAlignmentByBWA=ShortSEAlignmentByBWA, \
 							LongSEAlignmentByBWA=LongSEAlignmentByBWA,\
-							java=java, SortSamFilesJava=SortSamFilesJava, SortSamFilesJar=SortSamFilesJar,\
-							addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar,\
+							java=java, SortSamFilesJava=SortSamFilesJava, SortSamJar=SortSamJar,\
+							addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar,\
 							no_of_aln_threads=no_of_aln_threads, stampy=stampy)
 						no_of_alignment_jobs += 1
 						
@@ -268,7 +268,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 												inputBamFile=alignmentJob.output, \
 												outputBamFile=outputRGBAM,\
 												addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, \
-												addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar,\
+												AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar,\
 												parentJobLs=[alignmentJob, mkdirJob], extraDependentInputLs=None, \
 												extraArguments=None, job_max_memory = 2500, transferOutput=False)
 							AlignmentJobAndOutputLs.append([addRGJob, addRGJob.output])
@@ -279,7 +279,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 												inputBamFile=alignmentJob.output, \
 												outputBamFile=outputRGBAM,\
 												addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, \
-												addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar,\
+												AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar,\
 												parentJobLs=[alignmentJob, mkdirJob], extraDependentInputLs=None, \
 												extraArguments=None, job_max_memory = 2500, transferOutput=False)
 							oneLibraryAlignmentJobAndOutputLs.append([addRGJob, addRGJob.output])
@@ -291,7 +291,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 											AlignmentJobAndOutputLs=oneLibraryAlignmentJobAndOutputLs, \
 											outputBamFile=mergedBamFile, \
 											samtools=samtools, java=java, \
-											mergeSamFilesJava=mergeSamFilesJava, mergeSamFilesJar=mergeSamFilesJar, \
+											MergeSamFilesJava=MergeSamFilesJava, MergeSamFilesJar=MergeSamFilesJar, \
 											BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 											mv=mv, namespace=namespace, version=version, \
 											transferOutput=False, parentJobLs=[oneLibraryAlignmentFolderJob])
@@ -326,7 +326,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					alignmentMergeJob, bamIndexJob = self.addAlignmentMergeJob(workflow, AlignmentJobAndOutputLs=AlignmentJobAndOutputLs, \
 										outputBamFile=mergedBamFile, \
 										samtools=samtools, java=java, \
-										mergeSamFilesJava=mergeSamFilesJava, mergeSamFilesJar=mergeSamFilesJar, \
+										MergeSamFilesJava=MergeSamFilesJava, MergeSamFilesJar=MergeSamFilesJar, \
 										BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 										mv=mv, namespace=namespace, version=version, \
 										transferOutput=False, parentJobLs=[alignmentFolderJob])
@@ -688,11 +688,11 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					samtools=workflow.samtools, \
 					mkdirWrap=workflow.mkdirWrap, mv=workflow.cp, \
 					java=workflow.java, \
-					mergeSamFilesJava=workflow.mergeSamFilesJava, mergeSamFilesJar=workflow.mergeSamFilesJar, \
+					MergeSamFilesJava=workflow.MergeSamFilesJava, MergeSamFilesJar=workflow.MergeSamFilesJar, \
 					MarkDuplicatesJava=workflow.MarkDuplicatesJava, MarkDuplicatesJar=workflow.MarkDuplicatesJar, tmpDir=self.tmpDir,\
 					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
-					SortSamFilesJava=workflow.SortSamFilesJava, SortSamFilesJar=workflow.SortSamFilesJar, \
-					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar,\
+					SortSamFilesJava=workflow.SortSamFilesJava, SortSamJar=workflow.SortSamJar, \
+					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar,\
 					alignment_method_name=self.alignment_method_name, alignment_format='bam',\
 					
 					namespace=workflow.namespace, version=workflow.version, transferOutput=self.stageOutFinalOutput,\

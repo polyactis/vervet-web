@@ -141,10 +141,10 @@ class AlignmentToCallPipelineForLowPass(AlignmentToCallPipeline):
 			
 			
 			self.addGenotypeCallJobs(workflow, alignmentLs, refName2size, samtools=workflow.samtools, \
-					genotyperJava=workflow.genotyperJava, genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar, \
-					createSequenceDictionaryJava=workflow.createSequenceDictionaryJava, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, \
-					mergeSamFilesJar=workflow.mergeSamFilesJar, \
+					genotyperJava=workflow.genotyperJava, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
+					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
+					CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
+					MergeSamFilesJar=workflow.MergeSamFilesJar, \
 					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 					mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
 					bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \

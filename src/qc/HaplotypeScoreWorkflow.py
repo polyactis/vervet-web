@@ -154,7 +154,7 @@ class HaplotypeScoreWorkflow(parentClass):
 		annotationName = passingData.annotationName
 		outputFile = File(os.path.join(topOutputDirJob.output, '%s_%s.%s.vcf'%(bamFnamePrefix, overlapFilenameSignature, annotationName)))
 		variantAnnotatorJob = self.addGATKVariantAnnotatorJob(workflow, executable=workflow.annotateVariantJava, \
-								genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, bamFile=bamF, \
+								GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, bamFile=bamF, \
 								VCFFile=VCFFile, annotationName=annotationName, interval=bcftoolsInterval, outputFile=outputFile, \
 								refFastaFList=passingData.refFastaFList, parentJobLs=[topOutputDirJob]+parentJobLs, 
 								extraDependentInputLs=[baiF, VCFFile.tbi_F], \
@@ -186,7 +186,7 @@ class HaplotypeScoreWorkflow(parentClass):
 							parentJobLs=[mapEachIntervalData.extractInfoJob])
 	
 	
-	def addGATKVariantAnnotatorJob(self, workflow, executable=None, genomeAnalysisTKJar=None, bamFile=None, \
+	def addGATKVariantAnnotatorJob(self, workflow, executable=None, GenomeAnalysisTKJar=None, bamFile=None, \
 								VCFFile=None, annotationName='HaplotypeScore', interval=None, outputFile=None, \
 								refFastaFList=[], parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 								extraArguments=None, job_max_memory=2000, no_of_gatk_threads=1, **keywords):
@@ -207,7 +207,7 @@ class HaplotypeScoreWorkflow(parentClass):
 		#javaMemRequirement = "-Xms%sm -Xmx%sm -XX:PermSize=%sm -XX:MaxPermSize=%sm"%(job_max_memory*50/100, job_max_memory, \
 		#																			MaxPermSize*50/100, MaxPermSize)
 		refFastaFile = refFastaFList[0]
-		extraArgumentList = [memRequirementData.memRequirementInStr, '-jar', genomeAnalysisTKJar, "-T", "VariantAnnotator",\
+		extraArgumentList = [memRequirementData.memRequirementInStr, '-jar', GenomeAnalysisTKJar, "-T", "VariantAnnotator",\
 						"-I", bamFile, "-o", outputFile, \
 						"--annotation", annotationName, self.defaultGATKArguments, \
 						" --variant", VCFFile, '-L', interval, "-R", refFastaFile]

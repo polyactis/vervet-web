@@ -70,8 +70,8 @@ class BootstrapCompareAlleleFrequencyOfTwoPopulation(CompareAlleleFrequencyOfTwo
 		listArgumentName2hasContent = self.processListArguments(listArgumentName_data_type_ls, emptyContent=[])
 		"""
 	def addAllJobs(self, workflow=None, inputVCFData=None, chr2IntervalDataLs=None, \
-				genomeAnalysisTKJar=None, samtools=None, \
-				createSequenceDictionaryJava=None, createSequenceDictionaryJar=None, \
+				GenomeAnalysisTKJar=None, samtools=None, \
+				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
 				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
 				mv=None, \
 				refFastaFList=None, \
@@ -89,8 +89,8 @@ class BootstrapCompareAlleleFrequencyOfTwoPopulation(CompareAlleleFrequencyOfTwo
 			oneSamplingReturnData = CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder.addAllJobs(self, \
 					workflow=workflow, inputVCFData=inputVCFData, \
 					chr2IntervalDataLs=chr2IntervalDataLs, samtools=samtools, \
-				genomeAnalysisTKJar=genomeAnalysisTKJar, \
-				createSequenceDictionaryJava=createSequenceDictionaryJava, createSequenceDictionaryJar=createSequenceDictionaryJar, \
+				GenomeAnalysisTKJar=GenomeAnalysisTKJar, \
+				CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, \
 				BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar,\
 				mv=mv, \
 				refFastaFList=refFastaFList,\
