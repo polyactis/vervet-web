@@ -10,7 +10,7 @@ Examples:
 		-l hcondor -j hcondor -z localhost -u yh -N 1000  -Z 10000000 -B 30000
 		-e /u/home/eeskin/polyacti
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-H -J ~/bin/jdk/bin/java --mask_genotype_method_id 17
+		--needSSHDBTunnel -J ~/bin/jdk/bin/java --mask_genotype_method_id 17
 
 	# 2012.9.18
 	%s  -L ~/NetworkData/vervet/db/genotype_file/method_41 -i 633,634,635,636,637,638 
@@ -18,7 +18,7 @@ Examples:
 		-j hcondor -z localhost -u yh -Z 10000000 -B 30000
 		-e /u/home/eeskin/polyacti
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-C 5 -H -J ~/bin/jdk/bin/java --mask_genotype_method_id 41
+		-C 5 --needSSHDBTunnel -J ~/bin/jdk/bin/java --mask_genotype_method_id 41
 		
 Description:
 	#2012.9.21  recalibration needs ~500K reads to get accurate estimate. So adjust the -Z according to coverage.  
