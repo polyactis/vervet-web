@@ -23,10 +23,9 @@ else:   #32bit
 	sys.path.insert(0, os.path.expanduser('~/lib/python'))
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import random
 from pymodule import PassingData, ProcessOptions, utils, yh_matplotlib
 from pymodule.AbstractDBInteractingClass import AbstractDBInteractingClass
-from mapper.RegisterAndMoveSplitSequenceFiles import RegisterAndMoveSplitSequenceFiles
+from vervet.src.mapper.RegisterAndMoveSplitSequenceFiles import RegisterAndMoveSplitSequenceFiles
 from vervet.src import VervetDB	#have to import it from vervet.src, not directly cuz that's how it's imported in RegisterAndMoveSplitSequenceFiles
 
 
