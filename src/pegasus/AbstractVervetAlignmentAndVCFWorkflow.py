@@ -61,6 +61,12 @@ class AbstractVervetAlignmentAndVCFWorkflow(AbstractVervetWorkflow, AbstractAlig
 		executableClusterSizeMultiplierList = []
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 	
+	def run(self):
+		"""
+		2013.2.14 overwrite the default : AbstractVervetWorkflow.run()
+		"""
+		AbstractAlignmentAndVCFWorkflow.run(self)
+
 if __name__ == '__main__':
 	main_class = AbstractVervetAlignmentAndVCFWorkflow
 	po = ProcessOptions(sys.argv, main_class.option_default_dict, error_doc=main_class.__doc__)
