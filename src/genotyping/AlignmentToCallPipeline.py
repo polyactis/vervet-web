@@ -190,17 +190,17 @@ class AlignmentToCallPipeline(parentClass):
 			dictFile = File(dictFname)
 			createSeqDictJob.addArguments('-jar', CreateSequenceDictionaryJar, \
 								"R=", fastaFile, 'O=', dictFile)
+			self.addJobUse(createSeqDictJob, file=CreateSequenceDictionaryJar, transfer=True, register=True, link=Link.INPUT)
 			createSeqDictJob.uses(dictFile, transfer=True, register=True, link=Link.OUTPUT)	#time to discard them
 			createSeqDictJob.uses(fastaFile, transfer=True, register=True, link=Link.OUTPUT)	#time to discard them
 			workflow.addJob(createSeqDictJob)
 			workflow.depends(parent=selectAndSplitFastaJob, child=createSeqDictJob)
 			
-			
 			chr2jobDataLs[chr] = [fai_index_job, fastaFAIIndexFile, createSeqDictJob, fastaFile, dictFile]
 		return PassingData(chr2jobDataLs=chr2jobDataLs, workflow=workflow)
 	
 	def addSelectAndSplitBamJobs(self, db_vervet, workflow, alignmentLs, site_handler, maxContigID, chrLs, samtools=None, \
-							java=None, AddOrReplaceReadGroupsAndCleanSQHeaderJar=None, BuildBamIndexFilesJar=None, mkdir=None, namespace="workflow",\
+							java=None, AddOrReplaceReadGroupsAndCleanSQHeaderJar=None, BuildBamIndexJar=None, mkdir=None, namespace="workflow",\
 							version="1.0", mkCallDirJob=None,\
 							addRGExecutable=None, data_dir=None):
 		"""
@@ -215,9 +215,9 @@ class AlignmentToCallPipeline(parentClass):
 		for alignment in alignmentLs:
 			# Add input file to the DAX-level replica catalog
 			inputFname = os.path.join(data_dir, alignment.path)
-			input = File(inputFname)
-			input.addPFN(PFN("file://" + inputFname, site_handler))
-			workflow.addFile(input)
+			inputFile = File(inputFname)
+			inputFile.addPFN(PFN("file://" + inputFname, site_handler))
+			workflow.addFile(inputFile)
 			
 			inputFileBaseNamePrefix = os.path.splitext(os.path.basename(alignment.path))[0]
 			outputDir = inputFileBaseNamePrefix
@@ -236,7 +236,7 @@ class AlignmentToCallPipeline(parentClass):
 			mkdirJob = Job(namespace=namespace, name=mkdir.name, version=version)
 			
 			mkdirJob.addArguments(outputDir)
-			#mkdir.uses(input, transfer=True, register=True, link=Link.INPUT)	#don't add this file. otherwise it'll be staged. transfer=False will result deletion of original file.
+			#mkdir.uses(inputFile, transfer=True, register=True, link=Link.INPUT)	#don't add this file. otherwise it'll be staged. transfer=False will result deletion of original file.
 			workflow.addJob(mkdirJob)
 			workflow.depends(parent=mkCallDirJob, child=mkdirJob)
 			
@@ -249,15 +249,15 @@ class AlignmentToCallPipeline(parentClass):
 				outputFname = os.path.join(outputDir, '%s_%s.bam'%(inputFileBaseNamePrefix, chr))
 				#outputFname = '%s_%s.bam'%(inputFileBaseNamePrefix, chr)
 				output = File(outputFname)
-				selectRefJob.addArguments('view', '-h', input, chr, "-o", output, "-b", "-u")	# -b -u forces uncompressed bam output
-				#selectRefJob.uses(input, transfer=True, register=True, link=Link.INPUT)	#don't add this file. otherwise it'll be staged. transfer=False will result deletion of original file.
+				selectRefJob.addArguments('view', '-h', inputFile, chr, "-o", output, "-b", "-u")	# -b -u forces uncompressed bam output
+				#selectRefJob.uses(inputFile, transfer=True, register=True, link=Link.INPUT)	#don't add this file. otherwise it'll be staged. transfer=False will result deletion of original file.
 				workflow.addJob(selectRefJob)
 				workflow.depends(parent=mkdirJob, child=selectRefJob)
 				
 				# add the index job
 				index_1_job = Job(namespace=namespace, name=samtools.name, version=version)
 				index_1_job.addArguments("index", output)
-				#index_1_job.uses(output, transfer=True, register=False, link=Link.INPUT)	#this file is input & output
+				#index_1_job.uses(output, transfer=True, register=False, link=Link.INPUT)	#this file is inputFile & output
 				index_1_job.uses(output, transfer=False, register=True, link=Link.OUTPUT)	#registering here would result in their early deletion.
 				bai_output = File('%s.bai'%outputFname)
 				index_1_job.uses(bai_output, transfer=False, register=True, link=Link.OUTPUT)
@@ -279,14 +279,8 @@ class AlignmentToCallPipeline(parentClass):
 									'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
 									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
 									'OUTPUT=', outputRGSAM, 'SQName=%s'%(chr))	#'SORT_ORDER=coordinate', (adding this is useless)
-				"""
+				self.addJobUse(addRGJob, file=AddOrReplaceReadGroupsAndCleanSQHeaderJar, transfer=True, register=True, link=Link.INPUT)
 				
-				#addRGJob.addArguments('-jar', AddOrReplaceReadGroupsJar, \
-									"INPUT=", output,\
-									'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
-									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
-									'OUTPUT=', outputRGSAM)	#'SORT_ORDER=coordinate', (adding this is useless)
-				"""
 				addRGJob.uses(output, transfer=False, register=True, link=Link.INPUT)	#time to discard them
 				addRGJob.uses(bai_output, transfer=False, register=True, link=Link.INPUT)	#time to discard them
 				addRGJob.uses(outputRGSAM, transfer=False, register=True, link=Link.OUTPUT)	#time to discard them
@@ -307,7 +301,7 @@ class AlignmentToCallPipeline(parentClass):
 				# add the index job
 				index_sam_job = Job(namespace=namespace, name=java.name, version=version)
 				bai_output = File('%s.bai'%outputRGFname)
-				index_sam_job.addArguments("-Xms128m", "-Xmx2500m", "-jar", BuildBamIndexFilesJar, "VALIDATION_STRINGENCY=LENIENT", \
+				index_sam_job.addArguments("-Xms128m", "-Xmx2500m", "-jar", BuildBamIndexJar, "VALIDATION_STRINGENCY=LENIENT", \
 								"INPUT=", outputRG, \
 								"OUTPUT=", bai_output)
 				index_sam_job.uses(outputRG, transfer=False, register=False, link=Link.INPUT)	#write this as OUTPUT, otherwise it'll be deleted and next program won't know 
@@ -316,7 +310,7 @@ class AlignmentToCallPipeline(parentClass):
 				"""
 				samtools_index_job = Job(namespace=namespace, name=samtools.name, version=version)
 				samtools_index_job.addArguments("index", outputRG)
-				#samtools_index_job.uses(output, transfer=True, register=False, link=Link.INPUT)	#this file is input & output
+				#samtools_index_job.uses(output, transfer=True, register=False, link=Link.INPUT)	#this file is inputFile & output
 				samtools_index_job.uses(outputRG, transfer=True, register=True, link=Link.OUTPUT)	#registering here would result in their early deletion.
 				bai_output = File('%s.bai'%outputRGFname)
 				samtools_index_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
@@ -369,7 +363,8 @@ class AlignmentToCallPipeline(parentClass):
 			fastaDictJob = Job(namespace=namespace, name=java.name, version=version)
 			fastaDictJob.addArguments('-jar', CreateSequenceDictionaryJar, \
 					'REFERENCE=', refFastaF, 'OUTPUT=', refFastaDictF)
-			fastaDictJob.uses(refFastaF, register=False, link=Link.INPUT)
+			self.addJobUse(fastaDictJob, file=CreateSequenceDictionaryJar, transfer=True, register=True, link=Link.INPUT)
+			fastaDictJob.uses(refFastaF, transfer=True, register=False, link=Link.INPUT)
 			fastaDictJob.uses(refFastaDictF, transfer=True, register=False, link=Link.OUTPUT)
 			workflow.addJob(fastaDictJob)
 		else:
@@ -400,6 +395,7 @@ class AlignmentToCallPipeline(parentClass):
 			picard_job.addArguments('-jar', MergeSamFilesJar, \
 				'USE_THREADING=true', 'SORT_ORDER=coordinate', 'ASSUME_SORTED=false', 'OUTPUT=', picard_output)
 			#picard_job.uses(picard_output, transfer=False, register=False, link=Link.OUTPUT)	#registering here would result in their early deletion.
+			self.addJobUse(picard_job, file=MergeSamFilesJar, transfer=True, register=True, link=Link.INPUT)
 			workflow.addJob(picard_job)
 			
 			for jobData in jobDataLs:
@@ -439,6 +435,7 @@ class AlignmentToCallPipeline(parentClass):
 					'-U', '-S SILENT', "-nt 4")
 				if site_type==1:
 					gatk_job.addArguments('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
+				self.addJobUse(gatk_job, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
 				gatk_job.uses(bai_output, transfer=False, register=True, link=Link.INPUT)	#make sure the bai file is still there upon start of this job 
 				gatk_job.uses(picard_output, transfer=False, register=True, link=Link.INPUT)
 				
@@ -513,7 +510,7 @@ class AlignmentToCallPipeline(parentClass):
 	
 	def addAddRG2BamJobsAsNeeded(self, workflow, alignmentDataLs, site_handler, input_site_handler=None, \
 							addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
-							BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
+							BuildBamIndexFilesJava=None, BuildBamIndexJar=None, \
 							mv=None, namespace="workflow", version="1.0", \
 							data_dir=None, tmpDir="/tmp"):
 		"""
@@ -544,7 +541,7 @@ class AlignmentToCallPipeline(parentClass):
 			if alignment.read_group_added!=1:
 				if addRG2BamDir is None:
 					addRG2BamDir = "addRG2Bam"
-					addRG2BamDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=addRG2BamDir)
+					addRG2BamDirJob = self.addMkDirJob(outputDir=addRG2BamDir)
 				
 				# add RG to this bam
 				sequencer = alignment.individual_sequence.sequencer
@@ -568,7 +565,8 @@ class AlignmentToCallPipeline(parentClass):
 									'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
 									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
 									'OUTPUT=', outputRGSAM, 'SORT_ORDER=coordinate', "VALIDATION_STRINGENCY=LENIENT")
-									#(adding the SORT_ORDER doesn't do sorting but it marks the header as sorted so that BuildBamIndexFilesJar won't fail.)
+									#(adding the SORT_ORDER doesn't do sorting but it marks the header as sorted so that BuildBamIndexJar won't fail.)
+				self.addJobUse(addRGJob, file=AddOrReplaceReadGroupsJar, transfer=True, register=True, link=Link.INPUT)
 				if tmpDir:
 					addRGJob.addArguments("TMP_DIR=%s"%tmpDir)
 				addRGJob.uses(bamF, transfer=True, register=True, link=Link.INPUT)
@@ -581,7 +579,7 @@ class AlignmentToCallPipeline(parentClass):
 				workflow.addJob(addRGJob)
 				
 				
-				index_sam_job = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+				index_sam_job = self.addBAMIndexJob(workflow, BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 					inputBamF=outputRGSAM, parentJobLs=[addRGJob], transferOutput=True, javaMaxMemory=2000)
 				newAlignmentData = PassingData(alignment=alignment)
 				newAlignmentData.jobLs = [index_sam_job, addRGJob]
@@ -606,17 +604,13 @@ class AlignmentToCallPipeline(parentClass):
 					bai_output = File('%s.bai'%outputRGSAMFname)
 					index_sam_job.uses(bai_output, transfer=True, register=False, link=Link.OUTPUT)
 				
-				index_sam_job.addArguments("-Xms128m -Xmx%sm"%indexJobMaxMem, "-jar", BuildBamIndexFilesJar, "VALIDATION_STRINGENCY=LENIENT", \
-								"INPUT=", bamF, \
-								"OUTPUT=", bai_output)
-				# bamF is in relative path, either symlink to inputFname (same site) or outputRGSAM (different site)
-				index_sam_job.uses(bamF, transfer=True, register=False, link=Link.INPUT)
+				index_sam_job
 				
 				yh_pegasus.setJobProperRequirement(index_sam_job, job_max_memory=indexJobMaxMem)
 				
 				workflow.addJob(index_sam_job)
 				workflow.depends(parent=mvJob, child=index_sam_job)
-				alignmentId2RGJobDataLs[alignment.id]= [index_sam_job, input, bai_output]
+				alignmentId2RGJobDataLs[alignment.id]= [index_sam_job, inputFile, bai_output]
 				"""
 				no_of_rg_jobs += 1
 			else:
@@ -630,7 +624,7 @@ class AlignmentToCallPipeline(parentClass):
 				addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
 				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
 				MergeSamFilesJar=None, \
-				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
+				BuildBamIndexFilesJava=None, BuildBamIndexJar=None,\
 				mv=None, CallVariantBySamtools=None,\
 				bgzip_tabix=None, vcf_convert=None, vcf_isec=None, vcf_concat=None, \
 				concatGATK=None, concatSamtools=None,\
@@ -676,7 +670,7 @@ class AlignmentToCallPipeline(parentClass):
 		
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
-					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexJar=BuildBamIndexJar, \
 					mv=mv, namespace=namespace, version=version, data_dir=data_dir)
 		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
 		
@@ -872,6 +866,7 @@ class AlignmentToCallPipeline(parentClass):
 					'-U', '-S LENIENT', "-genotypeMergeOptions PRIORITIZE")	#no support for multi-threading
 				genotypeUnionJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
 				genotypeUnionJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
+				self.addJobUse(DOCJob, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
 				genotypeUnionJob.uses(gatkOutputF, transfer=True, register=True, link=Link.INPUT)
 				genotypeUnionJob.uses(samtoolsOutputF, transfer=True, register=True, link=Link.INPUT)
 				genotypeUnionJob.uses(unionOutputF, transfer=True, register=True, link=Link.OUTPUT)
@@ -890,6 +885,7 @@ class AlignmentToCallPipeline(parentClass):
 					'-U', '-S LENIENT')	#no support for multi-threading
 				genotypeIntersectionJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
 				genotypeIntersectionJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
+				self.addJobUse(DOCJob, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
 				genotypeIntersectionJob.uses(unionOutputF, transfer=True, register=True, link=Link.INPUT)
 				genotypeIntersectionJob.uses(intersectionOutputF, transfer=True, register=True, link=Link.OUTPUT)
 				workflow.addJob(genotypeIntersectionJob)
@@ -975,20 +971,6 @@ class AlignmentToCallPipeline(parentClass):
 		sys.stderr.write("Done.\n")
 		return bamListF
 	
-	def addMkDirJob(self, workflow, mkdir=None, outputDir=None, namespace=None, version=None):
-		"""
-		2011-9-14
-		"""
-		return yh_pegasus.addMkDirJob(workflow, mkdir=mkdir, outputDir=outputDir, namespace=namespace, version=version)
-		"""
-		# Add a mkdir job for any directory.
-		mkDirJob = Job(namespace=namespace, name=mkdir.name, version=version)
-		mkDirJob.addArguments(outputDir)
-		mkDirJob.folder = outputDir	#custom attribute
-		workflow.addJob(mkDirJob)
-		return mkDirJob
-		"""
-	
 	def addGATKCallJob(self, workflow, genotyperJava=None, GenomeAnalysisTKJar=None, gatkOutputF=None, gatkIDXOutput=None, \
 					refFastaFList=[], parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
 					extraArguments=None, job_max_memory=2000, no_of_gatk_threads=1, site_type=2, interval=None, **keywords):
@@ -1023,6 +1005,7 @@ class AlignmentToCallPipeline(parentClass):
 				job.addArguments("-L", interval)
 		for refFastaFile in refFastaFList:
 			job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
+		self.addJobUse(job, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
 		job.uses(gatkOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		job.uses(gatkIDXOutput, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		job.output = gatkOutputF
@@ -1035,9 +1018,9 @@ class AlignmentToCallPipeline(parentClass):
 				if parentJob:
 					workflow.depends(parent=parentJob, child=job)
 		if extraDependentInputLs:
-			for input in extraDependentInputLs:
-				if input:
-					job.uses(input, transfer=True, register=True, link=Link.INPUT)
+			for inputFile in extraDependentInputLs:
+				if inputFile:
+					self.addJobUse(job, file=inputFile, transfer=True, register=True, link=Link.INPUT)
 		return job
 	
 	def addSAMtoolsCallJob(self, workflow, CallVariantBySamtools=None, samtoolsOutputF=None, indelVCFOutputF=None, \
@@ -1074,9 +1057,9 @@ class AlignmentToCallPipeline(parentClass):
 				if parentJob:
 					workflow.depends(parent=parentJob, child=job)
 		if extraDependentInputLs:
-			for input in extraDependentInputLs:
-				if input:
-					job.uses(input, transfer=True, register=True, link=Link.INPUT)
+			for inputFile in extraDependentInputLs:
+				if inputFile:
+					job.uses(inputFile, transfer=True, register=True, link=Link.INPUT)
 		return job
 	
 	def registerCustomExecutables(self, workflow=None):
@@ -1221,15 +1204,15 @@ class AlignmentToCallPipeline(parentClass):
 			dirPrefix = ""
 			# Add a mkdir job for the call directory.
 			callOutputDir = "%scall"%(dirPrefix)
-			callOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=callOutputDir)
+			callOutputDirJob = self.addMkDirJob(outputDir=callOutputDir)
 			gatkDir = "%sgatk"%(dirPrefix)
-			gatkDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=gatkDir)
+			gatkDirJob = self.addMkDirJob(outputDir=gatkDir)
 			samtoolsDir = "%ssamtools"%(dirPrefix)
-			samtoolsDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=samtoolsDir)
+			samtoolsDirJob = self.addMkDirJob(outputDir=samtoolsDir)
 			unionDir = "%sgatk_samtools_union"%(dirPrefix)
-			unionDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=unionDir)
+			unionDirJob = self.addMkDirJob(outputDir=unionDir)
 			intersectionDir = "%sgatk_samtools_intersection"%(dirPrefix)
-			intersectionDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=intersectionDir)
+			intersectionDirJob = self.addMkDirJob(outputDir=intersectionDir)
 			
 			
 			self.addGenotypeCallJobs(workflow, alignmentDataLs, chr2IntervalDataLs=chr2IntervalDataLs, samtools=workflow.samtools, \
@@ -1237,7 +1220,7 @@ class AlignmentToCallPipeline(parentClass):
 					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
 					CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
 					MergeSamFilesJar=workflow.MergeSamFilesJar, \
-					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 					mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
 					bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 					concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
@@ -1255,22 +1238,22 @@ class AlignmentToCallPipeline(parentClass):
 				dirPrefix = "%s"%(alignment.id)
 				# Add a mkdir job for the call directory.
 				callOutputDir = "%s_call"%(dirPrefix)
-				callOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=callOutputDir)
+				callOutputDirJob = self.addMkDirJob(outputDir=callOutputDir)
 				gatkDir = "%s_gatk"%(dirPrefix)
-				gatkDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=gatkDir)
+				gatkDirJob = self.addMkDirJob(outputDir=gatkDir)
 				samtoolsDir = "%s_samtools"%(dirPrefix)
-				samtoolsDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=samtoolsDir)
+				samtoolsDirJob = self.addMkDirJob(outputDir=samtoolsDir)
 				unionDir = "%s_gatk_samtools_union"%(dirPrefix)
-				unionDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=unionDir)
+				unionDirJob = self.addMkDirJob(outputDir=unionDir)
 				intersectionDir = "%s_gatk_samtools_intersection"%(dirPrefix)
-				intersectionDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=intersectionDir)
+				intersectionDirJob = self.addMkDirJob(outputDir=intersectionDir)
 				
 				self.addGenotypeCallJobs(workflow, [alignment], chr2IntervalDataLs, samtools=workflow.samtools, \
 						genotyperJava=workflow.genotyperJava, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
 						CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
 						MergeSamFilesJar=workflow.MergeSamFilesJar, \
-						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
 						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 						concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
@@ -1286,7 +1269,7 @@ class AlignmentToCallPipeline(parentClass):
 		addSelectAndSplitBamReturnData = self.addSelectAndSplitBamJobs(db_vervet, workflow, alignmentLs, site_handler, \
 							self.maxContigID, chrLs, samtools=samtools, \
 							java=java, AddOrReplaceReadGroupsAndCleanSQHeaderJar=workflow.AddOrReplaceReadGroupsAndCleanSQHeaderJar, \
-							BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar,\
+							BuildBamIndexJar=workflow.BuildBamIndexJar,\
 							mkdir=workflow.mkdirWrap, namespace=workflow.namespace, \
 							version=workflow.version, mkCallDirJob=callOutputDirJob,\
 							addRGExecutable=workflow.addRGToBAM, data_dir=self.data_dir)

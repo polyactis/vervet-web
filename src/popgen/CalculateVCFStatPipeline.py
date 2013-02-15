@@ -140,6 +140,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		for refFastaFile in refFastaFList:
 			TallyAACFromVCFJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
 		TallyAACFromVCFJob.uses(inputVCFF, transfer=True, register=True, link=Link.INPUT)
+		self.addJobUse(TallyAACFromVCFJob, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
 		"""	# 2012.7.25
 		vcfTabixF = File('%s.tbi'%(inputVCFF.name))	#relative path
 		vcfTabixF.absPath = '%s.tbi'%inputVCFF.absPath
@@ -831,7 +832,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 					chr2IntervalDataLs=None, samtools=workflow.samtools, \
 				GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 				CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
-				BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar,\
+				BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar,\
 				mv=workflow.mv, \
 				refFastaFList=refFastaFList,\
 				needFastaIndexJob=getattr(self, 'needFastaIndexJob',False), needFastaDictJob=getattr(self, 'needFastaDictJob', False), \

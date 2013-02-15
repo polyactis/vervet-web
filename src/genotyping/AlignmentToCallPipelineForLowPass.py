@@ -145,7 +145,7 @@ class AlignmentToCallPipelineForLowPass(AlignmentToCallPipeline):
 					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
 					CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
 					MergeSamFilesJar=workflow.MergeSamFilesJar, \
-					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 					mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
 					bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 					concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\

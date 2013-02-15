@@ -72,7 +72,7 @@ class BootstrapCompareAlleleFrequencyOfTwoPopulation(CompareAlleleFrequencyOfTwo
 	def addAllJobs(self, workflow=None, inputVCFData=None, chr2IntervalDataLs=None, \
 				GenomeAnalysisTKJar=None, samtools=None, \
 				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
-				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
+				BuildBamIndexFilesJava=None, BuildBamIndexJar=None,\
 				mv=None, \
 				refFastaFList=None, \
 				needFastaIndexJob=False, needFastaDictJob=False, \
@@ -91,7 +91,7 @@ class BootstrapCompareAlleleFrequencyOfTwoPopulation(CompareAlleleFrequencyOfTwo
 					chr2IntervalDataLs=chr2IntervalDataLs, samtools=samtools, \
 				GenomeAnalysisTKJar=GenomeAnalysisTKJar, \
 				CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, \
-				BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar,\
+				BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexJar=BuildBamIndexJar,\
 				mv=mv, \
 				refFastaFList=refFastaFList,\
 				needFastaIndexJob=needFastaIndexJob, needFastaDictJob=needFastaDictJob, \

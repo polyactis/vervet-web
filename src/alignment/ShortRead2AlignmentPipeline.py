@@ -129,7 +129,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					workflow=None, bwa=None, additionalArguments=None, samtools=None, mkdirWrap=None, mv=None,\
 					java=None, MergeSamFilesJava=None, MergeSamFilesJar=None, \
 					MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir='/tmp',\
-					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
+					BuildBamIndexFilesJava=None, BuildBamIndexJar=None, \
 					SortSamFilesJava=None, SortSamJar=None, \
 					addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None,\
 					alignment_method_name='bwa-short-read', alignment_format='bam',\
@@ -292,7 +292,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 											outputBamFile=mergedBamFile, \
 											samtools=samtools, java=java, \
 											MergeSamFilesJava=MergeSamFilesJava, MergeSamFilesJar=MergeSamFilesJar, \
-											BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+											BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexJar=BuildBamIndexJar, \
 											mv=mv, namespace=namespace, version=version, \
 											transferOutput=False, parentJobLs=[oneLibraryAlignmentFolderJob])
 						
@@ -301,7 +301,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 								inputBamF=alignmentMergeJob.output, \
 								inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
 								MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=tmpDir,\
-								BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+								BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexJar=BuildBamIndexJar, \
 								namespace=namespace, version=version, transferOutput=False)
 						no_of_merging_jobs += 1
 						
@@ -327,7 +327,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 										outputBamFile=mergedBamFile, \
 										samtools=samtools, java=java, \
 										MergeSamFilesJava=MergeSamFilesJava, MergeSamFilesJar=MergeSamFilesJar, \
-										BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+										BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexJar=BuildBamIndexJar, \
 										mv=mv, namespace=namespace, version=version, \
 										transferOutput=False, parentJobLs=[alignmentFolderJob])
 					#relative path in the scratch
@@ -337,7 +337,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 							inputBamF=alignmentMergeJob.output, \
 							inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
 							MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=tmpDir,\
-							BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
+							BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexJar=BuildBamIndexJar, \
 							namespace=namespace, version=version, transferOutput=False)
 					no_of_merging_jobs += 1
 					
@@ -607,7 +607,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 	def addLocalRealignmentJob(cls, workflow, samtoolsCalmd=None, inputBamF=None, \
 					refFastaFList=None, outputBamF=None, \
 					parentJob=None, \
-					BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
+					BuildBamIndexFilesJava=None, BuildBamIndexJar=None, \
 					namespace='workflow', version='1.0', transferOutput=True,\
 					**keywords):
 		"""
@@ -690,7 +690,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					java=workflow.java, \
 					MergeSamFilesJava=workflow.MergeSamFilesJava, MergeSamFilesJar=workflow.MergeSamFilesJar, \
 					MarkDuplicatesJava=workflow.MarkDuplicatesJava, MarkDuplicatesJar=workflow.MarkDuplicatesJar, tmpDir=self.tmpDir,\
-					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
+					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
 					SortSamFilesJava=workflow.SortSamFilesJava, SortSamJar=workflow.SortSamJar, \
 					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar,\
 					alignment_method_name=self.alignment_method_name, alignment_format='bam',\

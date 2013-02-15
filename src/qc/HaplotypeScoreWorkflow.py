@@ -216,7 +216,7 @@ class HaplotypeScoreWorkflow(parentClass):
 			extraArgumentList.append(extraArguments)
 		if extraDependentInputLs is None:
 			extraDependentInputLs=[]
-		extraDependentInputLs.extend([bamFile, VCFFile] + refFastaFList)
+		extraDependentInputLs.extend([bamFile, VCFFile, GenomeAnalysisTKJar] + refFastaFList)
 		
 		job= self.addGenericJob(executable=executable, inputFile=None, inputArgumentOption="-I",\
 							outputFile=None, outputArgumentOption="-o", \
