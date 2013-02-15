@@ -63,10 +63,10 @@ class HaplotypeScoreWorkflow(parentClass):
 		passingData.annotationName = 'HaplotypeScore'
 		
 		statOutputDir = "%sstat"%(outputDirPrefix)
-		statOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=statOutputDir)
+		statOutputDirJob = self.addMkDirJob(outputDir=statOutputDir)
 		
 		plotOutputDir = "%splot"%(outputDirPrefix)
-		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
+		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
 		self.no_of_jobs += 2
 		
 		returnData.plotOutputDirJob = plotOutputDirJob
