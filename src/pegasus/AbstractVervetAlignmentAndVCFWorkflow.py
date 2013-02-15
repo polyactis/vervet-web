@@ -23,7 +23,7 @@ from vervet.src.pegasus.AbstractVervetWorkflow import AbstractVervetWorkflow
 from vervet.src.pegasus.AbstractVervetAlignmentWorkflow import AbstractVervetAlignmentWorkflow
 
 
-class AbstractVervetAlignmentAndVCFWorkflow(AbstractVervetWorkflow, AbstractAlignmentAndVCFWorkflow, AbstractVervetAlignmentWorkflow):
+class AbstractVervetAlignmentAndVCFWorkflow(AbstractAlignmentAndVCFWorkflow, AbstractVervetAlignmentWorkflow):
 	__doc__ = __doc__
 	option_default_dict = copy.deepcopy(AbstractVervetWorkflow.option_default_dict)
 	option_default_dict.update(copy.deepcopy(AbstractAlignmentAndVCFWorkflow.option_default_dict))
@@ -38,7 +38,20 @@ class AbstractVervetAlignmentAndVCFWorkflow(AbstractVervetWorkflow, AbstractAlig
 		#if self.option_default_dict.get('ligateVcfPerlPath'):
 		#	self.pathToInsertHomePathList.append('ligateVcfPerlPath')
 		AbstractVervetWorkflow.__init__(self, **keywords)
-		
+		#2013.2.14 add AbstractVervetAlignmentWorkflow.__init__ after AbstractVervetWorkflow.__init__ to process ind_seq_id_ls, but not reverse order
+		#AbstractVervetAlignmentWorkflow.__init__(self, **keywords)
+	
+	def extra__init__(self):
+		"""
+		2013.2.14
+		"""
+		AbstractVervetWorkflow.extra__init__(self)
+		AbstractAlignmentAndVCFWorkflow.extra__init__(self)
+	
+	#get the proper parental function
+	getReferenceSequence=AbstractVervetWorkflow.getReferenceSequence
+	
+	connectDB =	AbstractVervetWorkflow.connectDB
 	
 	def registerCustomExecutables(self, workflow=None):
 		
@@ -60,12 +73,7 @@ class AbstractVervetAlignmentAndVCFWorkflow(AbstractVervetWorkflow, AbstractAlig
 		#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
 		executableClusterSizeMultiplierList = []
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
-	
-	def run(self):
-		"""
-		2013.2.14 overwrite the default : AbstractVervetWorkflow.run()
-		"""
-		AbstractAlignmentAndVCFWorkflow.run(self)
+
 
 if __name__ == '__main__':
 	main_class = AbstractVervetAlignmentAndVCFWorkflow
