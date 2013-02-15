@@ -125,7 +125,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 
 	
 	
-	def addTallyAACFromVCFJob(self, workflow, TallyAACFromVCF=None, genomeAnalysisTKJar=None, \
+	def addTallyAACFromVCFJob(self, workflow, TallyAACFromVCF=None, GenomeAnalysisTKJar=None, \
 							refFastaFList=None, inputVCFF=None, outputF=None, parentJobLs=None, \
 							job_max_memory=1000, extraDependentInputLs=[],\
 							input_site_handler=None, transferOutput=False, **keywords):
@@ -135,7 +135,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		# Add a mkdir job for any directory.
 		TallyAACFromVCFJob = Job(namespace=workflow.namespace, name=TallyAACFromVCF.name, version=workflow.version)
 		refFastaF = refFastaFList[0]
-		TallyAACFromVCFJob.addArguments("-Xmx%sm"%(job_max_memory), "-jar", genomeAnalysisTKJar, "-R", refFastaF, 
+		TallyAACFromVCFJob.addArguments("-Xmx%sm"%(job_max_memory), "-jar", GenomeAnalysisTKJar, "-R", refFastaF, 
 						"-T TallyAACFromVCF", "--variant:VCF", inputVCFF, "-o", outputF)
 		for refFastaFile in refFastaFList:
 			TallyAACFromVCFJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
@@ -618,7 +618,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		#selectVariants would re-generate AC, AF so that TrioCaller could read it.
 		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 		popVCFConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=self.SelectVariantsJava, \
-				genomeAnalysisTKJar=self.genomeAnalysisTKJar, inputF=VCFFile, outputF=outputVCF, \
+				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=VCFFile, outputF=outputVCF, \
 				refFastaFList=self.refFastaFList, sampleIDKeepFile=extractPopSampleIDJob.output,\
 				parentJobLs=[topOutputDirJob, splitVCFJob, extractPopSampleIDJob]+jobData.jobLs, \
 				extraDependentInputLs=[], transferOutput=transferOutput, \
@@ -791,7 +791,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		# 2012.8.1 it needs the tabix index file
 		outputF = File(os.path.join(topOutputDirJob.output, "%s_AAC_tally.tsv"%(commonPrefix)))
 		TallyAACFromVCFJob = self.addTallyAACFromVCFJob(workflow, TallyAACFromVCF=workflow.TallyAACFromVCF, \
-					genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+					GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 					refFastaFList=self.refFastaFList, inputVCFF=popVCFConvertJob.output, outputF=outputF, \
 					parentJobLs=[topOutputDirJob]+[popVCFConvertJob], \
 					job_max_memory=5000, extraDependentInputLs=[],\
@@ -829,8 +829,8 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		
 		return self.addAllJobs(workflow=workflow, inputVCFData=inputData, \
 					chr2IntervalDataLs=None, samtools=workflow.samtools, \
-				genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-				createSequenceDictionaryJava=workflow.createSequenceDictionaryJava, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, \
+				GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
+				CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
 				BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar,\
 				mv=workflow.mv, \
 				refFastaFList=refFastaFList,\

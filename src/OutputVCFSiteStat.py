@@ -209,7 +209,7 @@ class OutputVCFSiteStat(FilterVCFPipeline):
 					
 					outputSiteStatF = File(os.path.join(vcf1DepthFilterDir, '%s.siteStat.tsv'%(commonPrefix)))
 					vcf1FilterByDepthJob = self.addFilterVCFByDepthJob(workflow, FilterVCFByDepthJava=workflow.FilterVCFByDepthJava, \
-							genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+							GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 							refFastaFList=refFastaFList, inputVCFF=vcf1, outputVCFF=None, outputSiteStatF=outputSiteStatF,\
 							parentJobLs=[vcf1DepthFilterDirJob], \
 							alnStatForFilterF=alnStatForFilterF, \

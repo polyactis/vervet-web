@@ -141,7 +141,7 @@ class AlignmentToCallPipeline(parentClass):
 	
 	
 	def addRefFastaFileSplitJobs(self, workflow, refFastaF, selectAndSplitFasta, chrLs, mkdir=None, samtools=None,
-								java=None, createSequenceDictionaryJar=None,\
+								java=None, CreateSequenceDictionaryJar=None,\
 								site_handler=None, namespace='workflow', version='1.0',):
 		"""
 		2011-7-25
@@ -188,7 +188,7 @@ class AlignmentToCallPipeline(parentClass):
 			dictFname = os.path.join(fastaOutputDir, '%s.dict'%(chr))
 			#outputRGFname = '%s_%s.RG.bam'%(inputFileBaseNamePrefix, chr)
 			dictFile = File(dictFname)
-			createSeqDictJob.addArguments('-jar', createSequenceDictionaryJar, \
+			createSeqDictJob.addArguments('-jar', CreateSequenceDictionaryJar, \
 								"R=", fastaFile, 'O=', dictFile)
 			createSeqDictJob.uses(dictFile, transfer=True, register=True, link=Link.OUTPUT)	#time to discard them
 			createSeqDictJob.uses(fastaFile, transfer=True, register=True, link=Link.OUTPUT)	#time to discard them
@@ -200,7 +200,7 @@ class AlignmentToCallPipeline(parentClass):
 		return PassingData(chr2jobDataLs=chr2jobDataLs, workflow=workflow)
 	
 	def addSelectAndSplitBamJobs(self, db_vervet, workflow, alignmentLs, site_handler, maxContigID, chrLs, samtools=None, \
-							java=None, addOrReplaceReadGroupsAndCleanSQHeaderJar=None, BuildBamIndexFilesJar=None, mkdir=None, namespace="workflow",\
+							java=None, AddOrReplaceReadGroupsAndCleanSQHeaderJar=None, BuildBamIndexFilesJar=None, mkdir=None, namespace="workflow",\
 							version="1.0", mkCallDirJob=None,\
 							addRGExecutable=None, data_dir=None):
 		"""
@@ -274,14 +274,14 @@ class AlignmentToCallPipeline(parentClass):
 				tmpRGFname = os.path.join(outputDir, '%s_%s.RG.txt'%(inputFileBaseNamePrefix, chr))
 				addRGJob.addArguments(read_group, platform_id, output, tmpRGFname, outputRGSAM)
 				"""
-				addRGJob.addArguments('-jar', addOrReplaceReadGroupsAndCleanSQHeaderJar, \
+				addRGJob.addArguments('-jar', AddOrReplaceReadGroupsAndCleanSQHeaderJar, \
 									"INPUT=", output,\
 									'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
 									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
 									'OUTPUT=', outputRGSAM, 'SQName=%s'%(chr))	#'SORT_ORDER=coordinate', (adding this is useless)
 				"""
 				
-				#addRGJob.addArguments('-jar', addOrReplaceReadGroupsJar, \
+				#addRGJob.addArguments('-jar', AddOrReplaceReadGroupsJar, \
 									"INPUT=", output,\
 									'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
 									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
@@ -345,9 +345,9 @@ class AlignmentToCallPipeline(parentClass):
 		return PassingData(chr2jobDataLs=chr2jobDataLs, workflow=workflow)
 	
 	def addMergeAlignmentAndGenotypeCallJobs(self, workflow, chr2jobDataLs, chrLs, samtools, \
-				java, createSequenceDictionaryJar=None, GenotypeCallByCoverage=None, refFastaF=None, \
+				java, CreateSequenceDictionaryJar=None, GenotypeCallByCoverage=None, refFastaF=None, \
 				namespace='workflow', version="1.0", callOutputDir = "call", genotypeCallerType=1,\
-				mergeSamFilesJar=None, genomeAnalysisTKJar=None, calcula=None, chr2splitFastaJobDataLs=None, \
+				MergeSamFilesJar=None, GenomeAnalysisTKJar=None, calcula=None, chr2splitFastaJobDataLs=None, \
 				seqCoverageF=None, needFastaIndexJob=False, \
 				needFastaDictJob=False, site_type=1):
 		"""
@@ -367,7 +367,7 @@ class AlignmentToCallPipeline(parentClass):
 			refFastaDictF = File(refFastaDictFname)
 			#not os.path.isfile(refFastaDictFname) or 
 			fastaDictJob = Job(namespace=namespace, name=java.name, version=version)
-			fastaDictJob.addArguments('-jar', createSequenceDictionaryJar, \
+			fastaDictJob.addArguments('-jar', CreateSequenceDictionaryJar, \
 					'REFERENCE=', refFastaF, 'OUTPUT=', refFastaDictF)
 			fastaDictJob.uses(refFastaF, register=False, link=Link.INPUT)
 			fastaDictJob.uses(refFastaDictF, transfer=True, register=False, link=Link.OUTPUT)
@@ -397,7 +397,7 @@ class AlignmentToCallPipeline(parentClass):
 			picard_job = Job(namespace=namespace, name=java.name, version=version)
 			outputFname = '%s.bam'%(chr)
 			picard_output = File(outputFname)
-			picard_job.addArguments('-jar', mergeSamFilesJar, \
+			picard_job.addArguments('-jar', MergeSamFilesJar, \
 				'USE_THREADING=true', 'SORT_ORDER=coordinate', 'ASSUME_SORTED=false', 'OUTPUT=', picard_output)
 			#picard_job.uses(picard_output, transfer=False, register=False, link=Link.OUTPUT)	#registering here would result in their early deletion.
 			workflow.addJob(picard_job)
@@ -434,7 +434,7 @@ class AlignmentToCallPipeline(parentClass):
 				gatkIDXOutputFname = os.path.join(callOutputDir, '%s.vcf.idx'%(chr))
 				gatkIDXOutput = File(gatkIDXOutputFname)
 				
-				gatk_job.addArguments('-jar', genomeAnalysisTKJar, \
+				gatk_job.addArguments('-jar', GenomeAnalysisTKJar, \
 					"-I", picard_output, "-R", fastaFile, "-T", "UnifiedGenotyper","--out", gatk_output,\
 					'-U', '-S SILENT', "-nt 4")
 				if site_type==1:
@@ -512,7 +512,7 @@ class AlignmentToCallPipeline(parentClass):
 		return PassingData(chr2mergedBamCallJob=chr2mergedBamCallJob)
 	
 	def addAddRG2BamJobsAsNeeded(self, workflow, alignmentDataLs, site_handler, input_site_handler=None, \
-							addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
+							addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
 							BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None, \
 							mv=None, namespace="workflow", version="1.0", \
 							data_dir=None, tmpDir="/tmp"):
@@ -563,7 +563,7 @@ class AlignmentToCallPipeline(parentClass):
 				addRGJob = Job(namespace=namespace, name=addOrReplaceReadGroupsJava.name, version=version)
 				outputRGSAM = File(os.path.join(addRG2BamDir, os.path.basename(alignment.path)))
 				
-				addRGJob.addArguments(javaMemRequirement, '-jar', addOrReplaceReadGroupsJar, \
+				addRGJob.addArguments(javaMemRequirement, '-jar', AddOrReplaceReadGroupsJar, \
 									"INPUT=", bamF,\
 									'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
 									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
@@ -626,10 +626,10 @@ class AlignmentToCallPipeline(parentClass):
 		return returnData
 	
 	def addGenotypeCallJobs(self, workflow, alignmentDataLs=None, chr2IntervalDataLs=None, samtools=None, \
-				genotyperJava=None,  genomeAnalysisTKJar=None, \
-				addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
-				createSequenceDictionaryJava=None, createSequenceDictionaryJar=None, \
-				mergeSamFilesJar=None, \
+				genotyperJava=None,  GenomeAnalysisTKJar=None, \
+				addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
+				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
+				MergeSamFilesJar=None, \
 				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
 				mv=None, CallVariantBySamtools=None,\
 				bgzip_tabix=None, vcf_convert=None, vcf_isec=None, vcf_concat=None, \
@@ -658,8 +658,8 @@ class AlignmentToCallPipeline(parentClass):
 		refFastaF = refFastaFList[0]
 		no_of_jobs = 0
 		if needFastaDictJob:	# the .dict file is required for GATK
-			fastaDictJob = self.addRefFastaDictJob(workflow, createSequenceDictionaryJava=createSequenceDictionaryJava, \
-												createSequenceDictionaryJar=createSequenceDictionaryJar, refFastaF=refFastaF)
+			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
+												CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
 			no_of_jobs += 1
 		else:
@@ -675,7 +675,7 @@ class AlignmentToCallPipeline(parentClass):
 			refFastaIndexF = None
 		
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
-					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
+					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
 					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					mv=mv, namespace=namespace, version=version, data_dir=data_dir)
 		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
@@ -737,7 +737,7 @@ class AlignmentToCallPipeline(parentClass):
 					gatkIDXOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf.idx'%(vcfBaseFname))
 					gatkIDXOutput = File(gatkIDXOutputFname)
 					
-					gatk_job= self.addGATKCallJob(workflow, genotyperJava=genotyperJava, genomeAnalysisTKJar=genomeAnalysisTKJar, \
+					gatk_job= self.addGATKCallJob(workflow, genotyperJava=genotyperJava, GenomeAnalysisTKJar=GenomeAnalysisTKJar, \
 							gatkOutputF=gatkOutputF, gatkIDXOutput=gatkIDXOutput, refFastaFList=refFastaFList, \
 							parentJobLs=[gatkDirJob]+intervalData.jobLs, \
 							extraDependentInputLs=[], transferOutput=False, extraArguments=None, \
@@ -865,7 +865,7 @@ class AlignmentToCallPipeline(parentClass):
 				genotypeUnionJob = Job(namespace=namespace, name=java.name, version=version)
 				unionOutputFname = os.path.join(unionDirJob.folder, '%s.vcf'%vcfBaseFname)
 				unionOutputF = File(unionOutputFname)
-				genotypeUnionJob.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "CombineVariants",\
+				genotypeUnionJob.addArguments(javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T", "CombineVariants",\
 					"-L", interval, "-R", refFastaF, \
 					"-B:gatk,VCF", gatkOutputF, "-B:samtools,VCF", samtoolsOutputF, \
 					"--out", unionOutputF, \
@@ -883,7 +883,7 @@ class AlignmentToCallPipeline(parentClass):
 				genotypeIntersectionJob = Job(namespace=namespace, name=java.name, version=version)
 				intersectionOutputFname = os.path.join(intersectionDirJob.folder, '%s.vcf'%vcfBaseFname)
 				intersectionOutputF = File(intersectionOutputFname)
-				genotypeIntersectionJob.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "SelectVariants",\
+				genotypeIntersectionJob.addArguments(javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T", "SelectVariants",\
 					"-L", interval, "-R", refFastaF, \
 					"-B:%s,VCF"%vcfBaseFname, unionOutputF, \
 					"-select 'set == "Intersection"'", "--out", intersectionOutputF, \
@@ -989,7 +989,7 @@ class AlignmentToCallPipeline(parentClass):
 		return mkDirJob
 		"""
 	
-	def addGATKCallJob(self, workflow, genotyperJava=None, genomeAnalysisTKJar=None, gatkOutputF=None, gatkIDXOutput=None, \
+	def addGATKCallJob(self, workflow, genotyperJava=None, GenomeAnalysisTKJar=None, gatkOutputF=None, gatkIDXOutput=None, \
 					refFastaFList=[], parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
 					extraArguments=None, job_max_memory=2000, no_of_gatk_threads=1, site_type=2, interval=None, **keywords):
 		"""
@@ -1007,7 +1007,7 @@ class AlignmentToCallPipeline(parentClass):
 		#= "-Xms%sm -Xmx%sm"%(job_max_memory/2, job_max_memory)
 		refFastaF = refFastaFList[0]
 		job = Job(namespace=workflow.namespace, name=genotyperJava.name, version=workflow.version)
-		job.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "UnifiedGenotyper",\
+		job.addArguments(javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T", "UnifiedGenotyper",\
 			"-mbq 20", "-R", refFastaF, "--out", gatkOutputF,\
 			self.defaultGATKArguments, "-nt %s"%no_of_gatk_threads, "--baq CALCULATE_AS_NECESSARY")
 		# 2011-11-22 "-mmq 30",  is no longer included
@@ -1233,10 +1233,10 @@ class AlignmentToCallPipeline(parentClass):
 			
 			
 			self.addGenotypeCallJobs(workflow, alignmentDataLs, chr2IntervalDataLs=chr2IntervalDataLs, samtools=workflow.samtools, \
-					genotyperJava=workflow.genotyperJava, genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar, \
-					createSequenceDictionaryJava=workflow.createSequenceDictionaryJava, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, \
-					mergeSamFilesJar=workflow.mergeSamFilesJar, \
+					genotyperJava=workflow.genotyperJava, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
+					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
+					CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
+					MergeSamFilesJar=workflow.MergeSamFilesJar, \
 					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 					mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
 					bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
@@ -1266,10 +1266,10 @@ class AlignmentToCallPipeline(parentClass):
 				intersectionDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=intersectionDir)
 				
 				self.addGenotypeCallJobs(workflow, [alignment], chr2IntervalDataLs, samtools=workflow.samtools, \
-						genotyperJava=workflow.genotyperJava, genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar, \
-						createSequenceDictionaryJava=workflow.createSequenceDictionaryJava, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, \
-						mergeSamFilesJar=workflow.mergeSamFilesJar, \
+						genotyperJava=workflow.genotyperJava, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
+						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
+						CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
+						MergeSamFilesJar=workflow.MergeSamFilesJar, \
 						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
 						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
@@ -1285,7 +1285,7 @@ class AlignmentToCallPipeline(parentClass):
 		"""
 		addSelectAndSplitBamReturnData = self.addSelectAndSplitBamJobs(db_vervet, workflow, alignmentLs, site_handler, \
 							self.maxContigID, chrLs, samtools=samtools, \
-							java=java, addOrReplaceReadGroupsAndCleanSQHeaderJar=workflow.addOrReplaceReadGroupsAndCleanSQHeaderJar, \
+							java=java, AddOrReplaceReadGroupsAndCleanSQHeaderJar=workflow.AddOrReplaceReadGroupsAndCleanSQHeaderJar, \
 							BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar,\
 							mkdir=workflow.mkdirWrap, namespace=workflow.namespace, \
 							version=workflow.version, mkCallDirJob=callOutputDirJob,\
@@ -1293,16 +1293,16 @@ class AlignmentToCallPipeline(parentClass):
 		chr2jobDataLs = addSelectAndSplitBamReturnData.chr2jobDataLs
 		
 		returnData3 = self.addRefFastaFileSplitJobs(workflow, refFastaF, selectAndSplitFasta, chrLs, mkdir=workflow.mkdirWrap, samtools=workflow.samtools,
-								java=workflow.java, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar,\
+								java=workflow.java, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar,\
 								site_handler=workflow.site_handler, namespace=workflow.namespace, version=workflow.version)
 		chr2splitFastaJobDataLs = returnData3.chr2jobDataLs
 		
 		returnData2 = self.addMergeAlignmentAndGenotypeCallJobs(workflow, chr2jobDataLs, chrLs, samtools, \
-							java, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, GenotypeCallByCoverage=workflow.GenotypeCallByCoverage, \
+							java, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, GenotypeCallByCoverage=workflow.GenotypeCallByCoverage, \
 							refFastaF=refFastaF, \
 							namespace=workflow.namespace, version=workflow.version, callOutputDir = callOutputDir, \
 							genotypeCallerType=self.genotypeCallerType, \
-							mergeSamFilesJar=workflow.mergeSamFilesJar, genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, calcula=workflow.calcula, \
+							MergeSamFilesJar=workflow.MergeSamFilesJar, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, calcula=workflow.calcula, \
 							chr2splitFastaJobDataLs=chr2splitFastaJobDataLs, seqCoverageF=seqCoverageF, \
 							needFastaIndexJob=self.needFastaIndexJob, \
 							needFastaDictJob=self.needFastaDictJob, site_type=self.site_type)

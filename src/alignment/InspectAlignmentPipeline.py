@@ -82,7 +82,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		AlignmentToCallPipeline.__init__(self, **keywords)
 		
 	
-	def addDepthOfCoverageJob(self, workflow, DOCWalkerJava=None, genomeAnalysisTKJar=None,\
+	def addDepthOfCoverageJob(self, workflow, DOCWalkerJava=None, GenomeAnalysisTKJar=None,\
 							refFastaFList=None, bamF=None, baiF=None, DOCOutputFnamePrefix=None,\
 							fractionToSample=None,\
 							parentJobLs=[], job_max_memory = 1000, extraArguments="", \
@@ -102,7 +102,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
 		refFastaF = refFastaFList[0]
 		DOCJob = Job(namespace=workflow.namespace, name=DOCWalkerJava.name, version=workflow.version)
-		DOCJob.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "DepthOfCoverage",\
+		DOCJob.addArguments(javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T", "DepthOfCoverage",\
 			'-R', refFastaF, '-o', DOCOutputFnamePrefix, "-pt sample", "--omitDepthOutputAtEachBase",\
 			"-mmq %s"%(minMappingQuality), "-mbq %s"%(minBaseQuality), "--read_filter BadCigar", \
 			'--omitLocusTable', '--omitIntervalStatistics')
@@ -147,7 +147,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 			workflow.depends(parent=parentJob, child=job)
 		return job
 	
-	def addReadCountJob(self, workflow, VariousReadCountJava=None, genomeAnalysisTKJar=None,\
+	def addReadCountJob(self, workflow, VariousReadCountJava=None, GenomeAnalysisTKJar=None,\
 					refFastaFList=None, bamF=None, baiF=None, readCountOutputF=None,\
 					parentJobLs=[], job_max_memory = 1000, extraArguments="", \
 					transferOutput=False):
@@ -157,7 +157,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
 		refFastaF = refFastaFList[0]
 		job = Job(namespace=workflow.namespace, name=VariousReadCountJava.name, version=workflow.version)
-		job.addArguments(javaMemRequirement, '-jar', genomeAnalysisTKJar, "-T", "VariousReadCount",\
+		job.addArguments(javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T", "VariousReadCount",\
 			'-R', refFastaF, '-o', readCountOutputF, "-mmq 30")
 		job.addArguments("-I", bamF)
 		if extraArguments:
@@ -196,9 +196,9 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 	
 	def addJobs(self, workflow, alignmentDataLs, refName2size, samtools=None, DOCWalkerJava=None, \
 				ContigDOCWalkerJava=None, ContigVariousReadCountJava=None, \
-				VariousReadCountJava=None,  genomeAnalysisTKJar=None, \
-				createSequenceDictionaryJava=None, createSequenceDictionaryJar=None, \
-				addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
+				VariousReadCountJava=None,  GenomeAnalysisTKJar=None, \
+				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
+				addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
 				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
 				MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir="/Network/Data/vervet/vervetPipeline/tmp/",\
 				mkdirWrap=None, mv=None, \
@@ -228,8 +228,8 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		refFastaF = refFastaFList[0]
 		no_of_jobs = 0
 		if needFastaDictJob:
-			fastaDictJob = self.addRefFastaDictJob(workflow, createSequenceDictionaryJava=createSequenceDictionaryJava, \
-										createSequenceDictionaryJar=createSequenceDictionaryJar, refFastaF=refFastaF)
+			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
+										CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
 			no_of_jobs += 1
 		else:
@@ -266,7 +266,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 							transferOutput=True)
 		
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
-					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
+					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
 					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					mv=mv, namespace=namespace, version=version, data_dir=data_dir, tmpDir=tmpDir)
 		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
@@ -297,7 +297,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 							parentJobLs=[samtoolsDepthJob], job_max_memory = 500, extraArguments=None, \
 							transferOutput=False)
 				"""
-				DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=DOCWalkerJava, genomeAnalysisTKJar=genomeAnalysisTKJar,\
+				DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=DOCWalkerJava, GenomeAnalysisTKJar=GenomeAnalysisTKJar,\
 							refFastaFList=refFastaFList, bamF=bamF, baiF=baiF, \
 							DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
 							parentJobLs=alignmentData.jobLs, job_max_memory = perContigJobMaxMemory*8, transferOutput=True,\
@@ -329,7 +329,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				#2012.4.3 no more VariousReadCountJava job
 			readCountOutputF = File('%s_variousReadCount.tsv'%(alignment.id))
 			readCountJob = self.addReadCountJob(workflow, VariousReadCountJava=VariousReadCountJava, \
-						genomeAnalysisTKJar=genomeAnalysisTKJar, refFastaFList=refFastaFList, \
+						GenomeAnalysisTKJar=GenomeAnalysisTKJar, refFastaFList=refFastaFList, \
 						bamF=bamF, baiF=baiF, readCountOutputF=readCountOutputF,\
 						parentJobLs=None, job_max_memory = perContigJobMaxMemory*2, \
 						transferOutput=True)
@@ -379,7 +379,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				"""
 				DOCOutputFnamePrefix = os.path.join(statOutputDir, '%s_%s_DOC'%(alignment.id, refName))
 				DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=ContigDOCWalkerJava, \
-						genomeAnalysisTKJar=genomeAnalysisTKJar,\
+						GenomeAnalysisTKJar=GenomeAnalysisTKJar,\
 						refFastaFList=refFastaFList, bamF=bamF, baiF=baiF, \
 						DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
 						parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = perContigJobMaxMemory*3, extraArguments="-L %s"%(refName),\
@@ -396,7 +396,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				#2012.4.3 no more VariousReadCountJava job
 				readCountOutputF = File(os.path.join(statOutputDir, '%s_%s_variousReadCount.tsv'%(alignment.id, refName)))
 				readCountJob = self.addReadCountJob(workflow, VariousReadCountJava=ContigVariousReadCountJava, \
-							genomeAnalysisTKJar=genomeAnalysisTKJar, refFastaFList=refFastaFList, \
+							GenomeAnalysisTKJar=GenomeAnalysisTKJar, refFastaFList=refFastaFList, \
 							bamF=bamF, baiF=baiF, readCountOutputF=readCountOutputF,\
 							parentJobLs=statOutputDirJob, job_max_memory = perContigJobMaxMemory, extraArguments="-L %s"%(refName), \
 							transferOutput=False)
@@ -535,9 +535,9 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				ContigDOCWalkerJava=workflow.ContigDOCWalkerJava, \
 				VariousReadCountJava=workflow.VariousReadCountJava, \
 				ContigVariousReadCountJava=workflow.ContigVariousReadCountJava, \
-				genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-				createSequenceDictionaryJava=workflow.createSequenceDictionaryJava, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, \
-				addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar, \
+				GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
+				CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
+				addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
 				BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar,\
 				MarkDuplicatesJava=workflow.MarkDuplicatesJava, MarkDuplicatesJar=workflow.MarkDuplicatesJar, tmpDir=self.tmpDir,\
 				mkdirWrap=workflow.mkdirWrap, mv=workflow.mv, \

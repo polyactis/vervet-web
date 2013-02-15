@@ -161,10 +161,10 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		return job
 	
 	def addGenotypeCallJobs(self, workflow=None, alignmentDataLs=None, chr2IntervalDataLs=None, samtools=None, \
-				genotyperJava=None, SelectVariantsJava=None, genomeAnalysisTKJar=None, \
-				addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
-				createSequenceDictionaryJava=None, createSequenceDictionaryJar=None, \
-				mergeSamFilesJar=None, \
+				genotyperJava=None, SelectVariantsJava=None, GenomeAnalysisTKJar=None, \
+				addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
+				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
+				MergeSamFilesJar=None, \
 				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
 				mv=None, CallVariantBySamtools=None,\
 				trioCallerPath=None, trioCallerWrapper=None, \
@@ -199,8 +199,8 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		no_of_jobs = 0
 		
 		if needFastaDictJob:	# the .dict file is required for GATK
-			fastaDictJob = self.addRefFastaDictJob(workflow, createSequenceDictionaryJava=createSequenceDictionaryJava, \
-												createSequenceDictionaryJar=createSequenceDictionaryJar, refFastaF=refFastaF)
+			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
+												CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
 			no_of_jobs += 1
 		else:
@@ -221,7 +221,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		round1CallDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=round1CallDir)
 		
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
-					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=addOrReplaceReadGroupsJar, \
+					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
 					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexFilesJar=BuildBamIndexFilesJar, \
 					mv=mv, namespace=namespace, version=version, data_dir=data_dir)
 		
@@ -292,7 +292,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				#2012.6.12 filter via depth
 				vcf1AfterDepthFilter = File(os.path.join(round1CallDirJob.folder, '%s.depthFiltered.vcf'%(overlapIntervalFnameSignature)))
 				vcf1FilterByDepthJob = self.addFilterVCFByDepthJob(workflow, FilterVCFByDepthJava=workflow.FilterVCFByDepthJava, \
-						genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+						GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 						refFastaFList=refFastaFList, inputVCFF=round1CallOutputF, outputVCFF=vcf1AfterDepthFilter, \
 						parentJobLs=[preTrioCallerCallJob], \
 						alnStatForFilterF=alnStatForFilterF, \
@@ -326,7 +326,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				gatkIDXOutputFname = os.path.join(round1CallDirJob.folder, '%s.vcf.idx'%(overlapIntervalFnameSignature))
 				gatkIDXOutput = File(gatkIDXOutputFname)
 				
-				preTrioCallerCallJob= self.addGATKCallJob(workflow, genotyperJava=genotyperJava, genomeAnalysisTKJar=genomeAnalysisTKJar, \
+				preTrioCallerCallJob= self.addGATKCallJob(workflow, genotyperJava=genotyperJava, GenomeAnalysisTKJar=GenomeAnalysisTKJar, \
 						round1CallOutputF=round1CallOutputF, gatkIDXOutput=gatkIDXOutput, refFastaFList=refFastaFList, parentJobLs=[round1CallDirJob], \
 						extraDependentInputLs=[], transferOutput=False, extraArguments=None, \
 						job_max_memory=job_max_memory, no_of_gatk_threads=no_of_gatk_threads, site_type=site_type, \
@@ -336,7 +336,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				#select the variants to get rid of overlap, so that union of whole contig doesn't have overlap
 				round1_NonOverlapOutputF = File(os.path.join(round1CallDirJob.folder, '%s.nonoverlap.vcf'%intervalFnameSignature))
 				round1SelectVariantJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=SelectVariantsJava, \
-						genomeAnalysisTKJar=genomeAnalysisTKJar, inputF=vcf1FilterByvcftoolsJob.output, outputF=round1_NonOverlapOutputF, \
+						GenomeAnalysisTKJar=GenomeAnalysisTKJar, inputF=vcf1FilterByvcftoolsJob.output, outputF=round1_NonOverlapOutputF, \
 						refFastaFList=refFastaFList, parentJobLs=[vcf1FilterByvcftoolsJob], \
 						extraDependentInputLs=[], transferOutput=False, \
 						extraArguments=None, job_max_memory=job_max_memory, interval=mpileupInterval)
@@ -376,7 +376,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				round1_VCF4OutputFname = os.path.join(round1CallDirJob.folder, '%s.niceformat.vcf'%overlapIntervalFnameSignature)
 				round1_VCF4OutputF = File(round1_VCF4OutputFname)
 				round1_vcf_convert_job = self.addSelectVariantsJob(workflow, SelectVariantsJava=SelectVariantsJava, \
-						genomeAnalysisTKJar=genomeAnalysisTKJar, inputF=vcf1FilterByvcftoolsJob.output, outputF=round1_VCF4OutputF, \
+						GenomeAnalysisTKJar=GenomeAnalysisTKJar, inputF=vcf1FilterByvcftoolsJob.output, outputF=round1_VCF4OutputF, \
 						refFastaFList=refFastaFList, parentJobLs=[vcf1FilterByvcftoolsJob], \
 						extraDependentInputLs=[], transferOutput=tranferIntermediateFilesForDebug, \
 						extraArguments=None, job_max_memory=job_max_memory, interval=overlapInterval)
@@ -421,7 +421,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 					#upper bound is 42g. lower bound is 4g.
 				mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(workflow, \
 									executable=workflow.MergeVCFReplicateHaplotypesJava,\
-									genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+									GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 									inputF=refineGenotypeOutputF, outputF=mergeReplicateOutputF, \
 									replicateIndividualTag=replicateIndividualTag, \
 									refFastaFList=refFastaFList, parentJobLs=[refineGenotypeJob], \
@@ -433,7 +433,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				#select the variants to get rid of overlap
 				nonOverlapTrioCallerOutputF = File(os.path.join(trioCallerOutputDirJob.folder, '%s.nonoverlap.vcf'%intervalFnameSignature))
 				trioCallerSelectVariantJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=SelectVariantsJava, \
-						genomeAnalysisTKJar=genomeAnalysisTKJar, inputF=mergeVCFReplicateColumnsJob.output, \
+						GenomeAnalysisTKJar=GenomeAnalysisTKJar, inputF=mergeVCFReplicateColumnsJob.output, \
 						outputF=nonOverlapTrioCallerOutputF, \
 						refFastaFList=refFastaFList, parentJobLs=[mergeVCFReplicateColumnsJob], \
 						extraDependentInputLs=[], transferOutput=False, \
@@ -475,10 +475,10 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 	
 	
 	def addTrioCallerJobsONVCFFiles(self, workflow=None, alignmentLs=None, inputData=None, samtools=None, \
-				genotyperJava=None, SelectVariantsJava=None, genomeAnalysisTKJar=None, \
-				addOrReplaceReadGroupsJava=None, addOrReplaceReadGroupsJar=None, \
-				createSequenceDictionaryJava=None, createSequenceDictionaryJar=None, \
-				mergeSamFilesJar=None, \
+				genotyperJava=None, SelectVariantsJava=None, GenomeAnalysisTKJar=None, \
+				addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
+				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
+				MergeSamFilesJar=None, \
 				BuildBamIndexFilesJava=None, BuildBamIndexFilesJar=None,\
 				mv=None, CallVariantBySamtools=None,\
 				trioCallerPath=None, trioCallerWrapper=None, \
@@ -504,7 +504,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		no_of_jobs = 0
 		
 		if needFastaDictJob:	# the .dict file is required for GATK
-			fastaDictJob = self.addRefFastaDictJob(workflow, createSequenceDictionaryJava=createSequenceDictionaryJava, \
+			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
 												refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
 		else:
@@ -575,7 +575,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				round1_VCF4OutputFname = os.path.join(round1CallDirJob.folder, '%s.niceformat.vcf'%overlapIntervalFnameSignature)
 				round1_VCF4OutputF = File(round1_VCF4OutputFname)
 				round1_vcf_convert_job = self.addSelectVariantsJob(workflow, SelectVariantsJava=SelectVariantsJava, \
-						genomeAnalysisTKJar=genomeAnalysisTKJar, inputF=splitVCFFile, outputF=round1_VCF4OutputF, \
+						GenomeAnalysisTKJar=GenomeAnalysisTKJar, inputF=splitVCFFile, outputF=round1_VCF4OutputF, \
 						refFastaFList=refFastaFList, parentJobLs=[round1CallDirJob, splitVCFJob], \
 						extraDependentInputLs=None, transferOutput=tranferIntermediateFilesForDebug, \
 						extraArguments=None, job_max_memory=job_max_memory, interval=overlapInterval)
@@ -638,7 +638,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 					#upper bound is 10g. lower bound is 4g.
 				mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(workflow, \
 									executable=workflow.MergeVCFReplicateHaplotypesJava,\
-									genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
+									GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 									inputF=refineGenotypeJob.output, outputF=mergeReplicateOutputF, \
 									replicateIndividualTag=replicateIndividualTag, \
 									refFastaFList=refFastaFList, parentJobLs=[refineGenotypeJob], \
@@ -789,10 +789,10 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			self.addGenotypeCallJobs(workflow=workflow, alignmentDataLs=alignmentDataLs, chr2IntervalDataLs=chr2IntervalDataLs, \
 						samtools=workflow.samtools, \
 						genotyperJava=workflow.genotyperJava,  SelectVariantsJava=workflow.SelectVariantsJava, \
-						genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar, \
-						createSequenceDictionaryJava=workflow.createSequenceDictionaryJava, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, \
-						mergeSamFilesJar=workflow.mergeSamFilesJar, \
+						GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
+						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
+						CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
+						MergeSamFilesJar=workflow.MergeSamFilesJar, \
 						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools, \
 						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, \
@@ -813,10 +813,10 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			self.addTrioCallerJobsONVCFFiles(workflow=workflow, alignmentLs=alignmentLs, inputData=inputData, \
 						samtools=workflow.samtools, \
 						genotyperJava=workflow.genotyperJava,  SelectVariantsJava=workflow.SelectVariantsJava, \
-						genomeAnalysisTKJar=workflow.genomeAnalysisTKJar, \
-						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, addOrReplaceReadGroupsJar=workflow.addOrReplaceReadGroupsJar, \
-						createSequenceDictionaryJava=workflow.createSequenceDictionaryJava, createSequenceDictionaryJar=workflow.createSequenceDictionaryJar, \
-						mergeSamFilesJar=workflow.mergeSamFilesJar, \
+						GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
+						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
+						CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
+						MergeSamFilesJar=workflow.MergeSamFilesJar, \
 						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexFilesJar=workflow.BuildBamIndexFilesJar, \
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools, \
 						trioCallerPath=self.trioCallerPath, trioCallerWrapper=workflow.trioCallerWrapper, \
