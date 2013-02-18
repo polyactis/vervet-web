@@ -1,3 +1,10 @@
+
+-- 2013.2.18 good whole-genome alignment
+-- added "individual_sequence_file_raw_id is null" because there are some  sub-alignments (alignment using one lane/library's reads out of all)
+select * from view_alignment where filtered=1 and outdated_index=0 and alignment_method_id=2 and ref_ind_seq_id=524
+	and individual_sequence_file_raw_id is null;
+
+
 -- 2011-4-29
 
 drop view view_individual cascade;
