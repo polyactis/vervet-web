@@ -3,11 +3,11 @@
 Examples:
 	# 2012.9.21 run base quality recalibration on VRC alignments (-S 447), individual_sequence_id from 639-642 (-i ...)
 	# filtered sequences (-Q 1), alignment method 2 (-G 2)
-	# -N 1000 (top 1000 contigs)
+	# --contigMaxRankBySize 1000 (top 1000 contigs)
 	#  -Z 10000000 (10 million bp for each interval) -B 30000 (30kb overlap between intervals),
 	%s -L ~/NetworkData/vervet/db/genotype_file/method_17/ -i 639-642
 		-S 447 -u yh -z localhost -Q1 -G2 -a 524 -o dags/BaseQualityRecalibration/BaseQualityRecalibration_VRC447_vsMethod17.xml
-		-l hcondor -j hcondor -z localhost -u yh -N 1000  -Z 10000000 -B 30000
+		-l hcondor -j hcondor -z localhost -u yh --contigMaxRankBySize 1000  -Z 10000000 -B 30000
 		-e /u/home/eeskin/polyacti
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--needSSHDBTunnel -J ~/bin/jdk/bin/java --mask_genotype_method_id 17
