@@ -2,19 +2,19 @@
 """
 Examples:
 	# scaffold (120) is used as reference in alignment. get genome sequence id from 1 to 8.
-	%s -o workflow.xml -a 120 -i 1-8 -y2 -s2
+	%s -o workflow.xml -a 120 --ind_seq_id_ls 1-8 -y2 -s2
 	
 	# 1Mb-BAC (9) is used as reference.
-	%s -o workflow.xml -a 9 -i 1-4 -y2 -s2
+	%s -o workflow.xml -a 9 --ind_seq_id_ls 1-4 -y2 -s2
 	
 	# 8 genomes versus top 156 contigs
-	%s -o workflow_8GenomeVsTop156Contigs.xml -u yh  -a 128 -i 1-8 -N 156 -y2 -s2
+	%s -o workflow_8GenomeVsTop156Contigs.xml -u yh  -a 128 --ind_seq_id_ls 1-8 -N 156 -y2 -s2
 	
 	# 2011-7-21 use GATK + coverage filter, top 2 contigs
-	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 -i 1-8 -N 2 -y1  -s2
+	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 --ind_seq_id_ls 1-8 -N 2 -y1  -s2
 	
 	# 2011-7-21 use GATK + coverage filter on hoffman2 and site_handler, top 5 contigs
-	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 -i 1-8
+	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 --ind_seq_id_ls 1-8
 		-N 5 -y1 --site_handler hoffman2 -e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db  -s2
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
 	
@@ -23,8 +23,8 @@ Examples:
 		--site_handler condorpool -y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC.xml -s2 -q /tmp/all_isq_coverage.tsv
 	
 	%s -a 120 --ind_aln_id_ls 34,38 -u yh --site_handler hoffman2
-	-y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC_hoffman2.xml  -s2 -e /u/home/eeskin/polyacti
-	--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db -N 4 -q /tmp/all_isq_coverage.tsv
+		-y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC_hoffman2.xml  -s2 -e /u/home/eeskin/polyacti
+		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db -N 4 -q /tmp/all_isq_coverage.tsv
 	
 	#2011-9-14 top 25 contigs, variants only, run on uschpc cluster
 	%s --ind_aln_id_ls 559-656 --input_site_handler uschpc --site_handler uschpc -u yh -a 524 -s 2 -e /home/cmb-03/mn/yuhuang
@@ -33,17 +33,17 @@ Examples:
 		--local_data_dir ~/mnt/hpc-cmb_home/NetworkData/vervet/db/ -N25
 	
 	# 2011-11-4 run GATK/samtools on single-sample at a time, for 4 high-coverage VRC monkeys, top 804 contigs
-	%s -a 524 -i 15-18 -u yh --site_handler condorpool --input_site_handler condorpool -s 2 -N 804
+	%s -a 524 --ind_seq_id_ls 15-18 -u yh --site_handler condorpool --input_site_handler condorpool -s 2 -N 804
 		-o AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top804Contigs_single_sample_condor.xml --hostname uclaOffice -n 2
 		--noOfCallingJobsPerNode 5
 	
 	# 2012.6.26 run on hoffman2 condor pool (hcondor), filtered sequences (-Q 1), alignment method 2 (-G 2)
 	# no site ID filtering (-S ""), clustering size =5 for calling jobs (--noOfCallingJobsPerNode 5).
-	# with 2million bp interval (-Z 2000000).
-	%s -a 524 -i 633,1495,...,1524,1459,1505,1478,1486,1442,1472,1516,1453
+	# with 2million bp interval (--intervalSize 2000000).
+	%s -a 524 --ind_seq_id_ls 633,1495,...,1524,1459,1505,1478,1486,1442,1472,1516,1453
 		-u yh --hostname localhost -N 7559 -S "" -Q1 -G 2 --site_handler hcondor --input_site_handler hcondor -e /u/home/eeskin/polyacti 
 		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db 
-		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 5 -Z 2000000
+		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 5 --intervalSize 2000000 --intervalOverlapSize 0
 		-o dags/AlignmentToCall_130PoplationVervets_vs_524_top7559Contigs.xml
 	
 	# 2012.7.30 genotype-call 723 alignments on method 7 sites (-R ...). "-N ..." (top number of contigs) doesn't matter here.
@@ -57,27 +57,33 @@ Examples:
 	#2012.8.2 testing calling at known sites (-R method7_BED.n10k.tsv, Contig731 and partial Contig645) 
 	#			with 500 regions for each job (-K 500),
 	# run GATK along with samtools (-T), no clustering for any job (--noOfCallingJobsPerNode 1 --clusters_size1)
-	# only on four alignments of isq-id (-i 643-646)
-	%s -a 524 -i 643-646 -S 447 -u yh --hostname localhost  -Q1 -G2 
+	# only on four alignments of isq-id (--ind_seq_id_ls 643-646)
+	%s -a 524 --ind_seq_id_ls 643-646 -S 447 -u yh --hostname localhost  -Q1 -G2 
 		--site_handler hcondor --input_site_handler hcondor
 		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
 		--noOfCallingJobsPerNode 1 --clusters_size1
 		-o dags/AlignmentToCall_ISQ643_646_vs_524_method7n10kSites.xml -R method7_BED.n10k.tsv -T -K 500
+	
 	# 2012.8.2 part of the test above, now run multi-sample on Contig731 on all sites
-	# use -x 731 (maxContigID) -V 731 (minContigID) to restrict the top 1000 contigs to only Contig731.
-	# run on intervals of 200kb (-Z), with both GATK (-T) and SAMtools
+	# use --maxContigID 731 (maxContigID) -V 731 (minContigID) to restrict the top 1000 contigs to only Contig731.
+	# run on intervals of 200kb (--intervalSize), with both GATK (-T) and SAMtools
 	# add --individual_sequence_file_raw_id_type 2 (library-specific alignments, different libraries of one individual_sequence) 
 	# add --individual_sequence_file_raw_id_type 3 (both all-library-fused and library-specific alignments)
 	# add "--country_id_ls 135,136,144,148,151" to limit individuals from US,Barbados,StKitts,Nevis,Gambia (AND with -S, )
-	%s -a 524 -i 643-646
+	%s -a 524 --ind_seq_id_ls 643-646
 		#-S 447
 		-u yh --hostname localhost -Q1 -G2
 		--site_handler hcondor --input_site_handler hcondor
 		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
-		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 1 --clusters_size1
-		-o dags/AlignmentToCall/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml -T -N 1000 -x 731 -V 731 -Z 200000
+		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 1 --clusters_size 1
+		-o dags/AlignmentToCall/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml
+		--addGATKJobs
+		--contigMaxRankBySize 1000 --maxContigID 731 --minContigID 731 --intervalSize 200000 --intervalOverlapSize 0
 		#--individual_sequence_file_raw_id_type 2 --country_id_ls 135,136,144,148,151 --tax_id_ls 60711 #sabaeus
+		#--heterozygosityForGATK 0.01
+		# 2013.2.25 add this to try HaplotypeCaller
+		#--minPruningForGATKHaplotypCaller 2 --GATKGenotypeCallerType HaplotypeCaller
 	
 Description:
 	2011-7-12
@@ -118,6 +124,11 @@ class AlignmentToCallPipeline(parentClass):
 									Increase it to above 1 only when your average genotyping job is short and the number of input bam files are short.'],\
 						("polymuttPath", 1, ): ["%s/bin/polymutt", '', 1, 'path to the polymutt binary'],\
 						("trioCallerPath", 1, ): ["%s/script/vervet/bin/trioCaller/TrioCaller", '', 1, 'path to TrioCaller binary'],\
+						("GATKGenotypeCallerType", 1, ): ['UnifiedGenotyper', '', 1, 'passed to -T of GATK. Can try HaplotypeCaller'],\
+						("heterozygosityForGATK", 1, float): [0.005, '', 1, 'heterozygosity prior for GATK. GATK default is 0.001 '],\
+						("minPruningForGATKHaplotypCaller", 1, int): [2, '', 1, 'The minimum allowed pruning factor in assembly graph.\n\
+	Paths with <= X supporting kmers are pruned from the graph.\n\
+	default in GATK2 is 1.'],\
 						}
 	
 	commonCallPipelineOptionDict.update(parentClass.partitionWorkflowOptionDict.copy())
@@ -126,7 +137,7 @@ class AlignmentToCallPipeline(parentClass):
 	option_default_dict.update({
 						("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
 						("run_type", 1, int): [1, 'n', 1, '1: multi-sample calling, 2: single-sample one by one'],\
-						("addGATKJobs", 0, int): [0, 'T', 0, 'toggle if you want to have GATK genotyping jobs as well.'],\
+						("addGATKJobs", 0, int): [0, 'T', 0, 'toggle if you want to have GATK genotyping jobs as well. default is SAMtools only.'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
@@ -197,6 +208,7 @@ class AlignmentToCallPipeline(parentClass):
 			workflow.depends(parent=selectAndSplitFastaJob, child=createSeqDictJob)
 			
 			chr2jobDataLs[chr] = [fai_index_job, fastaFAIIndexFile, createSeqDictJob, fastaFile, dictFile]
+			self.no_of_jobs += 1
 		return PassingData(chr2jobDataLs=chr2jobDataLs, workflow=workflow)
 	
 	def addSelectAndSplitBamJobs(self, db_vervet, workflow, alignmentLs, site_handler, maxContigID, chrLs, samtools=None, \
@@ -345,6 +357,7 @@ class AlignmentToCallPipeline(parentClass):
 				seqCoverageF=None, needFastaIndexJob=False, \
 				needFastaDictJob=False, site_type=1):
 		"""
+		deprecated
 		2011-9-2
 			add argument seqCoverageF
 		2011-8-26
@@ -366,6 +379,7 @@ class AlignmentToCallPipeline(parentClass):
 			self.addJobUse(fastaDictJob, file=CreateSequenceDictionaryJar, transfer=True, register=True, link=Link.INPUT)
 			fastaDictJob.uses(refFastaF, transfer=True, register=False, link=Link.INPUT)
 			fastaDictJob.uses(refFastaDictF, transfer=True, register=False, link=Link.OUTPUT)
+			self.no_of_jobs += 1
 			workflow.addJob(fastaDictJob)
 		else:
 			fastaDictJob = None
@@ -379,6 +393,7 @@ class AlignmentToCallPipeline(parentClass):
 			fastaIndexJob.addArguments("faidx", refFastaF)
 			fastaIndexJob.uses(refFastaF, register=False, link=Link.INPUT)
 			fastaIndexJob.uses(refFastaIndexFname, transfer=True, register=False, link=Link.OUTPUT)
+			self.no_of_jobs += 1
 			workflow.addJob(fastaIndexJob)
 		else:
 			fastaIndexJob = None
@@ -405,7 +420,8 @@ class AlignmentToCallPipeline(parentClass):
 				picard_job.uses(bamFile, transfer=True, register=True, link=Link.INPUT)
 				#this picard merge job depends on a bunch of prior samtools index jobs
 				workflow.depends(parent=samtools_index_job, child=picard_job)
-			
+			self.no_of_jobs += 1
+		
 			# add the index job on the merged bam file
 			samtools_index_job = Job(namespace=namespace, name=samtools.name, version=version)
 			samtools_index_job.addArguments("index", picard_output)
@@ -414,6 +430,7 @@ class AlignmentToCallPipeline(parentClass):
 			samtools_index_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
 			workflow.addJob(samtools_index_job)
 			workflow.depends(parent=picard_job, child=samtools_index_job)
+			self.no_of_jobs += 1
 			
 			
 			if genotypeCallerType==2:
@@ -447,6 +464,7 @@ class AlignmentToCallPipeline(parentClass):
 				gatk_job.uses(gatkIDXOutput, transfer=True, register=True, link=Link.OUTPUT)
 				
 				
+				self.no_of_jobs += 1
 				gatk_job_max_memory = 1500	#in MB
 				yh_pegasus.setJobProperRequirement(gatk_job, job_max_memory=gatk_job_max_memory)
 				
@@ -485,6 +503,7 @@ class AlignmentToCallPipeline(parentClass):
 			yh_pegasus.setJobProperRequirement(GenotypeCallByCoverage_job, job_max_memory=job_max_memory)
 			workflow.addJob(GenotypeCallByCoverage_job)
 			workflow.depends(parent=coverageFilterParentJob, child=GenotypeCallByCoverage_job)
+			self.no_of_jobs += 1
 			
 			
 			#add the pairwise distance matrix job after filter is done
@@ -505,7 +524,8 @@ class AlignmentToCallPipeline(parentClass):
 			workflow.depends(parent=GenotypeCallByCoverage_job, child=calcula_job)
 			
 			chr2mergedBamCallJob[chr] = [genotypeCallOutput, GenotypeCallByCoverage_job]
-		sys.stderr.write(".Done\n")
+			self.no_of_jobs += 1
+		sys.stderr.write(" %s jobs.\n"%(self.no_of_jobs))
 		return PassingData(chr2mergedBamCallJob=chr2mergedBamCallJob)
 	
 	def addAddRG2BamJobsAsNeeded(self, workflow, alignmentDataLs, site_handler, input_site_handler=None, \
@@ -650,12 +670,10 @@ class AlignmentToCallPipeline(parentClass):
 		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
 		vcf_job_max_memory = 1000
 		refFastaF = refFastaFList[0]
-		no_of_jobs = 0
 		if needFastaDictJob:	# the .dict file is required for GATK
 			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
 												CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
-			no_of_jobs += 1
 		else:
 			fastaDictJob = None
 			refFastaDictF = None
@@ -663,7 +681,6 @@ class AlignmentToCallPipeline(parentClass):
 		if needFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
-			no_of_jobs += 1
 		else:
 			fastaIndexJob = None
 			refFastaIndexF = None
@@ -714,7 +731,6 @@ class AlignmentToCallPipeline(parentClass):
 			samtoolsIndelUnionJob = self.addVCFConcatJob(workflow, concatExecutable=concatSamtools, parentDirJob=samtoolsDirJob, \
 							outputF=samtoolsIndelUnionOutputF, namespace=namespace, version=version, transferOutput=True, \
 							vcf_job_max_memory=vcf_job_max_memory)
-			no_of_jobs += 4
 			for intervalData in intervalDataLs:
 				if intervalData.file:
 					mpileupInterval = intervalData.interval
@@ -731,12 +747,17 @@ class AlignmentToCallPipeline(parentClass):
 					gatkIDXOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf.idx'%(vcfBaseFname))
 					gatkIDXOutput = File(gatkIDXOutputFname)
 					
-					gatk_job= self.addGATKCallJob(workflow, genotyperJava=genotyperJava, GenomeAnalysisTKJar=GenomeAnalysisTKJar, \
+					gatk_job= self.addGATKCallJob(genotyperJava=genotyperJava, GenomeAnalysisTKJar=self.GenomeAnalysisTK2Jar, \
 							gatkOutputF=gatkOutputF, gatkIDXOutput=gatkIDXOutput, refFastaFList=refFastaFList, \
 							parentJobLs=[gatkDirJob]+intervalData.jobLs, \
-							extraDependentInputLs=[], transferOutput=False, extraArguments=None, \
-							job_max_memory=job_max_memory*max(1, len(alignmentDataLs)/100), no_of_gatk_threads=no_of_gatk_threads, site_type=site_type, \
-							interval=bcftoolsInterval)
+							extraDependentInputLs=None, transferOutput=False, extraArguments=None, \
+							job_max_memory=job_max_memory*max(1, len(alignmentDataLs)/100), no_of_gatk_threads=no_of_gatk_threads, \
+							site_type=site_type, \
+							interval=bcftoolsInterval,\
+							heterozygosityForGATK=self.heterozygosityForGATK, \
+							minPruningForGATKHaplotypCaller=self.minPruningForGATKHaplotypCaller, \
+							GATKGenotypeCallerType = self.GATKGenotypeCallerType,\
+							)
 					
 					vcf4_gatkOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf'%vcfBaseFname)
 					vcf4_gatkOutputF = File(vcf4_gatkOutputFname)
@@ -764,7 +785,7 @@ class AlignmentToCallPipeline(parentClass):
 				samtools_job= self.addSAMtoolsCallJob(workflow, CallVariantBySamtools=CallVariantBySamtools, \
 					samtoolsOutputF=samtoolsOutputF, indelVCFOutputF=indelVCFOutputF, \
 					refFastaFList=refFastaFList, parentJobLs=[samtoolsDirJob]+intervalData.jobLs, \
-					extraDependentInputLs=[], transferOutput=False, \
+					extraDependentInputLs=None, transferOutput=False, \
 					extraArguments=None, job_max_memory=job_max_memory*max(1, len(alignmentDataLs)/200), \
 					site_type=site_type, maxDP=cumulativeMedianDepth*5, mpileupInterval=mpileupInterval, \
 					bcftoolsInterval=bcftoolsInterval)
@@ -896,7 +917,6 @@ class AlignmentToCallPipeline(parentClass):
 				wholeRefUnionOfIntersectionJob.addArguments("-B:%s,VCF"%vcfBaseFname, intersectionOutputF)
 				workflow.depends(parent=genotypeIntersectionJob, child=wholeRefUnionOfIntersectionJob)
 				"""
-				no_of_jobs += 8
 				jobAndInputOptionList = [(samtools_job, "")]
 				if addGATKJobs:
 					jobAndInputOptionList.append((gatk_job, "-I"))
@@ -906,7 +926,7 @@ class AlignmentToCallPipeline(parentClass):
 					self.addAlignmentAsInputToJobLs(workflow, alignmentDataLs, jobLs=[job], jobInputOption=jobInputOption)
 		
 		
-		sys.stderr.write(" %s jobs.\n"%(no_of_jobs))
+		sys.stderr.write(" %s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
 	def addAlignmentAsInputToJobLs(self, workflow, alignmentDataLs, jobLs=[], jobInputOption=""):
@@ -971,63 +991,77 @@ class AlignmentToCallPipeline(parentClass):
 		sys.stderr.write("Done.\n")
 		return bamListF
 	
-	def addGATKCallJob(self, workflow, genotyperJava=None, GenomeAnalysisTKJar=None, gatkOutputF=None, gatkIDXOutput=None, \
-					refFastaFList=[], parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
-					extraArguments=None, job_max_memory=2000, no_of_gatk_threads=1, site_type=2, interval=None, **keywords):
+	def addGATKCallJob(self, workflow=None, genotyperJava=None, GenomeAnalysisTKJar=None, gatkOutputF=None, gatkIDXOutput=None, \
+					refFastaFList=None, parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
+					extraArguments=None, job_max_memory=2000, no_of_gatk_threads=1, site_type=2, interval=None, \
+					heterozygosityForGATK=0.001, minPruningForGATKHaplotypCaller=None, GATKGenotypeCallerType = 'UnifiedGenotyper', \
+					**keywords):
 		"""
+		2013.2.25 added argument GATKGenotypeCallerType, (default is UnifiedGenotyper, could try HaplotypeCaller)
+			added argument heterozygosityForGATK, minPruningForGATKHaplotypCaller
+			use addGenericJob
 		2012.7.30
 			interval could be a BED file, rather than just a string (chr:start-stop).
 			start and stop are 0-based. i.e. start=0, stop=100 means bases from 0-99.
 			
 		2011-12-4
 		"""
-		#GATK job
+		if workflow is None:
+			workflow = self
+		if GenomeAnalysisTKJar is None:
+			GenomeAnalysisTKJar = workflow.GenomeAnalysisTK2Jar
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		
+		extraDependentInputLs.append(GenomeAnalysisTKJar)
+		
 		memRequirementObject = self.getJVMMemRequirment(job_max_memory=job_max_memory, minMemory=2000)
 		job_max_memory = memRequirementObject.memRequirement
 		javaMemRequirement = memRequirementObject.memRequirementInStr
 		
 		#= "-Xms%sm -Xmx%sm"%(job_max_memory/2, job_max_memory)
 		refFastaF = refFastaFList[0]
-		job = Job(namespace=workflow.namespace, name=genotyperJava.name, version=workflow.version)
-		job.addArguments(javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T", "UnifiedGenotyper",\
-			"-mbq 20", "-R", refFastaF, "--out", gatkOutputF,\
-			self.defaultGATKArguments, "-nt %s"%no_of_gatk_threads, "--baq CALCULATE_AS_NECESSARY")
+		frontArgumentList = [javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T", GATKGenotypeCallerType,\
+			"-R", refFastaF, "--out", gatkOutputF,\
+			self.defaultGATKArguments, "-nt %s"%no_of_gatk_threads]
 		# 2011-11-22 "-mmq 30",  is no longer included
 		if site_type==1:
-			job.addArguments('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
+			frontArgumentList.append('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
+		if heterozygosityForGATK:
+			frontArgumentList.append("--heterozygosity %s"%(heterozygosityForGATK))
+		if minPruningForGATKHaplotypCaller and GATKGenotypeCallerType=='HaplotypeCaller':
+			frontArgumentList.append("--minPruning %s"%(minPruningForGATKHaplotypCaller))
+		if GATKGenotypeCallerType=='UnifiedGenotyper':	#2013.2.25 only for UnifiedGenotyper, not for HaplotypeCaller
+			frontArgumentList.append("-mbq 20 --baq CALCULATE_AS_NECESSARY ")
 		if extraArguments:
-			job.addArguments(extraArguments)
+			frontArgumentList.append(extraArguments)
 		if interval is not None:
 			if isinstance(interval, File):	#2012.7.30
-				job.uses(interval, transfer=True, register=True, link=Link.INPUT)
-				job.addArguments("-L:bed", interval)
+				extraDependentInputLs.append(interval)
+				frontArgumentList.extend(["-L:bed", interval])
 			else:
-				job.addArguments("-L", interval)
-		for refFastaFile in refFastaFList:
-			job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
-		self.addJobUse(job, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
-		job.uses(gatkOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		job.uses(gatkIDXOutput, transfer=transferOutput, register=True, link=Link.OUTPUT)
+				frontArgumentList.extend(["-L", interval])
+		if refFastaFList:
+			extraDependentInputLs.extend(refFastaFList)
+		
+		job = self.addGenericJob(workflow=workflow, executable=genotyperJava, inputFile=None, \
+					outputFile=gatkOutputF, outputArgumentOption="--out", inputFileList=None, \
+					parentJob=None, parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, extraOutputLs=[gatkIDXOutput], \
+					transferOutput=transferOutput, \
+					frontArgumentList=frontArgumentList, extraArguments=extraArguments, \
+					extraArgumentList=None, job_max_memory=job_max_memory,  sshDBTunnel=None, \
+					key2ObjectForJob=None, no_of_cpus=no_of_gatk_threads, max_walltime=None, **keywords)
 		job.output = gatkOutputF
 		job.gatkIDXOutput = gatkIDXOutput
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, no_of_cpus=no_of_gatk_threads)
-		workflow.addJob(job)
-		
-		if parentJobLs:
-			for parentJob in parentJobLs:
-				if parentJob:
-					workflow.depends(parent=parentJob, child=job)
-		if extraDependentInputLs:
-			for inputFile in extraDependentInputLs:
-				if inputFile:
-					self.addJobUse(job, file=inputFile, transfer=True, register=True, link=Link.INPUT)
+		#self.no_of_jobs += 1
 		return job
 	
-	def addSAMtoolsCallJob(self, workflow, CallVariantBySamtools=None, samtoolsOutputF=None, indelVCFOutputF=None, \
+	def addSAMtoolsCallJob(self, workflow=None, CallVariantBySamtools=None, samtoolsOutputF=None, indelVCFOutputF=None, \
 					refFastaFList=[], parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 					extraArguments=None, job_max_memory=2000, site_type=2, maxDP=15000, mpileupInterval=None, \
 					bcftoolsInterval=None, **keywords):
 		"""
+		2013.2.25 use addGenericJob
 		2012.8.7
 			split argument interval into mpileupInterval and bcftoolsInterval
 		2012.8.6 add argument maxDP
@@ -1036,30 +1070,32 @@ class AlignmentToCallPipeline(parentClass):
 			start and stop are 0-based. i.e. start=0, stop=100 means bases from 0-99.
 		2011-12-4
 		"""
+		if workflow is None:
+			workflow = self
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		
 		refFastaF = refFastaFList[0]
-		job = Job(namespace=workflow.namespace, name=CallVariantBySamtools.name, version=workflow.version)
-		job.addArguments(refFastaF, mpileupInterval, bcftoolsInterval, samtoolsOutputF, repr(site_type), "%s"%(maxDP))
+		frontArgumentList = [refFastaF, mpileupInterval, bcftoolsInterval, samtoolsOutputF, repr(site_type), "%s"%(maxDP)]
 		if isinstance(mpileupInterval, File):
-			job.uses(mpileupInterval, transfer=True, register=True, link=Link.INPUT)
+			extraDependentInputLs.append(mpileupInterval)
 		if isinstance(bcftoolsInterval, File) and mpileupInterval!=bcftoolsInterval:	#do not add the same file as INPUT twice
-			job.uses(bcftoolsInterval, transfer=True, register=True, link=Link.INPUT)
+			extraDependentInputLs.append(bcftoolsInterval)
 		for refFastaFile in refFastaFList:
-			job.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
+			extraDependentInputLs.append(refFastaFile)
 		#job.uses(bamListF, transfer=True, register=True, link=Link.INPUT)
-		job.uses(samtoolsOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		job.uses(indelVCFOutputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
+
+		
+		job = self.addGenericJob(workflow=workflow, executable=CallVariantBySamtools, inputFile=None, \
+					outputFile=None, inputFileList=None, \
+					parentJob=None, parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+					extraOutputLs=[samtoolsOutputF, indelVCFOutputF], \
+					transferOutput=transferOutput, \
+					frontArgumentList=frontArgumentList, extraArguments=extraArguments, \
+					extraArgumentList=None, job_max_memory=job_max_memory,  sshDBTunnel=None, \
+					key2ObjectForJob=None, no_of_cpus=None, max_walltime=None, **keywords)
 		job.output = samtoolsOutputF
 		job.indelVCFOutputF = indelVCFOutputF
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
-		workflow.addJob(job)
-		if parentJobLs:
-			for parentJob in parentJobLs:
-				if parentJob:
-					workflow.depends(parent=parentJob, child=job)
-		if extraDependentInputLs:
-			for inputFile in extraDependentInputLs:
-				if inputFile:
-					job.uses(inputFile, transfer=True, register=True, link=Link.INPUT)
 		return job
 	
 	def registerCustomExecutables(self, workflow=None):
