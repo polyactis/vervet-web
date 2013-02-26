@@ -216,9 +216,9 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			refFastaIndexF = None
 		
 		trioCallerOutputDir = "%strioCaller"%(outputDirPrefix)
-		trioCallerOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=trioCallerOutputDir)
+		trioCallerOutputDirJob = self.addMkDirJob(outputDir=trioCallerOutputDir)
 		round1CallDir = "%spreTrioCaller"%(outputDirPrefix)
-		round1CallDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=round1CallDir)
+		round1CallDirJob = self.addMkDirJob(outputDir=round1CallDir)
 		
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
@@ -501,7 +501,6 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		if workflow is None :
 			workflow = self
 		refFastaF = refFastaFList[0]
-		no_of_jobs = 0
 		
 		if needFastaDictJob:	# the .dict file is required for GATK
 			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
@@ -519,9 +518,9 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			refFastaIndexF = None
 		
 		trioCallerOutputDir = "%sRefinedCalls"%(outputDirPrefix)
-		trioCallerOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=trioCallerOutputDir)
+		trioCallerOutputDirJob = self.addMkDirJob(outputDir=trioCallerOutputDir)
 		round1CallDir = "%sPreRefinedCalls"%(outputDirPrefix)
-		round1CallDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=round1CallDir)
+		round1CallDirJob = self.addMkDirJob(outputDir=round1CallDir)
 		
 		outputPedigreeJob = None
 		
