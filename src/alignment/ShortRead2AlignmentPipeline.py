@@ -92,7 +92,8 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import copy
 from Pegasus.DAX3 import *
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, yh_pegasus
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
+from pymodule.pegasus import yh_pegasus
 from pymodule.pegasus.ShortRead2AlignmentWorkflow import ShortRead2AlignmentWorkflow
 from vervet.src import VervetDB
 
