@@ -74,6 +74,13 @@ Examples:
 		-o dags/ShortRead2Alignment/ShortRead2Alignment_10VWP_4DeepVRC_6LowCovVRC_392_397_vs_508_condorpool.xml
 		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  --commit --alignment_method_name stampy  -H
 	
+	# 2013.2.28 use the new alignment-method: bwaShortReadHighMismatches
+	ref=3231; %s -i 638 -a $ref
+		-o workflow/ShortRead2Alignment/ShortRead2AlignmentPipeline_Aethiops_vs_$ref\_AlnMethod5.xml
+		-u yh -l hcondor -j hcondor -z localhost -u yh --commit --tmpDir /work/ --home_path /u/home/eeskin/polyacti
+		--no_of_aln_threads 1 --skipDoneAlignment -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ --clusters_size 1 --alignment_method_name bwaShortReadHighMismatches
+	
 Description:
 	2012.5.3
 		a program which generates a pegasus workflow dag (xml file) which does the alignment for all available sequences.
@@ -83,9 +90,9 @@ Description:
 			Empty read files would fail alignment jobs and thus no final alignment for a few indivdiuals.
 		Use "--cluster_size_for_aln_jobs 10" to cluster the alignment jobs if the input read file is small enough (~1Million reads for bwa, ~300K for stampy). 
 """
-import sys, os, math
+import sys, os
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], \
-				sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
+				sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
