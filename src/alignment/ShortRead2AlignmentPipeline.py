@@ -1,60 +1,60 @@
 #!/usr/bin/env python
 """
 Examples:
-	# 2011-8-30 workflow on condor, always commit (-c)
+	# 2011-8-30 workflow on condor, always commit (--commit)
 	%s -i 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9 -l condorpool
-		-n1 -z dl324b-1.cmb.usc.edu -c -H
+		-n1 -z dl324b-1.cmb.usc.edu --commit -H
 	
 	# 2011-8-30 a workflow with 454 long-read and short-read PE. need a ref index job (-n1). 
 	%s -i 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9
 		-e /u/home/eeskin/polyacti -l hoffman2 --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db -n1
-		-z dl324b-1.cmb.usc.edu -c
+		-z dl324b-1.cmb.usc.edu --commit
 		--tmpDir /work/ -H
 	
 	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (--local_data_dir changes local_data_dir. --data_dir changes data_dir.)
 	# 2012.3.20 use /work/ or /u/scratch/p/polyacti/tmp as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
-	# 2012.5.4 cluster 10 alignment jobs (before merging) as a unit (--cluster_size_for_aln_jobs 10), skip done alignment (-K)
+	# 2012.5.4 cluster 10 alignment jobs (before merging) as a unit (--cluster_size_for_aln_jobs 10), skip done alignment (--skipDoneAlignment)
 	# 2012.9.21 add "-H" because AddAlignmentFile2DB need db conneciton
 	# 2012.9.21 add "--alignmentPerLibrary" to also get alignment for each library within one individual_sequence
 	%s  --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 		-l hcondor -j hcondor 
-		-z localhost -u yh -c
-		-i 631-700 -o workflow/ShortRead2Alignment_Isq_631-700_vs_524_hcondor.xml  -a 524 
-		--tmpDir /work/ -e /u/home/eeskin/polyacti  --cluster_size_for_aln_jobs 10 -K  -H --alignmentPerLibrary
+		-z localhost -u yh --commit
+		-i 631-700 -o dags/ShortRead2Alignment_Isq_631-700_vs_524_hcondor.xml  -a 524 
+		--tmpDir /work/ -e /u/home/eeskin/polyacti  --cluster_size_for_aln_jobs 10 --skipDoneAlignment  -H --alignmentPerLibrary
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files. need ref index job (--needRefIndexJob).
 	# If input_site_handler is "local", pegasus will report error saying it doesn't know how to replica-transfer input files.
 	%s -i 176,178-183,207-211
 		-o ShortRead2Alignment_8VWP_vs_9_condor_no_refIndex.xml
-		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z dl324b-1.cmb.usc.edu -p secret  -c -H
+		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z dl324b-1.cmb.usc.edu -p secret  --commit -H
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files.
 	# If input_site_handler is "local", pegasus will report error saying it doesn't know how to replica-transfer input files.
 	%s -i 176,178-183,207-211
 		-o ShortRead2Alignment_8VWP_vs_9_condor_no_refIndex.xml
-		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z dl324b-1.cmb.usc.edu -p secret  -c -H
+		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z dl324b-1.cmb.usc.edu -p secret  --commit -H
 		
 	# 2011-8-30 a workflow to run on uschpc, with ref index job. Note the site_handler and input_site_handler.
 	# to enable replica-transfer.
 	%s -i 391-397,456,473,493
 		-o ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
-		-j local -l uschpc -n1 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10 -p secret  -c -H
+		-j local -l uschpc -n1 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10 -p secret  --commit -H
 
 	# 2011-8-30 a workflow to run on uschpc, Need ref index job (--needRefIndexJob), and 4 threads for each alignment job 
 	# Note the site_handler, input_site_handler and "--data_dir ..." to enable symlink
 	%s -i 391-397,456,473,493
 		-o ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
-		-j uschpc -l uschpc --needRefIndexJob -p secret -c --no_of_aln_threads 4 -H
+		-j uschpc -l uschpc --needRefIndexJob -p secret --commit --no_of_aln_threads 4 -H
 		-e /home/cmb-03/mn/yuhuang -z 10.8.0.10 
 		--data_dir /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/ --javaPath /home/cmb-03/mn/yuhuang/bin/jdk/bin/java
 	
 	# 2011-11-16 a workflow to run on uschpc, Need ref index job (--needRefIndexJob), and 4 threads for each alignment job 
 	# Note the site_handler, input_site_handler. this will stage in all input and output (--notStageOutFinalOutput).
 	%s -i 391-397,456,473,493
-		-o workflow/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_local2usc.xml -u yh -a 9
-		-j local -l uschpc --needRefIndexJob -p secret -c --no_of_aln_threads 4
+		-o dags/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_local2usc.xml -u yh -a 9
+		-j local -l uschpc --needRefIndexJob -p secret --commit --no_of_aln_threads 4
 		-e /home/cmb-03/mn/yuhuang -z 10.8.0.10 
 		--javaPath /home/cmb-03/mn/yuhuang/bin/jdk/bin/java  -H
 	
@@ -62,17 +62,17 @@ Examples:
 	#2011-9-13 no ref index job, staging input files from localhost to uschpc, stage output files back to localhost
 	# modify the refFastaFile's path in xml manually
 	%s -i 1-3 -o ShortRead2Alignment_1_3_vs_524_local2uschpc.xml -u yh -a 524
-		-j local -l uschpc --needRefIndexJob -p secret -c --no_of_aln_threads 4 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10
+		-j local -l uschpc --needRefIndexJob -p secret --commit --no_of_aln_threads 4 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10
 		--data_dir /Network/Data/vervet/db/  -H
 	
 	# 2011-8-31 output the same workflow above but for condorpool
-	%s -i 391-397,456,473,493, -o workflow/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_condorpool.xml
-		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z 10.8.0.10  -p secret  -c --alignmentPerLibrary  -H
+	%s -i 391-397,456,473,493, -o dags/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_condorpool.xml
+		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z 10.8.0.10  -p secret  --commit --alignmentPerLibrary  -H
 	
 	# 2012-4-5 new alignment method, stampy (--alignment_method_name)
 	%s -i 167,176,178,182,183,207-211,391-397,456,473,493
-		-o workflow/ShortRead2Alignment/ShortRead2Alignment_10VWP_4DeepVRC_6LowCovVRC_392_397_vs_508_condorpool.xml
-		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  -c --alignment_method_name stampy  -H
+		-o dags/ShortRead2Alignment/ShortRead2Alignment_10VWP_4DeepVRC_6LowCovVRC_392_397_vs_508_condorpool.xml
+		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  --commit --alignment_method_name stampy  -H
 	
 Description:
 	2012.5.3
@@ -108,7 +108,6 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 									non-fastq entries will be discarded.', ],\
 						('skipDoneAlignment', 0, int):[0, 'K', 0, 'skip alignment whose path is a valid file'],\
 						("alignmentPerLibrary", 0, int): [0, '', 0, 'toggle to run alignment for each library of one individual_sequence'],\
-						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_alignment and/or individual_alignment.path'],\
 						})
 
 	def __init__(self,  **keywords):
@@ -665,7 +664,6 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		refFastaFname = os.path.join(self.data_dir, refSequence.path)
 		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
-		refFastaFile = refFastaFList[0]
 
 		if self.needRefIndexJob:
 			if self.alignment_method_name.find('bwa')>=0:
