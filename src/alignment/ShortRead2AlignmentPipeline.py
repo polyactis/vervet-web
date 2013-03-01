@@ -75,12 +75,13 @@ Examples:
 		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  --commit --alignment_method_name stampy  -H
 	
 	# 2013.2.28 use the new alignment-method: bwaShortReadHighMismatches
+	#double the core alignment (bwa aln) job walltime (--coreAlignmentJobWallTimeMultiplier) 
 	ref=3231; %s -i 638 -a $ref
 		-o workflow/ShortRead2Alignment/ShortRead2AlignmentPipeline_Aethiops_vs_$ref\_AlnMethod5.xml
 		-u yh -l hcondor -j hcondor -z localhost -u yh --commit --tmpDir /work/ --home_path /u/home/eeskin/polyacti
 		--no_of_aln_threads 1 --skipDoneAlignment -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ --clusters_size 1 --alignment_method_name bwaShortReadHighMismatches
-	
+		--coreAlignmentJobWallTimeMultiplier 2
 Description:
 	2012.5.3
 		a program which generates a pegasus workflow dag (xml file) which does the alignment for all available sequences.
