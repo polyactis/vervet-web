@@ -35,8 +35,9 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import csv
 from Pegasus.DAX3 import *
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, figureOutDelimiter, getColName2IndexFromHeader
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, NextGenSeq, figureOutDelimiter, getColName2IndexFromHeader
 from pymodule import VCFFile
+from pymodule.pegasus import yh_pegasus
 from vervet.src.pegasus.GenericVCFWorkflow import GenericVCFWorkflow
 from vervet.src import VervetDB, AbstractVervetWorkflow
 
