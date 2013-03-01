@@ -109,7 +109,7 @@ class AddVCFFile2DB(AbstractVervetMapper):
 		
 		realPath = os.path.realpath(self.inputFname)
 		logMessage = "file %s.\n"%(self.inputFname)
-		if NextGenSeq.isFileNameVCF(realPath, includeIndelVCF=False) and \
+		if NextGenSeq.isFileNameVCF(realPath, includeIndelVCF=True) and \
 				not NextGenSeq.isVCFFileEmpty(realPath, checkContent=self.checkEmptyVCFByReading):
 			vcfFile = VCFFile(inputFname=self.inputFname)
 			
@@ -195,7 +195,7 @@ class AddVCFFile2DB(AbstractVervetMapper):
 			vcfFile.close()
 			logMessage += "%s individuals, %s loci, md5sum=%s.\n"%(no_of_individuals, no_of_loci, md5sum)
 		else:
-			logMessage += " is empty (no loci).\n"
+			logMessage += " is empty (no loci) or not VCF file.\n"
 		self.outputLogMessage(logMessage)
 		
 		if self.commit:
