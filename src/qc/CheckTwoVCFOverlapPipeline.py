@@ -35,7 +35,8 @@ else:   #32bit
 
 import subprocess, cStringIO
 from Pegasus.DAX3 import *
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, GenomeDB, NextGenSeq
+from pymodule.pegasus import yh_pegasus
 from vervet.src import VervetDB, AbstractVervetWorkflow
 
 class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
@@ -155,10 +156,10 @@ class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 			if not NextGenSeq.isVCFFileEmpty(gatkVCFAbsPath) and not NextGenSeq.isVCFFileEmpty(samtoolsVCFAbsPath, \
 									checkContent=self.checkEmptyVCFByReading):	#make sure the samtools vcf is not empty
 				gatkVCFFileBaseName = os.path.basename(gatkVCFAbsPath)
-				chr = vcfFileID
-				chr_size = chr2size.get(chr)
+				chromosome = vcfFileID
+				chr_size = chr2size.get(chromosome)
 				if chr_size is None:
-					sys.stderr.write("size for chr %s is unknown. set it to 1000.\n"%(chr))
+					sys.stderr.write("size for chromosome %s is unknown. set it to 1000.\n"%(chromosome))
 					chr_size = 1000
 				
 				vcf1 = File(os.path.join('vcf1', gatkVCFFileBaseName))	#relative path
@@ -172,7 +173,7 @@ class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 				
 				outputFnamePrefix = os.path.join(statOutputDir, os.path.splitext(gatkVCFFileBaseName)[0])
 				checkTwoVCFOverlapJob = self.addCheckTwoVCFOverlapJob(workflow, executable=workflow.CheckTwoVCFOverlap, \
-						vcf1=vcf1, vcf2=vcf2, chromosome=chr, chrLength=chr_size, \
+						vcf1=vcf1, vcf2=vcf2, chromosome=chromosome, chrLength=chr_size, \
 						outputFnamePrefix=outputFnamePrefix, parentJobLs=[statOutputDirJob], \
 						extraDependentInputLs=[], transferOutput=False, extraArguments=" -m %s "%(self.minDepth),\
 						perSampleMatchFraction=self.perSampleMatchFraction,\
