@@ -30,6 +30,7 @@ import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, figureOutDelimiter
 from pymodule import SNP
 from pymodule.pegasus.mapper.AbstractMapper import AbstractMapper
+from pymodule.algorithm.graph import DiGraphWrapper
 import networkx as nx
 from pymodule import MatrixFile
 
@@ -55,11 +56,11 @@ class ComparePedigreeFromMultipleInput(AbstractMapper):
 	
 	def constructPedigreeGraphFromOneFile(self, inputFname=None):
 		"""
+		2013.3.5 replace nx.DiGraph with custom DiGraphWrapper
 		2012.8.14
 		"""
 		sys.stderr.write("Constructing pedigree-graph out of %s ..."%(inputFname))
-		DG=nx.DiGraph()
-		reader = None
+		DG=DiGraphWrapper()
 		childNodeSet = set()
 		reader = MatrixFile(inputFname)
 		
