@@ -47,7 +47,7 @@ class AddLocusFromVCF2DB(AbstractVervetMapper):
 		if sequence in self.sequence2DBentry:
 			return self.sequence2DBentry.get(sequence)
 		else:
-			dbEntry = db_vervet.getSequence(sequence=sequence, comment=comment)
+			dbEntry = db_vervet.getAlleleSequence(sequence=sequence, comment=comment)
 			self.sequence2DBentry[sequence] = dbEntry
 			return dbEntry
 	
