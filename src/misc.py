@@ -12,10 +12,8 @@ Description:
 	
 	All those classes are manually chosen to be run in Main.run().
 """
-import os, sys, numpy
-
 #2007-03-05 common codes to initiate database connection
-import sys, os, math
+import sys, os, math, numpy
 #bit_number = math.log(sys.maxint)/math.log(2)
 #if bit_number>40:       #64bit
 #	#sys.path.insert(0, os.path.expanduser('~/lib64/python'))
@@ -3466,7 +3464,7 @@ class DBVervet(object):
 	
 	@classmethod
 	def putAlignmentIntoDB(cls, db_vervet, inputFname, individual_code, \
-						sequencer='GA', sequence_type='short-read', sequence_format='fastq', \
+						sequencer_name='GA', sequence_type_name='100BPSingleRead', sequence_format='fastq', \
 						ref_individual_sequence_id=10, \
 						alignment_method_name='bwa-short-read', alignment_format='bam', createSymbolicLink=False):
 		"""
@@ -3477,7 +3475,7 @@ class DBVervet(object):
 		sys.stderr.write("Putting alignment file %s into db ..."%(inputFname))
 		db_vervet.session.begin()
 		individual_alignment = db_vervet.getAlignment(individual_code=individual_code, path_to_original_alignment=inputFname, \
-					sequencer=sequencer, sequence_type=sequence_type, sequence_format=sequence_format, \
+					sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, sequence_format=sequence_format, \
 					ref_individual_sequence_id=ref_individual_sequence_id, \
 					alignment_method_name=alignment_method_name, alignment_format=alignment_format,\
 					createSymbolicLink=createSymbolicLink)
@@ -3499,7 +3497,7 @@ class DBVervet(object):
 									(individual_name, individual_name))
 			individual_code = individual_name
 			DBVervet.putAlignmentIntoDB(db_vervet, inputFname, individual_code, \
-						sequencer='GA', sequence_type='short-read', sequence_format='fastq', \
+						sequencer_name='GA', sequence_type_name='short-read', sequence_format='fastq', \
 						ref_individual_sequence_id=9, \
 						alignment_method_name='bwa-short-read', alignment_format='bam', createSymbolicLink=False)
 		sys.exit(0)
@@ -3508,13 +3506,13 @@ class DBVervet(object):
 		inputFname = os.path.expanduser('/usr/local/vervetData/ref/illumina/vs_MinSize200Scaffolds_by_aln.bam')
 		individual_code = 'VRC_ref'
 		DBVervet.putAlignmentIntoDB(db_vervet, inputFname, individual_code, \
-						sequencer='GA', sequence_type='short-read', sequence_format='fastq', \
+						sequencer_name='GA', sequence_type_name='short-read', sequence_format='fastq', \
 						ref_individual_sequence_id=120, \
 						alignment_method_name='bwa-short-read', alignment_format='bam', createSymbolicLink=True)
 		inputFname = os.path.expanduser('/usr/local/vervetData/ref/454/vs_MinSize200Scaffolds_by_bwasw.bam')
 		individual_code = 'VRC_ref'
 		DBVervet.putAlignmentIntoDB(db_vervet, inputFname, individual_code, \
-						sequencer='454', sequence_type='short-read', sequence_format='fastq', \
+						sequencer_name='454', sequence_type_name='short-read', sequence_format='fastq', \
 						ref_individual_sequence_id=120, \
 						alignment_method_name='bwa-long-read', alignment_format='bam', createSymbolicLink=True)
 		
@@ -3524,7 +3522,7 @@ class DBVervet(object):
 									(individual_name))
 			individual_code = individual_name
 			DBVervet.putAlignmentIntoDB(db_vervet, inputFname, individual_code, \
-						sequencer='GA', sequence_type='short-read', sequence_format='fastq', \
+						sequencer_name='GA', sequence_type_name='short-read', sequence_format='fastq', \
 						ref_individual_sequence_id=120, \
 						alignment_method_name='bwa-short-read', alignment_format='bam', createSymbolicLink=True)
 		sys.exit(0)
@@ -4001,8 +3999,8 @@ class DBVervet(object):
 								tax_id=tax_id, birthdate=birthdate)
 			tissue_name = row[tissue_index]
 			coverage = float(row[coverage_index][:-1])	#remove the final "x"
-			individual_sequence = db_vervet.getIndividualSequence(individual_id=individual.id, sequencer='GA', \
-						sequence_type='short-read',\
+			individual_sequence = db_vervet.getIndividualSequence(individual_id=individual.id, sequencer_name='GA', \
+						sequence_type_name='100BPPairedEnd',\
 						sequence_format='fastq', path_to_original_sequence=None, tissue_name=tissue_name, coverage=coverage)
 		
 		del reader
@@ -5097,7 +5095,7 @@ class DBVervet(object):
 			sex = individual.sex
 			if individual.sex not in sex2node_property_list:
 				sex2node_property_list[sex] = []
-			individual_sequence = VervetDB.IndividualSequence.query.filter_by(sequencer='GA').\
+			individual_sequence = VervetDB.IndividualSequence.query.filter_by(sequencer_id=2).\
 				filter_by(individual_id=individual.id).first()
 			node_color = 0.8	#color for the sequenced
 			
@@ -5912,7 +5910,7 @@ class DBVervet(object):
 			if row and row[0]:
 				monkey = VervetDB.Individual.query.filter_by(code=row[0]).first()
 				if monkey:
-					ind_seq_ls = VervetDB.IndividualSequence.query.filter_by(individual_id=monkey.id).filter_by(sequencer='GA').\
+					ind_seq_ls = VervetDB.IndividualSequence.query.filter_by(individual_id=monkey.id).filter_by(sequencer_id=2).\
 						filter_by(filtered=0).all()
 					if len(ind_seq_ls)>1:
 						sys.stderr.write("monkey %s has %s sequences.\n"%(monkey.code, len(ind_seq_ls)))
