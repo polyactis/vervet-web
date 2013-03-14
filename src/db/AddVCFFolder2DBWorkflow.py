@@ -84,7 +84,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		AddGenotypeMethod2DB = Executable(namespace=namespace, name="AddGenotypeMethod2DB", \
 											version=version, \
 											os=operatingSystem, arch=architecture, installed=True)
-		AddGenotypeMethod2DB.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/AddGenotypeMethod2DB.py"), site_handler))
+		AddGenotypeMethod2DB.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/input/AddGenotypeMethod2DB.py"), site_handler))
 		executableList.append(AddGenotypeMethod2DB)
 		
 		UpdateGenotypeMethodNoOfLoci = Executable(namespace=namespace, name="UpdateGenotypeMethodNoOfLoci", \
