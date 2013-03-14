@@ -80,8 +80,9 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import copy, re, csv
-from pymodule import ProcessOptions, PassingData, yh_pegasus
+from pymodule import ProcessOptions, PassingData
 from pymodule.utils import getColName2IndexFromHeader
+from pymodule.pegasus import yh_pegasus
 from Pegasus.DAX3 import *
 from vervet.src import AbstractVervetWorkflow
 
@@ -93,8 +94,8 @@ class UnpackAndAddIndividualSequence2DB(AbstractVervetWorkflow):
 						('bamFname2MonkeyIDMapFname', 0, ): ['', '', 1, 'a tsv version of WUSTL xls file detailing what monkey is in which bam file.', ],\
 						('minNoOfReads', 1, int): [4000000, '', 1, 'minimum number of reads in each split fastq file. This is actually the maxNoOfReads.\
 								 The upper limit in each split file is 2*minNoOfReads.', ],\
-						("sequencer", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger'],\
-						("sequence_type", 1, ): ["PE", '', 1, 'choices: BAC, genome, scaffold, PE, SR, ...'],\
+						("sequencer_name", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger, PopGenSimulation. column Sequencer.short_name'],\
+						("sequence_type_name", 1, ): ["100BPPairedEnd", '', 1, 'table column: SequenceType.short_name ...'],\
 						("sequence_format", 1, ): ["fastq", 'f', 1, 'fasta, fastq, etc.'],\
 						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_sequence.path and individual_sequence records if inexistent)'],\
 						('inputType', 1, int): [1, 'y', 1, 'input type. 1: bam files from WUSTL. \n\
@@ -171,7 +172,7 @@ class UnpackAndAddIndividualSequence2DB(AbstractVervetWorkflow):
 			elif os.path.isdir(inputFname):
 				self.getAllBamFiles(inputFname, bamFnameLs)
 		
-	def addMonkeySequence(self, db_vervet, monkeyID, sequencer='GA', sequence_type='PE', sequence_format='fastq',\
+	def addMonkeySequence(self, db_vervet, monkeyID, sequencer_name='GA', sequence_type_name='100BPPairedEnd', sequence_format='fastq',\
 						path_to_original_sequence=None, data_dir=None):
 		"""
 		2012.4.30
@@ -179,8 +180,8 @@ class UnpackAndAddIndividualSequence2DB(AbstractVervetWorkflow):
 		2011-8-3
 		"""
 		individual = db_vervet.getIndividual(code=monkeyID)
-		individual_sequence = db_vervet.getIndividualSequence(individual_id=individual.id, sequencer=sequencer, \
-						sequence_type=sequence_type, sequence_format=sequence_format, \
+		individual_sequence = db_vervet.getIndividualSequence(individual_id=individual.id, sequencer_name=sequencer_name, \
+						sequence_type_name=sequence_type_name, sequence_format=sequence_format, \
 						path_to_original_sequence=path_to_original_sequence, tissue_name=None, coverage=None,\
 						subFolder='individual_sequence', data_dir=data_dir)
 		
@@ -237,7 +238,7 @@ echo %s
 		
 		RegisterAndMoveSplitSequenceFiles  = Executable(namespace=namespace, name="RegisterAndMoveSplitSequenceFiles", version=version, os=operatingSystem, \
 								arch=architecture, installed=True)
-		RegisterAndMoveSplitSequenceFiles.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'mapper/RegisterAndMoveSplitSequenceFiles.py'), site_handler))
+		RegisterAndMoveSplitSequenceFiles.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'db/input/RegisterAndMoveSplitSequenceFiles.py'), site_handler))
 		#RegisterAndMoveSplitSequenceFiles.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(RegisterAndMoveSplitSequenceFiles)
 		workflow.RegisterAndMoveSplitSequenceFiles = RegisterAndMoveSplitSequenceFiles
@@ -416,7 +417,7 @@ echo %s
 
 	def addJobsToProcessSouthAfricanDNAData(self, workflow=None, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, data_dir=None, \
 			minNoOfReads=None, commit=None,\
-			sequencer=None, sequence_type=None, sequence_format=None):
+			sequencer_name=None, sequence_type_name=None, sequence_format=None):
 		"""
 		2012.6.2
 			input fastq files could be gzipped or not. doesn't matter.
@@ -426,7 +427,7 @@ echo %s
 		monkeyID2FastqObjectLs = self.getMonkeyID2FastqObjectLsForSouthAfricanDNAData(fastqFnameLs=fastqFnameLs)
 		self.addJobsToSplitAndRegisterSequenceFiles(workflow=workflow, db_vervet=db_vervet, monkeyID2FastqObjectLs=monkeyID2FastqObjectLs, data_dir=data_dir, \
 									minNoOfReads=minNoOfReads, commit=commit,\
-									sequencer=sequencer, sequence_type=sequence_type, sequence_format=sequence_format)		
+									sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, sequence_format=sequence_format)		
 	
 	
 	def getFilenameSignature2MonkeyID(self, inputFname=None):
@@ -516,7 +517,7 @@ echo %s
 	
 	def addJobsToProcessSouthAfricanRNAData(self, workflow, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, data_dir=None, \
 			minNoOfReads=None, commit=None,\
-			sequencer=None, sequence_type=None, sequence_format=None):
+			sequencer_name=None, sequence_type_name=None, sequence_format=None):
 		"""
 		2012.6.1
 			input fastq files could be gzipped or not. doesn't matter.
@@ -529,7 +530,7 @@ echo %s
 																	filenameSignature2MonkeyID=filenameSignature2MonkeyID)
 		self.addJobsToSplitAndRegisterSequenceFiles(workflow=workflow, db_vervet=db_vervet, monkeyID2FastqObjectLs=monkeyID2FastqObjectLs, data_dir=data_dir, \
 									minNoOfReads=minNoOfReads, commit=commit,\
-									sequencer=sequencer, sequence_type=sequence_type, sequence_format=sequence_format)		
+									sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, sequence_format=sequence_format)		
 	
 	def getMonkeyID2FastqObjectLsForMcGillData(self, fastqFnameLs=None,):
 		"""
@@ -583,7 +584,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 	
 	def addJobsToSplitAndRegisterSequenceFiles(self, workflow=None, db_vervet=None, monkeyID2FastqObjectLs=None, data_dir=None, \
 			minNoOfReads=None, commit=None,\
-			sequencer=None, sequence_type=None, sequence_format=None):
+			sequencer_name=None, sequence_type_name=None, sequence_format=None):
 		"""
 		2012.6.2
 			split out of addJobsToProcessMcGillData(), used also in addJobsToProcessDeYoungCoreData().
@@ -594,15 +595,15 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		sys.stderr.write("Adding split-read & register jobs ...")
 		filenameKey2PegasusFile = {}
 		for monkeyID, fastqObjectLs in monkeyID2FastqObjectLs.iteritems():
-			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer=sequencer, sequence_type=sequence_type, \
+			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, \
 										sequence_format=sequence_format, data_dir=data_dir)
 			
 			sequenceOutputDir = os.path.join(data_dir, individual_sequence.path)
-			sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
+			sequenceOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
 			
 			splitOutputDir = '%s'%(individual_sequence.id)
 			#same directory containing split files from both mates is fine as RegisterAndMoveSplitSequenceFiles could pick up.
-			splitOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=splitOutputDir)
+			splitOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=splitOutputDir)
 			
 			
 			
@@ -647,7 +648,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 	
 	def addJobsToProcessMcGillData(self, workflow=None, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, data_dir=None, \
 			minNoOfReads=None, commit=None,\
-			sequencer=None, sequence_type=None, sequence_format=None):
+			sequencer_name=None, sequence_type_name=None, sequence_format=None):
 		"""
 		2012.4.30
 		"""
@@ -657,12 +658,12 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		self.addJobsToSplitAndRegisterSequenceFiles(workflow=workflow, db_vervet=db_vervet, \
 									monkeyID2FastqObjectLs=monkeyID2FastqObjectLs, data_dir=data_dir, \
 									minNoOfReads=minNoOfReads, commit=commit,\
-									sequencer=sequencer, sequence_type=sequence_type, sequence_format=sequence_format)
+									sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, sequence_format=sequence_format)
 		
 	
 	def addJobsToProcessWUSTLData(self, workflow, db_vervet=None, bamFname2MonkeyIDMapFname=None, input=None, data_dir=None, \
 			minNoOfReads=None, commit=None,\
-			sequencer=None, sequence_type=None, sequence_format=None):
+			sequencer_name=None, sequence_type_name=None, sequence_format=None):
 		"""
 		2012.4.30
 		"""
@@ -672,7 +673,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		sys.stderr.write("%s total bam files.\n"%(len(bamFnameLs)))
 		
 		sam2fastqOutputDir = 'sam2fastq'
-		sam2fastqOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sam2fastqOutputDir)
+		sam2fastqOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sam2fastqOutputDir)
 		no_of_jobs = 1
 		for bamFname in bamFnameLs:
 			bamBaseFname = os.path.split(bamFname)[1]
@@ -680,7 +681,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 				sys.stderr.write("%s doesn't have monkeyID affiliated with.\n"%(bamFname))
 				continue
 			monkeyID = bamBaseFname2MonkeyID.get(bamBaseFname)
-			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer=sequencer, sequence_type=sequence_type, \
+			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, \
 										sequence_format=sequence_format, data_dir=data_dir)
 			#2012.2.10 stop passing path_to_original_sequence=bamFname to self.addMonkeySequence()
 			
@@ -695,7 +696,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			"""
 			
 			sequenceOutputDir = os.path.join(data_dir, individual_sequence.path)
-			sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
+			sequenceOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
 			
 			bamInputF = yh_pegasus.registerFile(workflow, bamFname)
 			
@@ -713,7 +714,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			
 			splitOutputDir = '%s_%s'%(individual_sequence.id, library)
 			#same directory containing split files from both mates is fine as RegisterAndMoveSplitSequenceFiles could pick up.
-			splitOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=splitOutputDir)
+			splitOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=splitOutputDir)
 			
 			
 			mate_id = 1
@@ -790,7 +791,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		self.addJobsDict[self.inputType](workflow, db_vervet=db_vervet, bamFname2MonkeyIDMapFname=self.bamFname2MonkeyIDMapFname, \
 											input=self.input, \
 					data_dir=self.data_dir, minNoOfReads=self.minNoOfReads, commit=self.commit,\
-					sequencer=self.sequencer, sequence_type=self.sequence_type, sequence_format=self.sequence_format)
+					sequencer_name=self.sequencer_name, sequence_type_name=self.sequence_type_name, sequence_format=self.sequence_format)
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
 		self.writeXML(outf)
