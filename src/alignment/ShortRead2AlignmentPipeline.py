@@ -3,50 +3,50 @@
 Examples:
 	# 2011-8-30 workflow on condor, always commit (--commit)
 	%s -i 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9 -l condorpool
-		-n1 -z dl324b-1.cmb.usc.edu --commit -H
+		-n1 -z dl324b-1.cmb.usc.edu --commit --needSSHDBTunnel
 	
 	# 2011-8-30 a workflow with 454 long-read and short-read PE. need a ref index job (-n1). 
 	%s -i 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9
 		-e /u/home/eeskin/polyacti -l hoffman2 --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db -n1
 		-z dl324b-1.cmb.usc.edu --commit
-		--tmpDir /work/ -H
+		--tmpDir /work/ --needSSHDBTunnel
 	
 	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (--local_data_dir changes local_data_dir. --data_dir changes data_dir.)
 	# 2012.3.20 use /work/ or /u/scratch/p/polyacti/tmp as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
 	# 2012.5.4 cluster 10 alignment jobs (before merging) as a unit (--cluster_size_for_aln_jobs 10), skip done alignment (--skipDoneAlignment)
-	# 2012.9.21 add "-H" because AddAlignmentFile2DB need db conneciton
+	# 2012.9.21 add "--needSSHDBTunnel" because AddAlignmentFile2DB need db conneciton
 	# 2012.9.21 add "--alignmentPerLibrary" to also get alignment for each library within one individual_sequence
 	%s  --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 		-l hcondor -j hcondor 
 		-z localhost -u yh --commit
 		-i 631-700 -o dags/ShortRead2Alignment_Isq_631-700_vs_524_hcondor.xml  -a 524 
-		--tmpDir /work/ -e /u/home/eeskin/polyacti  --cluster_size_for_aln_jobs 10 --skipDoneAlignment  -H --alignmentPerLibrary
+		--tmpDir /work/ -e /u/home/eeskin/polyacti  --cluster_size_for_aln_jobs 10 --skipDoneAlignment  --needSSHDBTunnel --alignmentPerLibrary
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files. need ref index job (--needRefIndexJob).
 	# If input_site_handler is "local", pegasus will report error saying it doesn't know how to replica-transfer input files.
 	%s -i 176,178-183,207-211
 		-o ShortRead2Alignment_8VWP_vs_9_condor_no_refIndex.xml
-		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z dl324b-1.cmb.usc.edu -p secret  --commit -H
+		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z dl324b-1.cmb.usc.edu -p secret  --commit --needSSHDBTunnel
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files.
 	# If input_site_handler is "local", pegasus will report error saying it doesn't know how to replica-transfer input files.
 	%s -i 176,178-183,207-211
 		-o ShortRead2Alignment_8VWP_vs_9_condor_no_refIndex.xml
-		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z dl324b-1.cmb.usc.edu -p secret  --commit -H
+		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z dl324b-1.cmb.usc.edu -p secret  --commit --needSSHDBTunnel
 		
 	# 2011-8-30 a workflow to run on uschpc, with ref index job. Note the site_handler and input_site_handler.
 	# to enable replica-transfer.
 	%s -i 391-397,456,473,493
 		-o ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
-		-j local -l uschpc -n1 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10 -p secret  --commit -H
+		-j local -l uschpc -n1 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10 -p secret  --commit --needSSHDBTunnel
 
 	# 2011-8-30 a workflow to run on uschpc, Need ref index job (--needRefIndexJob), and 4 threads for each alignment job 
 	# Note the site_handler, input_site_handler and "--data_dir ..." to enable symlink
 	%s -i 391-397,456,473,493
 		-o ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
-		-j uschpc -l uschpc --needRefIndexJob -p secret --commit --no_of_aln_threads 4 -H
+		-j uschpc -l uschpc --needRefIndexJob -p secret --commit --no_of_aln_threads 4 --needSSHDBTunnel
 		-e /home/cmb-03/mn/yuhuang -z 10.8.0.10 
 		--data_dir /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/ --javaPath /home/cmb-03/mn/yuhuang/bin/jdk/bin/java
 	
@@ -56,23 +56,23 @@ Examples:
 		-o dags/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_local2usc.xml -u yh -a 9
 		-j local -l uschpc --needRefIndexJob -p secret --commit --no_of_aln_threads 4
 		-e /home/cmb-03/mn/yuhuang -z 10.8.0.10 
-		--javaPath /home/cmb-03/mn/yuhuang/bin/jdk/bin/java  -H
+		--javaPath /home/cmb-03/mn/yuhuang/bin/jdk/bin/java  --needSSHDBTunnel
 	
 	
 	#2011-9-13 no ref index job, staging input files from localhost to uschpc, stage output files back to localhost
 	# modify the refFastaFile's path in xml manually
 	%s -i 1-3 -o ShortRead2Alignment_1_3_vs_524_local2uschpc.xml -u yh -a 524
 		-j local -l uschpc --needRefIndexJob -p secret --commit --no_of_aln_threads 4 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10
-		--data_dir /Network/Data/vervet/db/  -H
+		--data_dir /Network/Data/vervet/db/  --needSSHDBTunnel
 	
 	# 2011-8-31 output the same workflow above but for condorpool
 	%s -i 391-397,456,473,493, -o dags/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_condorpool.xml
-		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z 10.8.0.10  -p secret  --commit --alignmentPerLibrary  -H
+		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z 10.8.0.10  -p secret  --commit --alignmentPerLibrary  --needSSHDBTunnel
 	
 	# 2012-4-5 new alignment method, stampy (--alignment_method_name)
 	%s -i 167,176,178,182,183,207-211,391-397,456,473,493
 		-o dags/ShortRead2Alignment/ShortRead2Alignment_10VWP_4DeepVRC_6LowCovVRC_392_397_vs_508_condorpool.xml
-		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  --commit --alignment_method_name stampy  -H
+		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  --commit --alignment_method_name stampy  --needSSHDBTunnel
 	
 	# 2013.2.28 use the new alignment-method: bwaShortReadHighMismatches
 	#double the core alignment (bwa aln) job walltime (--coreAlignmentJobWallTimeMultiplier) 
@@ -81,7 +81,7 @@ Examples:
 		-u yh -l hcondor -j hcondor -z localhost -u yh --commit --tmpDir /work/ --home_path /u/home/eeskin/polyacti
 		--no_of_aln_threads 1 --skipDoneAlignment -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ --clusters_size 1 --alignment_method_name bwaShortReadHighMismatches
-		--coreAlignmentJobWallTimeMultiplier 2
+		--coreAlignmentJobWallTimeMultiplier 2  --needSSHDBTunnel
 Description:
 	2012.5.3
 		a program which generates a pegasus workflow dag (xml file) which does the alignment for all available sequences.
@@ -130,7 +130,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		if self.ind_seq_id_ls:
 			self.ind_seq_id_ls = getListOutOfStr(self.ind_seq_id_ls, data_type=int)
 	
-	def addAllAlignmentJobs(self, db_vervet, individualSequenceID2FilePairLs=None, \
+	def addAllAlignmentJobs(self, db_vervet=None, individualSequenceID2FilePairLs=None, \
 					data_dir=None, \
 					isqLs=None,\
 					refSequence=None, refFastaFList=None, refIndexJob=None,
@@ -140,12 +140,13 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					BuildBamIndexFilesJava=None, BuildBamIndexJar=None, \
 					SortSamFilesJava=None, SortSamJar=None, \
 					addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None,\
-					alignment_method_name='bwa-short-read', alignment_format='bam',\
+					alignment_method_name='bwaShortRead', alignment_format='bam',\
 					namespace='workflow', version='1.0', transferOutput=False,\
 					PEAlignmentByBWA=None, ShortSEAlignmentByBWA=None, LongSEAlignmentByBWA=None, \
 					no_of_aln_threads=3, stampy=None, skipDoneAlignment=False, \
 					alignmentPerLibrary=False, outputDirPrefix="", **keywords):
 		"""
+		2013.3.13 individual_sequence.sequencer and individual_sequence.sequence_type has changed its meaning
 		2012.9.19
 			isq_id2LibrarySplitOrder2FileLs is replaced by isqLs.
 			add argument alignmentPerLibrary
@@ -184,13 +185,15 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 				library2Data = individual_sequence.library2Data
 				AlignmentJobAndOutputLs = []
 				# get or add alignment method
-				if individual_sequence.sequencer=='454':
-					alignment_method = db_vervet.getAlignmentMethod("bwa-long-read")
+				if individual_sequence.sequencer.short_name=='454' or \
+						(individual_sequence.sequence_type and individual_sequence.sequence_type.read_length_mean is not None \
+						and individual_sequence.sequence_type.read_length_mean>150):
+					alignment_method = db_vervet.getAlignmentMethod("bwaLongRead")
 				else:
 					alignment_method = db_vervet.getAlignmentMethod(alignment_method_name)
 				"""
 				#2012.4.5 have all this commented out
-				elif individual_sequence.sequencer=='GA':
+				elif individual_sequence.sequencer.short_name=='GA':
 					if individual_sequence.sequence_type=='SR':	#single-end
 						alignment_method = db_vervet.getAlignmentMethod("bwa-short-read-SR")
 					else:	#default is PE
@@ -199,8 +202,8 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 				#alignment for the whole individual_sequence
 				individual_alignment = db_vervet.getAlignment(individual_code=individual_sequence.individual.code, \
 												individual_sequence_id=individual_sequence.id,\
-									path_to_original_alignment=None, sequencer=individual_sequence.sequencer, \
-									sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
+									path_to_original_alignment=None, sequencer_id=individual_sequence.sequencer_id, \
+									sequence_type_id=individual_sequence.sequence_type_id, sequence_format=individual_sequence.format, \
 									ref_individual_sequence_id=refSequence.id, \
 									alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
 									individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
@@ -227,8 +230,8 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 						#alignment for this library of the individual_sequence
 						oneLibraryAlignmentEntry = db_vervet.getAlignment(individual_code=individual_sequence.individual.code, \
 												individual_sequence_id=individual_sequence.id,\
-									path_to_original_alignment=None, sequencer=individual_sequence.sequencer, \
-									sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
+									path_to_original_alignment=None, sequencer_id=individual_sequence.sequencer_id, \
+									sequence_type_id=individual_sequence.sequence_type_id, sequence_format=individual_sequence.format, \
 									ref_individual_sequence_id=refSequence.id, \
 									alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
 									individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
@@ -363,7 +366,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					
 		sys.stderr.write("%s alignment jobs; %s merge alignment jobs.\n"%(no_of_alignment_jobs, no_of_merging_jobs))
 	
-	def registerFileToWorkflow(self, filePair, workflow, data_dir=None):
+	def registerFileToWorkflow(self, filePair, workflow=None, data_dir=None):
 		'''
 		2011-8-30
 		'''
@@ -413,9 +416,9 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 			fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
 			bam_output_fname_prefix = '%s.sorted'%(os.path.join(outputDir, fname_prefix))
 			sortBamF = File('%s.bam'%(bam_output_fname_prefix))
-			if alignment_method.command=='aln' and sequencer!='454':	#short single-end read
+			if alignment_method.command=='aln' and sequencer.short_name!='454':	#short single-end read
 				alignmentJob = Job(namespace=namespace, name=ShortSEAlignmentByBWA.name, version=version)
-			elif alignment_method.command=='bwasw' or sequencer=='454':	#long single-end read
+			elif alignment_method.command=='bwasw' or sequencer.short_name=='454':	#long single-end read
 				alignmentJob = Job(namespace=namespace, name=LongSEAlignmentByBWA.name, version=version)
 			
 			alignmentJob.addArguments(refFastaFile, fastqF, bam_output_fname_prefix)
@@ -463,7 +466,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 			fastqF, format, sequence_type, sequencer = fileRecord[:4]
 			relativePath = fastqF.name
 			
-			if alignment_method.command=='aln' and sequencer!='454':	#short single-end read
+			if alignment_method.command=='aln' and sequencer.short_name!='454':	#short single-end read
 				alignmentJob = Job(namespace=namespace, name=bwa.name, version=version)
 				fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
 				outputFname = os.path.join(outputDir, '%s.sai'%fname_prefix)
@@ -497,7 +500,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 				workflow.addJob(sai2samJob)
 				workflow.depends(parent=alignmentJob, child=sai2samJob)
 				
-			elif alignment_method.command=='bwasw' or sequencer=='454':	#long single-end read
+			elif alignment_method.command=='bwasw' or sequencer.short_name=='454':	#long single-end read
 				alignmentJob = Job(namespace=namespace, name=bwa.name, version=version)
 				fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
 				outputFname = os.path.join(outputDir, '%s.sam'%fname_prefix)
