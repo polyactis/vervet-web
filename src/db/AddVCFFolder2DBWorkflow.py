@@ -7,10 +7,10 @@ Examples:
 		-s ... -u yh -l hcondor -j hcondor  -z localhost 
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
-	# 2012.5.10 run on hoffman2 condor, turn on checkEmptyVCFByReading (-E), require db connection (-H), no clustering (-C1)
+	# 2012.5.10 run on hoffman2 condor, turn on checkEmptyVCFByReading (-E), require db connection (--needSSHDBTunnel), no clustering (-C1)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/
 		-o workflow/2DB/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
-		-s ... -E -H -C1
+		-s ... -E --needSSHDBTunnel -C1
 		-l hcondor -j hcondor  -u yh -z localhost 
 		-e /u/home/eeskin/polyacti/ 
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
@@ -166,9 +166,10 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		no_of_jobs += 1
 		
 		firstVCFFile = inputData.jobDataLs[0].vcfFile
+		logFile = File(os.path.join(topOutputDir, 'AddGenotypeMethod2DB.log'))
 		addGM2DBJob = self.addAddGenotypeMethod2DBJob(executable=self.AddGenotypeMethod2DB, inputFile=firstVCFFile, \
-												genotypeMethodShortName=genotypeMethodShortName,\
-								logFile=None, data_dir=data_dir, commit=commit, parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
+								genotypeMethodShortName=genotypeMethodShortName,\
+								logFile=logFile, data_dir=data_dir, commit=commit, parentJobLs=[], extraDependentInputLs=[], transferOutput=True, \
 								extraArguments=None, job_max_memory=10, sshDBTunnel=needSSHDBTunnel)
 		updateGMlogFile = File(os.path.join(topOutputDir, 'updateGM.log'))
 		updateGMNoOfLociJob = self.addUpdateGenotypeMethodNoOfLociJob(executable=self.UpdateGenotypeMethodNoOfLoci, \
@@ -192,8 +193,9 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 					import traceback
 					traceback.print_exc()
+			logFile = File(os.path.join(topOutputDir, 'AddVCFFile2DB_%s.log'%(self.getChrFromFname(inputF.name))))
 			addVCFJob = self.addAddVCFFile2DBJob(executable=self.AddVCFFile2DB, inputFile=inputF, genotypeMethodShortName=genotypeMethodShortName,\
-						logFile=None, format="VCF", data_dir=data_dir, checkEmptyVCFByReading=checkEmptyVCFByReading, commit=commit, \
+						logFile=logFile, format="VCF", data_dir=data_dir, checkEmptyVCFByReading=checkEmptyVCFByReading, commit=commit, \
 						parentJobLs=[addGM2DBJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=True, \
 						extraArguments=None, job_max_memory=1000, sshDBTunnel=needSSHDBTunnel)
 			workflow.depends(parent=addVCFJob, child=updateGMNoOfLociJob)
