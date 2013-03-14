@@ -347,7 +347,7 @@ Contig103       AUGUSTUS        transcription_end_site  4841222 4841222 .       
 		sys.stderr.write("%s genes, %s transcripts.\n"%(allGenes.getNumberOfGenes(), allGenes.getNumberOfTranscripts()))
 		
 		for geneModel in allGenes.getGeneModelLs():
-			annot_assembly = db_genome.getAnnotAssemblyFromTaxIDSequenceTypeChromosome(tax_id=tax_id, sequence_type_id=sequence_type_id, \
+			annot_assembly = db_genome.getAnnotAssembly(tax_id=tax_id, sequence_type_id=sequence_type_id, \
 														chromosome=geneModel.chromosome)
 			
 			gene = db_genome.getGene(annot_assembly_id=annot_assembly.id, locustag=geneModel.geneID, tax_id=tax_id, \
