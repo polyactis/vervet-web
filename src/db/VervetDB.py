@@ -125,7 +125,7 @@ class Site(Entity, TableClass):
 	stateprovince = Field(String(100))
 	region = Field(String(100))
 	zippostal = Field(String(20))
-	country = ManyToOne("Country", colname='country_id', ondelete='CASCADE', onupdate='CASCADE')
+	country = ManyToOne("%s.Country"%(__name__), colname='country_id', ondelete='CASCADE', onupdate='CASCADE')
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -192,14 +192,16 @@ class User(Entity):
 		return self._password[8:] == hashed_pass.hexdigest()
 
 	def _set_password(self, password):
-		"""encrypts password on the fly using the encryption
-        algo defined in the configuration
-        """
+		"""
+		encrypts password on the fly using the encryption
+		algo defined in the configuration
+		"""
 		self._password = self.__encrypt_password(password)
 
 	def _get_password(self):
-		"""returns password
-        """
+		"""
+		returns password
+		"""
 		return self._password
 
 	password = property(_get_password,_set_password)
@@ -247,6 +249,7 @@ class GeographicIntegrity(Entity):
 
 class Individual(Entity, TableClass):
 	"""
+	2013.3.13 added study column, 
 	2012.12.6 get rid of latitude, longitude, altitude, it's now rolled into site.
 	2012.9.27 add is_contaminated
 	2012.7.5 added column sequence_batch_ls	
@@ -264,7 +267,7 @@ class Individual(Entity, TableClass):
 	2011-3-1
 		add tax_id, collector, site, group_ls, user_ls, latitude, longitude
 	"""
-	family = ManyToOne('Family', colname='family_id', ondelete='CASCADE', onupdate='CASCADE')
+	family = ManyToOne('%s.Family'%(__name__), colname='family_id', ondelete='CASCADE', onupdate='CASCADE')
 	code = Field(String(256), unique=True)
 	name = Field(String(256))
 	ucla_id = Field(String(256))	#2011-4-26
@@ -273,21 +276,22 @@ class Individual(Entity, TableClass):
 	birthplace = Field(String(256))
 	access = Field(Enum("public", "restricted", name="access_enum_type"), default='restricted')
 	tax_id =Field(Integer)	#2011-3-1
-	geographic_integrity = ManyToOne("GeographicIntegrity", colname='geographic_integrity_id', ondelete='CASCADE', onupdate='CASCADE')
+	geographic_integrity = ManyToOne("%s.GeographicIntegrity"%(__name__), colname='geographic_integrity_id', ondelete='CASCADE', onupdate='CASCADE')
 	age = Field(Integer)	#2011-4-28
 	age_cas = Field(Integer)	#2011-4-28 CAS stands for chris a. schmitt
 	approx_age_group_at_collection = Field(String(256))	#2011-4-28
 	collection_date = Field(DateTime)	#2011-4-28
-	collector = ManyToOne("User", colname='collector_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-3-1
-	site = ManyToOne("Site", colname='site_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-3-1
-	group_ls = ManyToMany('Group',tablename='individual2group', local_colname='individual_id', remote_colname='group_id')	#2011-3-1
-	user_ls = ManyToMany('User',tablename='individual2user', local_colname='individual_id', remote_colname='user_id')	#2011-3-1
+	collector = ManyToOne("%s.User"%(__name__), colname='collector_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-3-1
+	site = ManyToOne("%s.Site"%(__name__), colname='site_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-3-1
+	group_ls = ManyToMany('%s.Group'%(__name__),tablename='individual2group', local_colname='individual_id', remote_colname='group_id')	#2011-3-1
+	user_ls = ManyToMany('%s.User'%(__name__), tablename='individual2user', local_colname='individual_id', remote_colname='user_id')	#2011-3-1
 	vrc_founder = Field(Boolean)
 	comment = Field(String(4096))
 	microchip_id = Field(String(4096))
 	target_coverage = Field(Integer)	#2012.6.19
 	is_contaminated = Field(Integer, default=0)	#2012.9.27 field to mark whether it's contaminated or not.
-	sequence_batch_ls = ManyToMany('SequenceBatch', tablename='individual2batch', local_colname='individual_id')	#2012.7.5
+	sequence_batch_ls = ManyToMany('%s.SequenceBatch'%(__name__), tablename='individual2batch', local_colname='individual_id')	#2012.7.5
+	study = ManyToOne('%s.Study'%(__name__), colname='study_id', ondelete='CASCADE', onupdate='CASCADE')	#2013.03.13
 	#ManyToOne('SequenceBatch', colname='sequence_batch_id', ondelete='CASCADE', onupdate='CASCADE')	#2012.7.5
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
@@ -365,22 +369,24 @@ class Individual(Entity, TableClass):
 			return ageInYears + extraYears
 		else:
 			return None
-	
+
 class Ind2Ind(Entity, TableClass):
 	"""
+	2013.3.13 added study column
 	2011-5-5
 		add a unique constraint
 	"""
-	individual1 = ManyToOne('Individual', colname='individual1_id', ondelete='CASCADE', onupdate='CASCADE')
-	individual2 = ManyToOne('Individual', colname='individual2_id', ondelete='CASCADE', onupdate='CASCADE')
-	relationship_type = ManyToOne('RelationshipType', colname='relationship_type_id', ondelete='CASCADE', onupdate='CASCADE')
+	individual1 = ManyToOne('%s.Individual'%(__name__), colname='individual1_id', ondelete='CASCADE', onupdate='CASCADE')
+	individual2 = ManyToOne('%s.Individual'%(__name__), colname='individual2_id', ondelete='CASCADE', onupdate='CASCADE')
+	relationship_type = ManyToOne('%s.RelationshipType'%(__name__), colname='relationship_type_id', ondelete='CASCADE', onupdate='CASCADE')
+	study = ManyToOne('%s.Study'%(__name__), colname='study_id', ondelete='CASCADE', onupdate='CASCADE')	#2013.03.13
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
 	date_updated = Field(DateTime)
 	using_options(tablename='ind2ind', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-	using_table_options(UniqueConstraint('individual1_id', 'individual2_id', 'relationship_type_id'))
+	using_table_options(UniqueConstraint('individual1_id', 'individual2_id', 'relationship_type_id', 'study_id'))
 
 class RelationshipType(Entity, TableClass):
 	short_name = Field(String(256), unique=True)
@@ -429,10 +435,10 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 		add column median_depth, mode_depth
 	2011-3-3
 	"""
-	individual_sequence = ManyToOne('%s.IndividualSequence'%__module__, colname='ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
-	ref_sequence = ManyToOne('%s.IndividualSequence'%__module__, colname='ref_ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
-	alignment_method = ManyToOne('%s.AlignmentMethod'%__module__, colname='alignment_method_id', ondelete='CASCADE', onupdate='CASCADE')
-	genotype_method_ls = ManyToMany("%s.GenotypeMethod"%__module__,tablename='genotype_method2individual_alignment', local_colname='individual_alignment_id')
+	individual_sequence = ManyToOne('%s.IndividualSequence'%__name__, colname='ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
+	ref_sequence = ManyToOne('%s.IndividualSequence'%__name__, colname='ref_ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
+	alignment_method = ManyToOne('%s.AlignmentMethod'%__name__, colname='alignment_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	genotype_method_ls = ManyToMany("%s.GenotypeMethod"%__name__,tablename='genotype_method2individual_alignment', local_colname='individual_alignment_id')
 	path = Field(Text)
 	format = Field(String(512))
 	median_depth = Field(Float)	#2011-8-2
@@ -453,11 +459,11 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 	md5sum = Field(Text, unique=True)
 	file_size = Field(BigInteger)	#2012.9.21
 	#2012.7.26 the parent individual_alignment
-	parent_individual_alignment = ManyToOne('%s.IndividualAlignment'%__module__, colname='parent_individual_alignment_id', ondelete='CASCADE', onupdate='CASCADE')
+	parent_individual_alignment = ManyToOne('%s.IndividualAlignment'%__name__, colname='parent_individual_alignment_id', ondelete='CASCADE', onupdate='CASCADE')
 	#2012.7.26 mask loci of the alignment out for read-recalibration 
-	mask_genotype_method = ManyToOne('%s.GenotypeMethod'%__module__, colname='mask_genotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	mask_genotype_method = ManyToOne('%s.GenotypeMethod'%__name__, colname='mask_genotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
 	#2012.9.19 to distinguish alignments from different libraries/lanes/batches
-	individual_sequence_file_raw = ManyToOne('%s.IndividualSequenceFileRaw'%__module__, colname='individual_sequence_file_raw_id', \
+	individual_sequence_file_raw = ManyToOne('%s.IndividualSequenceFileRaw'%__name__, colname='individual_sequence_file_raw_id', \
 									ondelete='CASCADE', onupdate='CASCADE')
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
@@ -496,6 +502,7 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 								self.individual_sequence.individual.code)
 		return compositeID
 	
+	folderName = 'individual_alignment'
 	def constructRelativePath(self, subFolder='individual_alignment', **keywords):
 		"""
 		2012.9.19
@@ -507,6 +514,8 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 		2011-8-29
 			called by getAlignment() and other programs
 		"""
+		if subFolder is None:
+			subFolder = self.folderName
 		#'/' must not be put in front of the relative path.
 		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
 		pathPrefix = '%s/%s_%s_vs_%s_by_%s'%(subFolder, self.id, self.ind_seq_id,\
@@ -521,12 +530,20 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 		
 		return dst_relative_path
 	
+	def constructPSMCPlotLabel(self, **keywords):
+		"""
+		2013.2.16 moved from PSMCOnAlignmentWorkflow.py
+		2013.2.12
+		"""
+		return '%s_%s%dMD'%(self.individual_sequence.individual.code, self.individual_sequence.individual.sex, self.median_depth)
+	
+	
 class IndividualAlignmentConsensusSequence(Entity, AbstractTableWithFilename):
 	"""
 	2013.2.5 input for psmc, extracted from individual alignment.
 		The extraction takes so long. so use this to store them.
 	"""
-	individual_alignment = ManyToOne('%s.IndividualAlignment'%__module__, colname='individual_alignment_id', \
+	individual_alignment = ManyToOne('%s.IndividualAlignment'%__name__, colname='individual_alignment_id', \
 									ondelete='CASCADE', onupdate='CASCADE')
 	path = Field(Text, unique=True)
 	format = Field(String(512))
@@ -576,9 +593,11 @@ class IndividualAlignmentConsensusSequence(Entity, AbstractTableWithFilename):
 			filename_part_ls.append('minDP%s'%(self.minDP))
 		if self.maxDP is not None:
 			filename_part_ls.append("maxDP%s"%(self.maxDP))
+		if self.no_of_chromosomes is not None:
+			filename_part_ls.append("%sChromosomes"%(self.no_of_chromosomes))
 		
 		filename_part_ls = map(str, filename_part_ls)
-		fileRelativePath = os.path.join(outputDirRelativePath, '%s.fq.gz'%('_'.join(filename_part_ls)))
+		fileRelativePath = os.path.join(outputDirRelativePath, '%s.fastq.gz'%('_'.join(filename_part_ls)))
 		return fileRelativePath
 	
 class IndividualSequence(Entity, AbstractTableWithFilename):
@@ -599,11 +618,13 @@ class IndividualSequence(Entity, AbstractTableWithFilename):
 		add column coverage
 	2011-3-3
 	"""
-	individual = ManyToOne('Individual', colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
-	sequencer = Field(String(512))	# 454, GA, Sanger
-	sequence_type = Field(String(512))	#genome, contig, SR (single-end read) or PE ...
-	chromosome = Field(String(512))	#1,2,4,5,X,Y,etc
-	tissue  = ManyToOne('Tissue', colname='tissue_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-5-9
+	individual = ManyToOne('%s.Individual'%(__name__), colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
+	sequencer = ManyToOne('%s.Sequencer'%(__name__), colname='sequencer_id', ondelete='CASCADE', onupdate='CASCADE')
+		# 454, GA, Sanger
+	sequence_type = ManyToOne('%s.SequenceType'%(__name__), colname='sequence_type_id', ondelete='CASCADE', onupdate='CASCADE')
+		#genome, contig, SR (single-end read) or PE ...
+	no_of_chromosomes = Field(Integer)	#1,2,4,5,X,Y,etc
+	tissue  = ManyToOne('%s.Tissue'%(__name__), colname='tissue_id', ondelete='CASCADE', onupdate='CASCADE')	#2011-5-9
 	coverage = Field(Float)	#2011-5-8
 	read_count = Field(BigInteger)	#2012.2.27
 	base_count = Field(BigInteger)	#2011-8-2
@@ -612,18 +633,20 @@ class IndividualSequence(Entity, AbstractTableWithFilename):
 	original_path = Field(Text)	#the path to the original file
 	quality_score_format = Field(String(512))	#Standard=Phred+33 (=Sanger), Illumina=Phred+64 (roughly, check pymodule/utils for exact formula)
 	# Illumina1.8+ (after 2011-02) is Standard.
-	parent_individual_sequence = ManyToOne('IndividualSequence', colname='parent_individual_sequence_id', ondelete='SET NULL', onupdate='CASCADE')
+	parent_individual_sequence = ManyToOne('%s.IndividualSequence'%(__name__), colname='parent_individual_sequence_id', ondelete='SET NULL', onupdate='CASCADE')
 	filtered = Field(Integer, default=0)	#0 means not. 1 means yes.
-	individual_sequence_file_ls = OneToMany("IndividualSequenceFile")
-	individual_sequence_file_raw_ls = OneToMany("IndividualSequenceFileRaw")
+	individual_sequence_file_ls = OneToMany("%s.IndividualSequenceFile"%(__name__))
+	individual_sequence_file_raw_ls = OneToMany("%s.IndividualSequenceFileRaw"%(__name__))
+	sequence_batch = ManyToOne('%s.SequenceBatch'%(__name__), colname='sequence_batch_id', ondelete='CASCADE', onupdate='CASCADE')	#2013.03.13
+	version = Field(Integer)
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
 	date_updated = Field(DateTime)
 	using_options(tablename='individual_sequence', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-	using_table_options(UniqueConstraint('individual_id', 'sequencer', 'sequence_type', 'tissue_id',\
-		'filtered', "chromosome", 'parent_individual_sequence_id'))
+	using_table_options(UniqueConstraint('individual_id', 'sequencer_id', 'sequence_type_id', 'tissue_id',\
+		'filtered','no_of_chromosomes', 'parent_individual_sequence_id', 'sequence_batch_id', 'version'))
 	
 	def constructRelativePath(self, subFolder='individual_sequence', **keywords):
 		"""
@@ -631,8 +654,10 @@ class IndividualSequence(Entity, AbstractTableWithFilename):
 		"""
 		return self.constructRelativePathForIndividualSequence(subFolder=subFolder)
 	
-	def constructRelativePathForIndividualSequence(self, subFolder='individual_sequence'):
+	folderName='individual_sequence'
+	def constructRelativePathForIndividualSequence(self, subFolder=None):
 		"""
+		2013.2.16 use filename_part_ls
 		2012.2.10
 			add "split" in the end of the path
 		2011-8-3
@@ -640,25 +665,209 @@ class IndividualSequence(Entity, AbstractTableWithFilename):
 		"""
 		#'/' must not be put in front of the relative path.
 		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-		dst_relative_path = '%s/%s_%s_%s_%s_%s_%s'%(subFolder, self.id, self.individual_id, self.individual.code,\
-										self.sequencer, getattr(self.tissue, 'id', 0), self.filtered)
+		
+		if subFolder is None:
+			subFolder = self.folderName
+		filename_part_ls = []
+		if self.id:
+			filename_part_ls.append(self.id)
+		if self.individual_id:
+			filename_part_ls.append('indID%s'%(self.individual_id))
+		if self.individual_id:
+			filename_part_ls.append('code%s'%(self.individual.code))
+		if self.sequencer:
+			filename_part_ls.append("seq%s"%(self.sequencer))
+		if self.sequence_type_id:
+			filename_part_ls.append("seqType%s"%(self.sequence_type_id))
+		if self.tissue:
+			filename_part_ls.append("tissueID%s"%(self.tissue.id))
+		if self.filtered is not None:
+			filename_part_ls.append("filtered%s"%(self.filtered))
+		if self.no_of_chromosomes is not None:
+			filename_part_ls.append("%sChromosomes"%(self.no_of_chromosomes))
+		if self.sequence_batch_id:
+			filename_part_ls.append("batch%s"%(self.pop_gen_simulation_id))
+		if self.version is not None:
+			filename_part_ls.append("version%s"%(self.version))
+		
+		filename_part_ls = map(str, filename_part_ls)
+		
+		dst_relative_path = '%s/%s'%(subFolder, '_'.join(filename_part_ls))
 		return dst_relative_path
+	
+	def constructPSMCPlotLabel(self, **keywords):
+		"""
+		2013.2.16
+		"""
+		return '%s_%sISQ%s'%(self.individual.code, self.individual.sex, self.id)
+	
 
-class SequenceBatch(Entity, TableClass):
+class SequenceBatch(Entity):
 	"""
+	2013.3.13 add pop_gen_simulation, pedigree_sequencing_strategy, study
 	2012.7.5 table to store batch names so that IndividualSequence could refer to them.
 	"""
 	short_name = Field(String(256), unique=True)
 	description = Field(Text)
 	coverage = Field(Integer)
 	individual_ls = ManyToMany('Individual', tablename='individual2batch', local_colname='sequence_batch_id')	#2012.7.5
+	pop_gen_simulation = ManyToOne('PopGenSimulation', colname='pop_gen_simulation_id', ondelete='CASCADE', onupdate='CASCADE')	#2013.03.13
+	pedigree_sequencing_strategy = ManyToOne('PedigreeSequencingStrategy', colname='pedigree_sequencing_strategy_id', \
+											ondelete='CASCADE', onupdate='CASCADE')	#2013.03.13
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
 	date_updated = Field(DateTime)
 	using_options(tablename='sequence_batch', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
+
+class Study(Entity):
+	"""
+	2013.3.12 table to store which study, different studies could be from same species or different.
+		could be different pedigree structure simulation runs or different projects.
+		table Individual and Ind2Ind refers to this table.
+	"""
+	short_name = Field(String(256), unique=True)
+	description = Field(Text)
+	pedigree_simulation_type = ManyToOne('PedigreeSimulationType', colname='pedigree_simulation_type_id', \
+									ondelete='CASCADE', onupdate='CASCADE')
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='study', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+
+class PedigreeSimulationType(Entity):
+	"""
+	2013.3.12
+	"""
+	short_name = Field(String(256), unique=True)
+	description = Field(Text)
+	no_of_founders = Field(Integer)
+	no_of_generations = Field(Integer)
+	pedigree_size = Field(Integer)
 	
+	mating_model = Field(String(512))	#how many different partners it'll choose: monogamy (uniform, x=1), polygamy (gamma distribution?)
+	mating_model_parameters = Field(Text)	#coma-separated list of alpha, beta, etc.
+	
+	cross_generation_mating_model = Field(String(512))	#same-generation or cross-generation
+	cross_generation_mating_model_parameters = Field(Text)	#how likely it prefers same-generation, or older-gen, or newer-gen
+	
+	no_of_offspring_model = Field(String(512))	#gamma / exponential distribution??
+	no_of_offspring_parameters = Field(Text)	#coma-separated list of alpha, beta, etc.
+	
+	comments = Field(Text)	#other relevant parameters
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='pedigree_simulation_type', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+
+class PedigreeSequencingStrategy(Entity):
+	"""
+	2013.3.13 rank based on no-of-offspring, hierarchy in the pedigree, etc.
+		With the ranking given, coverage_distribution determines whether the coverage is linear-decay distribution
+			or gamma or exponential?
+	"""
+	short_name = Field(String(256), unique=True)
+	description = Field(Text)
+	coverage_distribution = Field(Text)	#gamma/exponential
+	coverage_distribution_parameters = Field(Text)
+	comments = Field(Text)	#other relevant parameters
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='pedigree_sequencing_strategy', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+
+
+class PopGenSimulationType(Entity):
+	"""
+	2013.3.12
+	"""
+	short_name = Field(String(256), unique=True)
+	description = Field(Text)
+	rho = Field(Float)	#if hotspot is used, say so in comments
+	mu = Field(Float)	#if varying mu is used, say so in comments
+	selection = Field(Integer, default=0)	#0=neutral, 1=any selection is involved
+	selection_parameters = Field(Text)
+	indel = Field(Integer, default=0)	#0= no indel, 1=indel
+	indel_parameters = Field(Text)
+	
+	population_size_parameters = Field(Text)	# a list of time,population-id,population-size or exponential growth
+	programs = Field(String(512))	#which simulation program(s) used
+	commandline = Field(Text)	#detailed commandline.
+	parent_pop_gen_simulation_type = ManyToOne('PopGenSimulationType', colname='parent_pop_gen_simulation_type_id', \
+											ondelete='CASCADE', onupdate='CASCADE')
+	comments = Field(Text)	#other relevant parameters
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='pop_gen_simulation_type', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+
+class PopGenSimulation(Entity, AbstractTableWithFilename):
+	"""
+	2013.3.12 this stores the output of pop-gen simulation.
+		One PopGenSimulationType could have several different instances of simulation (replicates). 
+	"""
+	short_name = Field(String(256), unique=True)
+	description = Field(Text)
+	path = Field(Text, unique=True)	#path to the actual file
+	format = Field(String(512))	#raw, PolymorphismTableFile 
+	md5sum = Field(Text, unique=True)
+	file_size = Field(BigInteger)
+	pop_gen_simulation_type = ManyToOne('PopGenSimulationType', colname='pop_gen_simulation_type_id', \
+											ondelete='CASCADE', onupdate='CASCADE')
+	no_of_populations = Field(Integer, default=1)
+	no_of_chromosomes = Field(Integer, default=1)
+	genome_size = Field(BigInteger)	#length of all chromosomes together
+	sample_size = Field(Integer)
+	no_of_polymorphic_loci = Field(BigInteger)
+	
+	nucleotide_diversity = Field(Float)
+	
+	programs = Field(String(512))	#a coma-separated list of which simulation program(s) used
+	commandline = Field(Text)	#detailed commandline.
+	comments = Field(Text)
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='pop_gen_simulation', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+	
+	folderName = 'pop_gen_simulation'
+	def constructRelativePath(self, subFolder=None, **keywords):
+		"""
+		2013.3.13
+		"""
+		if subFolder is None:
+			subFolder = self.folderName
+		
+		filename_part_ls = []
+		if self.id:
+			filename_part_ls.append(self.id)
+		if self.pop_gen_simulation_type_id:
+			filename_part_ls.append('type%s'%(self.pop_gen_simulation_type_id))
+		if self.no_of_populations is not None:
+			filename_part_ls.append('%sPopulations'%(self.no_of_populations))
+		if self.no_of_chromosomes is not None:
+			filename_part_ls.append("%sChromosomes"%(self.no_of_chromosomes))
+		if self.genome_size is not None:
+			filename_part_ls.append("%sGenomeSize"%(self.genome_size))
+		if self.sample_size is not None:
+			filename_part_ls.append("%sSamples"%(self.sample_size))
+		
+		filename_part_ls = map(str, filename_part_ls)
+		
+		dst_relative_path = '%s/%s'%(subFolder, '_'.join(filename_part_ls))
+		return dst_relative_path
+
 class IndividualSequenceFile(Entity, AbstractTableWithFilename):
 	"""
 	2012.7.14 add md5sum
@@ -788,10 +997,12 @@ class Locus(Entity, TableClass):
 	chromosome = Field(String(512))
 	start = Field(Integer)
 	stop = Field(Integer)
-	ref_seq = ManyToOne('Sequence', colname='ref_seq_id', required=True, ondelete='CASCADE', onupdate='CASCADE')
-	alt_seq = ManyToOne('Sequence', colname='alt_seq_id', ondelete='CASCADE', onupdate='CASCADE')
+	ref_seq = ManyToOne('AlleleSequence', colname='ref_seq_id', required=True, ondelete='CASCADE', onupdate='CASCADE')
+	alt_seq = ManyToOne('AlleleSequence', colname='alt_seq_id', ondelete='CASCADE', onupdate='CASCADE')
 	ref_sequence = ManyToOne('IndividualSequence', colname='ref_ind_seq_id', required=True, ondelete='CASCADE', onupdate='CASCADE')
 	locus_type = ManyToOne('LocusType', colname='locus_type_id', required=True, ondelete='CASCADE', onupdate='CASCADE')
+	## which study, or SNPs/ indels 
+	
 	#locus_method_ls = ManyToMany('LocusMethod',tablename='locus2locus_method', local_colname='locus_id', \
 	#							remote_colname='locus_method_id')
 	created_by = Field(String(128))
@@ -830,12 +1041,12 @@ class LocusAnnotation(Entity):
 		table to store annotation of SNPs, like synonymous, non-synonymous, ...
 		information finer than SnpsContext
 	"""
-	locus = ManyToOne('%s.Locus'%__module__, colname='locus_id', ondelete='CASCADE', onupdate='CASCADE')
-	locus_context = ManyToOne('%s.LocusContext'%__module__, colname='locus_context_id', ondelete='CASCADE', onupdate='CASCADE')
+	locus = ManyToOne('%s.Locus'%__name__, colname='locus_id', ondelete='CASCADE', onupdate='CASCADE')
+	locus_context = ManyToOne('%s.LocusContext'%__name__, colname='locus_context_id', ondelete='CASCADE', onupdate='CASCADE')
 	gene_id = Field(Integer)
 	gene_commentary_id = Field(Integer)
 	gene_segment_id = Field(Integer)
-	locus_annotation_type = ManyToOne('%s.LocusAnnotationType'%__module__, colname='locus_annotation_type_id', ondelete='CASCADE', onupdate='CASCADE')
+	locus_annotation_type = ManyToOne('%s.LocusAnnotationType'%__name__, colname='locus_annotation_type_id', ondelete='CASCADE', onupdate='CASCADE')
 	which_exon_or_intron = Field(Integer)
 	pos_within_codon = Field(Integer)	#which position in the tri-nucleotide codon, this locus is at. for synonymou/non-syn nucleotide changes.
 	which_codon = Field(Integer)	#2012.5.18 which AA this locus affects if synonymous, or non-synonymous, 
@@ -879,7 +1090,7 @@ class LocusContext(Entity):
 	2012.4.25
 		copied from SnpsContext of Stock_250kDB
 	"""
-	locus = ManyToOne('%s.Locus'%__module__, colname='locus_id', ondelete='CASCADE', onupdate='CASCADE')
+	locus = ManyToOne('%s.Locus'%__name__, colname='locus_id', ondelete='CASCADE', onupdate='CASCADE')
 	disp_pos = Field(Float)	#[0,1) is for within gene fraction, <=-1 is upstream. >=1 is downstream
 	gene_id = Field(Integer)
 	gene_strand = Field(String(2))
@@ -905,11 +1116,11 @@ class ScoreMethod(Entity, TableClass):
 	original_filename = Field(Text)
 	description = Field(Text)
 	min_maf = Field(Float)
-	genotype_method = ManyToOne('%s.GenotypeMethod'%__module__, colname='genotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
-	analysis_method = ManyToOne('%s.AnalysisMethod'%__module__, colname='analysis_method_id', ondelete='CASCADE', onupdate='CASCADE')
-	phenotype_method = ManyToOne('%s.PhenotypeMethod'%__module__, colname='phenotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
-	transformation_method = ManyToOne('%s.TransformationMethod'%__module__, colname='transformation_method_id', ondelete='CASCADE', onupdate='CASCADE')
-	score_method_type = ManyToOne('%s.ScoreMethodType'%__module__, colname='score_method_type_id', ondelete='CASCADE', onupdate='CASCADE')
+	genotype_method = ManyToOne('%s.GenotypeMethod'%__name__, colname='genotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	analysis_method = ManyToOne('%s.AnalysisMethod'%__name__, colname='analysis_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	phenotype_method = ManyToOne('%s.PhenotypeMethod'%__name__, colname='phenotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	transformation_method = ManyToOne('%s.TransformationMethod'%__name__, colname='transformation_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	score_method_type = ManyToOne('%s.ScoreMethodType'%__name__, colname='score_method_type_id', ondelete='CASCADE', onupdate='CASCADE')
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -945,6 +1156,45 @@ class ScoreMethodType(Entity):
 	using_options(tablename='score_method_type', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 
+class Sequencer(Entity):
+	"""
+	2013.3.13
+		GA
+		Sanger
+		454
+	"""
+	short_name = Field(String(128), unique=True)
+	description = Field(String(8000))
+	created_by = Field(String(200))
+	updated_by = Field(String(200))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='sequencer', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+
+class SequenceType(Entity):
+	"""
+	2013.3.13
+		PE
+		genome
+		scaffold
+		BAC
+		SR
+		simulationPE
+	"""
+	short_name = Field(String(30), unique=True)
+	description = Field(String(8000))
+	read_length_mean = Field(BigInteger)
+	paired_end = Field(Integer, default=0)
+	insert_size_mean = Field(Integer)
+	insert_size_variance = Field(Float)
+	per_base_error_rate = Field(Float)
+	created_by = Field(String(200))
+	updated_by = Field(String(200))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='sequence_type', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
 
 class LocusType(Entity, TableClass):
 	"""
@@ -987,7 +1237,7 @@ class AlleleType(Entity, TableClass):
 	using_options(tablename='allele_type', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 
-class Sequence(Entity, TableClass):
+class AlleleSequence(Entity, TableClass):
 	"""
 	2011-2-4
 		to store the base(s) of an allele
@@ -999,7 +1249,7 @@ class Sequence(Entity, TableClass):
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
 	date_updated = Field(DateTime)
-	using_options(tablename='sequence', metadata=__metadata__, session=__session__)
+	using_options(tablename='allele_sequence', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('sequence'))
 
@@ -1010,10 +1260,15 @@ class Genotype(Entity, TableClass):
 	"""
 	individual = ManyToOne('Individual', colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
 	locus = ManyToOne('Locus', colname='locus_id', ondelete='CASCADE', onupdate='CASCADE')
-	allele_order = Field(Integer)
+	chromosome_copy = Field(Integer, default=0)
+	#on which chromosome copy (multi-ploid), 0=unknown (for un-phased), 1 =1st chromosome, so on
+	
 	allele_type = ManyToOne('AlleleType', colname='allele_type_id', ondelete='CASCADE', onupdate='CASCADE')
-	allele_seq = ManyToOne('Sequence', colname='allele_seq_id', ondelete='CASCADE', onupdate='CASCADE')
-	allele_seq_length = Field(Integer)
+	# SNP/MNP/Indel/inversion
+	
+	allele_sequence = ManyToOne('AlleleSequence', colname='allele_sequence_id', ondelete='CASCADE', onupdate='CASCADE')
+	#the actual allele
+	allele_sequence_length = Field(Integer)
 	score = Field(Float)
 	target_locus = ManyToOne('Locus', colname='target_locus_id', ondelete='CASCADE', onupdate='CASCADE')	#for translocated allele only
 	genotype_method = ManyToOne('GenotypeMethod', colname='genotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
@@ -1024,10 +1279,11 @@ class Genotype(Entity, TableClass):
 	date_updated = Field(DateTime)
 	using_options(tablename='genotype', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-	using_table_options(UniqueConstraint('individual_id', 'locus_id', 'allele_order'))
+	using_table_options(UniqueConstraint('individual_id', 'locus_id', 'chromosome_copy'))
 
 class GenotypeMethod(Entity, AbstractTableWithFilename):
 	"""
+	2013.3.6 add column is_phased
 	2012.9.6 add column min_neighbor_distance
 	2012.7.12 add meta-columns: min_depth ... min_MAF
 	2012.7.11
@@ -1041,10 +1297,10 @@ class GenotypeMethod(Entity, AbstractTableWithFilename):
 	short_name = Field(String(256), unique=True)
 	description = Field(Text)
 	path = Field(Text, unique=True)
-	individual_alignment_ls = ManyToMany("%s.IndividualAlignment"%(__module__), tablename='genotype_method2individual_alignment', \
+	individual_alignment_ls = ManyToMany("%s.IndividualAlignment"%(__name__), tablename='genotype_method2individual_alignment', \
 							local_colname='genotype_method_id')
-	ref_sequence = ManyToOne('%s.IndividualSequence'%(__module__), colname='ref_ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
-	parent = ManyToOne("%s.GenotypeMethod"%(__module__), colname='parent_id', ondelete='CASCADE', onupdate='CASCADE')
+	ref_sequence = ManyToOne('%s.IndividualSequence'%(__name__), colname='ref_ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
+	parent = ManyToOne("%s.GenotypeMethod"%(__name__), colname='parent_id', ondelete='CASCADE', onupdate='CASCADE')
 	genotype_file_ls = OneToMany('GenotypeFile')	#2012.7.17
 	no_of_individuals = Field(Integer)
 	no_of_loci = Field(BigInteger)
@@ -1053,6 +1309,7 @@ class GenotypeMethod(Entity, AbstractTableWithFilename):
 	max_missing_rate = Field(Float)
 	min_maf = Field(Float)
 	min_neighbor_distance = Field(Integer)
+	is_phased = Field(Integer, default=0)	#2013.3.6. unphased = 0, phased = 1
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -1098,7 +1355,7 @@ class GenotypeFile(Entity, AbstractTableWithFilename):
 	no_of_individuals = Field(Integer)
 	no_of_loci = Field(BigInteger)
 	format = Field(Text)
-	genotype_method = ManyToOne('GenotypeMethod', colname='genotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	genotype_method = ManyToOne('%s.GenotypeMethod'%(__name__), colname='genotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
 	comment = Field(String(4096))
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
@@ -1139,8 +1396,8 @@ class GenotypeFile(Entity, AbstractTableWithFilename):
 		return utils.getFileOrFolderSize(os.path.join(data_dir, self.path))
 
 class Phenotype(Entity, TableClass):
-	individual = ManyToOne('Individual', colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
-	phenotype_method = ManyToOne('PhenotypeMethod', colname='phenotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	individual = ManyToOne('%s.Individual'%(__name__), colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
+	phenotype_method = ManyToOne('%s.PhenotypeMethod'%(__name__), colname='phenotype_method_id', ondelete='CASCADE', onupdate='CASCADE')
 	value = Field(Float)
 	comment = Field(Text)
 	replicate = Field(Integer, default=1)
@@ -1175,11 +1432,12 @@ class PhenotypeMethod(Entity, TableClass):
 	short_name = Field(String(256), unique=True)
 	description = Field(Text)
 	phenotype_scoring = Field(Text)
-	biology_category = ManyToOne("BiologyCategory", colname='biology_category_id', ondelete='CASCADE', onupdate='CASCADE')
-	collector = ManyToOne("User",colname='collector_id')
+	biology_category = ManyToOne("%s.BiologyCategory"%(__name__), colname='biology_category_id', \
+								ondelete='CASCADE', onupdate='CASCADE')
+	collector = ManyToOne("%s.User"%(__name__),colname='collector_id')
 	access = Field(Enum("public", "restricted", name="access_enum_type"), default='restricted')
-	group_ls = ManyToMany('Group',tablename='group2phenotype_method', local_colname='phenotype_method_id', remote_colname='group_id')
-	user_ls = ManyToMany('User',tablename='user2phenotype_method', local_colname='phenotype_method_id', remote_colname='user_id')
+	group_ls = ManyToMany('%s.Group'%(__name__),tablename='group2phenotype_method', local_colname='phenotype_method_id', remote_colname='group_id')
+	user_ls = ManyToMany('%s.User'%(__name__),tablename='user2phenotype_method', local_colname='phenotype_method_id', remote_colname='user_id')
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -1273,13 +1531,13 @@ class VervetDB(ElixirDB):
 		#2008-08-26 setup_all() would setup other databases as well if they also appear in the program. Seperate this to be envoked after initialization
 		# to ensure the metadata of other databases is setup properly.
 	
-	def getUniqueSequence(self, sequence):
+	def getUniqueAlleleSequence(self, sequence):
 		"""
 		2011-2-11
 		"""
-		db_entry = Sequence.query.filter_by(sequence=sequence).first()
+		db_entry = AlleleSequence.query.filter_by(sequence=sequence).first()
 		if not db_entry:
-			db_entry = Sequence(sequence=sequence, sequence_length=len(sequence))
+			db_entry = AlleleSequence(sequence=sequence, sequence_length=len(sequence))
 			self.session.add(db_entry)
 			self.session.flush()
 		return db_entry
@@ -1296,8 +1554,8 @@ class VervetDB(ElixirDB):
 		return db_entry
 	
 	def getAlignment(self, individual_code=None, individual_id=None, individual=None, individual_sequence_id=None, \
-					path_to_original_alignment=None, sequencer='GA', \
-					sequence_type='SR', sequence_format='fastq', \
+					path_to_original_alignment=None, sequencer_name='GA', sequencer_id=None, \
+					sequence_type_name=None, sequence_type_id=None, sequence_format='fastq', \
 					ref_individual_sequence_id=10, \
 					alignment_method_name='bwa-short-read', alignment_method_id=None, alignment_method=None,\
 					alignment_format='bam', subFolder='individual_alignment', \
@@ -1334,8 +1592,9 @@ class VervetDB(ElixirDB):
 			if individual is None:
 				individual = individual_sequence.individual
 		elif individual:
-			individual_sequence = self.getIndividualSequence(individual_id=individual.id, sequencer=sequencer, \
-								sequence_type=sequence_type,\
+			individual_sequence = self.getIndividualSequence(individual_id=individual.id, sequencer_name=sequencer_name, \
+								sequencer_id=sequencer_id, sequence_type_id=sequence_type_id,\
+								sequence_type_name=sequence_type_name,\
 								sequence_format=sequence_format, filtered=individual_sequence_filtered)
 		else:
 			sys.stderr.write("Error: not able to get individual_sequence cuz individual_sequence_id=%s; individual_code=%s; individual_id=%s .\n"%\
@@ -1407,7 +1666,7 @@ class VervetDB(ElixirDB):
 	
 	
 	def getAlignments(self, ref_ind_seq_id=None, ind_seq_id_ls=None, ind_aln_id_ls=None, alignment_method_id=None, \
-					data_dir=None, sequence_type=None, outdated_index=0, mask_genotype_method_id=None, \
+					data_dir=None, sequence_type_name=None, sequence_type_id=None, outdated_index=0, mask_genotype_method_id=None, \
 					parent_individual_alignment_id=None, individual_sequence_file_raw_id_type=1,\
 					country_id_ls=None, tax_id_ls=None, excludeAlignmentWithoutLocalFile=True):
 		"""
@@ -1485,7 +1744,10 @@ class VervetDB(ElixirDB):
 					order_by(TableClass.id)
 		
 		for row in query:
-			if sequence_type is not None and row.individual_sequence.sequence_type!=sequence_type:
+			if sequence_type_name:
+				sequence_type = self.getSequenceType(short_name=sequence_type_name)
+				sequence_type_id = sequence_type.id
+			if sequence_type_id is not None and row.individual_sequence.sequence_type_id!=sequence_type_id:
 				continue
 			if row.path:	#it's not None
 				abs_path = os.path.join(data_dir, row.path)
@@ -1737,12 +1999,15 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
-	def getIndividualSequence(self, individual_id=None, sequencer=None, sequence_type=None,\
+	def getIndividualSequence(self, individual_id=None, sequencer_id=None, sequencer_name=None, \
+							sequence_type_name=None, sequence_type_id=None, \
 						sequence_format=None, path_to_original_sequence=None, tissue_name=None, tissue_id=None, \
 						coverage=None,\
-						subFolder='individual_sequence', quality_score_format="Standard", filtered=0,\
-						parent_individual_sequence_id=None, data_dir=None):
+						subFolder=None, quality_score_format="Standard", filtered=0,\
+						parent_individual_sequence_id=None,\
+						read_count=None, no_of_chromosomes=None, sequence_batch_id=None, version=None, data_dir=None):
 		"""
+		2013.3.13 read_count, no_of_chromosomes, sequencer_id, sequence_type_id, sequence_batch_id, version
 		2012.6.3
 			columns that are None become part of the db query to see if entry is in db already
 		2012.2.24
@@ -1761,11 +2026,19 @@ class VervetDB(ElixirDB):
 		"""
 		if not data_dir:
 			data_dir = self.data_dir
+		if not subFolder:
+			subFolder = IndividualSequence.folderName
+		
+		if sequencer_id is None:
+			sequencer = self.getSequencer(short_name=sequencer_name)
+			sequencer_id=sequencer.id
+		if sequence_type_id is None:
+			sequence_type = self.getSequenceType(short_name=sequence_type_name)
+			sequence_type_id=sequence_type.id
 		
 		query = IndividualSequence.query.filter_by(individual_id=individual_id)
-		
-		query = query.filter_by(sequencer=sequencer)
-		query = query.filter_by(sequence_type=sequence_type)
+		query = query.filter_by(sequencer_id=sequencer_id)
+		query = query.filter_by(sequence_type_id=sequence_type_id)
 		query = query.filter_by(format=sequence_format)
 		
 		if tissue_name:
@@ -1779,6 +2052,22 @@ class VervetDB(ElixirDB):
 			query = query.filter_by(parent_individual_sequence_id=parent_individual_sequence_id)
 		else:
 			query = query.filter_by(parent_individual_sequence_id=None)
+		
+		if sequence_batch_id is not None:
+			query = query.filter_by(sequence_batch_id=sequence_batch_id)
+		else:
+			query = query.filter_by(sequence_batch_id=None)
+		
+		if version is not None:
+			query = query.filter_by(version=version)
+		else:
+			query = query.filter_by(version=None)
+		
+		if no_of_chromosomes is not None:
+			query = query.filter_by(no_of_chromosomes=no_of_chromosomes)
+		else:
+			query = query.filter_by(no_of_chromosomes=None)
+		
 		query= query.filter_by(filtered=filtered)
 		db_entry = query.first()
 		if not db_entry:
@@ -1787,10 +2076,13 @@ class VervetDB(ElixirDB):
 			else:
 				tissue = None
 			individual = Individual.get(individual_id)
-			db_entry = IndividualSequence(individual_id=individual_id, sequencer=sequencer, sequence_type=sequence_type,\
+			db_entry = IndividualSequence(individual_id=individual_id, sequencer_id=sequencer.d, \
+										sequence_type_id=sequence_type.id,\
 									format=sequence_format, tissue=tissue, coverage=coverage, \
 									quality_score_format=quality_score_format, filtered=filtered,\
-									parent_individual_sequence_id=parent_individual_sequence_id)
+									parent_individual_sequence_id=parent_individual_sequence_id, \
+									read_count=read_count, no_of_chromosomes=no_of_chromosomes,\
+									sequence_batch_id=sequence_batch_id, version=version)
 			#to make db_entry.id valid
 			self.session.add(db_entry)
 			self.session.flush()
@@ -1864,29 +2156,13 @@ class VervetDB(ElixirDB):
 		individual = Individual.get(pis.individual_id)
 		
 		individual_sequence = self.getIndividualSequence(individual_id=parent_individual_sequence.individual_id, \
-						sequencer=parent_individual_sequence.sequencer, sequence_type=parent_individual_sequence.sequence_type,\
+						sequencer_id=parent_individual_sequence.sequencer.id, \
+						sequence_type_id=parent_individual_sequence.sequence_type.id,\
 						sequence_format=parent_individual_sequence.format, path_to_original_sequence=None, \
 						tissue_id=getattr(parent_individual_sequence.tissue, 'id', None), coverage=None,\
 						quality_score_format=quality_score_format, filtered=filtered,\
 						parent_individual_sequence_id=parent_individual_sequence.id, \
 						data_dir=data_dir, subFolder=subFolder)
-		"""
-		db_entry = IndividualSequence(individual_id=pis.individual_id, sequencer=pis.sequencer, sequence_type=pis.sequence_type,\
-							format=pis.format, tissue=pis.tissue, quality_score_format=quality_score_format)
-		
-		db_entry.filtered = filtered
-		db_entry.parent_individual_sequence = pis
-		#to make db_entry.id valid
-		self.session.add(db_entry)
-		self.session.flush()
-		
-		dst_relative_path = db_entry.constructRelativePathForIndividualSequence(subFolder=subFolder)
-		
-		#update its path in db to the relative path
-		db_entry.path = dst_relative_path
-		self.session.add(db_entry)
-		self.session.flush()
-		"""
 		return individual_sequence
 	
 	def copyParentIndividualSequenceFile(self, parent_individual_sequence_file=None, parent_individual_sequence_file_id=None,\
@@ -1932,8 +2208,8 @@ class VervetDB(ElixirDB):
 		alignment_method = parent_individual_alignment.alignment_method
 		individual_alignment = self.getAlignment(individual_code=individual_sequence.individual.code, \
 								individual_sequence_id=individual_sequence.id,\
-					path_to_original_alignment=None, sequencer=individual_sequence.sequencer, \
-					sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
+					path_to_original_alignment=None, sequencer_id=individual_sequence.sequencer_id, \
+					sequence_type_id=individual_sequence.sequence_type_id, sequence_format=individual_sequence.format, \
 					ref_individual_sequence_id=ref_sequence.id, \
 					alignment_method_name=alignment_method.short_name, alignment_format=parent_individual_alignment.format,\
 					individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
@@ -2163,7 +2439,8 @@ class VervetDB(ElixirDB):
 	def getGenotypeMethod(self, short_name=None, description=None, ref_ind_seq_id=None, \
 						individualAlignmentLs=None, parent_genotype_method=None, parent_id=None, \
 						min_depth=None, max_depth=None, max_missing_rate=None, min_maf=None,\
-						no_of_individuals=None, no_of_loci=None, data_dir=None, subFolder='genotype_file'):
+						no_of_individuals=None, no_of_loci=None, is_phased=0, data_dir=None, \
+						subFolder='genotype_file'):
 		"""
 		2012.7.12
 			examples:
@@ -2194,7 +2471,7 @@ class VervetDB(ElixirDB):
 			db_entry = GenotypeMethod(short_name=short_name, description=description, ref_ind_seq_id=ref_ind_seq_id,\
 								parent_id=parent_id, min_depth=min_depth, max_depth=max_depth, \
 								max_missing_rate=max_missing_rate, min_maf=min_maf,\
-								no_of_individuals=no_of_individuals, no_of_loci=no_of_loci)
+								no_of_individuals=no_of_individuals, no_of_loci=no_of_loci, is_phased=is_phased)
 			db_entry.individual_alignment_ls = individualAlignmentLs
 			self.session.add(db_entry)
 			self.session.flush()
@@ -2300,16 +2577,13 @@ class VervetDB(ElixirDB):
 		"""
 		locus_context = LocusContext.query.filter_by(locus_id=locus_id).filter_by(gene_id=gene_id).first()
 		
-		if locus_context:
-			already_in_db = 1
-		else:
+		if not locus_context:
 			locus_context = LocusContext(locus_id=locus_id, gene_id = gene_id, \
 								gene_strand=gene_strand, disp_pos=disp_pos, \
 								overlap_length=overlap_length, \
 								overlap_fraction_in_locus=overlap_fraction_in_locus, \
 								overlap_fraction_in_gene=overlap_fraction_in_gene)
 			self.session.add(locus_context)
-			already_in_db = 0
 		return locus_context
 	
 	def getLocusAnnotation(self, locus_id=None, locus_context_id=None, locus_context=None, gene_id=None, gene_commentary_id=None, \
@@ -2358,14 +2632,40 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return ty
 	
-	def getSequence(self, sequence=None, comment=None):
+	def getSequencer(self, short_name=None):
+		"""
+		2013.3.13
+		
+		"""
+		db_entry = Sequencer.query.filter_by(short_name=short_name).first()
+		if not db_entry:
+			db_entry = Sequencer(short_name=short_name)
+			self.session.add(db_entry)
+			self.session.flush()
+		return db_entry
+	
+	def getSequenceType(self, short_name=None, read_length_mean=None, paired_end=0, \
+					insert_size_mean=None, insert_size_variance=None, per_base_error_rate=None, **keywords):
+		"""
+		2013.3.13
+		"""
+		db_entry = SequenceType.query.filter_by(short_name=short_name).first()
+		if not db_entry:
+			db_entry = SequenceType(short_name=short_name, read_length_mean=read_length_mean,\
+								paired_end=paired_end, insert_size_mean=insert_size_mean, \
+								insert_size_variance=insert_size_variance, per_base_error_rate=per_base_error_rate)
+			self.session.add(db_entry)
+			self.session.flush()
+		return db_entry
+	
+	def getAlleleSequence(self, sequence=None, comment=None):
 		"""
 		2012.5.2
 		
 		"""
-		db_entry = Sequence.query.filter_by(sequence=sequence).first()
+		db_entry = AlleleSequence.query.filter_by(sequence=sequence).first()
 		if not db_entry:
-			db_entry = Sequence(sequence=sequence, comment=comment)
+			db_entry = AlleleSequence(sequence=sequence, comment=comment)
 			self.session.add(db_entry)
 			self.session.flush()
 		return db_entry
@@ -2491,6 +2791,7 @@ class VervetDB(ElixirDB):
 	
 	def getIndividualSequenceID2FilePairLs(self, individualSequenceIDList=None, data_dir=None, needPair=True, checkOldPath=False):
 		"""
+		2013.3.14 replace SR, PE with individual_sequence.sequence_type
 		2012.2.10
 			add argument checkOldPath.
 				True: find files in IndividualSequence.path[:-6], (=path without the trailing '_split').
@@ -2518,11 +2819,11 @@ class VervetDB(ElixirDB):
 				if individual_sequence.id not in individualSequenceID2FilePairLs:
 					individualSequenceID2FilePairLs[individual_sequence.id] = []
 				if os.path.isfile(abs_path):
-					fileRecord = [path, individual_sequence.format, 'SR', individual_sequence.sequencer]
+					fileRecord = [path, individual_sequence.format, individual_sequence.sequence_type, individual_sequence.sequencer]
 						#"SR" means it's single-end
 					individualSequenceID2FilePairLs[individual_sequence.id].append([fileRecord])
 				elif os.path.isdir(abs_path):	#it's a folder, sometimes it's nothing there
-					if individual_sequence.sequence_type=='PE':
+					if individual_sequence.sequence_type.paired_end==1:
 						isPE = True
 					else:
 						isPE = False
@@ -2530,23 +2831,24 @@ class VervetDB(ElixirDB):
 					for pairedEndPrefix, fileLs in pairedEndPrefix2FileLs.iteritems():
 						if isPE and len(fileLs)==2 and fileLs[0] and fileLs[1]:	#PE
 							filename = os.path.join(path, fileLs[0])	#take one file only
-							fileRecord = [filename, individual_sequence.format, 'PE', individual_sequence.sequencer]
+							fileRecord = [filename, individual_sequence.format, individual_sequence.sequence_type, individual_sequence.sequencer]
 							#"PE" means it's paired-end
 							filename2 = os.path.join(path, fileLs[1])	#take one file only
-							fileRecord2 = [filename2, individual_sequence.format, 'PE', individual_sequence.sequencer]
+							fileRecord2 = [filename2, individual_sequence.format, individual_sequence.sequence_type, individual_sequence.sequencer]
 							#"PE" means it's paired-end
 							individualSequenceID2FilePairLs[individual_sequence.id].append([fileRecord, fileRecord2])	#"PE" means it's paired-end
 						else:
 							for filename in fileLs:	#usually should be only one file
 								if filename:
 									filename = os.path.join(path, filename)
-									fileRecord = [filename, individual_sequence.format, 'SR', individual_sequence.sequencer]
+									fileRecord = [filename, individual_sequence.format, individual_sequence.sequence_type, individual_sequence.sequencer]
 									#"SR" means it's single-end
 									individualSequenceID2FilePairLs[individual_sequence.id].append([fileRecord])
 		sys.stderr.write("%s individual sequences. Done.\n"%(len(individualSequenceID2FilePairLs)))
 		return individualSequenceID2FilePairLs
 	
-	def getISQ_ID2LibrarySplitOrder2FileLs(self, individualSequenceIDList=None, data_dir=None, filtered=None, ignoreEmptyReadFile=True):
+	def getISQ_ID2LibrarySplitOrder2FileLs(self, individualSequenceIDList=None, data_dir=None, filtered=None, \
+										ignoreEmptyReadFile=True):
 		"""
 		2012.3.19
 			add argument, ignoreEmptyReadFile
