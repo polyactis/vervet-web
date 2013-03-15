@@ -121,7 +121,7 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 	
 	
 	def calculatePerSampleMismatchFraction(self, vcfFile1=None, vcfFile2=None, outputFname=None, overlapping_sample_id_set=None,\
-										overlapping_sites_set=None):
+										overlapping_sites_set=None, NA_call_encoding_set = set(['.', 'NA'])):
 		"""
 		2012.8.16
 		"""
@@ -154,9 +154,9 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 				col_index1 = vcfFile1.sample_id2index.get(sample_id)
 				col_index2 = vcfFile2.sample_id2index.get(sample_id)
 				#2012.1.17 bugfix below. so that 'AG' and 'GA' are same.
-				call1 = SNP.nt2number[vcfFile1.genotype_call_matrix[row_index1][col_index1]]
-				call2 = SNP.nt2number[vcfFile2.genotype_call_matrix[row_index2][col_index2]]
-				if call1!=0 and call2!=0:
+				call1 = vcfFile1.genotype_call_matrix[row_index1][col_index1]
+				call2 = vcfFile2.genotype_call_matrix[row_index2][col_index2]
+				if call1 not in NA_call_encoding_set and call2 not in NA_call_encoding_set:
 					no_of_non_NA_pairs_per_sample_ls[j] += 1
 					if call1==call2:
 						no_of_matches_per_sample_ls[j] += 1
