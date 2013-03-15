@@ -39,12 +39,7 @@ class CountFastqReadBaseCount(AbstractMapper):
 		2012.3.19
 			inputFname could be fastq or fasta
 		"""
-		fname_prefix, fname_suffix = os.path.splitext(inputFname)
-		if fname_suffix=='.gz':	#the input file is gzipped. get the new prefix
-			import gzip
-			inf = gzip.open(inputFname, 'rb')
-		else:
-			inf = open(inputFname, 'r')
+		inf = utils.openGzipFile(inputFname, openMode='r')
 		read_count = 0
 		base_count = 0
 		
