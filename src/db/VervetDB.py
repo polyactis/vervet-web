@@ -638,7 +638,7 @@ class IndividualSequence(Entity, AbstractTableWithFilename):
 	individual_sequence_file_ls = OneToMany("%s.IndividualSequenceFile"%(__name__))
 	individual_sequence_file_raw_ls = OneToMany("%s.IndividualSequenceFileRaw"%(__name__))
 	sequence_batch = ManyToOne('%s.SequenceBatch'%(__name__), colname='sequence_batch_id', ondelete='CASCADE', onupdate='CASCADE')	#2013.03.13
-	version = Field(Integer)
+	version = Field(Integer, default=1)
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -1850,11 +1850,13 @@ class VervetDB(ElixirDB):
 								(ref_ind_seq_id, alignment_method_id))
 		return monkeyID2ProperAlignment
 	
-	def filterAlignments(self, alignmentLs, max_coverage=None, individual_site_id=None, sequence_filtered=None,\
+	def filterAlignments(self, alignmentLs, min_coverage=None, max_coverage=None, \
+						individual_site_id=None, sequence_filtered=None,\
 						individual_site_id_set=None, mask_genotype_method_id=None, parent_individual_alignment_id=None,\
 						country_id_set=None, tax_id_set=None, excludeContaminant=False, excludeTissueIDSet=set([6]),\
 						report=True):
 		"""
+		2013.3.15 added min_coverage
 		2012.10.2 add argument excludeTissueIDSet, default=6 (RNASASamples). Most alignments have either tissue_id=5 (ACD-blood) or null.
 		2012.9.27 add argument excludeContaminant
 		2012.9.22 add argument country_id_set, tax_id_set
@@ -1871,8 +1873,8 @@ class VervetDB(ElixirDB):
 			447 in "individual_site_id=447" is VRC.
 		"""
 		if report:
-			sys.stderr.write("Filter %s alignments to select individual_sequence.coverage <=%s & site-id=%s & sequence_filtered=%s & from %s sites & %s countries & %s taxonomies ..."%\
-							(len(alignmentLs), max_coverage, individual_site_id, sequence_filtered, \
+			sys.stderr.write("Filter %s alignments to select individual_sequence, %s<=coverage <=%s & site-id=%s & sequence_filtered=%s & from %s sites & %s countries & %s taxonomies ..."%\
+							(len(alignmentLs), min_coverage, max_coverage, individual_site_id, sequence_filtered, \
 							getattr(individual_site_id_set, '__len__', returnZeroFunc)(),\
 							getattr(country_id_set, '__len__', returnZeroFunc)(),\
 							getattr(tax_id_set, '__len__', returnZeroFunc)(),\
@@ -1881,6 +1883,8 @@ class VervetDB(ElixirDB):
 		newAlignmentLs = []
 		for alignment in alignmentLs:
 			if not alignment:
+				continue
+			if min_coverage is not None and alignment.individual_sequence.coverage<min_coverage:
 				continue
 			if max_coverage is not None and alignment.individual_sequence.coverage>max_coverage:
 				continue
@@ -2644,12 +2648,12 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
-	def getSequenceType(self, short_name=None, read_length_mean=None, paired_end=0, \
+	def getSequenceType(self, short_name=None, id=None, read_length_mean=None, paired_end=0, \
 					insert_size_mean=None, insert_size_variance=None, per_base_error_rate=None, **keywords):
 		"""
-		2013.3.13
+		2013.3.13	#add column id
 		"""
-		db_entry = SequenceType.query.filter_by(short_name=short_name).first()
+		db_entry = self.checkIfEntryInTable(TableClass=SequenceType, short_name=short_name, id=id)
 		if not db_entry:
 			db_entry = SequenceType(short_name=short_name, read_length_mean=read_length_mean,\
 								paired_end=paired_end, insert_size_mean=insert_size_mean, \
@@ -2903,6 +2907,90 @@ class VervetDB(ElixirDB):
 		sys.stderr.write("%s individual sequence files from %s isq entries.\n"%(counter, len(isq_id2LibrarySplitOrder2FileLs)))
 		return isq_id2LibrarySplitOrder2FileLs
 	
+	def filterIndividualSequenceList(self, individual_sequence_list=None, min_coverage=None, max_coverage=None, individual_site_id=None, \
+						individual_site_id_set=None, individual_id_set=None, sequence_type_id_set=None,\
+						sequencer_id_set=None, sequence_filtered=None,\
+						sequence_batch_id_set=None, parent_individual_sequence_id_set=None, \
+						version_set=None,\
+						country_id_set=None, tax_id_set=None, excludeContaminant=False, excludeTissueIDSet=set([6]),\
+						report=True):
+		"""
+		2013.3.15
+		"""
+		if report:
+			sys.stderr.write("Filter %s individual_sequence entries to select %s=<coverage <=%s & site-id=%s & sequence_filtered=%s & from %s sites, \n\
+	%s countries, %s taxonomies, %s individuals, %s sequence types, %s sequencers, %s sequence batches, %s parent isqs, \n\
+	%s versions; excludeContaminant=%s, %s tissues to be excluded,..."%\
+							(len(individual_sequence_list), min_coverage, max_coverage, individual_site_id, sequence_filtered, \
+							getattr(individual_site_id_set, '__len__', returnZeroFunc)(),\
+							getattr(country_id_set, '__len__', returnZeroFunc)(),\
+							getattr(tax_id_set, '__len__', returnZeroFunc)(),\
+							getattr(individual_id_set, '__len__', returnZeroFunc)(),\
+							getattr(sequence_type_id_set, '__len__', returnZeroFunc)(),\
+							getattr(sequencer_id_set, '__len__', returnZeroFunc)(),\
+							getattr(sequence_batch_id_set, '__len__', returnZeroFunc)(),\
+							getattr(parent_individual_sequence_id_set, '__len__', returnZeroFunc)(),\
+							getattr(version_set, '__len__', returnZeroFunc)(),\
+							excludeContaminant,\
+							getattr(excludeTissueIDSet, '__len__', returnZeroFunc)(),\
+							)
+						)
+		listToReturn = []
+		cumulative_coverage = 0
+		for individual_sequence in individual_sequence_list:
+			if not individual_sequence:
+				continue
+			if min_coverage is not None and individual_sequence.coverage<min_coverage:
+				continue
+			if max_coverage is not None and individual_sequence.coverage>max_coverage:
+				continue
+			if individual_site_id is not None and individual_sequence.individual.site_id!=individual_site_id:
+				continue
+			if sequence_filtered is not None and individual_sequence.filtered!=sequence_filtered:
+				continue
+			if individual_site_id_set and individual_sequence.individual.site_id not in individual_site_id_set:
+				#2012.4.13
+				continue
+			if individual_id_set and individual_sequence.individual_id not in individual_id_set:
+				continue
+			if sequence_type_id_set and individual_sequence.sequence_type_id not in sequence_type_id_set:
+				continue
+			if sequencer_id_set and individual_sequence.sequencer_id not in sequencer_id_set:
+				continue
+			if sequence_batch_id_set and individual_sequence.sequence_batch_id not in sequence_batch_id_set:
+				continue
+			if parent_individual_sequence_id_set and \
+				individual_sequence.parent_individual_sequence_id not in parent_individual_sequence_id_set:
+				continue
+			if version_set and individual_sequence.version not in version_set:
+				continue
+			if country_id_set:
+				if individual_sequence.individual.site is None:
+					sys.stderr.write("Warning: isq (id=%s, path=%s, %s) has no site.\n"%(individual_sequence.id, individual_sequence.path,\
+																			individual_sequence.individual.code))
+					continue
+				elif (individual_sequence.individual.site is None or \
+									individual_sequence.individual.site.country_id not in country_id_set):
+					continue
+			if tax_id_set:
+				if individual_sequence.individual.tax_id is None:
+					sys.stderr.write("Warning: alignment (id=%s, path=%s, %s) has no tax_id.\n"%(individual_sequence.id, individual_sequence.path,\
+																	individual_sequence.individual.code))
+					continue
+				elif individual_sequence.individual.tax_id not in tax_id_set:
+					continue
+			if excludeContaminant and individual_sequence.individual.is_contaminated:	#2012.9.27
+				continue
+			if excludeTissueIDSet and individual_sequence.tissue_id in excludeTissueIDSet:	#2012.10.2
+				continue
+			listToReturn.append(individual_sequence)
+			if individual_sequence.coverage is not None:
+				cumulative_coverage += individual_sequence.coverage
+		if report:
+			sys.stderr.write(" kept %s individual_sequence entries, cumulative_coverage=%s.\n"%\
+							(len(listToReturn), cumulative_coverage))
+		return listToReturn
+	
 	def getISQDBEntryLsForAlignment(self, individualSequenceIDList=None, data_dir=None, filtered=None, ignoreEmptyReadFile=True):
 		"""
 		2012.9.19 similar to getISQ_ID2LibrarySplitOrder2FileLs()
@@ -2913,11 +3001,12 @@ class VervetDB(ElixirDB):
 					splitOrder2Index
 					fileObjectPairLs
 		"""
-		sys.stderr.write("Getting isqLs for %s isq entries ..."%(len(individualSequenceIDList)))
+		sys.stderr.write("Getting isqLs given %s isq-IDs ..."%(len(individualSequenceIDList)))
 		isqLs = []
 		if not data_dir:
 			data_dir = self.data_dir
-		counter = 0		
+		counter = 0
+		cumulative_coverage = 0
 		for individualSequenceID in individualSequenceIDList:
 			individual_sequence = IndividualSequence.get(individualSequenceID)
 			if not individual_sequence:	#not present in db, ignore
@@ -2969,7 +3058,10 @@ class VervetDB(ElixirDB):
 			#add it to the individual_sequence db entry
 			individual_sequence.library2Data = library2Data
 			isqLs.append(individual_sequence)
-		sys.stderr.write("%s individual sequence files from %s isq entries.\n"%(counter, len(isqLs)))
+			if individual_sequence.coverage is not None:
+				cumulative_coverage += individual_sequence.coverage
+		sys.stderr.write("%s individual sequence files from %s isq entries. cumulative_coverage=%s.\n"%\
+						(counter, len(isqLs), cumulative_coverage))
 		return isqLs
 	
 	@classmethod
