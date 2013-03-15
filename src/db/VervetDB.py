@@ -602,6 +602,7 @@ class IndividualAlignmentConsensusSequence(Entity, AbstractTableWithFilename):
 	
 class IndividualSequence(Entity, AbstractTableWithFilename):
 	"""
+	2013.3.13 added/changed sequence_batch, sequencer, sequence_type, no_of_chromosomes
 	2012.2.27
 		add column read_count
 	2012.1.26
@@ -638,6 +639,8 @@ class IndividualSequence(Entity, AbstractTableWithFilename):
 	individual_sequence_file_ls = OneToMany("%s.IndividualSequenceFile"%(__name__))
 	individual_sequence_file_raw_ls = OneToMany("%s.IndividualSequenceFileRaw"%(__name__))
 	sequence_batch = ManyToOne('%s.SequenceBatch'%(__name__), colname='sequence_batch_id', ondelete='CASCADE', onupdate='CASCADE')	#2013.03.13
+	is_contaminated = Field(Integer, default=0)	#2013.3.15 field to mark whether it's contaminated or not.
+	outdated_index = Field(Integer, default=0)	#2013.3.15 any non-zero means outdated. to allow multiple outdated alignments
 	version = Field(Integer, default=1)
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
@@ -646,7 +649,8 @@ class IndividualSequence(Entity, AbstractTableWithFilename):
 	using_options(tablename='individual_sequence', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('individual_id', 'sequencer_id', 'sequence_type_id', 'tissue_id',\
-		'filtered','no_of_chromosomes', 'parent_individual_sequence_id', 'sequence_batch_id', 'version'))
+		'filtered','no_of_chromosomes','format', 'parent_individual_sequence_id', 'sequence_batch_id', 'version', \
+		'is_contaminated', 'outdated_index'))
 	
 	def constructRelativePath(self, subFolder='individual_sequence', **keywords):
 		"""
@@ -1856,6 +1860,7 @@ class VervetDB(ElixirDB):
 						country_id_set=None, tax_id_set=None, excludeContaminant=False, excludeTissueIDSet=set([6]),\
 						report=True):
 		"""
+		2013.3.15 use individual_sequence.is_contaminated, instead of individual_sequence.individual.is_contaminated
 		2013.3.15 added min_coverage
 		2012.10.2 add argument excludeTissueIDSet, default=6 (RNASASamples). Most alignments have either tissue_id=5 (ACD-blood) or null.
 		2012.9.27 add argument excludeContaminant
@@ -1914,7 +1919,7 @@ class VervetDB(ElixirDB):
 					continue
 				elif alignment.individual_sequence.individual.tax_id not in tax_id_set:
 					continue
-			if excludeContaminant and alignment.individual_sequence.individual.is_contaminated:	#2012.9.27
+			if excludeContaminant and alignment.individual_sequence.is_contaminated:	#2012.9.27
 				continue
 			if excludeTissueIDSet and alignment.individual_sequence.tissue_id in excludeTissueIDSet:	#2012.10.2
 				continue
@@ -2003,36 +2008,16 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
-	def getIndividualSequence(self, individual_id=None, sequencer_id=None, sequencer_name=None, \
+	def checkIndividualSequence(self, individual_id=None, sequencer_id=None, sequencer_name=None, \
 							sequence_type_name=None, sequence_type_id=None, \
-						sequence_format=None, path_to_original_sequence=None, tissue_name=None, tissue_id=None, \
-						coverage=None,\
-						subFolder=None, quality_score_format="Standard", filtered=0,\
+						sequence_format=None, tissue_name=None, tissue_id=None, \
+						filtered=0,\
 						parent_individual_sequence_id=None,\
-						read_count=None, no_of_chromosomes=None, sequence_batch_id=None, version=None, data_dir=None):
+						no_of_chromosomes=None, sequence_batch_id=None, version=None, \
+						is_contaminated=0, outdated_index=0):
 		"""
-		2013.3.13 read_count, no_of_chromosomes, sequencer_id, sequence_type_id, sequence_batch_id, version
-		2012.6.3
-			columns that are None become part of the db query to see if entry is in db already
-		2012.2.24
-			add argument data_dir
-		2012.2.10
-			path_to_original_sequence is only given when you want to copy the file to db storage.
-			add argument parent_individual_sequence_id
-		2011-8-30
-			add argument filtered
-		2011-8-18
-			add argument quality_score_format, default to "Standard"
-		2011-8-3
-			the path field is now considered a folder (rather than a file).
-		2011-5-7
-			subFolder is the name of the folder in self.data_dir that is used to hold the sequence files.
+		2013.3.15
 		"""
-		if not data_dir:
-			data_dir = self.data_dir
-		if not subFolder:
-			subFolder = IndividualSequence.folderName
-		
 		if sequencer_id is None:
 			sequencer = self.getSequencer(short_name=sequencer_name)
 			sequencer_id=sequencer.id
@@ -2043,7 +2028,9 @@ class VervetDB(ElixirDB):
 		query = IndividualSequence.query.filter_by(individual_id=individual_id)
 		query = query.filter_by(sequencer_id=sequencer_id)
 		query = query.filter_by(sequence_type_id=sequence_type_id)
-		query = query.filter_by(format=sequence_format)
+		if sequence_format:
+			query = query.filter_by(format=sequence_format)
+		query = query.filter_by(is_contaminated=is_contaminated).filter_by(outdated_index=outdated_index)
 		
 		if tissue_name:
 			tissue = self.getTissue(short_name=tissue_name)
@@ -2074,6 +2061,54 @@ class VervetDB(ElixirDB):
 		
 		query= query.filter_by(filtered=filtered)
 		db_entry = query.first()
+		return db_entry
+	
+	def getIndividualSequence(self, individual_id=None, sequencer_id=None, sequencer_name=None, \
+							sequence_type_name=None, sequence_type_id=None, \
+						sequence_format=None, path_to_original_sequence=None, tissue_name=None, tissue_id=None, \
+						coverage=None,\
+						subFolder=None, quality_score_format="Standard", filtered=0,\
+						parent_individual_sequence_id=None,\
+						read_count=None, no_of_chromosomes=None, sequence_batch_id=None, version=None, data_dir=None,\
+						is_contaminated=0, outdated_index=0):
+		"""
+		2013.3.15 added is_contaminated, outdated_index
+		2013.3.13 read_count, no_of_chromosomes, sequencer_id, sequence_type_id, sequence_batch_id, version
+		2012.6.3
+			columns that are None become part of the db query to see if entry is in db already
+		2012.2.24
+			add argument data_dir
+		2012.2.10
+			path_to_original_sequence is only given when you want to copy the file to db storage.
+			add argument parent_individual_sequence_id
+		2011-8-30
+			add argument filtered
+		2011-8-18
+			add argument quality_score_format, default to "Standard"
+		2011-8-3
+			the path field is now considered a folder (rather than a file).
+		2011-5-7
+			subFolder is the name of the folder in self.data_dir that is used to hold the sequence files.
+		"""
+		if not data_dir:
+			data_dir = self.data_dir
+		if not subFolder:
+			subFolder = IndividualSequence.folderName
+		
+		if sequencer_id is None:
+			sequencer = self.getSequencer(short_name=sequencer_name)
+			sequencer_id=sequencer.id
+		if sequence_type_id is None:
+			sequence_type = self.getSequenceType(short_name=sequence_type_name)
+			sequence_type_id=sequence_type.id
+		
+		db_entry = self.checkIndividualSequence(individual_id=individual_id, sequencer_id=sequencer_id, \
+						sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, \
+						sequence_type_id=sequence_type_id, sequence_format=sequence_format, tissue_name=tissue_name,\
+						tissue_id=tissue_id, filtered=filtered, \
+						parent_individual_sequence_id=parent_individual_sequence_id, \
+						no_of_chromosomes=no_of_chromosomes, sequence_batch_id=sequence_batch_id, \
+						version=version, is_contaminated=is_contaminated, outdated_index=outdated_index)
 		if not db_entry:
 			if tissue_name:
 				tissue = self.getTissue(short_name=tissue_name)
@@ -2086,7 +2121,8 @@ class VervetDB(ElixirDB):
 									quality_score_format=quality_score_format, filtered=filtered,\
 									parent_individual_sequence_id=parent_individual_sequence_id, \
 									read_count=read_count, no_of_chromosomes=no_of_chromosomes,\
-									sequence_batch_id=sequence_batch_id, version=version)
+									sequence_batch_id=sequence_batch_id, version=version, \
+									is_contaminated=is_contaminated, outdated_index=outdated_index)
 			#to make db_entry.id valid
 			self.session.add(db_entry)
 			self.session.flush()
@@ -2915,6 +2951,7 @@ class VervetDB(ElixirDB):
 						country_id_set=None, tax_id_set=None, excludeContaminant=False, excludeTissueIDSet=set([6]),\
 						report=True):
 		"""
+		2013.3.15 use individual_sequence.is_contaminated, instead of individual_sequence.individual.is_contaminated
 		2013.3.15
 		"""
 		if report:
@@ -2979,7 +3016,7 @@ class VervetDB(ElixirDB):
 					continue
 				elif individual_sequence.individual.tax_id not in tax_id_set:
 					continue
-			if excludeContaminant and individual_sequence.individual.is_contaminated:	#2012.9.27
+			if excludeContaminant and individual_sequence.is_contaminated:	#2012.9.27
 				continue
 			if excludeTissueIDSet and individual_sequence.tissue_id in excludeTissueIDSet:	#2012.10.2
 				continue
