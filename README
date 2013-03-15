@@ -1,0 +1,17 @@
+
+
+2013.3.14 To establish the main database (vervet/src/db/VervetDB.py, pymodule/db/Genome.py, etc.)
+=================================================================================================
+
+Establish three schemas (+ triggers for users/dates) and pre-fill some tables with contents
+
+#. genome schema (tax_id=0, for simulated species)
+	#. chromosome_type
+	#. genome_annotation_type
+#. taxonomy schema 
+	
+#. public schema
+	#. sequencer, sequence_type, ind2ind
+	#. relationship_type, alignment_method,
+	#. study, locus_type
+
