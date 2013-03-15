@@ -1,4 +1,9 @@
 
+2013.3.14 INSTALL
+=========================
+#. need the GWASModules (particular, the pymodule/ folder)
+#. the repositories have to be in ~/script/ path. like ~/script/pymodule/..., ~/script/vervet/src/... so that python modules could be found without any PYTHONPATH setup.
+
 
 2013.3.14 To establish the main database (vervet/src/db/VervetDB.py, pymodule/db/Genome.py, etc.)
 =================================================================================================
