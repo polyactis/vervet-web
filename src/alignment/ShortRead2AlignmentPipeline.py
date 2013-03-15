@@ -13,14 +13,20 @@ Examples:
 	
 	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (--local_data_dir changes local_data_dir. --data_dir changes data_dir.)
 	# 2012.3.20 use /work/ or /u/scratch/p/polyacti/tmp as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
-	# 2012.5.4 cluster 10 alignment jobs (before merging) as a unit (--cluster_size_for_aln_jobs 10), skip done alignment (--skipDoneAlignment)
+	# 2012.5.4 cluster 4 alignment jobs (before merging) as a unit (--cluster_size_for_aln_jobs 0.2), skip done alignment (--skipDoneAlignment)
 	# 2012.9.21 add "--needSSHDBTunnel" because AddAlignmentFile2DB need db conneciton
 	# 2012.9.21 add "--alignmentPerLibrary" to also get alignment for each library within one individual_sequence
-	%s  --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
-		-l hcondor -j hcondor 
-		-z localhost -u yh --commit
-		-i 631-700 -o dags/ShortRead2Alignment_Isq_631-700_vs_524_hcondor.xml  -a 524 
-		--tmpDir /work/ -e /u/home/eeskin/polyacti  --cluster_size_for_aln_jobs 10 --skipDoneAlignment  --needSSHDBTunnel --alignmentPerLibrary
+	# 2013.3.15 add "--coreAlignmentJobWallTimeMultiplier 0.5" to reduce wall time for core-alignment (bwa/stampy) jobs by half 
+	ref=3280; %s -i 632-3230 --sequence_min_coverage 15 --sequence_max_coverage 80 --site_id_ls 447 --sequence_filtered 1
+		--excludeContaminant -a $ref -o dags/ShortRead2Alignment/ShortRead2AlignmentPipeline_VRCPart1_vs_$ref\_AlnMethod2.xml
+		-u yh -l hcondor -j hcondor -z localhost -u yh --commit --tmpDir /work/
+		--home_path /u/home/eeskin/polyacti --no_of_aln_threads 1 --skipDoneAlignment
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--clusters_size 20 --alignment_method_name bwaShortRead
+		--coreAlignmentJobWallTimeMultiplier 0.5
+		--cluster_size_for_aln_jobs 0.2 
+		--needSSHDBTunnel --ref_genome_version 2 --needRefIndexJob --db_passwd secret
+		#--alignmentPerLibrary
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files. need ref index job (--needRefIndexJob).
@@ -364,7 +370,8 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 										extraArguments=None, transferOutput=transferOutput, \
 										job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, commit=True)
 					
-		sys.stderr.write("%s alignment jobs; %s merge alignment jobs.\n"%(no_of_alignment_jobs, no_of_merging_jobs))
+		sys.stderr.write("%s alignment jobs; %s merge alignment jobs; %s jobs in total.\n"%(no_of_alignment_jobs, no_of_merging_jobs,\
+																				self.no_of_jobs))
 	
 	def registerFileToWorkflow(self, filePair, workflow=None, data_dir=None):
 		'''
@@ -667,7 +674,18 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		
 		#individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, data_dir=self.local_data_dir)
 		isqLs = db_vervet.getISQDBEntryLsForAlignment(self.ind_seq_id_ls, data_dir=self.data_dir, \
-												filtered=None, ignoreEmptyReadFile=self.ignoreEmptyReadFile)
+												filtered=self.sequence_filtered, ignoreEmptyReadFile=self.ignoreEmptyReadFile)
+		isqLs = db_vervet.filterIndividualSequenceList(individual_sequence_list=isqLs, min_coverage=self.sequence_min_coverage,\
+						max_coverage=self.sequence_max_coverage, \
+						individual_site_id_set=set(self.site_id_ls), individual_id_set=None, \
+						sequence_type_id_set=set(self.sequence_type_id_ls),\
+						sequencer_id_set=set(self.sequencer_id_ls), sequence_filtered=self.sequence_filtered,\
+						sequence_batch_id_set=set(self.sequence_batch_id_ls), parent_individual_sequence_id_set=None, \
+						version_set=set(self.version_ls),\
+						country_id_set=set(self.country_id_ls), tax_id_set=set(self.tax_id_ls), \
+						excludeContaminant=self.excludeContaminant, \
+						report=True)
+		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		
 		
