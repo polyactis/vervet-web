@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 """
-	%s  -v postgresql -z 149.142.212.14 -d vervetdb -k public -u yh 
+	%s  --drivername postgresql --hostname 149.142.212.14 --dbname vervetdb --schema public --db_user yh 
 		-i 3185_gerald_D14CGACXX_7_GCCAAT -o /Network/Data/vervet/db/individual_sequence/3185_6059_2002099_GA_0_0
-		-t individual_sequence/3185_6059_2002099_GA_0_0 -l gerald_D14CGACXX_7_GCCAAT -n 3185 -f fastq
-		-c
-		-m 1 -a  gerald_D14CGACXX_7_GCCAAT.bam  -g  3185_gerald_D14CGACXX_7_GCCAAT_1.register.log
+		--relativeOutputDir individual_sequence/3185_6059_2002099_GA_0_0
+		--library gerald_D14CGACXX_7_GCCAAT --individual_sequence_id 3185
+		--sequence_format fastq --commit
+		--mate_id 1 --bamFilePath gerald_D14CGACXX_7_GCCAAT.bam  --logFilename  3185_gerald_D14CGACXX_7_GCCAAT_1.register.log
 
 Description:
 	2012.1.27
@@ -211,7 +212,7 @@ class RegisterAndMoveSplitSequenceFiles(AbstractVervetMapper):
 										shellCommand='cp', srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs)
 				"""
 				if exitCode!=0:
-					sys.stderr.write("Error: moveNewISQFileIntoDBStorage() exits with %s code.\n"%(exitCode))
+					sys.stderr.write("Error: moveFileIntoDBAffiliatedStorage() exits with %s code.\n"%(exitCode))
 					session.rollback()
 					#delete all recorded target files
 					self.cleanUpAndExitOnFailure(exitCode=exitCode)
