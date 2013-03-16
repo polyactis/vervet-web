@@ -249,6 +249,7 @@ class GeographicIntegrity(Entity):
 
 class Individual(Entity, TableClass):
 	"""
+	2013.3.15 renamed is_contaminated to outdated_index
 	2013.3.13 added study column, 
 	2012.12.6 get rid of latitude, longitude, altitude, it's now rolled into site.
 	2012.9.27 add is_contaminated
@@ -289,7 +290,7 @@ class Individual(Entity, TableClass):
 	comment = Field(String(4096))
 	microchip_id = Field(String(4096))
 	target_coverage = Field(Integer)	#2012.6.19
-	is_contaminated = Field(Integer, default=0)	#2012.9.27 field to mark whether it's contaminated or not.
+	outdated_index = Field(Integer, default=0)	#2012.9.27 is_contaminated, 2013.3.15 changed. any non-zero means outdated. 
 	sequence_batch_ls = ManyToMany('%s.SequenceBatch'%(__name__), tablename='individual2batch', local_colname='individual_id')	#2012.7.5
 	study = ManyToOne('%s.Study'%(__name__), colname='study_id', ondelete='CASCADE', onupdate='CASCADE')	#2013.03.13
 	#ManyToOne('SequenceBatch', colname='sequence_batch_id', ondelete='CASCADE', onupdate='CASCADE')	#2012.7.5
@@ -2949,15 +2950,17 @@ class VervetDB(ElixirDB):
 						sequence_batch_id_set=None, parent_individual_sequence_id_set=None, \
 						version_set=None,\
 						country_id_set=None, tax_id_set=None, excludeContaminant=False, excludeTissueIDSet=set([6]),\
+						outdated_index=0,\
 						report=True):
 		"""
+		2013.3.15 added argument outdated_index
 		2013.3.15 use individual_sequence.is_contaminated, instead of individual_sequence.individual.is_contaminated
 		2013.3.15
 		"""
 		if report:
 			sys.stderr.write("Filter %s individual_sequence entries to select %s=<coverage <=%s & site-id=%s & sequence_filtered=%s & from %s sites, \n\
 	%s countries, %s taxonomies, %s individuals, %s sequence types, %s sequencers, %s sequence batches, %s parent isqs, \n\
-	%s versions; excludeContaminant=%s, %s tissues to be excluded,..."%\
+	%s versions; excludeContaminant=%s, outdated_index=%s, %s tissues to be excluded,..."%\
 							(len(individual_sequence_list), min_coverage, max_coverage, individual_site_id, sequence_filtered, \
 							getattr(individual_site_id_set, '__len__', returnZeroFunc)(),\
 							getattr(country_id_set, '__len__', returnZeroFunc)(),\
@@ -2968,7 +2971,7 @@ class VervetDB(ElixirDB):
 							getattr(sequence_batch_id_set, '__len__', returnZeroFunc)(),\
 							getattr(parent_individual_sequence_id_set, '__len__', returnZeroFunc)(),\
 							getattr(version_set, '__len__', returnZeroFunc)(),\
-							excludeContaminant,\
+							excludeContaminant, outdated_index,\
 							getattr(excludeTissueIDSet, '__len__', returnZeroFunc)(),\
 							)
 						)
@@ -3018,6 +3021,8 @@ class VervetDB(ElixirDB):
 					continue
 			if excludeContaminant and individual_sequence.is_contaminated:	#2012.9.27
 				continue
+			if outdated_index is not None and individual_sequence.outdated_index!=outdated_index:	#2013.3.15
+				continue
 			if excludeTissueIDSet and individual_sequence.tissue_id in excludeTissueIDSet:	#2012.10.2
 				continue
 			listToReturn.append(individual_sequence)
@@ -3028,8 +3033,10 @@ class VervetDB(ElixirDB):
 							(len(listToReturn), cumulative_coverage))
 		return listToReturn
 	
-	def getISQDBEntryLsForAlignment(self, individualSequenceIDList=None, data_dir=None, filtered=None, ignoreEmptyReadFile=True):
+	def getISQDBEntryLsForAlignment(self, individualSequenceIDList=None, data_dir=None, filtered=None, ignoreEmptyReadFile=True,\
+								outdated_index=0):
 		"""
+		2013.3.15 added argument outdated_index
 		2012.9.19 similar to getISQ_ID2LibrarySplitOrder2FileLs()
 			isqLs
 				library2Data
@@ -3047,6 +3054,8 @@ class VervetDB(ElixirDB):
 		for individualSequenceID in individualSequenceIDList:
 			individual_sequence = IndividualSequence.get(individualSequenceID)
 			if not individual_sequence:	#not present in db, ignore
+				continue
+			if outdated_index is not None and individual_sequence.outdated_index!=outdated_index:	#2013.3.15
 				continue
 			library2Data = {}	#2012.9.19
 			for individual_sequence_file in individual_sequence.individual_sequence_file_ls:
