@@ -478,6 +478,7 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 	
 	def getReadGroup(self):
 		"""
+		2013.3.18 bugfix: sequencer is now a db entry.
 		2012.9.19
 			add three more optional additions to the read group
 		2011-11-02
@@ -485,7 +486,7 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 		"""
 		sequencer = self.individual_sequence.sequencer
 		read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, self.individual_sequence.individual.code, \
-								sequencer, self.ref_ind_seq_id)
+								sequencer.short_name, self.ref_ind_seq_id)
 		if self.parent_individual_alignment_id:
 			read_group += '_p%s'%(self.parent_individual_alignment_id)
 		if self.mask_genotype_method_id:
@@ -680,8 +681,8 @@ class IndividualSequence(Entity, AbstractTableWithFilename):
 			filename_part_ls.append('indID%s'%(self.individual_id))
 		if self.individual_id:
 			filename_part_ls.append('code%s'%(self.individual.code))
-		if self.sequencer:
-			filename_part_ls.append("seq%s"%(self.sequencer))
+		if self.sequencer_id:
+			filename_part_ls.append("sequencer%s"%(self.sequencer_id))
 		if self.sequence_type_id:
 			filename_part_ls.append("seqType%s"%(self.sequence_type_id))
 		if self.tissue:
@@ -3382,6 +3383,7 @@ class VervetDB(ElixirDB):
 	
 	def parseAlignmentReadGroup(self, read_group):
 		"""
+		2013.3.18 bugfix: sequencer is now a db entry.
 		2012.10.8 no more try except
 		2012.5.10
 			read-group is used to designate samples in alignment files and also in the ensuing multi-sample VCF files,
@@ -3430,7 +3432,7 @@ class VervetDB(ElixirDB):
 		"""
 		return PassingData(individual_alignment_id=individual_alignment_id, individual_sequence_id=ind_seq_id,\
 						individual_id=individual_id, individual_code=individual_code, ref_ind_seq_id=ref_ind_seq_id,\
-						sequencer=sequencer, individualAlignment=individualAlignment)
+						sequencer=sequencer.short_name, individualAlignment=individualAlignment)
 	
 	def parseDBEntryGivenDBAffiliatedFilename(self, filename=None, TableClass=None):
 		"""
