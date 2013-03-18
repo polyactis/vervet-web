@@ -2331,7 +2331,6 @@ class VervetDB(ElixirDB):
 		db_entry = query.first()
 		if not db_entry:
 			if path and os.path.isfile(path) and file_size is None:	#2012.7.12
-				from pymodule import utils
 				file_size = utils.getFileOrFolderSize(path)
 			db_entry = IndividualSequenceFileRaw(individual_sequence_id=individual_sequence_id, library=library, md5sum=md5sum, \
 										path=path, mate_id=mate_id, file_size=file_size)
