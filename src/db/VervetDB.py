@@ -2308,24 +2308,6 @@ class VervetDB(ElixirDB):
 			exitCode = 0
 		return exitCode
 	
-	def copyFileWithAnotherFilePrefix(self, inputFname=None, filenameWithPrefix=None, outputDir=None,\
-									logMessage=None, srcFilenameLs=None, dstFilenameLs=None):
-		"""
-		2012.9.20
-		"""
-		srcFilename = inputFname
-		prefix, suffix = os.path.splitext(os.path.basename(inputFname))
-		newPrefix = os.path.splitext(filenameWithPrefix)[0]
-		dstFilename = os.path.join(outputDir, '%s.%s'%(newPrefix, suffix))
-		utils.copyFile(srcFilename=srcFilename, dstFilename=dstFilename)
-		if logMessage:
-			logMessage += "file %s has been copied to %s.\n"%(srcFilename, dstFilename)
-		if srcFilenameLs:
-			srcFilenameLs.append(srcFilename)
-		if dstFilenameLs:
-			dstFilenameLs.append(dstFilename)
-		return logMessage
-	
 	def getIndividualSequenceFileRaw(self, individual_sequence_id=None, library=None, md5sum=None, path=None, mate_id=None,\
 									file_size=None):
 		"""
