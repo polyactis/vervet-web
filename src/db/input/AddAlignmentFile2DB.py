@@ -151,10 +151,12 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				#copy further files if there are
 				if self.inputFnameLs:
 					for inputFname in self.inputFnameLs:
-						logMessage = self.db_vervet.copyFileWithAnotherFilePrefix(inputFname=inputFname, \
+						if inputFname!=self.inputFname:	#2013.3.18 make sure it has not been copied.
+							logMessage = self.db_vervet.copyFileWithAnotherFilePrefix(inputFname=inputFname, \
 												filenameWithPrefix=individual_alignment.path, \
 												outputDir=self.data_dir,\
-												logMessage=logMessage, srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs)
+												logMessage=logMessage, srcFilenameLs=self.srcFilenameLs, \
+												dstFilenameLs=self.dstFilenameLs)
 				
 				self.db_vervet.updateDBEntryPathFileSize(db_entry=individual_alignment, data_dir=data_dir)
 				
