@@ -213,6 +213,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				data_dir=None, needPerContigJob=False, skipAlignmentWithStats=False,\
 				needSSHDBTunnel=0):
 		"""
+		2013.3.20 use registerReferenceData
 		2012.6.15
 			replace  CalculateMedianModeFromSAMtoolsDepthOutput with CalculateMedianMeanOfInputColumn
 		2012.5.7
