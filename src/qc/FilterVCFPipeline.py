@@ -161,13 +161,15 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 		workflow.addExecutable(CalculateSNPMismatchRateOfTwoVCF)
 		workflow.CalculateSNPMismatchRateOfTwoVCF = CalculateSNPMismatchRateOfTwoVCF
 	
-	def addJobsToFilterTwoVCFDir(self, workflow, vcf1Dir, vcf2Dir, refFastaFList, alnStatForFilterF, keepSNPPosF, onlyKeepBiAllelicSNP=True,\
+	def addJobsToFilterTwoVCFDir(self, workflow=None, vcf1Dir=None, vcf2Dir=None, registerReferenceData=None, \
+							alnStatForFilterF=None, keepSNPPosF=None, onlyKeepBiAllelicSNP=True,\
 							minMAC=None, minMAF=None, maxSNPMissingRate=None):
 		"""
 		2012.5.10
 			add extraArguments="--recode-INFO-all" to addFilterJobByvcftools()
 		2012.1.14
 		"""
+		refFastaFList = registerReferenceData.refFastaFList
 		refFastaF = refFastaFList[0]
 		
 		#name to distinguish between vcf1Dir, and vcf2Dir
@@ -327,7 +329,8 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 					counter += 9
 		sys.stderr.write("%s jobs.\n"%(counter+1))
 	
-	def addJobsToFilterOneVCFDir(self, workflow=None, inputData=None, refFastaFList=None, alnStatForFilterF=None, keepSNPPosF=None, \
+	def addJobsToFilterOneVCFDir(self, workflow=None, inputData=None, registerReferenceData=None, \
+								alnStatForFilterF=None, keepSNPPosF=None, \
 						onlyKeepBiAllelicSNP=True,\
 						minDepthPerGenotype=False, minMAC=None, minMAF=None, maxSNPMissingRate=None, outputDirPrefix="",\
 						minNeighborDistance=None, transferOutput=True, keepSNPPosParentJobLs=None):
@@ -340,6 +343,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 		2012.1.14
 		"""
 		sys.stderr.write("Adding filter-VCF jobs for %s vcf files ... \n"%(len(inputData.jobDataLs)))
+		refFastaFList = registerReferenceData.refFastaFList
 		refFastaF = refFastaFList[0]
 		no_of_jobs = 0
 
@@ -734,7 +738,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		
 		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 						input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
 		if self.depthFoldChange and self.depthFoldChange>0:
@@ -752,7 +756,8 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			keepSNPPosF = None
 		
 		if self.vcf1Dir and self.vcf2Dir:
-			self.addJobsToFilterTwoVCFDir(workflow, self.vcf1Dir, self.vcf2Dir, refFastaFList, alnStatForFilterF, keepSNPPosF, \
+			self.addJobsToFilterTwoVCFDir(workflow, self.vcf1Dir, self.vcf2Dir, registerReferenceData, \
+						alnStatForFilterF, keepSNPPosF, \
 						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, minMAC=self.minMAC, minMAF=self.minMAF, \
 						maxSNPMissingRate=self.maxSNPMissingRate)
 		elif self.vcf1Dir:
@@ -764,7 +769,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 												pegasusFolderName="%s_%s"%(self.pegasusFolderName, vcf1Name), \
 												maxContigID=self.maxContigID, \
 												minContigID=self.minContigID)
-			self.addJobsToFilterOneVCFDir(workflow, inputData=inputData, refFastaFList=refFastaFList, \
+			self.addJobsToFilterOneVCFDir(workflow, inputData=inputData, registerReferenceData=registerReferenceData, \
 									alnStatForFilterF=alnStatForFilterF, keepSNPPosF=keepSNPPosF, \
 									onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP,\
 									minMAC=self.minMAC, minMAF=self.minMAF, maxSNPMissingRate=self.maxSNPMissingRate,\
