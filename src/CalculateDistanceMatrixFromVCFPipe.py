@@ -93,11 +93,11 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVervetWorkflow):
 		returnData.jobDataLs = []
 		
 		callOutputDir = "call"
-		callOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=callOutputDir)
+		callOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=callOutputDir)
 		passingData.callOutputDirJob = callOutputDirJob
 		
 		matrixDir = "pairwiseDistMatrix"
-		matrixDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=matrixDir)
+		matrixDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=matrixDir)
 		passingData.matrixDirJob = matrixDirJob
 		
 		reduceOutputDirJob = passingData.reduceOutputDirJob
