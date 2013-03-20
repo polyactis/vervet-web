@@ -171,7 +171,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				replicateIndividualTag="copy", treatEveryOneIndependent=False,\
 				bgzip_tabix=None, vcf_convert=None, vcf_isec=None, vcf_concat=None, \
 				concatGATK=None, concatSamtools=None, ligateVcf=None, ligateVcfPerlPath=None,\
-				refFastaFList=None, \
+				registerReferenceData=None, \
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				needFastaIndexJob=False, needFastaDictJob=False, \
 				intervalSize=2000000, intervalOverlapSize=100000, site_type=1, data_dir=None, no_of_gatk_threads = 1, \
@@ -195,10 +195,11 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			argument intervalSize determines how many sites gatk/samtools works on at a time
 		"""
 		sys.stderr.write("Adding genotype call jobs for %s chromosomes/contigs ..."%(len(chr2IntervalDataLs)))
+		refFastaFList = registerReferenceData.refFastaFList
 		refFastaF = refFastaFList[0]
 		no_of_jobs = 0
 		
-		if needFastaDictJob:	# the .dict file is required for GATK
+		if needFastaDictJob or registerReferenceData.needPicardFastaDictJob:# the .dict file is required for GATK
 			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
 												CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
@@ -207,7 +208,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			fastaDictJob = None
 			refFastaDictF = None
 		
-		if needFastaIndexJob:
+		if needFastaIndexJob or registerReferenceData.needSAMtoolsFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
 			no_of_jobs += 1
@@ -485,7 +486,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 				replicateIndividualTag="copy", treatEveryOneIndependent=False,\
 				bgzip_tabix=None, vcf_convert=None, vcf_isec=None, vcf_concat=None, \
 				concatGATK=None, concatSamtools=None, ligateVcf=None, ligateVcfPerlPath=None,\
-				refFastaFList=None, \
+				registerReferenceData=None, \
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				needFastaIndexJob=False, needFastaDictJob=False, \
 				intervalSize=2000000, intervalOverlapSize=100000, site_type=1, data_dir=None, no_of_gatk_threads = 1, \
@@ -500,9 +501,10 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		sys.stderr.write("Adding trioCaller jobs for  %s vcf files ..."%(len(inputData.jobDataLs)))
 		if workflow is None :
 			workflow = self
+		refFastaFList = registerReferenceData.refFastaFList
 		refFastaF = refFastaFList[0]
 		
-		if needFastaDictJob:	# the .dict file is required for GATK
+		if needFastaDictJob or registerReferenceData.needPicardFastaDictJob:
 			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
 												refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
@@ -510,7 +512,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			fastaDictJob = None
 			refFastaDictF = None
 		
-		if needFastaIndexJob:
+		if needFastaIndexJob or registerReferenceData.needSAMtoolsFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
 		else:
@@ -758,10 +760,9 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 							input_site_handler=self.input_site_handler,\
 							checkAffiliateFileExistence=True)
-		refFastaF = refFastaFList[0]
 		
 		self.registerJars()
 		self.registerExecutables()
@@ -800,7 +801,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 						concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
 						ligateVcf=self.ligateVcf, ligateVcfPerlPath=self.ligateVcfPerlPath,\
-						refFastaFList=refFastaFList, \
+						registerReferenceData=registerReferenceData, \
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 						intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, \
@@ -824,7 +825,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 						concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
 						ligateVcf=self.ligateVcf, ligateVcfPerlPath=self.ligateVcfPerlPath,\
-						refFastaFList=refFastaFList, \
+						registerReferenceData=registerReferenceData, \
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 						intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, \
