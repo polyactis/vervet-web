@@ -219,10 +219,9 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 						input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
-		refFastaF = refFastaFList[0]
 		
 		self.registerJars(workflow)
 		self.registerExecutables(workflow)
@@ -268,7 +267,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 						replicateIndividualTag=self.replicateIndividualTag, 
 						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 						concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
-						refFastaFList=refFastaFList, \
+						registerReferenceData=registerReferenceData, \
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 						intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, site_type=self.site_type, data_dir=self.data_dir,\
