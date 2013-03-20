@@ -123,7 +123,7 @@ class FilterVCFByMendelErrorWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow):
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		
 		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 						input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
 		if self.depthFoldChange and self.depthFoldChange>0:
@@ -163,7 +163,7 @@ class FilterVCFByMendelErrorWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow):
 					extraArguments="-m %s"%(self.maxMendelError), extraArgumentList=None, job_max_memory=2000,  sshDBTunnel=None, \
 					key2ObjectForJob=None)
 			
-			self.addJobsToFilterOneVCFDir(workflow, inputData=inputData, refFastaFList=refFastaFList, \
+			self.addJobsToFilterOneVCFDir(workflow, inputData=inputData, registerReferenceData=registerReferenceData, \
 									alnStatForFilterF=alnStatForFilterF, keepSNPPosF=keepSNPPosF, \
 									onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP,\
 									minMAC=self.minMAC, minMAF=self.minMAF, maxSNPMissingRate=self.maxSNPMissingRate,\
