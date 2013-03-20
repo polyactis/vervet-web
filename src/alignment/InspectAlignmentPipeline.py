@@ -207,7 +207,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				ReformatFlagstatOutput=None, PutFlagstatOutput2DB=None, PutDOCOutput2DB=None,\
 				samtoolsDepth=None, \
 				ReduceDepthOfCoverage=None, ReduceVariousReadCount=None,\
-				refFastaFList=None, \
+				registerReferenceData=None, \
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				needFastaIndexJob=False, needFastaDictJob=False, \
 				data_dir=None, needPerContigJob=False, skipAlignmentWithStats=False,\
@@ -227,9 +227,10 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		"""
 		sys.stderr.write("Adding jobs for %s references and %s alignments..."%(len(refName2size), len(alignmentDataLs)))
 		perContigJobMaxMemory = 1000	#in MB
+		refFastaFList = registerReferenceData.refFastaFList
 		refFastaF = refFastaFList[0]
 		no_of_jobs = 0
-		if needFastaDictJob:
+		if needFastaDictJob or registerReferenceData.needPicardFastaDictJob:
 			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
 										CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
@@ -238,7 +239,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 			fastaDictJob = None
 			refFastaDictF = None
 		
-		if needFastaIndexJob:
+		if needFastaIndexJob or registerReferenceData.needSAMtoolsFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
 			no_of_jobs += 1
@@ -524,8 +525,6 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 							input_site_handler=self.input_site_handler,\
 							checkAffiliateFileExistence=True)
-		refFastaFList = registerReferenceData.refFastaFList
-		refFastaF = refFastaFList[0]
 		
 		self.registerJars(workflow)
 		
@@ -549,7 +548,7 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 				samtoolsDepth=workflow.samtoolsDepth, \
 				ReduceDepthOfCoverage=workflow.ReduceDepthOfCoverage, ReduceVariousReadCount=workflow.ReduceVariousReadCount,\
 				
-				refFastaFList=refFastaFList, \
+				registerReferenceData=registerReferenceData, \
 				namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 				needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 				data_dir=self.data_dir, needPerContigJob=self.needPerContigJob,\
