@@ -270,7 +270,7 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 				statCalculationInputData.jobDataLs.append(filterReturnData.jobDataLs[i])
 			#statCalculationInputData = filterReturnData
 			#caclualte LD on some data
-			returnData = self.addStatCalculationJobs(workflow=workflow, inputData=statCalculationInputData, refFastaFList=refFastaFList, \
+			returnData = self.addStatCalculationJobs(workflow=workflow, inputData=statCalculationInputData, registerReferenceData=registerReferenceData, \
 									chr2size=chr2size, windowSize=100000, minChrLengthForPlot=500000, \
 									minChrSize=100000, LDWindowSize=100000, outputDirPrefix="VCFStat",\
 									transferOutput=True,\
