@@ -107,7 +107,8 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 from Pegasus.DAX3 import *
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
+from pymodule import ProcessOptions, PassingData
+from pymodule.pegasus import yh_pegasus
 from vervet.src import AbstractVervetWorkflow, VervetDB, AbstractVervetAlignmentAndVCFWorkflow
 
 parentClass = AbstractVervetAlignmentAndVCFWorkflow
@@ -444,8 +445,8 @@ class AlignmentToCallPipeline(parentClass):
 				gatk_job = Job(namespace=namespace, name=java.name, version=version)
 				gatkOutputFname = os.path.join(callOutputDir, '%s.vcf'%(chr))
 				gatk_output = File(gatkOutputFname)
-				gatkIDXOutputFname = os.path.join(callOutputDir, '%s.vcf.idx'%(chr))
-				gatkIDXOutput = File(gatkIDXOutputFname)
+				gatkVCFIndexOutputFname = os.path.join(callOutputDir, '%s.vcf.idx'%(chr))
+				gatkVCFIndexOutput = File(gatkVCFIndexOutputFname)
 				
 				gatk_job.addArguments('-jar', GenomeAnalysisTKJar, \
 					"-I", picard_output, "-R", fastaFile, "-T", "UnifiedGenotyper","--out", gatk_output,\
@@ -461,7 +462,7 @@ class AlignmentToCallPipeline(parentClass):
 				gatk_job.uses(dictFile, transfer=False, register=True, link=Link.INPUT)
 				
 				gatk_job.uses(gatk_output, transfer=True, register=True, link=Link.OUTPUT)
-				gatk_job.uses(gatkIDXOutput, transfer=True, register=True, link=Link.OUTPUT)
+				gatk_job.uses(gatkVCFIndexOutput, transfer=True, register=True, link=Link.OUTPUT)
 				
 				
 				self.no_of_jobs += 1
@@ -648,8 +649,7 @@ class AlignmentToCallPipeline(parentClass):
 				mv=None, CallVariantBySamtools=None,\
 				bgzip_tabix=None, vcf_convert=None, vcf_isec=None, vcf_concat=None, \
 				concatGATK=None, concatSamtools=None,\
-				GenotypeCallByCoverage=None, refFastaFList=None, bamListF=None, \
-				callOutputDirJob =None, gatkDirJob=None, samtoolsDirJob=None, unionDirJob=None, intersectionDirJob=None,\
+				GenotypeCallByCoverage=None, registerReferenceData=None, bamListF=None, \
 				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
 				seqCoverageF=None, \
 				needFastaIndexJob=False, needFastaDictJob=False, \
@@ -666,10 +666,14 @@ class AlignmentToCallPipeline(parentClass):
 			argument intervalSize determines how many sites gatk/samtools works on at a time
 		"""
 		sys.stderr.write("Adding genotype call jobs for %s chromosomes/contigs ..."%(len(chr2IntervalDataLs)))
+		
+		
 		job_max_memory = 5000	#in MB
 		vcf_job_max_memory = 1000
+		refFastaFList = registerReferenceData.refFastaFList
 		refFastaF = refFastaFList[0]
-		if needFastaDictJob:	# the .dict file is required for GATK
+		
+		if needFastaDictJob or registerReferenceData.needPicardFastaDictJob:	# the .dict, .fai file is required for GATK
 			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
 												CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
@@ -677,12 +681,22 @@ class AlignmentToCallPipeline(parentClass):
 			fastaDictJob = None
 			refFastaDictF = None
 		
-		if needFastaIndexJob:
+		if needFastaIndexJob or registerReferenceData.needSAMtoolsFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
 		else:
 			fastaIndexJob = None
 			refFastaIndexF = None
+		
+		# Add a mkdir job for the call directory.
+		callOutputDirJob = self.addMkDirJob(outputDir="%sCall"%(outputDirPrefix))
+		gatkDirJob = self.addMkDirJob(outputDir="%sGATK"%(outputDirPrefix))
+		gatkSNPDirJob = self.addMkDirJob(outputDir="%sGATKSNP"%(outputDirPrefix))
+		gatkIndelDirJob = self.addMkDirJob(outputDir="%sGATKIndel"%(outputDirPrefix))
+		samtoolsDirJob = self.addMkDirJob(outputDir="%sSAMtools"%(outputDirPrefix))
+		samtoolsIndelDirJob = self.addMkDirJob(outputDir="%sSAMtoolsIndel"%(outputDirPrefix))
+		unionDirJob = self.addMkDirJob(outputDir="%sGATK_SAMtools_union"%(outputDirPrefix))
+		intersectionDirJob = self.addMkDirJob(outputDir="%sGATK_SAMtools_intersection"%(outputDirPrefix))
 		
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
@@ -711,13 +725,40 @@ class AlignmentToCallPipeline(parentClass):
 				gatkUnionOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf'%chromosome)
 				gatkUnionOutputF = File(gatkUnionOutputFname)
 				gatkUnionJob = self.addGATKCombineVariantsJob(refFastaFList=refFastaFList, outputFile=gatkUnionOutputF, \
-															genotypeMergeOptions='UNIQUIFY', \
+															genotypeMergeOptions='UNSORTED', \
 					parentJobLs=[gatkDirJob], transferOutput=False, job_max_memory=job_max_memory,max_walltime=None,\
 					extraArguments=None, extraArgumentList=None, extraDependentInputLs=None)
 				
 				gatkGzipUnionOutputF = File("%s.gz"%gatkUnionOutputFname)
 				bgzip_tabix_gatkUnionOutputF_job = self.addBGZIP_tabix_Job(\
 						parentJob=gatkUnionJob, inputF=gatkUnionJob.output, outputF=gatkGzipUnionOutputF, \
+						transferOutput=True)
+				
+				indelUnionOutputF = File(os.path.join(gatkIndelDirJob.folder, '%s.indel.vcf'%chromosome))
+				selectIndelJob = self.addGATKJob(executable=self.SelectVariantsJava, GATKAnalysisType="SelectVariants",\
+					inputFile=gatkUnionJob.output, inputArgumentOption="--variant", refFastaFList=refFastaFList, inputFileList=None,\
+					argumentForEachFileInInputFileList=None,\
+					interval=None, outputFile=indelUnionOutputF, \
+					parentJobLs=[gatkIndelDirJob, gatkUnionJob], transferOutput=False, job_max_memory=job_max_memory,\
+					frontArgumentList=None, extraArguments="-selectType INDEL", \
+					extraArgumentList=None, extraOutputLs=None, \
+					extraDependentInputLs=None, no_of_cpus=None, max_walltime=None)
+				
+				bgzip_tabix_job = self.addBGZIP_tabix_Job(parentJob=selectIndelJob, \
+						inputF=selectIndelJob.output, outputF=File("%s.gz"%indelUnionOutputF.name), \
+						transferOutput=True)
+				
+				SNPOnlyOutputF = File(os.path.join(gatkSNPDirJob.folder, '%s.SNP.vcf'%chromosome))
+				selectSNPJob = self.addGATKJob(executable=self.SelectVariantsJava, GATKAnalysisType="SelectVariants",\
+					inputFile=gatkUnionJob.output, inputArgumentOption="--variant", refFastaFList=refFastaFList, inputFileList=None,\
+					argumentForEachFileInInputFileList=None,\
+					interval=None, outputFile=SNPOnlyOutputF, \
+					parentJobLs=[gatkSNPDirJob, gatkUnionJob], transferOutput=False, job_max_memory=job_max_memory,\
+					frontArgumentList=None, extraArguments="-selectType SNP -selectType MNP", \
+					extraArgumentList=None, extraOutputLs=None, \
+					extraDependentInputLs=None, no_of_cpus=None, max_walltime=None)
+				bgzip_tabix_job = self.addBGZIP_tabix_Job(parentJob=selectSNPJob, \
+						inputF=selectSNPJob.output, outputF=File("%s.gz"%SNPOnlyOutputF.name), \
 						transferOutput=True)
 			
 			#2011-9-22 union of all samtools intervals for one contig
@@ -729,9 +770,9 @@ class AlignmentToCallPipeline(parentClass):
 			
 			
 			#2011-9-22 union of all samtools intervals for one contig
-			samtoolsIndelUnionOutputFname = os.path.join(samtoolsDirJob.folder, '%s.indel.vcf.gz'%chromosome)
+			samtoolsIndelUnionOutputFname = os.path.join(samtoolsIndelDirJob.folder, '%s.indel.vcf.gz'%chromosome)
 			samtoolsIndelUnionOutputF = File(samtoolsIndelUnionOutputFname)
-			samtoolsIndelUnionJob = self.addVCFConcatJob(workflow, concatExecutable=concatSamtools, parentDirJob=samtoolsDirJob, \
+			samtoolsIndelUnionJob = self.addVCFConcatJob(workflow, concatExecutable=concatSamtools, parentDirJob=samtoolsIndelDirJob, \
 							outputF=samtoolsIndelUnionOutputF, namespace=namespace, version=version, transferOutput=True, \
 							vcf_job_max_memory=vcf_job_max_memory)
 			for intervalData in intervalDataLs:
@@ -747,11 +788,9 @@ class AlignmentToCallPipeline(parentClass):
 					#GATK job
 					gatkOutputFname = os.path.join(gatkDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
 					gatkOutputF = File(gatkOutputFname)
-					gatkIDXOutputFname = os.path.join(gatkDirJob.folder, '%s.idx'%(gatkOutputFname))
-					gatkIDXOutput = File(gatkIDXOutputFname)
 					
 					gatk_job= self.addGATKCallJob(genotyperJava=genotyperJava, GenomeAnalysisTKJar=self.GenomeAnalysisTK2Jar, \
-							gatkOutputF=gatkOutputF, gatkIDXOutput=gatkIDXOutput, refFastaFList=refFastaFList, \
+							gatkOutputF=gatkOutputF, refFastaFList=refFastaFList, \
 							parentJobLs=[gatkDirJob]+intervalData.jobLs, \
 							extraDependentInputLs=None, transferOutput=False, extraArguments=None, \
 							job_max_memory=job_max_memory*max(1, len(alignmentDataLs)/100), no_of_gatk_threads=no_of_gatk_threads, \
@@ -980,7 +1019,7 @@ class AlignmentToCallPipeline(parentClass):
 		sys.stderr.write("Done.\n")
 		return bamListF
 	
-	def addGATKCallJob(self, workflow=None, genotyperJava=None, GenomeAnalysisTKJar=None, gatkOutputF=None, gatkIDXOutput=None, \
+	def addGATKCallJob(self, workflow=None, genotyperJava=None, GenomeAnalysisTKJar=None, gatkOutputF=None, \
 					refFastaFList=None, \
 					interval=None, \
 					heterozygosityForGATK=0.001, minPruningForGATKHaplotypCaller=None, GATKGenotypeCallerType = 'UnifiedGenotyper', \
@@ -1024,10 +1063,8 @@ class AlignmentToCallPipeline(parentClass):
 					interval=interval, outputFile=gatkOutputF, \
 					parentJobLs=parentJobLs, transferOutput=transferOutput, job_max_memory=job_max_memory,\
 					frontArgumentList=None, extraArguments=extraArguments, extraArgumentList=extraArgumentList, \
-					extraOutputLs=[gatkIDXOutput], \
+					extraOutputLs=None, \
 					extraDependentInputLs=extraDependentInputLs, no_of_cpus=no_of_gatk_threads, max_walltime=max_walltime, **keywords)
-		job.output = gatkOutputF
-		job.gatkIDXOutput = gatkIDXOutput
 		return job
 	
 	def addSAMtoolsCallJob(self, workflow=None, CallVariantBySamtools=None, samtoolsOutputF=None, indelVCFOutputF=None, \
@@ -1176,7 +1213,7 @@ class AlignmentToCallPipeline(parentClass):
 		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
 										defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
 		
-		refFastaFList = self.getReferenceSequence(workflow=self)
+		registerReferenceData = self.getReferenceSequence(workflow=self)
 		
 		self.registerJars()
 		self.registerExecutables()
@@ -1208,20 +1245,6 @@ class AlignmentToCallPipeline(parentClass):
 		"""
 		
 		if self.run_type==1:	#multi-sample calling
-			dirPrefix = ""
-			# Add a mkdir job for the call directory.
-			callOutputDir = "%scall"%(dirPrefix)
-			callOutputDirJob = self.addMkDirJob(outputDir=callOutputDir)
-			gatkDir = "%sgatk"%(dirPrefix)
-			gatkDirJob = self.addMkDirJob(outputDir=gatkDir)
-			samtoolsDir = "%ssamtools"%(dirPrefix)
-			samtoolsDirJob = self.addMkDirJob(outputDir=samtoolsDir)
-			unionDir = "%sgatk_samtools_union"%(dirPrefix)
-			unionDirJob = self.addMkDirJob(outputDir=unionDir)
-			intersectionDir = "%sgatk_samtools_intersection"%(dirPrefix)
-			intersectionDirJob = self.addMkDirJob(outputDir=intersectionDir)
-			
-			
 			self.addGenotypeCallJobs(workflow, alignmentDataLs, chr2IntervalDataLs=chr2IntervalDataLs, samtools=workflow.samtools, \
 					genotyperJava=workflow.genotyperJava, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
@@ -1231,29 +1254,18 @@ class AlignmentToCallPipeline(parentClass):
 					mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
 					bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 					concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
-					GenotypeCallByCoverage=workflow.GenotypeCallByCoverage, refFastaFList=refFastaFList, bamListF=None, \
-					callOutputDirJob =callOutputDirJob, gatkDirJob=gatkDirJob, samtoolsDirJob=samtoolsDirJob, unionDirJob=unionDirJob, intersectionDirJob=intersectionDirJob,\
+					GenotypeCallByCoverage=workflow.GenotypeCallByCoverage, registerReferenceData=registerReferenceData, bamListF=None, \
 					namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 					seqCoverageF=None, \
 					needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-					intervalSize=self.intervalSize, site_type=self.site_type, data_dir=self.data_dir, addGATKJobs=self.addGATKJobs,\
+					intervalSize=self.intervalSize, site_type=self.site_type, data_dir=self.data_dir, \
+					outputDirPrefix="",\
+					addGATKJobs=self.addGATKJobs,\
 					cumulativeMedianDepth=cumulativeMedianDepth)
 		elif self.run_type==2:
 			#2011-11-4 for single-alignment-calling pipeline, adjust the folder name so that they are unique from each other
 			for alignmentData in alignmentDataLs:
 				alignment = alignmentData.alignment
-				dirPrefix = "%s"%(alignment.id)
-				# Add a mkdir job for the call directory.
-				callOutputDir = "%s_call"%(dirPrefix)
-				callOutputDirJob = self.addMkDirJob(outputDir=callOutputDir)
-				gatkDir = "%s_gatk"%(dirPrefix)
-				gatkDirJob = self.addMkDirJob(outputDir=gatkDir)
-				samtoolsDir = "%s_samtools"%(dirPrefix)
-				samtoolsDirJob = self.addMkDirJob(outputDir=samtoolsDir)
-				unionDir = "%s_gatk_samtools_union"%(dirPrefix)
-				unionDirJob = self.addMkDirJob(outputDir=unionDir)
-				intersectionDir = "%s_gatk_samtools_intersection"%(dirPrefix)
-				intersectionDirJob = self.addMkDirJob(outputDir=intersectionDir)
 				
 				self.addGenotypeCallJobs(workflow, [alignment], chr2IntervalDataLs, samtools=workflow.samtools, \
 						genotyperJava=workflow.genotyperJava, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
@@ -1264,12 +1276,12 @@ class AlignmentToCallPipeline(parentClass):
 						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
 						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
 						concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
-						GenotypeCallByCoverage=workflow.GenotypeCallByCoverage, refFastaFList=refFastaFList, bamListF=None, \
-						callOutputDirJob =callOutputDirJob, gatkDirJob=gatkDirJob, samtoolsDirJob=samtoolsDirJob, unionDirJob=unionDirJob, intersectionDirJob=intersectionDirJob,\
+						GenotypeCallByCoverage=workflow.GenotypeCallByCoverage, registerReferenceData=registerReferenceData, bamListF=None, \
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						seqCoverageF=None, \
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-						intervalSize=self.intervalSize, site_type=self.site_type, data_dir=self.data_dir)
+						intervalSize=self.intervalSize, site_type=self.site_type, data_dir=self.data_dir, \
+						outputDirPrefix="%d"%(alignment.id))
 				
 		
 		"""
