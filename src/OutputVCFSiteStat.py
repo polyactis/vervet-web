@@ -121,10 +121,10 @@ class OutputVCFSiteStat(FilterVCFPipeline):
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		
 		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 						input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
-		refFastaF = refFastaFList[0]
+		refFastaFList = registerReferenceData.refFastaFList
 		
 		self.outputAlignmentDepthAndOthersForFilter(self.alnStatForFilterFname, ref_ind_seq_id=self.ref_ind_seq_id, \
 												foldChange=self.depthFoldChange, minGQ=self.minGQ)
