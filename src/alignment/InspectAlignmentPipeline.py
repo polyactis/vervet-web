@@ -521,9 +521,10 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 							input_site_handler=self.input_site_handler,\
 							checkAffiliateFileExistence=True)
+		refFastaFList = registerReferenceData.refFastaFList
 		refFastaF = refFastaFList[0]
 		
 		self.registerJars(workflow)
