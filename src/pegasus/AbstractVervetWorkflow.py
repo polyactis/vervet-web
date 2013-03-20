@@ -234,20 +234,21 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 	
 	def getReferenceSequence(self, workflow=None, **keywords):
 		"""
-		2013.1.25 placeholder
+		2013.3.20 yh_pegasus.registerRefFastaFile() returns a PassingData
+		2013.1.25
 		"""
 		sys.stderr.write("Getting reference sequences ...")
 		if workflow is None:
 			workflow = self
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow=workflow, refFastaFname=refFastaFname, \
+		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow=workflow, refFastaFname=refFastaFname, \
 							registerAffiliateFiles=True, \
 							input_site_handler=self.input_site_handler,\
 							checkAffiliateFileExistence=True)
 		
-		sys.stderr.write(" %s files.\n"%(len(refFastaFList)))
-		return refFastaFList
+		sys.stderr.write(" %s files.\n"%(len(registerReferenceData.refFastaFList)))
+		return registerReferenceData
 	
 	def registerCustomExecutables(self, workflow=None):
 		"""
