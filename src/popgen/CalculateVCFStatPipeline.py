@@ -814,7 +814,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		returnData.jobDataLs = []
 		return returnData
 	
-	def addStatCalculationJobs(self, workflow=None, inputData=None, refFastaFList=None, chr2size=None,\
+	def addStatCalculationJobs(self, workflow=None, inputData=None, registerReferenceData=None, chr2size=None,\
 						windowSize=None, minChrLengthForPlot=None, minChrSize=None, LDWindowSize=None, \
 						transferOutput=True, outputDirPrefix="", samplingRate=0.001, minSiteGap=10000):
 		"""
@@ -834,7 +834,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 				CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
 				BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar,\
 				mv=workflow.mv, \
-				refFastaFList=refFastaFList,\
+				registerReferenceData=registerReferenceData,\
 				needFastaIndexJob=getattr(self, 'needFastaIndexJob',False), needFastaDictJob=getattr(self, 'needFastaDictJob', False), \
 				data_dir=self.data_dir, no_of_gatk_threads = 1,\
 				intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, \
