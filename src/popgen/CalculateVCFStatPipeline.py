@@ -855,54 +855,6 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		
 		AbstractVervetWorkflow.connectDB(self)
 	
-	"""
-	def run(self):
-		#2011-9-28
-		
-		if self.debug:
-			import pdb
-			pdb.set_trace()
-		
-		# Create a abstract dag
-		workflow = self.initiateWorkflow()
-		
-		self.registerJars(workflow)
-		self.registerExecutables()
-		self.registerCustomExecutables(workflow)
-		
-		#have to be in front of the db_vervet connection code. Otherwise schema "genome" wont' be default path and its visible will not be visible.
-		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
-						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
-		db_genome.setup(create_tables=False)
-		chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, \
-											sequence_type_id=9)
-		
-		#2011.11.16 initiate vervet db connection after genome db connection
-		db_vervet = self.db_vervet
-		if not self.data_dir:
-			self.data_dir = db_vervet.data_dir
-		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
-		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
-						input_site_handler=self.input_site_handler,\
-						checkAffiliateFileExistence=True)
-		refFastaF = refFastaFList[0]
-		
-		vcf1Name = self.findProperVCFDirIdentifier(self.vcf1Dir)
-		inputData = self.registerAllInputFiles(workflow, self.vcf1Dir, input_site_handler=self.input_site_handler, \
-											checkEmptyVCFByReading=self.checkEmptyVCFByReading,\
-											pegasusFolderName="%s_%s"%(self.pegasusFolderName, vcf1Name),\
-											maxContigID=self.maxContigID, \
-											minContigID=self.minContigID)
-		
-		returnData = self.addStatCalculationJobs(workflow=workflow, inputData=inputData, refFastaFList=refFastaFList, \
-									chr2size=chr2size, windowSize=self.windowSize, minChrLengthForPlot=self.minChrLengthForPlot, \
-									minChrSize=self.minChrSize, LDWindowSize=self.LDWindowSize, outputDirPrefix="",\
-									samplingRate=self.samplingRate, minSiteGap=30000)
-		# Write the DAX to stdout
-		outf = open(self.outputFname, 'w')
-		workflow.writeXML(outf)
-	"""
 	
 if __name__ == '__main__':
 	main_class = CalculateVCFStatPipeline
