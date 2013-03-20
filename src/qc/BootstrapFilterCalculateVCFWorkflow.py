@@ -164,7 +164,7 @@ class BootstrapFilterCalculateVCFWorkflow(FilterVCFPipeline, CalculateVCFStatPip
 		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 		
 		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 						input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
 		
@@ -195,13 +195,13 @@ class BootstrapFilterCalculateVCFWorkflow(FilterVCFPipeline, CalculateVCFStatPip
 						folderSignature='minMAC%s_minMAF%s_maxSNPMissingRate%s_minDepthPerGenotype%s_depthFoldChange%s_keepSNPFile%s_onlyBiAllelic%s'%\
 							(minMAC, minMAF, maxSNPMissingRate, minDepthPerGenotype, depthFoldChange, getattr(keepSNPPosF, 'name', None),\
 							self.onlyKeepBiAllelicSNP)
-						filterJobData = self.addJobsToFilterOneVCFDir(workflow, inputData=inputData, refFastaFList=refFastaFList, \
+						filterJobData = self.addJobsToFilterOneVCFDir(workflow, inputData=inputData, registerReferenceData=registerReferenceData, \
 												alnStatForFilterF=alnStatForFilterF, keepSNPPosF=keepSNPPosF, \
 												onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP,\
 												minMAC=minMAC, minMAF=minMAF, maxSNPMissingRate=maxSNPMissingRate,\
 												minDepthPerGenotype=minDepthPerGenotype, transferOutput=False, \
 												outputDirPrefix="run%s_%s"%(counter, folderSignature))
-						returnData = self.addStatCalculationJobs(workflow=workflow, inputData=filterJobData, refFastaFList=refFastaFList, \
+						returnData = self.addStatCalculationJobs(workflow=workflow, inputData=filterJobData, registerReferenceData=registerReferenceData, \
 												chr2size=chr2size, windowSize=self.windowSize, minChrLengthForPlot=self.minChrLengthForPlot, \
 												minChrSize=self.minChrSize, LDWindowSize=self.LDWindowSize, transferOutput=True, \
 												outputDirPrefix="run%s_%s"%(counter, folderSignature),\
