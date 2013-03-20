@@ -97,7 +97,6 @@ class UnpackAndAddIndividualSequence2DB(AbstractVervetWorkflow):
 						("sequencer_name", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger, PopGenSimulation. column Sequencer.short_name'],\
 						("sequence_type_name", 1, ): ["100BPPairedEnd", '', 1, 'table column: SequenceType.short_name ...'],\
 						("sequence_format", 1, ): ["fastq", 'f', 1, 'fasta, fastq, etc.'],\
-						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_sequence.path and individual_sequence records if inexistent)'],\
 						('inputType', 1, int): [1, 'y', 1, 'input type. 1: bam files from WUSTL. \n\
 	2: fastq files from McGill (paired ends are split.). \n\
 	3: fastq files from Charles Bloom demultiplexed SouthAfrican RNA data(sequenced by DeYoung core),\n\
@@ -183,7 +182,7 @@ class UnpackAndAddIndividualSequence2DB(AbstractVervetWorkflow):
 		individual_sequence = db_vervet.getIndividualSequence(individual_id=individual.id, sequencer_name=sequencer_name, \
 						sequence_type_name=sequence_type_name, sequence_format=sequence_format, \
 						path_to_original_sequence=path_to_original_sequence, tissue_name=None, coverage=None,\
-						subFolder='individual_sequence', data_dir=data_dir)
+						subFolder='individual_sequence', data_dir=data_dir, sequence_batch_id=None, version=None)
 		
 		return individual_sequence
 	
@@ -222,7 +221,8 @@ echo %s
 		site_handler = workflow.site_handler
 		vervetSrcPath = self.vervetSrcPath
 		
-		convertBamToFastqAndGzip = Executable(namespace=namespace, name="convertBamToFastqAndGzip", version=version, os=operatingSystem, \
+		convertBamToFastqAndGzip = Executable(namespace=namespace, name="convertBamToFastqAndGzip", version=version, \
+									os=operatingSystem, \
 									arch=architecture, installed=True)
 		convertBamToFastqAndGzip.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'shell/convertBamToFastqAndGzip.sh'), site_handler))
 		#convertBamToFastqAndGzip.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
@@ -236,7 +236,8 @@ echo %s
 		workflow.addExecutable(splitReadFile)
 		workflow.splitReadFile = splitReadFile
 		
-		RegisterAndMoveSplitSequenceFiles  = Executable(namespace=namespace, name="RegisterAndMoveSplitSequenceFiles", version=version, os=operatingSystem, \
+		RegisterAndMoveSplitSequenceFiles  = Executable(namespace=namespace, name="RegisterAndMoveSplitSequenceFiles", version=version, \
+								os=operatingSystem, \
 								arch=architecture, installed=True)
 		RegisterAndMoveSplitSequenceFiles.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'db/input/RegisterAndMoveSplitSequenceFiles.py'), site_handler))
 		#RegisterAndMoveSplitSequenceFiles.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
