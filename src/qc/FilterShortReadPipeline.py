@@ -76,7 +76,7 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 		
 		addFilteredSequences2DB = Executable(namespace=namespace, name="AddFilteredSequences2DB", version=version, \
 								os=operatingSystem, arch=architecture, installed=True)
-		addFilteredSequences2DB.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/AddFilteredSequences2DB.py"), site_handler))
+		addFilteredSequences2DB.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/input/AddFilteredSequences2DB.py"), site_handler))
 		addFilteredSequences2DB.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		workflow.addExecutable(addFilteredSequences2DB)
 		workflow.addFilteredSequences2DB = addFilteredSequences2DB
