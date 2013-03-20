@@ -831,11 +831,12 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		elif self.run_type==5:
 			refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
 			refFastaFname = os.path.join(self.data_dir, refSequence.path)
-			refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
+			registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
 								input_site_handler=self.input_site_handler,\
 								checkAffiliateFileExistence=True)
 			self.addMergeVCFReplicateHaplotypesJobs(workflow, inputData=inputData, db_vervet=self.db_vervet, transferOutput=True,\
-						maxContigID=self.maxContigID, outputDirPrefix="",replicateIndividualTag='copy', refFastaFList=refFastaFList )
+						maxContigID=self.maxContigID, outputDirPrefix="",replicateIndividualTag='copy', \
+						refFastaFList=registerReferenceData.refFastaFList )
 		elif self.run_type==6:
 			self.addVCF2YuFormatJobs(workflow=workflow, inputData=inputData, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="", \
