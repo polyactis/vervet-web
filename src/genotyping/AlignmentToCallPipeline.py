@@ -41,14 +41,14 @@ Examples:
 	# no site ID filtering (-S ""), clustering size =5 for calling jobs (--noOfCallingJobsPerNode 5).
 	# with 2million bp interval (--intervalSize 2000000).
 	%s -a 524 --ind_seq_id_ls 633,1495,...,1524,1459,1505,1478,1486,1442,1472,1516,1453
-		-u yh --hostname localhost -N 7559 -S "" -Q1 -G 2 --site_handler hcondor --input_site_handler hcondor -e /u/home/eeskin/polyacti 
+		-u yh --hostname localhost -N 7559 -S "" --sequence_filtered 1 -G 2 --site_handler hcondor --input_site_handler hcondor -e /u/home/eeskin/polyacti 
 		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db 
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 5 --intervalSize 2000000 --intervalOverlapSize 0
 		-o dags/AlignmentToCall_130PoplationVervets_vs_524_top7559Contigs.xml
 	
 	# 2012.7.30 genotype-call 723 alignments on method 7 sites (-R ...). "-N ..." (top number of contigs) doesn't matter here.
 	# 2000 method 7 sites for each calling job (-K 2000)
-	%s -a 524 -S 447 -u yh --hostname localhost -Q1 -G2
+	%s -a 524 -S 447 -u yh --hostname localhost --sequence_filtered 1 --alignment_method_id  2
 		--site_handler hcondor --input_site_handler hcondor
 		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
@@ -58,11 +58,11 @@ Examples:
 	#			with 500 regions for each job (-K 500),
 	# run GATK along with samtools (-T), no clustering for any job (--noOfCallingJobsPerNode 1 --clusters_size1)
 	# only on four alignments of isq-id (--ind_seq_id_ls 643-646)
-	%s -a 524 --ind_seq_id_ls 643-646 -S 447 -u yh --hostname localhost  -Q1 -G2 
+	%s -a 524 --ind_seq_id_ls 643-646 -S 447 -u yh --hostname localhost  --sequence_filtered 1 --alignment_method_id  2 
 		--site_handler hcondor --input_site_handler hcondor
 		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
-		--noOfCallingJobsPerNode 1 --clusters_size1
+		--noOfCallingJobsPerNode 1 --clusters_size 1
 		-o dags/AlignmentToCall_ISQ643_646_vs_524_method7n10kSites.xml -R method7_BED.n10k.tsv -T -K 500
 	
 	# 2012.8.2 part of the test above, now run multi-sample on Contig731 on all sites
@@ -73,9 +73,10 @@ Examples:
 	# add "--country_id_ls 135,136,144,148,151" to limit individuals from US,Barbados,StKitts,Nevis,Gambia (AND with -S, )
 	%s -a 524 --ind_seq_id_ls 643-646
 		#-S 447
-		-u yh --hostname localhost -Q1 -G2
+		-u yh --hostname localhost --sequence_filtered 1 --alignment_method_id  2
 		--site_handler hcondor --input_site_handler hcondor
-		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
+		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 1 --clusters_size 1
 		-o dags/AlignmentToCall/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml
 		--addGATKJobs
@@ -726,7 +727,7 @@ class AlignmentToCallPipeline(parentClass):
 				gatkUnionOutputF = File(gatkUnionOutputFname)
 				gatkUnionJob = self.addGATKCombineVariantsJob(refFastaFList=refFastaFList, outputFile=gatkUnionOutputF, \
 															genotypeMergeOptions='UNSORTED', \
-					parentJobLs=[gatkDirJob], transferOutput=False, job_max_memory=job_max_memory,max_walltime=None,\
+					parentJobLs=[gatkDirJob], transferOutput=False, job_max_memory=job_max_memory,walltime=None,\
 					extraArguments=None, extraArgumentList=None, extraDependentInputLs=None)
 				
 				gatkGzipUnionOutputF = File("%s.gz"%gatkUnionOutputFname)
@@ -742,7 +743,7 @@ class AlignmentToCallPipeline(parentClass):
 					parentJobLs=[gatkIndelDirJob, gatkUnionJob], transferOutput=False, job_max_memory=job_max_memory,\
 					frontArgumentList=None, extraArguments="-selectType INDEL", \
 					extraArgumentList=None, extraOutputLs=None, \
-					extraDependentInputLs=None, no_of_cpus=None, max_walltime=None)
+					extraDependentInputLs=None, no_of_cpus=None, walltime=None)
 				
 				bgzip_tabix_job = self.addBGZIP_tabix_Job(parentJob=selectIndelJob, \
 						inputF=selectIndelJob.output, outputF=File("%s.gz"%indelUnionOutputF.name), \
@@ -756,7 +757,7 @@ class AlignmentToCallPipeline(parentClass):
 					parentJobLs=[gatkSNPDirJob, gatkUnionJob], transferOutput=False, job_max_memory=job_max_memory,\
 					frontArgumentList=None, extraArguments="-selectType SNP -selectType MNP", \
 					extraArgumentList=None, extraOutputLs=None, \
-					extraDependentInputLs=None, no_of_cpus=None, max_walltime=None)
+					extraDependentInputLs=None, no_of_cpus=None, walltime=None)
 				bgzip_tabix_job = self.addBGZIP_tabix_Job(parentJob=selectSNPJob, \
 						inputF=selectSNPJob.output, outputF=File("%s.gz"%SNPOnlyOutputF.name), \
 						transferOutput=True)
@@ -1025,7 +1026,7 @@ class AlignmentToCallPipeline(parentClass):
 					heterozygosityForGATK=0.001, minPruningForGATKHaplotypCaller=None, GATKGenotypeCallerType = 'UnifiedGenotyper', \
 					site_type=2, \
 					extraArguments=None, job_max_memory=4000, no_of_gatk_threads=1, \
-					max_walltime=None, \
+					walltime=None, \
 					parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 					**keywords):
 		"""
@@ -1064,7 +1065,7 @@ class AlignmentToCallPipeline(parentClass):
 					parentJobLs=parentJobLs, transferOutput=transferOutput, job_max_memory=job_max_memory,\
 					frontArgumentList=None, extraArguments=extraArguments, extraArgumentList=extraArgumentList, \
 					extraOutputLs=None, \
-					extraDependentInputLs=extraDependentInputLs, no_of_cpus=no_of_gatk_threads, max_walltime=max_walltime, **keywords)
+					extraDependentInputLs=extraDependentInputLs, no_of_cpus=no_of_gatk_threads, walltime=walltime, **keywords)
 		return job
 	
 	def addSAMtoolsCallJob(self, workflow=None, CallVariantBySamtools=None, samtoolsOutputF=None, indelVCFOutputF=None, \
@@ -1104,7 +1105,7 @@ class AlignmentToCallPipeline(parentClass):
 					transferOutput=transferOutput, \
 					frontArgumentList=frontArgumentList, extraArguments=extraArguments, \
 					extraArgumentList=None, job_max_memory=job_max_memory,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=None, **keywords)
+					key2ObjectForJob=None, no_of_cpus=None, walltime=None, **keywords)
 		job.output = samtoolsOutputF
 		job.indelVCFOutputF = indelVCFOutputF
 		return job
@@ -1156,11 +1157,12 @@ class AlignmentToCallPipeline(parentClass):
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 		
 		#2012.1.3. added polymutt
-		polymutt = self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.expanduser(self.polymuttPath), \
+		if hasattr(self, 'polymuttPath'):	#some inherited classes do not have polymuttPath
+			polymutt = self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.expanduser(self.polymuttPath), \
 												name="polymutt", clusterSizeMultipler=0)
-		genotypingExecutableSet.add(polymutt)
+			genotypingExecutableSet.add(polymutt)
 		
-		if self.noOfCallingJobsPerNode>1:
+		if hasattr(self, 'noOfCallingJobsPerNode') and self.noOfCallingJobsPerNode>1:
 			for executable in genotypingExecutableSet:
 				#2013.2.26 use setOrChangeExecutableClusterSize to modify clusters size
 				self.setOrChangeExecutableClusterSize(executable=executable, clusterSizeMultipler=self.noOfCallingJobsPerNode/float(self.clusters_size), \
