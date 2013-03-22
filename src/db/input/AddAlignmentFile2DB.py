@@ -72,10 +72,10 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 			self.data_dir = self.db_vervet.data_dir
 		data_dir = self.data_dir
 		
-		realPath = os.path.realpath(self.inputFname)
+		inputFileRealPath = os.path.realpath(self.inputFname)
 		logMessage = "Adding file %s to db .\n"%(self.inputFname)
 		
-		if os.path.isfile(realPath):
+		if os.path.isfile(inputFileRealPath):
 			if self.individual_alignment_id:
 				individual_alignment = VervetDB.IndividualAlignment.get(self.individual_alignment_id)
 			elif self.parent_individual_alignment_id:
@@ -115,7 +115,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				session.flush()
 			
 			try:
-				md5sum = utils.get_md5sum(realPath)
+				md5sum = utils.get_md5sum(inputFileRealPath)
 			except:
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 				import traceback
@@ -125,7 +125,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 			db_entry = VervetDB.IndividualAlignment.query.filter_by(md5sum=md5sum).first()
 			if db_entry and db_entry.id!=individual_alignment.id and db_entry.path and os.path.isfile(os.path.join(data_dir, db_entry.path)):
 				sys.stderr.write("Warning: another file %s with the identical md5sum %s as this file %s, is already in db.\n"%\
-								(db_entry.path, md5sum, realPath))
+								(db_entry.path, md5sum, inputFileRealPath))
 				session.rollback()
 				self.cleanUpAndExitOnFailure(exitCode=3)
 			
@@ -136,8 +136,8 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				session.flush()
 			
 			#move the file and update the db_entry's path as well
-			exitCode = self.db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=individual_alignment, filename=os.path.basename(realPath), \
-									inputDir=os.path.split(realPath)[0], dstFilename=os.path.join(self.data_dir, individual_alignment.path), \
+			exitCode = self.db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=individual_alignment, filename=os.path.basename(inputFileRealPath), \
+									inputDir=os.path.split(inputFileRealPath)[0], dstFilename=os.path.join(self.data_dir, individual_alignment.path), \
 									relativeOutputDir=None, shellCommand='cp -rL', \
 									srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs,\
 									constructRelativePathFunction=individual_alignment.constructRelativePath)
@@ -163,8 +163,8 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				## 2012.7.17 commented out because md5sum is calculated above
 				#db_vervet.updateDBEntryMD5SUM(db_entry=genotypeFile, data_dir=data_dir)
 				#copy the bai index file if it exists
-				baiFilename = '%s.bai'%(realPath)
-				if os.path.isfile(baiFilename):
+				baiFilename = '%s.bai'%(self.inputFname)
+				if os.path.isfile(baiFilename) and baiFilename not in self.inputFnameLs:
 					srcFilename = baiFilename
 					dstFilename = os.path.join(self.data_dir, '%s.bai'%(individual_alignment.path))
 					utils.copyFile(srcFilename=srcFilename, dstFilename=dstFilename)
@@ -178,7 +178,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				session.rollback()
 				self.cleanUpAndExitOnFailure(exitCode=5)
 		else:
-			logMessage += "%s doesn't exist.\n"%(realPath)
+			logMessage += "%s doesn't exist.\n"%(inputFileRealPath)
 		self.outputLogMessage(logMessage)
 		
 		if self.commit:
