@@ -134,13 +134,19 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				individual_alignment.md5sum = md5sum
 				session.add(individual_alignment)
 				session.flush()
-			
-			#move the file and update the db_entry's path as well
-			exitCode = self.db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=individual_alignment, filename=os.path.basename(inputFileRealPath), \
-									inputDir=os.path.split(inputFileRealPath)[0], dstFilename=os.path.join(self.data_dir, individual_alignment.path), \
-									relativeOutputDir=None, shellCommand='cp -rL', \
-									srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs,\
-									constructRelativePathFunction=individual_alignment.constructRelativePath)
+			try:
+				#move the file and update the db_entry's path as well
+				exitCode = self.db_vervet.moveFileIntoDBAffiliatedStorage(db_entry=individual_alignment, filename=os.path.basename(inputFileRealPath), \
+							inputDir=os.path.split(inputFileRealPath)[0], dstFilename=os.path.join(self.data_dir, individual_alignment.path), \
+							relativeOutputDir=None, shellCommand='cp -rL', \
+							srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs,\
+							constructRelativePathFunction=individual_alignment.constructRelativePath)
+			except:
+				sys.stderr.write('Except in copying %s to db-storage with except info: %s\n'%(inputFileRealPath, repr(sys.exc_info())))
+				import traceback
+				traceback.print_exc()
+				session.rollback()
+				self.cleanUpAndExitOnFailure(exitCode=5)
 			
 			if exitCode!=0:
 				sys.stderr.write("Error: moveFileIntoDBAffiliatedStorage() exits with %s code.\n"%(exitCode))
