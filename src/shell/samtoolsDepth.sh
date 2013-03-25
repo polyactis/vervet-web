@@ -11,6 +11,7 @@ then
 	echo "		The depth output is chr,pos,depth, tab-delimited. could be very large."
 	echo "	2. minMapQ is the minimum mapping quality for a read to be considered. default is $minMapQDefault."
 	echo "	3. minBaseQ is the minimum base quality for a base to be considered. default is $minBaseQDefault."
+	echo "	4. outputDepthFname could be gzipped or not. It detects it and output accordingly."
 	echo
 	echo "Example:"
 	echo "	$0 ~/bin/samtools input.bam output.depth.tsv.gz "
@@ -41,5 +42,14 @@ fi
 echo minMapQ: $minMapQ
 echo minBaseQ: $minBaseQ
 
-#$samtoolsPath depth -q $minMapQ -Q $minBaseQ $arguments $inputBam | gzip > $outputDepthFname
-$samtoolsPath depth -q $minMapQ -Q $minBaseQ $arguments $inputBam > $outputDepthFname
+commandline="$samtoolsPath depth -q $minMapQ -Q $minBaseQ $arguments $inputBam"
+outputFilenameLength=`expr length $outputDepthFname`
+gzSuffixStartPosition=`echo $outputFilenameLength-3+1|bc`
+gzSuffix=`expr substr $outputDepthFname $gzSuffixStartPosition 3`
+echo gzSuffix is $gzSuffix.
+
+if test "$gzSuffix" = ".gz"; then
+	$commandline | gzip > $outputDepthFname
+else
+	$commandline > $outputDepthFname
+fi
