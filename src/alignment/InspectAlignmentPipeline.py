@@ -3,42 +3,47 @@
 Examples:
 	
 	#2011-11-4 run on condorpool
-	%s -a 524 -j condorpool -l condorpool -u yh -z uclaOffice -o InspectTop804ContigsAlnRefSeq524Alignments.xml -I 552-661 -N 804
+	%s -a 524 -j condorpool -l condorpool -u yh -z uclaOffice -o InspectTop804ContigsAlnRefSeq524Alignments.xml
+		--ind_aln_id_ls 552-661
+		--contigMaxRankBySize 804
 	
-	#2011-11-5 run it on hoffman2, need ssh tunnel for db (-H)
+	#2011-11-5 run it on hoffman2, need ssh tunnel for db (--needSSHDBTunnel)
 	%s -a 524 -j hoffman2 -l hoffman2 -u yh -z uclaOffice -o MarkDupAlnID552_661Pipeline_hoffman2.xml 
-		-I 552-661 -e /u/home/eeskin/polyacti/ -c /u/home/eeskin/polyacti/NetworkData/ 
+		--ind_aln_id_ls 552-661 -e /u/home/eeskin/polyacti/ --tmpDir /u/home/eeskin/polyacti/NetworkData/ 
 		-J /u/local/apps/java/jre1.6.0_23/bin/java -t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /Network/Data/vervet/db/
-		-H
+		--needSSHDBTunnel
 	
 	#2011-11-5 run on uschpc (input data is on uschpc), for each top contig as well
 	%s -a 524 -j uschpc -l uschpc -u yh -z uclaOffice -o MarkDupAlnID552_661Pipeline_uschpc.xml
-		-I 552-661 -P -e /home/cmb-03/mn/yuhuang/ -c /home/cmb-03/mn/yuhuang/tmp/
+		--ind_aln_id_ls 552-661 --needPerContigJob -e /home/cmb-03/mn/yuhuang/ --tmpDir /home/cmb-03/mn/yuhuang/tmp/
 		-J /usr/usc/jdk/default/bin/java -t /home/cmb-03/mn/yuhuang/NetworkData/vervet/db/ -D /Network/Data/vervet/db/
 	
-	#2011-11-25 on hoffman2's condor pool, need ssh tunnel for db (-H)
-	%s -a 524 -j hcondor -l hcondor -u yh -z localhost -N 7559 -o InspectRefSeq524WholeAlignment.xml -C 30
+	#2011-11-25 on hoffman2's condor pool, need ssh tunnel for db (--needSSHDBTunnel)
+	%s -a 524 -j hcondor -l hcondor -u yh -z localhost --contigMaxRankBySize 7559 -o InspectRefSeq524WholeAlignment.xml --clusters_size 30
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -J ~/bin/jdk/bin/java -H
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -J ~/bin/jdk/bin/java --needSSHDBTunnel
 	
-	#2012.4.3 change tmpDir (-c) for AddOrReplaceReadGroups, no job clustering (-C 1)
+	#2012.4.3 change tmpDir (--tmpDir) for AddOrReplaceReadGroups, no job clustering (--clusters_size 1)
 	%s -a 524 -j condorpool -l condorpool -u yh -z uclaOffice
-		-o workflow/InspectAlignment/InspectAln1_To_661_RefSeq524Alignments.xml -I 1-661
-		-c /Network/Data/vervet/vervetPipeline/tmp/ -C 1
+		-o workflow/InspectAlignment/InspectAln1_To_661_RefSeq524Alignments.xml --ind_aln_id_ls 1-661
+		--tmpDir /Network/Data/vervet/vervetPipeline/tmp/ --clusters_size 1
 	
-	#2012.5.8 do perContig depth estimation (-P) and skip alignments with stats in db already (-s), need ssh tunnel for db (-H)
+	#2012.5.8 do perContig depth estimation (--needPerContigJob) and skip alignments with stats in db already (--skipAlignmentWithStats)
+	# need ssh tunnel for db (--needSSHDBTunnel)
 	# add --individual_sequence_file_raw_id_type 2 (library-specific alignments, different libraries of one individual_sequence) 
 	# add --individual_sequence_file_raw_id_type 3 (both all-library-fused and library-specific alignments)
 	# add "--country_id_ls 135,136,144,148,151" to limit individuals from US,Barbados,StKitts,Nevis,Gambia (AND with -S, )
-	%s -a 524 -j hcondor -l hcondor -u yh -z localhost -N 7559
+	%s -a 524 -j hcondor -l hcondor -u yh -z localhost --contigMaxRankBySize 7559
 		-o workflow/InspectAlignment/InspectAln1_To_1251_RefSeq524Alignments.xml
-		-I 1-1251 -C 1
+		--ind_aln_id_ls 1-1251 --clusters_size 1
 		-e /u/home/eeskin/polyacti/
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-J ~/bin/jdk/bin/java 
-		-P -s -H
+		--needPerContigJob --skipAlignmentWithStats --needSSHDBTunnel
 		#--individual_sequence_file_raw_id_type 2 --country_id_ls 135,136,144,148,151 --tax_id_ls 60711 #sabaeus
-
+		#--ind_seq_id_ls 632-3230 --site_id_ls 447 --sequence_filtered 1 --excludeContaminant	#VRC sequences
+		#--sequence_filtered 1 --alignment_method_id  2
+		
 Description:
 	2012.3.21
 		use samtools flagstat
@@ -53,34 +58,32 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
 from Pegasus.DAX3 import *
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
-from pymodule import AbstractNGSWorkflow
+from pymodule import ProcessOptions, getListOutOfStr, PassingData
+from pymodule.pegasus import yh_pegasus
 from vervet.src import VervetDB
-from vervet.src.genotyping.AlignmentToCallPipeline import AlignmentToCallPipeline
 from vervet.src.pegasus.AbstractVervetWorkflow import AbstractVervetWorkflow
+from vervet.src.pegasus.AbstractVervetAlignmentWorkflow import AbstractVervetAlignmentWorkflow
 
-class InspectAlignmentPipeline(AlignmentToCallPipeline):
+class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 	__doc__ = __doc__
-	commonOptionDict = AbstractVervetWorkflow.option_default_dict.copy()
-	commonOptionDict.pop(('inputDir', 0, ))
-	commonOptionDict.update(AlignmentToCallPipeline.commonAlignmentWorkflowOptionDict.copy())
+	commonOptionDict = AbstractVervetAlignmentWorkflow.option_default_dict.copy()
+	#commonOptionDict.pop(('inputDir', 0, ))
+	commonOptionDict.update(AbstractVervetAlignmentWorkflow.commonAlignmentWorkflowOptionDict.copy())
 	
 	option_default_dict = commonOptionDict.copy()
 	option_default_dict.update({
-						("tmpDir", 1, ): ["/tmp/", 'c', 1, 'for MarkDuplicates.jar or AddOrReplaceReadGroups.jar, default is /tmp/ but sometimes too small'],\
 						("needPerContigJob", 0, int): [0, 'P', 0, 'toggle to add DepthOfCoverage and VariousReadCount jobs for each contig.'],\
 						("skipAlignmentWithStats", 0, int): [0, 's', 0, 'If an alignment has depth stats filled, not DOC job will be run. similar for flagstat job.'],\
 						("fractionToSample", 0, float): [0.001, '', 1, 'fraction of loci to walk through for DepthOfCoverage walker.'],\
-						("needFastaIndexJob", 0, int): [0, '', 0, 'toggle to add a reference index job by samtools'],\
-						("needFastaDictJob", 0, int): [0, '', 0, 'toggle to add a reference dict job by picard CreateSequenceDictionary.jar'],\
 						})
 
 	def __init__(self, **keywords):
 		"""
 		2011-11-4
 		"""
-		AlignmentToCallPipeline.__init__(self, **keywords)
-		
+		AbstractVervetAlignmentWorkflow.__init__(self, **keywords)
+		self.no_of_alns_with_depth_jobs = 0
+		self.no_of_alns_with_flagstat_jobs = 0
 	
 	def addDepthOfCoverageJob(self, workflow, DOCWalkerJava=None, GenomeAnalysisTKJar=None,\
 							refFastaFList=None, bamF=None, baiF=None, DOCOutputFnamePrefix=None,\
@@ -128,24 +131,23 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 	
 	def addSAMtoolsDepthJob(self, workflow, samtoolsDepth=None, samtools_path=None,\
 							bamF=None, outputFile=None, baiF=None, \
-							parentJobLs=[], job_max_memory = 500, extraArguments="", \
-							transferOutput=False, minMappingQuality=30, minBaseQuality=20):
+							parentJobLs=[], extraOutputLs=None, job_max_memory = 500, extraArguments="", \
+							transferOutput=False, minMappingQuality=30, minBaseQuality=20, walltime=120, **keywords):
 		"""
+		2013.3.24 use addGenericJob()
 		2012.5.7
 			
 		"""
-		job = Job(namespace=workflow.namespace, name=samtoolsDepth.name, version=workflow.version)
-		job.addArguments(samtools_path, bamF, outputFile, "%s"%minMappingQuality, "%s"%minBaseQuality)
-		if extraArguments:
-			job.addArguments(extraArguments)
-		#it's either symlink or stage-in
-		job.uses(bamF, transfer=True, register=True, link=Link.INPUT)
-		job.uses(baiF, transfer=True, register=True, link=Link.INPUT)
-		job.uses(outputFile, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		workflow.addJob(job)
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=job)
+		job= self.addGenericJob(executable=samtoolsDepth, \
+					frontArgumentList=[samtools_path],\
+					inputFile=bamF, inputArgumentOption=None,\
+					outputFile=outputFile, outputArgumentOption=None,\
+				parentJobLs=parentJobLs, extraDependentInputLs=[baiF], \
+				extraOutputLs=extraOutputLs, extraArguments=extraArguments, \
+				transferOutput=transferOutput, \
+				extraArgumentList=[ "%s"%minMappingQuality, "%s"%minBaseQuality], \
+				key2ObjectForJob=None, job_max_memory=job_max_memory, \
+				sshDBTunnel=None, walltime=walltime, **keywords)
 		return job
 	
 	def addReadCountJob(self, workflow, VariousReadCountJava=None, GenomeAnalysisTKJar=None,\
@@ -173,264 +175,279 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
 		for parentJob in parentJobLs:
 			workflow.depends(parent=parentJob, child=job)
+		"""
+		#2013.3.24 should use this
+		job = self.addGATKJob(self, workflow=None, executable=None, GenomeAnalysisTKJar=None, GATKAnalysisType=None,\
+					inputFile=None, inputArgumentOption=None, refFastaFList=None, inputFileList=None,\
+					argumentForEachFileInInputFileList=None,\
+					interval=None, outputFile=None, \
+					parentJobLs=None, transferOutput=True, job_max_memory=2000,\
+					frontArgumentList=None, extraArguments=None, extraArgumentList=None, extraOutputLs=None, \
+					extraDependentInputLs=None, no_of_cpus=None, walltime=120, **keywords)
+		"""
 		return job
 	
-	def addReformatFlagstatOutputJob(self, workflow, executable=None, inputF=None, alignmentID=None, outputF=None, \
-					parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
-					extraArguments=None, job_max_memory=2000, **keywords):
+	def addReformatFlagstatOutputJob(self, workflow=None, executable=None, inputF=None, \
+									alignmentID=None, outputF=None, \
+					parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
+					extraArguments=None, job_max_memory=2000, walltime=20, **keywords):
 		"""
+		2013.3.24 use addGenericJob()
 		2012.4.3
 			input is output of "samtools flagstat"
 		"""
-		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
-		job.addArguments('-a %s'%(alignmentID), '-i', inputF, '-o', outputF)
-		job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
-		job.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		job.output = outputF
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory)
-		workflow.addJob(job)
-		for parentJob in parentJobLs:
-			if parentJob:
-				workflow.depends(parent=parentJob, child=job)
-		for input in extraDependentInputLs:
-			job.uses(input, transfer=True, register=True, link=Link.INPUT)
+		job= self.addGenericJob(executable=executable, \
+					inputFile=inputF, inputArgumentOption='-i',\
+					outputFile=outputF, outputArgumentOption='-o',\
+				parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+				extraOutputLs=None, extraArguments=extraArguments, \
+				transferOutput=transferOutput, \
+				extraArgumentList=['-a %s'%(alignmentID)], \
+				key2ObjectForJob=None, job_max_memory=job_max_memory, \
+				sshDBTunnel=None, walltime=walltime, **keywords)
 		return job
 	
-	def addJobs(self, workflow, alignmentDataLs, refName2size, samtools=None, DOCWalkerJava=None, \
-				ContigDOCWalkerJava=None, ContigVariousReadCountJava=None, \
-				VariousReadCountJava=None,  GenomeAnalysisTKJar=None, \
-				CreateSequenceDictionaryJava=None, CreateSequenceDictionaryJar=None, \
-				addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
-				BuildBamIndexFilesJava=None, BuildBamIndexJar=None,\
-				MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir="/Network/Data/vervet/vervetPipeline/tmp/",\
-				mkdirWrap=None, mv=None, \
-				ReformatFlagstatOutput=None, PutFlagstatOutput2DB=None, PutDOCOutput2DB=None,\
-				samtoolsDepth=None, \
-				ReduceDepthOfCoverage=None, ReduceVariousReadCount=None,\
-				registerReferenceData=None, \
-				namespace='workflow', version="1.0", site_handler=None, input_site_handler=None,\
-				needFastaIndexJob=False, needFastaDictJob=False, \
-				data_dir=None, needPerContigJob=False, skipAlignmentWithStats=False,\
-				needSSHDBTunnel=0):
+	def preReduce(self, workflow=None, passingData=None, transferOutput=True, **keywords):
 		"""
-		2013.3.20 use registerReferenceData
-		2012.6.15
-			replace  CalculateMedianModeFromSAMtoolsDepthOutput with CalculateMedianMeanOfInputColumn
-		2012.5.7
-			replace GATK's DOC walker with samtoolsDepth + CalculateMedianModeFromSAMtoolsDepthOutput
-			add argument needSSHDBTunnel
-		2012.4.6
-			add argument skipAlignmentWithStats to skip alignments with stats
-		2012.4.3
-			add ReformatFlagstatOutput, PutDOCOutput2DB, PutFlagstatOutput2DB jobs
-		2011-11-4
-			
+		2012.9.17
+			setup additional mkdir folder jobs, before mapEachAlignment, mapEachChromosome, mapReduceOneAlignment 
 		"""
-		sys.stderr.write("Adding jobs for %s references and %s alignments..."%(len(refName2size), len(alignmentDataLs)))
-		perContigJobMaxMemory = 1000	#in MB
-		refFastaFList = registerReferenceData.refFastaFList
-		refFastaF = refFastaFList[0]
-		no_of_jobs = 0
-		if needFastaDictJob or registerReferenceData.needPicardFastaDictJob:
-			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
-										CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, refFastaF=refFastaF)
-			refFastaDictF = fastaDictJob.refFastaDictF
-			no_of_jobs += 1
-		else:
-			fastaDictJob = None
-			refFastaDictF = None
+		if workflow is None:
+			workflow = self
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		reduceOutputDirJob = passingData.reduceOutputDirJob
+
+		depthOfCoverageOutputF = File(os.path.join(reduceOutputDirJob.output, 'DepthOfCoverage.tsv'))
+		passingData.depthOfCoverageOutputMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=depthOfCoverageOutputF, parentJobLs=[reduceOutputDirJob], transferOutput=True)
 		
-		if needFastaIndexJob or registerReferenceData.needSAMtoolsFastaIndexJob:
-			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
-			refFastaIndexF = fastaIndexJob.refFastaIndexF
-			no_of_jobs += 1
+		if self.needPerContigJob:	#need for per-contig job
+			depthOfCoveragePerChrOutputF = File(os.path.join(reduceOutputDirJob.output, 'DepthOfCoveragePerChr.tsv'))
+			passingData.depthOfCoveragePerChrOutputMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=depthOfCoveragePerChrOutputF,parentJobLs=[reduceOutputDirJob], transferOutput=True)
 		else:
-			fastaIndexJob = None
-			refFastaIndexF = None
+			passingData.depthOfCoveragePerChrOutputMergeJob = None
+		
+		flagStatOutputF = File(os.path.join(reduceOutputDirJob.output, 'FlagStat.tsv'))
+		passingData.flagStatOutputMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=flagStatOutputF, parentJobLs=[reduceOutputDirJob], transferOutput=True)
+		
+		passingData.alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow=workflow, alignmentDataLs=passingData.alignmentDataLs, site_handler=self.site_handler, \
+					input_site_handler=self.input_site_handler, \
+					addOrReplaceReadGroupsJava=self.addOrReplaceReadGroupsJava, \
+					AddOrReplaceReadGroupsJar=self.AddOrReplaceReadGroupsJar, \
+					BuildBamIndexFilesJava=self.BuildBamIndexFilesJava, BuildBamIndexJar=self.BuildBamIndexJar, \
+					mv=self.mv, namespace=self.namespace, version=self.version, data_dir=self.data_dir, tmpDir=self.tmpDir)
+		
+		passingData.flagStatMapFolderJob = self.addMkDirJob(outputDir="%sFlagStatMap"%(passingData.outputDirPrefix))
+		
+		return returnData
+	
+	def mapEachAlignment(self, workflow=None, alignmentData=None,  passingData=None, transferOutput=True, **keywords):
+		"""
+		2012.9.22
+			similar to reduceBeforeEachAlignmentData() but for mapping programs that run on one alignment each.
+			
+			passingData.AlignmentJobAndOutputLs = []
+			passingData.bamFnamePrefix = bamFnamePrefix
+			passingData.individual_alignment = alignment
+		"""
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		
+		topOutputDirJob = passingData.topOutputDirJob
+		flagStatMapFolderJob = passingData.flagStatMapFolderJob
+		
+		refFastaF = passingData.refFastaFList[0]
+		
+		alignment = alignmentData.alignment
+		parentJobLs = alignmentData.jobLs
+		bamF = alignmentData.bamF
+		baiF = alignmentData.baiF
+		
+		bamFnamePrefix = alignment.getReadGroup()
+		
+		
+		if self.skipAlignmentWithStats and alignment.median_depth is not None and alignment.mean_depth is not None and alignment.mode_depth is not None:
+			pass
+		else:
+			#DOCOutputFnamePrefix = '%s_DOC'%(alignment.id)
+			depthOutputFile = File(os.path.join(topOutputDirJob.output, '%s_DOC.tsv.gz'%(alignment.id)))
+			samtoolsDepthJob = self.addSAMtoolsDepthJob(workflow, samtoolsDepth=self.samtoolsDepth, \
+						samtools_path=self.samtools_path,\
+						bamF=bamF, outputFile=depthOutputFile, baiF=baiF, \
+						parentJobLs=[topOutputDirJob] + alignmentData.jobLs, job_max_memory = 500, extraArguments="", \
+						transferOutput=False)
+			self.addRefFastaJobDependency(job=samtoolsDepthJob, refFastaF=passingData.refFastaF, \
+						fastaDictJob=passingData.fastaDictJob, refFastaDictF=passingData.refFastaDictF,\
+						fastaIndexJob = passingData.fastaIndexJob, refFastaIndexF=passingData.refFastaIndexF)
+			
+			meanMedianModeDepthFile = File(os.path.join(topOutputDirJob.output, "%s_meanMedianModeDepth.tsv"%(alignment.id)))
+			meanMedianModeDepthJob = self.addCalculateDepthMeanMedianModeJob(workflow, \
+						executable=workflow.CalculateMedianMeanOfInputColumn, \
+						inputFile=depthOutputFile, outputFile=meanMedianModeDepthFile, alignmentID=alignment.id, fractionToSample=self.fractionToSample, \
+						noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E6,\
+						parentJobLs=[topOutputDirJob, samtoolsDepthJob], job_max_memory = 500, extraArguments=None, \
+						transferOutput=False)
+			"""
+			DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=DOCWalkerJava, GenomeAnalysisTKJar=GenomeAnalysisTKJar,\
+						refFastaFList=refFastaFList, bamF=bamF, baiF=baiF, \
+						DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
+						parentJobLs=alignmentData.jobLs, job_max_memory = perContigJobMaxMemory*8, transferOutput=True,\
+						fractionToSample=self.fractionToSample)
+			"""
+			self.addInputToStatMergeJob(workflow, statMergeJob=passingData.depthOfCoverageOutputMergeJob, inputF=meanMedianModeDepthFile,\
+						parentJobLs=[meanMedianModeDepthJob])
+			self.no_of_alns_with_depth_jobs += 1
+			
+		if self.skipAlignmentWithStats and alignment.perc_reads_mapped is not None:
+			pass
+		else:
+			oneFlagStatOutputF = File(os.path.join(flagStatMapFolderJob.output, '%s_flagstat.txt'%(alignment.id)))
+			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(workflow, executable=self.samtools, \
+				inputF=bamF, outputF=oneFlagStatOutputF, \
+				parentJobLs=[flagStatMapFolderJob]+ alignmentData.jobLs, extraDependentInputLs=[baiF], transferOutput=False, \
+				extraArguments=None, job_max_memory=1000)
+			self.addRefFastaJobDependency(job=samtoolsFlagStatJob, refFastaF=passingData.refFastaF, \
+						fastaDictJob=passingData.fastaDictJob, refFastaDictF=passingData.refFastaDictF,\
+						fastaIndexJob = passingData.fastaIndexJob, refFastaIndexF=passingData.refFastaIndexF)
+			reformatFlagStatOutputF = File(os.path.join(flagStatMapFolderJob.output, '%s_flagstat.tsv'%(alignment.id)))
+			reformatFlagStatOutputJob = self.addReformatFlagstatOutputJob(workflow, executable=self.ReformatFlagstatOutput, \
+								inputF=oneFlagStatOutputF, alignmentID=alignment.id, outputF=reformatFlagStatOutputF, \
+								parentJobLs=[flagStatMapFolderJob, samtoolsFlagStatJob], extraDependentInputLs=[], transferOutput=False, \
+								extraArguments=None, job_max_memory=20)
+			self.addInputToStatMergeJob(workflow, statMergeJob=passingData.flagStatOutputMergeJob, inputF=reformatFlagStatOutputJob.output, \
+						parentJobLs=[reformatFlagStatOutputJob])
+			self.no_of_alns_with_flagstat_jobs += 1
+		
+		if self.needPerContigJob:	#need for per-contig job
+			statOutputDir = 'perContigStatOfAlignment%s'%(alignment.id)
+			passingData.statOutputDirJob = self.addMkDirJob(outputDir=statOutputDir)
+		else:
+			passingData.statOutputDirJob = None
+			
+		return returnData
+	
+	def mapEachChromosome(self, workflow=None, alignmentData=None, chromosome=None,\
+				VCFFile=None, passingData=None, reduceBeforeEachAlignmentData=None, transferOutput=True, **keywords):
+		"""
+		2012.9.17
+		"""
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		if not self.needPerContigJob:	#no need for per-contig job
+			return returnData
+		
+		alignment = alignmentData.alignment
+		
+		parentJobLs = alignmentData.jobLs
+		bamF = alignmentData.bamF
+		baiF = alignmentData.baiF
+		
+		bamFnamePrefix = alignment.getReadGroup()
+		
+		statOutputDirJob = passingData.statOutputDirJob
+		
+		depthOutputFile = File(os.path.join(statOutputDirJob.output, '%s_%s_DOC.tsv.gz'%(alignment.id, chromosome)))
+		samtoolsDepthJob = self.addSAMtoolsDepthJob(workflow, samtoolsDepth=self.samtoolsDepth, \
+												samtools_path=self.samtools_path,\
+					bamF=bamF, outputFile=depthOutputFile, baiF=baiF, \
+					parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = 500, extraArguments="", \
+					transferOutput=False)
+		self.addRefFastaJobDependency(job=samtoolsDepthJob, refFastaF=passingData.refFastaF, \
+					fastaDictJob=passingData.fastaDictJob, refFastaDictF=passingData.refFastaDictF,\
+					fastaIndexJob = passingData.fastaIndexJob, refFastaIndexF=passingData.refFastaIndexF)
+		meanMedianModeDepthFile = File(os.path.join(statOutputDirJob.output, "%s_%s_meanMedianModeDepth.tsv"%(alignment.id, chromosome)))
+		meanMedianModeDepthJob = self.addCalculateDepthMeanMedianModeJob(workflow, \
+					executable=workflow.CalculateMedianMeanOfInputColumn, \
+					inputFile=depthOutputFile, outputFile=meanMedianModeDepthFile, alignmentID="%s-%s"%(alignment.id, chromosome), \
+					fractionToSample=self.fractionToSample, \
+					noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E6,\
+					parentJobLs=[samtoolsDepthJob], job_max_memory = 500, extraArguments="-r %s"%(chromosome), \
+					transferOutput=False)
+		
+		self.addInputToStatMergeJob(workflow, statMergeJob=passingData.depthOfCoveragePerChrOutputMergeJob, \
+					inputF=meanMedianModeDepthFile,\
+					parentJobLs=[meanMedianModeDepthJob])
+		"""
+		DOCOutputFnamePrefix = os.path.join(statOutputDir, '%s_%s_DOC'%(alignment.id, chromosome))
+		DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=ContigDOCWalkerJava, \
+				GenomeAnalysisTKJar=GenomeAnalysisTKJar,\
+				refFastaFList=refFastaFList, bamF=bamF, baiF=baiF, \
+				DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
+				parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = perContigJobMaxMemory*3, extraArguments="-L %s"%(chromosome),\
+				transferOutput=False,\
+				fractionToSample=self.fractionToSample)
+		
+		reduceDepthOfCoverageJob.addArguments(DOCJob.sample_interval_summary_file)
+		reduceDepthOfCoverageJob.uses(DOCJob.sample_interval_summary_file, transfer=True, register=True, link=Link.INPUT)
+		workflow.depends(parent=DOCJob, child=reduceDepthOfCoverageJob)
+		"""
 		
 		"""
 		#2012.4.3 no more VariousReadCountJava job
-		readCountOutputF = File('VariousReadCount.tsv')
-		readCountOutputMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-							outputF=readCountOutputF, namespace=namespace, version=version)
+		readCountOutputF = File(os.path.join(statOutputDir, '%s_%s_variousReadCount.tsv'%(alignment.id, chromosome)))
+		readCountJob = self.addReadCountJob(workflow, VariousReadCountJava=ContigVariousReadCountJava, \
+					GenomeAnalysisTKJar=GenomeAnalysisTKJar, refFastaFList=refFastaFList, \
+					bamF=bamF, baiF=baiF, readCountOutputF=readCountOutputF,\
+					parentJobLs=statOutputDirJob, job_max_memory = perContigJobMaxMemory, extraArguments="-L %s"%(chromosome), \
+					transferOutput=False)
+		
+		reduceVariousReadCountJob.addArguments(readCountOutputF)
+		reduceVariousReadCountJob.uses(readCountOutputF, transfer=True, register=True, link=Link.INPUT)
+		workflow.depends(parent=readCountJob, child=reduceVariousReadCountJob)
 		"""
 		
-		depthOfCoverageOutputF = File('DepthOfCoverage.tsv')
-		depthOfCoverageOutputMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-							outputF=depthOfCoverageOutputF, namespace=namespace, version=version,\
-							transferOutput=True)
+		return returnData
+	
+	def reduceAfterEachAlignment(self, workflow=None, passingData=None, mapEachChromosomeDataLs=None,\
+								reduceAfterEachChromosomeDataLs=None,\
+								transferOutput=True, **keywords):
+		"""
+		"""
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		returnData.mapEachChromosomeDataLs = mapEachChromosomeDataLs
+		returnData.reduceAfterEachChromosomeDataLs = reduceAfterEachChromosomeDataLs
+		return returnData
+
+	def reduce(self, workflow=None, passingData=None, reduceAfterEachAlignmentDataLs=None,
+			transferOutput=True, **keywords):
+		"""
+		2012.9.17
+		"""
+		returnData = PassingData(no_of_jobs = 0)
+		returnData.jobDataLs = []
+		returnData.reduceAfterEachAlignmentDataLs = reduceAfterEachAlignmentDataLs
 		
-		depthOfCoveragePerChrOutputF = File('DepthOfCoveragePerChr.tsv')
-		depthOfCoveragePerChrOutputMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-							outputF=depthOfCoveragePerChrOutputF, namespace=namespace, version=version,\
-							transferOutput=True)
-		flagStatOutputF = File('FlagStat.tsv')
-		flagStatOutputMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-							outputF=flagStatOutputF, namespace=namespace, version=version,\
-							transferOutput=True)
+		reduceOutputDirJob = passingData.reduceOutputDirJob
 		
-		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
-					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
-					BuildBamIndexFilesJava=BuildBamIndexFilesJava, BuildBamIndexJar=BuildBamIndexJar, \
-					mv=mv, namespace=namespace, version=version, data_dir=data_dir, tmpDir=tmpDir)
-		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
-		no_of_jobs += 2
-		no_of_alns_with_depth_jobs = 0
-		no_of_alns_with_flagstat_jobs = 0
-		samtools_path = yh_pegasus.getAbsPathOutOfExecutable(samtools)
-		for alignmentData in alignmentDataLs:
-			alignment = alignmentData.alignment
-			
-			bamF= alignmentData.bamF
-			baiF = alignmentData.baiF
-			
-			if skipAlignmentWithStats and alignment.median_depth is not None and alignment.mean_depth is not None and alignment.mode_depth is not None:
-				pass
-			else:
-				#DOCOutputFnamePrefix = '%s_DOC'%(alignment.id)
-				depthOutputFile = File('%s_DOC.tsv'%(alignment.id))
-				samtoolsDepthJob = self.addSAMtoolsDepthJob(workflow, samtoolsDepth=samtoolsDepth, samtools_path=samtools_path,\
-							bamF=bamF, outputFile=depthOutputFile, baiF=baiF, \
-							parentJobLs=alignmentData.jobLs, job_max_memory = 500, extraArguments="", \
-							transferOutput=False)
-				meanMedianModeDepthFile = File("%s_meanMedianModeDepth.tsv"%(alignment.id))
-				meanMedianModeDepthJob = self.addCalculateDepthMeanMedianModeJob(workflow, \
-							executable=workflow.CalculateMedianMeanOfInputColumn, \
-							inputFile=depthOutputFile, outputFile=meanMedianModeDepthFile, alignmentID=alignment.id, fractionToSample=self.fractionToSample, \
-							noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E6,\
-							parentJobLs=[samtoolsDepthJob], job_max_memory = 500, extraArguments=None, \
-							transferOutput=False)
-				"""
-				DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=DOCWalkerJava, GenomeAnalysisTKJar=GenomeAnalysisTKJar,\
-							refFastaFList=refFastaFList, bamF=bamF, baiF=baiF, \
-							DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
-							parentJobLs=alignmentData.jobLs, job_max_memory = perContigJobMaxMemory*8, transferOutput=True,\
-							fractionToSample=self.fractionToSample)
-				"""
-				self.addInputToStatMergeJob(workflow, statMergeJob=depthOfCoverageOutputMergeJob, inputF=meanMedianModeDepthFile,\
-							parentJobLs=[meanMedianModeDepthJob])
-				no_of_jobs += 2
-				no_of_alns_with_depth_jobs += 1
-				
-			if skipAlignmentWithStats and alignment.perc_reads_mapped is not None:
-				pass
-			else:
-				oneFlagStatOutputF = File('%s_flagstat.txt'%(alignment.id))
-				samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(workflow, executable=samtools, inputF=bamF, outputF=oneFlagStatOutputF, \
-					parentJobLs=alignmentData.jobLs, extraDependentInputLs=[baiF], transferOutput=False, \
-					extraArguments=None, job_max_memory=perContigJobMaxMemory)
-				
-				reformatFlagStatOutputF = File('%s_flagstat.tsv'%(alignment.id))
-				reformatFlagStatOutputJob = self.addReformatFlagstatOutputJob(workflow, executable=ReformatFlagstatOutput, \
-									inputF=oneFlagStatOutputF, alignmentID=alignment.id, outputF=reformatFlagStatOutputF, \
-									parentJobLs=[samtoolsFlagStatJob], extraDependentInputLs=[], transferOutput=False, \
-									extraArguments=None, job_max_memory=20)
-				self.addInputToStatMergeJob(workflow, statMergeJob=flagStatOutputMergeJob, inputF=reformatFlagStatOutputJob.output, \
-							parentJobLs=[reformatFlagStatOutputJob])
-				no_of_jobs += 2
-				no_of_alns_with_flagstat_jobs += 1
-			"""
-				#2012.4.3 no more VariousReadCountJava job
-			readCountOutputF = File('%s_variousReadCount.tsv'%(alignment.id))
-			readCountJob = self.addReadCountJob(workflow, VariousReadCountJava=VariousReadCountJava, \
-						GenomeAnalysisTKJar=GenomeAnalysisTKJar, refFastaFList=refFastaFList, \
-						bamF=bamF, baiF=baiF, readCountOutputF=readCountOutputF,\
-						parentJobLs=None, job_max_memory = perContigJobMaxMemory*2, \
-						transferOutput=True)
-			self.addInputToStatMergeJob(workflow, statMergeJob=readCountOutputMergeJob, inputF=readCountOutputF,\
-						parentJobLs=[readCountJob])
-			"""
-			if not needPerContigJob:	#no need for per-contig job
-				continue
-			
-			statOutputDir = '%s'%(alignment.id)
-			statOutputDirJob = self.addMkDirJob(outputDir=statOutputDir)
-			
-			"""
-				#2012.4.3 no more VariousReadCountJava job
-			finalVariousReadCountOutputF = File("%s_VariousReadCount.tsv"%(alignment.getReadGroup()))
-			reduceVariousReadCountJob = Job(namespace=namespace, name=ReduceVariousReadCount.name, version=version)
-			reduceVariousReadCountJob.addArguments("-o", finalVariousReadCountOutputF)
-			reduceVariousReadCountJob.uses(finalVariousReadCountOutputF, transfer=True, register=True, link=Link.OUTPUT)
-			workflow.addJob(reduceVariousReadCountJob)
-			"""
-			
-			"""
-			finalDepthOfCoverageOutputF = File("%s_DepthOfCoverage.tsv"%(alignment.getReadGroup()))
-			reduceDepthOfCoverageJob = Job(namespace=namespace, name=ReduceDepthOfCoverage.name, version=version)
-			reduceDepthOfCoverageJob.addArguments("-o", finalDepthOfCoverageOutputF)
-			reduceDepthOfCoverageJob.uses(finalDepthOfCoverageOutputF, transfer=True, register=True, link=Link.OUTPUT)
-			workflow.addJob(reduceDepthOfCoverageJob)
-			"""
-			
-			for refName, refSize in refName2size.iteritems():	#this could be further improved to work on per-interval
-				depthOutputFile = File(os.path.join(statOutputDir, '%s_%s_DOC.tsv'%(alignment.id, refName)))
-				samtoolsDepthJob = self.addSAMtoolsDepthJob(workflow, samtoolsDepth=samtoolsDepth, samtools_path=samtools_path,\
-							bamF=bamF, outputFile=depthOutputFile, baiF=baiF, \
-							parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = 500, extraArguments="", \
-							transferOutput=False)
-				meanMedianModeDepthFile = File(os.path.join(statOutputDir, "%s_%s_meanMedianModeDepth.tsv"%(alignment.id, refName)))
-				meanMedianModeDepthJob = self.addCalculateDepthMeanMedianModeJob(workflow, \
-							executable=workflow.CalculateMedianMeanOfInputColumn, \
-							inputFile=depthOutputFile, outputFile=meanMedianModeDepthFile, alignmentID="%s-%s"%(alignment.id, refName), \
-							fractionToSample=self.fractionToSample, \
-							noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E6,\
-							parentJobLs=[samtoolsDepthJob], job_max_memory = 500, extraArguments="-r %s"%(refName), \
-							transferOutput=False)
-				
-				self.addInputToStatMergeJob(workflow, statMergeJob=depthOfCoveragePerChrOutputMergeJob, inputF=meanMedianModeDepthFile,\
-							parentJobLs=[meanMedianModeDepthJob])
-				"""
-				DOCOutputFnamePrefix = os.path.join(statOutputDir, '%s_%s_DOC'%(alignment.id, refName))
-				DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=ContigDOCWalkerJava, \
-						GenomeAnalysisTKJar=GenomeAnalysisTKJar,\
-						refFastaFList=refFastaFList, bamF=bamF, baiF=baiF, \
-						DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
-						parentJobLs=[statOutputDirJob]+alignmentData.jobLs, job_max_memory = perContigJobMaxMemory*3, extraArguments="-L %s"%(refName),\
-						transferOutput=False,\
-						fractionToSample=self.fractionToSample)
-				
-				reduceDepthOfCoverageJob.addArguments(DOCJob.sample_interval_summary_file)
-				reduceDepthOfCoverageJob.uses(DOCJob.sample_interval_summary_file, transfer=True, register=True, link=Link.INPUT)
-				workflow.depends(parent=DOCJob, child=reduceDepthOfCoverageJob)
-				"""
-				
-				no_of_jobs += 1
-				"""
-				#2012.4.3 no more VariousReadCountJava job
-				readCountOutputF = File(os.path.join(statOutputDir, '%s_%s_variousReadCount.tsv'%(alignment.id, refName)))
-				readCountJob = self.addReadCountJob(workflow, VariousReadCountJava=ContigVariousReadCountJava, \
-							GenomeAnalysisTKJar=GenomeAnalysisTKJar, refFastaFList=refFastaFList, \
-							bamF=bamF, baiF=baiF, readCountOutputF=readCountOutputF,\
-							parentJobLs=statOutputDirJob, job_max_memory = perContigJobMaxMemory, extraArguments="-L %s"%(refName), \
-							transferOutput=False)
-				
-				reduceVariousReadCountJob.addArguments(readCountOutputF)
-				reduceVariousReadCountJob.uses(readCountOutputF, transfer=True, register=True, link=Link.INPUT)
-				workflow.depends(parent=readCountJob, child=reduceVariousReadCountJob)
-				"""
-		
-		flagStat2DBLogFile = File("flagStat2DB.log")
-		flagStat2DBJob = self.addPutStuffIntoDBJob(workflow, executable=PutFlagstatOutput2DB, inputFileLs=[flagStatOutputF], \
+		flagStat2DBLogFile = File(os.path.join(reduceOutputDirJob.output, "flagStat2DB.log"))
+		flagStat2DBJob = self.addPutStuffIntoDBJob(workflow, executable=self.PutFlagstatOutput2DB, \
+					inputFileList=[passingData.flagStatOutputMergeJob.output], \
 					logFile=flagStat2DBLogFile, commit=True, \
-					parentJobLs=[flagStatOutputMergeJob], extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
-					job_max_memory=10, sshDBTunnel=needSSHDBTunnel)
-		DOC2DBLogFile = File("DOC2DB.log")
-		DOC2DBJob = self.addPutStuffIntoDBJob(workflow, executable=PutDOCOutput2DB, inputFileLs=[depthOfCoverageOutputF], \
+					parentJobLs=[reduceOutputDirJob, passingData.flagStatOutputMergeJob], \
+					extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
+					job_max_memory=10, sshDBTunnel=self.needSSHDBTunnel)
+		DOC2DBLogFile = File(os.path.join(reduceOutputDirJob.output, "DOC2DB.log"))
+		DOC2DBJob = self.addPutStuffIntoDBJob(workflow, executable=self.PutDOCOutput2DB, \
+					inputFileList=[passingData.depthOfCoverageOutputMergeJob.output], \
 					logFile=DOC2DBLogFile, commit=True, \
-					parentJobLs=[depthOfCoverageOutputMergeJob], extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
-					job_max_memory=10, sshDBTunnel=needSSHDBTunnel)
+					parentJobLs=[reduceOutputDirJob, passingData.depthOfCoverageOutputMergeJob], \
+					extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
+					job_max_memory=10, sshDBTunnel=self.needSSHDBTunnel)
 		
-		no_of_jobs += 2
-		sys.stderr.write(" %s jobs, %s alignments with depth jobs, %s alignments with flagstat jobs.\n"%(no_of_jobs, \
-																				no_of_alns_with_depth_jobs, no_of_alns_with_flagstat_jobs))
+		sys.stderr.write(" %s jobs, %s alignments with depth jobs, %s alignments with flagstat jobs.\n"%(self.no_of_jobs, \
+										self.no_of_alns_with_depth_jobs, self.no_of_alns_with_flagstat_jobs))
+		return returnData
 	
 	def registerCustomExecutables(self, workflow=None):
 		"""
 		2011-11-25
 			split out of run()
 		"""
-		AlignmentToCallPipeline.registerCustomExecutables(self, workflow=workflow)
+		AbstractVervetAlignmentWorkflow.registerCustomExecutables(self, workflow=workflow)
 		
 		namespace = self.namespace
 		version = self.version
@@ -483,84 +500,6 @@ class InspectAlignmentPipeline(AlignmentToCallPipeline):
 										name='PutFlagstatOutput2DB', clusterSizeMultipler=0)
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'db/input/PutDOCOutput2DB.py'), \
 										name='PutDOCOutput2DB', clusterSizeMultipler=0)
-
-	def run(self):
-		"""
-		2011-7-11
-		"""
-		
-		if self.debug:
-			import pdb
-			pdb.set_trace()
-		
-		db_vervet = self.db_vervet
-		
-		if not self.data_dir:
-			self.data_dir = db_vervet.data_dir
-		
-		if not self.local_data_dir:
-			self.local_data_dir = db_vervet.data_dir
-		
-		workflow = self.initiateWorkflow()
-		
-		vervetSrcPath = self.vervetSrcPath
-		site_handler = self.site_handler
-		
-		if self.needPerContigJob:
-			refName2size = self.getTopNumberOfContigs(self.contigMaxRankBySize)
-			#refName2size = set(['Contig149'])	#temporary when testing Contig149
-			#refName2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
-		else:
-			refName2size = {}
-		
-		alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										alignment_method_id=self.alignment_method_id, data_dir=self.local_data_dir,\
-										individual_sequence_file_raw_id_type=self.individual_sequence_file_raw_id_type)
-		alignmentLs = db_vervet.filterAlignments(alignmentLs, sequence_filtered=self.sequence_filtered, \
-									individual_site_id_set=set(self.site_id_ls),\
-									mask_genotype_method_id=None, parent_individual_alignment_id=None,\
-									country_id_set=set(self.country_id_ls), tax_id_set=set(self.tax_id_ls))
-		
-		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
-		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
-							input_site_handler=self.input_site_handler,\
-							checkAffiliateFileExistence=True)
-		
-		self.registerJars(workflow)
-		
-		self.registerExecutables(workflow)
-		self.registerCustomExecutables(workflow)
-		
-		alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, data_dir=self.data_dir)
-		
-		self.addJobs(workflow, alignmentDataLs, refName2size, samtools=workflow.samtools, DOCWalkerJava=workflow.DOCWalkerJava, 
-				ContigDOCWalkerJava=workflow.ContigDOCWalkerJava, \
-				VariousReadCountJava=workflow.VariousReadCountJava, \
-				ContigVariousReadCountJava=workflow.ContigVariousReadCountJava, \
-				GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
-				CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
-				addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
-				BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar,\
-				MarkDuplicatesJava=workflow.MarkDuplicatesJava, MarkDuplicatesJar=workflow.MarkDuplicatesJar, tmpDir=self.tmpDir,\
-				mkdirWrap=workflow.mkdirWrap, mv=workflow.mv, \
-				ReformatFlagstatOutput=workflow.ReformatFlagstatOutput, PutFlagstatOutput2DB=workflow.PutFlagstatOutput2DB, \
-				PutDOCOutput2DB=workflow.PutDOCOutput2DB,\
-				samtoolsDepth=workflow.samtoolsDepth, \
-				ReduceDepthOfCoverage=workflow.ReduceDepthOfCoverage, ReduceVariousReadCount=workflow.ReduceVariousReadCount,\
-				
-				registerReferenceData=registerReferenceData, \
-				namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
-				needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-				data_dir=self.data_dir, needPerContigJob=self.needPerContigJob,\
-				skipAlignmentWithStats=self.skipAlignmentWithStats,\
-				needSSHDBTunnel=self.needSSHDBTunnel)
-		
-		# Write the DAX to stdout
-		outf = open(self.outputFname, 'w')
-		workflow.writeXML(outf)
-		
-
 
 	
 if __name__ == '__main__':
