@@ -50,6 +50,18 @@ echo gzSuffix is $gzSuffix.
 
 if test "$gzSuffix" = ".gz"; then
 	$commandline | gzip > $outputDepthFname
+	exitCodeAll="${PIPESTATUS[0]} ${PIPESTATUS[1]}"	#must be together in one line. PIPESTATUS[1] in subsequent lines has different meaning.
+	exitCode1=`echo $exitCodeAll|awk -F ' ' '{print $1}'`
+	exitCode2=`echo $exitCodeAll|awk -F ' ' '{print $2}'`
+	
+	echo "exit codes: $exitCode1, $exitCode2"
+	
+	if test "$exitCode1" = "0" && test "$exitCode2" = "0"
+	then
+		exit 0
+	else
+		exit 3
+	fi
 else
 	$commandline > $outputDepthFname
 fi
