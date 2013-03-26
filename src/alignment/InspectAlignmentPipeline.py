@@ -304,9 +304,9 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		if self.skipAlignmentWithStats and alignment.perc_reads_mapped is not None:
 			pass
 		else:
-			oneFlagStatOutputF = File(os.path.join(flagStatMapFolderJob.output, '%s_flagstat.txt'%(alignment.id)))
-			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(workflow, executable=self.samtools, \
-				inputF=bamF, outputF=oneFlagStatOutputF, \
+			oneFlagStatOutputF = File(os.path.join(flagStatMapFolderJob.output, '%s_flagstat.txt.gz'%(alignment.id)))
+			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(executable=self.pipeCommandOutput2File, \
+				samtoolsFile=self.samtoolsFile, inputFile=bamF, outputFile=oneFlagStatOutputF, \
 				parentJobLs=[flagStatMapFolderJob]+ alignmentData.jobLs, extraDependentInputLs=[baiF], transferOutput=False, \
 				extraArguments=None, job_max_memory=1000)
 			self.addRefFastaJobDependency(job=samtoolsFlagStatJob, refFastaF=passingData.refFastaF, \
@@ -487,7 +487,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		samtoolsDepth = Executable(namespace=namespace, name="samtoolsDepth", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
 		samtoolsDepth.addPFN(PFN("file://" + os.path.join(self.vervetSrcPath, "shell/samtoolsDepth.sh"), site_handler))
-		executableClusterSizeMultiplierList.append((samtoolsDepth, 1))
+		executableClusterSizeMultiplierList.append((samtoolsDepth, 0.1))
 		
 		CalculateMedianModeFromSAMtoolsDepthOutput = Executable(namespace=namespace, name="CalculateMedianModeFromSAMtoolsDepthOutput", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)
