@@ -3,11 +3,12 @@
 Examples:
 	%s 
 	
-	%s -i /tmp/outputStat.txt -a 1043 -o /tmp/outputStat.tsv
+	%s -i /tmp/outputStat.txt.gz -a 1043 -o /tmp/outputStat.tsv.gz
 
 Description:
 	2012.4.3
 		reformat output of samtools flagstat so that it could be inserted into db.
+		both input and output files could be either gzipped or not.
 
 	
 """
@@ -20,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
-from pymodule.VCFFile import VCFFile
+from pymodule.yhio.VCFFile import VCFFile
 from pymodule.pegasus.mapper.AbstractMapper import AbstractMapper
 
 class ReformatFlagstatOutput(AbstractMapper):
@@ -90,8 +91,8 @@ class ReformatFlagstatOutput(AbstractMapper):
 
 		"""
 		
-		inf = open(self.inputFname)
-		writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
+		inf = utils.openGzipFile(self.inputFname, openMode='r')
+		writer = csv.writer(utils.openGzipFile(self.outputFname, openMode='w'), delimiter='\t')
 		header = ['alignmentID', 'total_no_of_reads', 'perc_reads_mapped', 'perc_duplicates', 'perc_paired', 'perc_properly_paired', \
 				'perc_both_mates_mapped', 'perc_singletons',\
 				'perc_mapped_to_diff_chrs',
