@@ -29,7 +29,7 @@ shift
 shift
 shift
 shift
-#after 5 shift, all arguments left are for trioCaller
+#after 5 shift, all arguments left
 arguments=$*
 
 if [ -z $minMapQ ]; then
