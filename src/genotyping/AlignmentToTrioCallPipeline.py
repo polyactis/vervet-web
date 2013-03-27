@@ -203,18 +203,16 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			fastaDictJob = self.addRefFastaDictJob(workflow, CreateSequenceDictionaryJava=CreateSequenceDictionaryJava, \
 												CreateSequenceDictionaryJar=CreateSequenceDictionaryJar, refFastaF=refFastaF)
 			refFastaDictF = fastaDictJob.refFastaDictF
-			no_of_jobs += 1
 		else:
 			fastaDictJob = None
-			refFastaDictF = None
+			refFastaDictF = registerReferenceData.refPicardFastaDictF
 		
 		if needFastaIndexJob or registerReferenceData.needSAMtoolsFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
-			no_of_jobs += 1
 		else:
 			fastaIndexJob = None
-			refFastaIndexF = None
+			refFastaIndexF = registerReferenceData.refSAMtoolsFastaIndexF
 		
 		trioCallerOutputDir = "%strioCaller"%(outputDirPrefix)
 		trioCallerOutputDirJob = self.addMkDirJob(outputDir=trioCallerOutputDir)
@@ -510,14 +508,14 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 			refFastaDictF = fastaDictJob.refFastaDictF
 		else:
 			fastaDictJob = None
-			refFastaDictF = None
+			refFastaDictF = registerReferenceData.refPicardFastaDictF
 		
 		if needFastaIndexJob or registerReferenceData.needSAMtoolsFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
 		else:
 			fastaIndexJob = None
-			refFastaIndexF = None
+			refFastaIndexF = registerReferenceData.refSAMtoolsFastaIndexF
 		
 		trioCallerOutputDir = "%sRefinedCalls"%(outputDirPrefix)
 		trioCallerOutputDirJob = self.addMkDirJob(outputDir=trioCallerOutputDir)
