@@ -122,7 +122,7 @@ class DownsampleAlignmentToTrioCallWorkflow(AlignmentToTrioCallPipeline):
 		job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
 		job.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		job.output = outputF
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=600)	#10 hour walltime
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=600)	#10 hour walltime
 		workflow.addJob(job)
 		for input in extraDependentInputLs:
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
