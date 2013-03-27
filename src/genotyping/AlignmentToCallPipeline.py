@@ -570,14 +570,14 @@ class AlignmentToCallPipeline(parentClass):
 			refFastaDictF = fastaDictJob.refFastaDictF
 		else:
 			fastaDictJob = None
-			refFastaDictF = None
+			refFastaDictF = registerReferenceData.refPicardFastaDictF
 		
 		if needFastaIndexJob or registerReferenceData.needSAMtoolsFastaIndexJob:
 			fastaIndexJob = self.addRefFastaFaiIndexJob(workflow, samtools=samtools, refFastaF=refFastaF)
 			refFastaIndexF = fastaIndexJob.refFastaIndexF
 		else:
 			fastaIndexJob = None
-			refFastaIndexF = None
+			refFastaIndexF = registerReferenceData.refSAMtoolsFastaIndexF
 		
 		# Add a mkdir job for the call directory.
 		callOutputDirJob = self.addMkDirJob(outputDir="%sCall"%(outputDirPrefix))
