@@ -106,7 +106,7 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 	def addAddFilteredSequences2DB_job(self, workflow, executable=None, \
 							inputFile=None, individual_sequence_id=None, outputDir=None, logFile=None,\
 							parent_individual_sequence_file_id=None, \
-							parentJobLs=[], job_max_memory=100, job_max_walltime = 60, \
+							parentJobLs=[], job_max_memory=100, walltime = 60, \
 							commit=0, \
 							extraDependentInputLs=[], \
 							transferOutput=False, sshDBTunnel=1, **keywords):
@@ -114,7 +114,7 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 		2012.4.18
 			add argument sshDBTunnel
 		2012.2.10
-			job_max_walltime is in minutes (max time allowed on hoffman2 is 24 hours).
+			walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			
 		"""
 		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
@@ -132,7 +132,7 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 			job.uses(logFile, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
 			job.output = logFile
 		
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime, sshDBTunnel=sshDBTunnel)
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=walltime, sshDBTunnel=sshDBTunnel)
 		workflow.addJob(job)
 		for input in extraDependentInputLs:
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
@@ -142,12 +142,12 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 	
 	
 	def addFilterReadJob(self, workflow, executable=None, jar=None,\
-					parentJobLs=[], job_max_memory=2000, job_max_walltime = 120, \
+					parentJobLs=[], job_max_memory=2000, walltime = 120, \
 					extraDependentInputLs=[], \
 					transferOutput=False, **keywords):
 		"""
 		2012.2.9
-			job_max_walltime is in minutes (max time allowed on hoffman2 is 24 hours).
+			walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			
 		"""
 		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
@@ -163,7 +163,7 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 		
 		@Option(shortName = "l", doc = "during head/tail trimming, smoothing phred score is applied. amounts to how many flanking bases used"
 		"""
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime)
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=walltime)
 		workflow.addJob(job)
 		for input in extraDependentInputLs:
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
@@ -248,7 +248,7 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 					
 					#add filter jobs
 					filterShortRead_job = self.addFilterReadJob(workflow, executable=workflow.java, jar=workflow.filterReadJar,\
-						parentJobLs=[filteredReadOutputDirJob], job_max_memory=2000, job_max_walltime = 120, \
+						parentJobLs=[filteredReadOutputDirJob], job_max_memory=2000, walltime = 120, \
 						extraDependentInputLs=[], transferOutput=False)
 					no_of_jobs += 1
 					for i in xrange(len(fileObjLs)):
