@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
 Examples:
-	%s 
+	%s -i /tmp/depth.tsv.gz -a 100 -n 0 -o /tmp/depth.mode.tsv.gz -f 0.3
 	
 	%s -i /tmp/depth.tsv.gz -a 100 -n 0 -o /tmp/depth.mode.tsv -f 0.3
 
 Description:
 	2012.5.6
 		Given a tsv-format matrix, this program calculates the mean/median/mode of one column's statistics.
-
+		input & output file could be either gzipped or not.
 	
 """
 
@@ -54,12 +54,7 @@ class CalculateMedianModeFromSAMtoolsDepthOutput(AbstractMapper):
 			import pdb
 			pdb.set_trace()
 		
-		suffix = os.path.splitext(self.inputFname)[1]
-		if suffix=='.gz':
-			import gzip
-			inf = gzip.open(self.inputFname, 'r')
-		else:
-			inf = open(self.inputFname, 'r')
+		inf = utils.openGzipFile(self.inputFname, openMode='r')
 		
 		reader = csv.reader(inf, delimiter=figureOutDelimiter(inf))
 		header = None
@@ -70,10 +65,11 @@ class CalculateMedianModeFromSAMtoolsDepthOutput(AbstractMapper):
 				reader.next()
 		if header is not None:
 			colName2Index = getColName2IndexFromHeader(header)
+		
 		newHeader = ['alignmentID', 'total_base_count', 'sampled_base_count', 'meanDepth', 'medianDepth', 'modeDepth']
 		inputStatLs = []
 		
-		writer = csv.writer(open(self.outputFname, 'w'), delimiter='\t')
+		writer = csv.writer(utils.openGzipFile(self.outputFname, openMode='w'), delimiter='\t')
 		writer.writerow(newHeader)
 		counter = 0
 		real_counter = 0
