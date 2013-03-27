@@ -165,14 +165,14 @@ class ConvertOldIsqRecordsPipeline(UnpackAndAddIndividualSequence2DB):
 									inputF=fastqFile, outputFnamePrefix=splitFastQFnamePrefix, \
 									outputFnamePrefixTail="", minNoOfReads=self.minNoOfReads, \
 									logFile=logFile, parentJobLs=[splitOutputDirJob], \
-									job_max_memory=2000, job_max_walltime = 800, \
+									job_max_memory=2000, walltime = 800, \
 									extraDependentInputLs=[], transferOutput=True)
 					
 					logFile = File('%s_%s.register.log'%(individual_sequence.id, prefix))
 					registerJob1 = self.addRegisterAndMoveSplitFileJob(workflow, executable=workflow.registerAndMoveSplitSequenceFiles, \
 									inputDir=splitOutputDir, outputDir=sequenceOutputDir, relativeOutputDir=individual_sequence.path, logFile=logFile,\
 									individual_sequence_id=individual_sequence.id, bamFile=None, library=library, mate_id=mate_id, \
-									parentJobLs=[splitReadFileJob1, sequenceOutputDirJob], job_max_memory=100, job_max_walltime = 60, \
+									parentJobLs=[splitReadFileJob1, sequenceOutputDirJob], job_max_memory=100, walltime = 60, \
 									commit=self.commit, extraDependentInputLs=[], \
 									transferOutput=True)
 					
