@@ -5,26 +5,35 @@ Examples:
 	%s --ind_aln_id_ls 929,1508,1510,926,1577,1507,1534,1524,1512
 		-u yh -a 524  -z localhost -o  dags/PSMCOnAlignment/PSMCOnAlignmentOnSubspecies.xml
 		-j hcondor -l hcondor
-		--clusters_size 25 -e /u/home/eeskin/polyacti/
+		--clusters_size 5 -e /u/home/eeskin/polyacti/
 		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--sequence_filtered 1 --alignment_method_id 2 --needSSHDBTunnel --commit
-		# -Y
-		#--minContigID 96 --maxContigID 100	#useless right now
+		#--minContigID 1 --maxContigID 100
+		#--contigMaxRankBySize 1000
+		#--chromosome_type_id 2	#use X chromosomes
 	
 	#2013.2.12 more refined pattern: 4*2+40*1+5*2
-	%s --ind_aln_id_ls 929,1508,1510,926,1577,1507,1534 --patternOfPSMCTimeIntervals 4*2+40*1+5*2
-		-u yh -a 524  -z localhost -o  dags/PSMCOnAlignment/PSMCOn7AlignmentOnSubspeciesRefinedPattern.xml
+	%s --ind_aln_id_ls 929,1508,1510,926,927,1577,1507,1534 --patternOfPSMCTimeIntervals 4*2+40*1+5*2
+		-u yh -a 524  -z localhost -o  dags/PSMCOnAlignment/PSMCOn8AlignmentRefinedPattern.xml
 		-j hcondor -l hcondor
-		--clusters_size 25 -e /u/home/eeskin/polyacti/
+		--clusters_size 5 -e /u/home/eeskin/polyacti/
 		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--sequence_filtered 1 --alignment_method_id 2 --needSSHDBTunnel --commit
+		--contigMaxRankBySize 100 --chromosome_type_id 1
+	
+	#only on chromosome X
+	%s --ind_aln_id_ls 929,1508,1510,926,1577,1507,1534  --patternOfPSMCTimeIntervals 4*2+40*1+5*2
+		-u yh -a 524 -z localhost -o dags/PSMCOnAlignment/PSMCOn7AlignmentsXChromosomesRefinedPattern.xml
+		-j hcondor -l hcondor --clusters_size 5 -e /u/home/eeskin/polyacti/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		-H --commit --contigMaxRankBySize 100 --chromosome_type_id 2
 	
 Description:
 	2013.1.25 run psmc (Li, Durbin 2011) on alignments
 		
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
@@ -111,7 +120,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		psmc = Executable(namespace=namespace, name="psmc", version=version, \
 						os=operatingSystem, arch=architecture, installed=True)
 		psmc.addPFN(PFN("file://" + os.path.join(self.psmcFolderPath, "psmc"), site_handler))
-		executableClusterSizeMultiplierList.append((psmc, 1))
+		executableClusterSizeMultiplierList.append((psmc, 0.1))
 
 		fq2psmcfa = Executable(namespace=namespace, name="fq2psmcfa", version=version, \
 						os=operatingSystem, arch=architecture, installed=True)
@@ -146,6 +155,8 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 										name='AddIndividualAlignmentConsensusSequence2DB', clusterSizeMultipler=0.05)
 		#2013.2.10 reduce clustering size for runShellCommand because ms takes a while
 		self.setOrChangeExecutableClusterSize(executable=self.runShellCommand, clusterSizeMultipler=0.1)
+		#2013.2.15 this SelectChromosomeSequences does it only on one alignment at a time
+		self.setOrChangeExecutableClusterSize(executable=self.SelectChromosomeSequences, clusterSizeMultipler=0.05)
 	
 	def preReduce(self, workflow=None, passingData=None, transferOutput=True, **keywords):
 		"""
@@ -154,6 +165,182 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		returnData = PassingData(no_of_jobs = 0)
 		returnData.jobDataLs = []
 		
+		return returnData
+
+	def PSMCOnIndividualSequenceSubWorkflow(self, individual_sequence_id=None, data_dir=None, passingData=None, transferOutput=True,\
+										**keywords):
+		"""
+		2013.2.16
+		"""
+		sys.stderr.write("Add psmc sub-workflow for individual_sequence_id=%s. %s jobs now ...\n"%(individual_sequence_id, self.no_of_jobs))
+		returnData = PassingData(jobDataLs = [])
+		
+		chrIDSet = passingData.chrIDSet
+		chr2IntervalDataLs = passingData.chr2IntervalDataLs
+		topOutputDirJob = passingData.topOutputDirJob
+		plotOutputDirJob = passingData.plotOutputDirJob
+		
+		individual_sequence = VervetDB.IndividualSequence.get(individual_sequence_id)
+		
+		outputFilenamePrefix = os.path.basename(individual_sequence.constructRelativePathForIndividualSequence())
+		
+		inputFileAbsPath = individual_sequence.getFileAbsPath(newDataDir=data_dir)
+		fastaFile = self.registerOneInputFile(inputFname=inputFileAbsPath, folderName=self.pegasusFolderName)
+		#select sequences only from specific chromosomes
+		chooseChromosomeConsensusSequenceOutputFile = File(os.path.join(topOutputDirJob.output, \
+											'%s_%sChromosomes.fastq.gz'%(outputFilenamePrefix, len(chrIDSet))))
+		chooseChromosomeConsensusSequenceJob = self.addGenericJob(executable=self.SelectChromosomeSequences, \
+					inputFile=fastaFile, \
+					outputFile=chooseChromosomeConsensusSequenceOutputFile, inputFileList=[], \
+					parentJobLs=[topOutputDirJob], \
+					extraDependentInputLs=[], extraOutputLs=[], transferOutput=False, \
+					extraArguments=None, extraArgumentList=["--chromosomeList", ','.join(list(chrIDSet))], \
+					job_max_memory=1000,  sshDBTunnel=None, \
+					key2ObjectForJob=None, no_of_cpus=None, walltime=120)
+		
+		returnData = self.PSMCOnFastQSubWorkflow(fastQFile=chooseChromosomeConsensusSequenceOutputFile, \
+						outputFilenamePrefix=outputFilenamePrefix, passingData=passingData, \
+						parentJobLs=[chooseChromosomeConsensusSequenceJob], affiliatedDBEntry=individual_sequence,\
+						psmcPlotTitle='genomeISQ%s'%(individual_sequence.id), transferOutput=transferOutput)
+		
+		sys.stderr.write(" %s jobs.\n"%(self.no_of_jobs))
+		return returnData
+		
+	def PSMCOnFastQSubWorkflow(self, workflow=None, fastQFile=None, outputFilenamePrefix=None, passingData=None, \
+							parentJobLs=None, affiliatedDBEntry=None, \
+							psmcPlotTitle=None,\
+							transferOutput=True, **keywords):
+		"""
+			psmcPlotTitle is for the psmc plot based on the whole fastQFile, not bootstrap or simulations.
+				'depth%s-%s'%(minDP, maxDP)
+			affiliatedDBEntry could be IndividualAlignment or IndividualSequence, must have constructPSMCPlotLabel() defined.
+		2013.2.16
+		"""
+		sys.stderr.write("\t Add psmc sub-workflow for fastQFile %s. %s jobs now ..."%(fastQFile.name, self.no_of_jobs))
+		if workflow is None:
+			workflow = self
+		if parentJobLs is None:
+			parentJobLs = []
+		
+		returnData = PassingData(jobDataLs = [])
+		
+		chrIDSet = passingData.chrIDSet
+		chr2IntervalDataLs = passingData.chr2IntervalDataLs
+		topOutputDirJob = passingData.topOutputDirJob
+		plotOutputDirJob = passingData.plotOutputDirJob
+		
+		#added self.minBaseQ to this fq2psmcfa job 
+		psmcInputFile = File(os.path.join(topOutputDirJob.output, '%s.psmcfa'%(outputFilenamePrefix)))
+		fq2psmcfaJob = self.addGenericJob(executable=self.fq2psmcfa, \
+					inputArgumentOption=None, \
+					outputArgumentOption=None, inputFileList=[], \
+					parentJob=None, parentJobLs=parentJobLs + [topOutputDirJob], \
+					extraDependentInputLs=[fastQFile], extraOutputLs=[psmcInputFile], transferOutput=False, \
+					extraArguments=None, extraArgumentList=[self.psmcFolderPath, \
+											fastQFile, psmcInputFile, "%s"%self.minBaseQ], \
+					job_max_memory=1000,  sshDBTunnel=None, \
+					key2ObjectForJob=None, no_of_cpus=None, walltime=360)
+		passingData.fq2psmcfaJob = fq2psmcfaJob
+		
+		psmcOutputFile = File(os.path.join(topOutputDirJob.output, '%s.psmc'%(outputFilenamePrefix)))
+		psmcJob = self.addGenericJob(executable=self.psmc, \
+					inputArgumentOption=None, \
+					outputFile=psmcOutputFile, outputArgumentOption="-o", inputFileList=[psmcInputFile], \
+					parentJob=None, parentJobLs=[fq2psmcfaJob, topOutputDirJob], \
+					extraDependentInputLs=[], extraOutputLs=[], transferOutput=True, \
+					extraArguments='-N%s -t%s -r%s -p %s'%(self.maxNoOfIterations, self.max2N0CoalescentTime, \
+									self.initThetaRhoRatio, self.patternOfPSMCTimeIntervals), \
+					extraArgumentList=[], \
+					job_max_memory=1000,  sshDBTunnel=None, \
+					key2ObjectForJob=None, no_of_cpus=None, walltime=600)	#10 hours
+		
+		returnData.wholeGenomePSMCJob = psmcJob	#to be accessed in reduce()
+		returnData.wholeGenomePSMCJob.affiliatedDBEntry = affiliatedDBEntry	#to be accessed in reduce()
+		
+		self.bootstrapOnePSMCFastaFile(affiliatedDBEntry=affiliatedDBEntry, passingData=passingData, \
+									outputFilenamePrefix=outputFilenamePrefix,\
+									chrIDSet=chrIDSet, chr2IntervalDataLs=chr2IntervalDataLs, \
+									fq2psmcfaJob=fq2psmcfaJob, \
+									wholeGenomePSMCJob=psmcJob, outputDirPrefix=passingData.outputDirPrefix, \
+									transferOutput=True)
+		
+		msCommandFile = File(os.path.join(topOutputDirJob.output, '%s.ms_command.sh'%(outputFilenamePrefix)))
+		psmcOutput2MSCommandJob = self.addGenericJob(executable=self.GenerateMSCommandFromPSMCOutput, \
+					inputArgumentOption=None, \
+					outputArgumentOption=None, inputFileList=[], \
+					parentJob=None, parentJobLs=[psmcJob, topOutputDirJob], \
+					extraDependentInputLs=[psmcJob.output], extraOutputLs=[msCommandFile], transferOutput=True, \
+					extraArguments='', extraArgumentList=[self.psmcFolderPath, psmcJob.output, msCommandFile, \
+						"-L %s -u %s -g %s -R %s -d %s"%\
+						(self.chromosomeLengthToSimulate, self.mutationRatePerNucleotidePerGeneration, self.noOfYearsPerGeneration, self.recombinationHotSpotRateMultipler, self.divergenceTimeToSimulate)], \
+					job_max_memory=1000,  sshDBTunnel=None, \
+					key2ObjectForJob=None, no_of_cpus=None, walltime=None)
+		
+		self.simulateOnePSMCResult(affiliatedDBEntry=affiliatedDBEntry, passingData=passingData, outputFilenamePrefix=outputFilenamePrefix,\
+								psmcOutput2MSCommandJob=psmcOutput2MSCommandJob,\
+								wholeGenomePSMCJob=psmcJob, \
+								outputDirPrefix=passingData.outputDirPrefix, \
+								transferOutput=transferOutput)
+		
+		plotOutputFnamePrefix = os.path.join(plotOutputDirJob.output, '%s'%(outputFilenamePrefix))
+		self.addPSMCPlotJob(inputFileList=[psmcJob.output], \
+						figureLegendList=[affiliatedDBEntry.constructPSMCPlotLabel()], \
+						figureTitle = psmcPlotTitle,\
+						plotOutputFnamePrefix=plotOutputFnamePrefix, \
+						mutationRatePerNucleotidePerGeneration=self.mutationRatePerNucleotidePerGeneration, \
+						minNoOfGenerations=self.minNoOfGenerations, maxNoOfGenerations=self.maxNoOfGenerations, \
+						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
+						parentJobLs=[psmcJob, plotOutputDirJob], extraDependentInputLs=[psmcJob.output], \
+						transferOutput=True, job_max_memory=2000, no_of_cpus=None, walltime=None)
+		
+		sys.stderr.write(" %s jobs.\n"%(self.no_of_jobs))
+		return returnData
+		
+	
+	def extractConsensusSequenceFromAlignmentSubWorkflow(self, workflow=None, alignmentData=None, refFastaFile=None, \
+										outputFilenamePrefix=None, chrIDSet=None, chr2IntervalDataLs=None, \
+										passingData=None, transferOutput=True, **keywords):
+		"""
+		2013.2.15
+			map-reduce over the entire alignment via each chromosome
+		"""
+		sys.stderr.write("\t Add extract-consensus-sequence sub-workflow for %s. %s jobs now ..."%(outputFilenamePrefix, self.no_of_jobs))
+		returnData = PassingData(jobDataLs=[])
+		
+		topOutputDirJob = passingData.topOutputDirJob
+		reduceOutputDirJob = passingData.reduceOutputDirJob
+						
+		alignment = alignmentData.alignment
+		alignmentParentJobLs = alignmentData.jobLs
+		bamF = alignmentData.bamF
+		baiF = alignmentData.baiF
+		
+		minDP = int(max(1, alignment.median_depth/2))
+		maxDP = int(alignment.median_depth*2)
+		
+		combineConsensusSequenceOutputFile = File(os.path.join(reduceOutputDirJob.output, \
+									'%s_%sChromosomes.fastq.gz'%(outputFilenamePrefix, len(chr2IntervalDataLs)))) 
+		combineConsensusSequenceJob = self.addStatMergeJob(statMergeProgram=self.MergeSameHeaderTablesIntoOne, \
+				outputF=combineConsensusSequenceOutputFile, transferOutput=transferOutput, \
+				extraArguments='--noHeader --exitNonZeroIfAnyInputFileInexistent --inputEmptyType 1', \
+				parentJobLs=[reduceOutputDirJob])
+		#skip empty fastq files (only @\n+\n).
+		
+		for chromosome, intervalDataLs in chr2IntervalDataLs.iteritems():
+			consensusSequenceFile = File(os.path.join(topOutputDirJob.output, '%s.chr_%s.fastq.gz'%(outputFilenamePrefix, chromosome)))
+			extractConsensusSequenceFromAlignmentJob = self.addGenericJob(executable=self.ExtractConsensusSequenceFromAlignment, \
+						inputArgumentOption=None, \
+						outputArgumentOption=None, inputFileList=[], \
+						parentJob=None, parentJobLs=alignmentParentJobLs+[topOutputDirJob], \
+						extraDependentInputLs=[refFastaFile, bamF, baiF], extraOutputLs=[consensusSequenceFile], transferOutput=False, \
+						extraArguments=None, extraArgumentList=[refFastaFile, bamF, consensusSequenceFile, \
+							'%s %s %s %s %s %s %s'%(minDP, maxDP, self.minBaseQ, self.minMapQ, self.minRMSMapQ, self.minDistanceToIndel, chromosome)], \
+						job_max_memory=1000,  sshDBTunnel=None, \
+						key2ObjectForJob=None, no_of_cpus=None, walltime=900)	#walltime is 15 hours for one chromosome
+			self.addInputToStatMergeJob(workflow, statMergeJob=combineConsensusSequenceJob, \
+								inputF=consensusSequenceFile, parentJobLs=[extractConsensusSequenceFromAlignmentJob])
+		returnData.combineConsensusSequenceJob = combineConsensusSequenceJob
+		sys.stderr.write(" %s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
 	def mapEachAlignment(self, workflow=None, alignmentData=None, passingData=None, transferOutput=True, **keywords):
@@ -167,6 +354,8 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		"""
 		returnData = PassingData(jobDataLs=[])
 		
+		chrIDSet = passingData.chrIDSet
+		chr2IntervalDataLs = passingData.chr2IntervalDataLs
 		topOutputDirJob = passingData.topOutputDirJob
 		plotOutputDirJob = passingData.plotOutputDirJob
 		
@@ -175,12 +364,11 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		alignmentData = passingData.alignmentData
 		
 		alignment = alignmentData.alignment
-		alignmentParentJobLs = alignmentData.jobLs
-		bamF = alignmentData.bamF
-		baiF = alignmentData.baiF
 		
 		minDP = int(max(1, alignment.median_depth/2))
 		maxDP = int(alignment.median_depth*2)
+		outputFilenamePrefix = passingData.bamFnamePrefix
+		
 		individual_alignment_consensus_sequence = self.db_vervet.checkIndividualAlignmentConsensusSequence(individual_alignment_id=alignment.id, \
 									minDP=minDP, \
 									maxDP=maxDP, minBaseQ=self.minBaseQ, minMapQ=self.minMapQ,\
@@ -192,18 +380,15 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 										folderName=self.pegasusFolderName)
 			extractConsensusSequenceFromAlignmentJob = PassingData(output=consensusSequenceFile)
 		else:
-			consensusSequenceFile = File(os.path.join(topOutputDirJob.output, '%s.fq.gz'%(passingData.bamFnamePrefix)))
-			extractConsensusSequenceFromAlignmentJob = self.addGenericJob(executable=self.ExtractConsensusSequenceFromAlignment, \
-						inputArgumentOption=None, \
-						outputArgumentOption=None, inputFileList=[], \
-						parentJob=None, parentJobLs=alignmentParentJobLs+[topOutputDirJob], \
-						extraDependentInputLs=[refFastaFile, bamF, baiF], extraOutputLs=[consensusSequenceFile], transferOutput=True, \
-						extraArguments=None, extraArgumentList=[refFastaFile, bamF, consensusSequenceFile, \
-										'%s %s %s %s %s %s'%(minDP, maxDP, self.minBaseQ, self.minMapQ, self.minRMSMapQ, self.minDistanceToIndel)], \
-						job_max_memory=1000,  sshDBTunnel=None, \
-						key2ObjectForJob=None, no_of_cpus=None, max_walltime=3000)	#max_walltime is in minutes, 50 hours
+			extractConsensusSubWorkflowData = self.extractConsensusSequenceFromAlignmentSubWorkflow(alignmentData=alignmentData, \
+												refFastaFile=refFastaFile,\
+												outputFilenamePrefix=outputFilenamePrefix,\
+												chrIDSet=chrIDSet, \
+												chr2IntervalDataLs=chr2IntervalDataLs, passingData=passingData, \
+												transferOutput=False)
+			extractConsensusSequenceFromAlignmentJob = extractConsensusSubWorkflowData.combineConsensusSequenceJob
 			
-			logFile = File(os.path.join(topOutputDirJob.output, '%s_alignment%s_2DB.log'%(passingData.bamFnamePrefix, alignment.id)))
+			logFile = File(os.path.join(topOutputDirJob.output, '%s_alignment%s_2DB.log'%(outputFilenamePrefix, alignment.id)))
 			self.addGenericFile2DBJob(executable=self.AddIndividualAlignmentConsensusSequence2DB, \
 									inputFile=extractConsensusSequenceFromAlignmentJob.output, \
 									inputArgumentOption="-i", \
@@ -217,70 +402,25 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 						job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, \
 						key2ObjectForJob=None)
 		
-		#added self.minBaseQ to this fq2psmcfa job 
-		psmcInputFile = File(os.path.join(topOutputDirJob.output, '%s.psmcfa'%(passingData.bamFnamePrefix)))
-		fq2psmcfaJob = self.addGenericJob(executable=self.fq2psmcfa, \
-					inputArgumentOption=None, \
-					outputArgumentOption=None, inputFileList=[], \
-					parentJob=None, parentJobLs=[extractConsensusSequenceFromAlignmentJob, topOutputDirJob], \
-					extraDependentInputLs=[extractConsensusSequenceFromAlignmentJob.output], extraOutputLs=[psmcInputFile], transferOutput=False, \
-					extraArguments=None, extraArgumentList=[self.psmcFolderPath, \
-											extractConsensusSequenceFromAlignmentJob.output, psmcInputFile, "%s"%self.minBaseQ], \
+		#select sequences only from specific chromosomes
+		chooseChromosomeConsensusSequenceOutputFile = File(os.path.join(topOutputDirJob.output, \
+											'%s_%sChromosomes.fastq.gz'%(outputFilenamePrefix, len(chrIDSet))))
+		chooseChromosomeConsensusSequenceJob = self.addGenericJob(executable=self.SelectChromosomeSequences, \
+					inputFile=extractConsensusSequenceFromAlignmentJob.output, \
+					outputFile=chooseChromosomeConsensusSequenceOutputFile, inputFileList=[], \
+					parentJobLs=[extractConsensusSequenceFromAlignmentJob, topOutputDirJob], \
+					extraDependentInputLs=[], extraOutputLs=[], transferOutput=False, \
+					extraArguments=None, extraArgumentList=["--chromosomeList", ','.join(list(chrIDSet)), \
+											"--inputFileFormat 2 --outputFileFormat 2"], \
 					job_max_memory=1000,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=360)
-		passingData.fq2psmcfaJob = fq2psmcfaJob
+					key2ObjectForJob=None, no_of_cpus=None, walltime=120)
 		
-		psmcOutputFile = File(os.path.join(topOutputDirJob.output, '%s.psmc'%(passingData.bamFnamePrefix)))
-		psmcJob = self.addGenericJob(executable=self.psmc, \
-					inputArgumentOption=None, \
-					outputFile=psmcOutputFile, outputArgumentOption="-o", inputFileList=[psmcInputFile], \
-					parentJob=None, parentJobLs=[fq2psmcfaJob, topOutputDirJob], \
-					extraDependentInputLs=[], extraOutputLs=[], transferOutput=True, \
-					extraArguments='-N%s -t%s -r%s -p %s'%(self.maxNoOfIterations, self.max2N0CoalescentTime, \
-									self.initThetaRhoRatio, self.patternOfPSMCTimeIntervals), \
-					extraArgumentList=[], \
-					job_max_memory=1000,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=600)	#10 hours
-		
-		psmcJob.alignmentData = alignmentData	#to be accessed in reduce()
-		
-		passingData.wholeGenomePSMCJob = psmcJob
-		returnData.wholeGenomePSMCJob = psmcJob	#to be accessed in reduce()
-		
-		msCommandFile = File(os.path.join(topOutputDirJob.output, '%s.ms_command.sh'%(passingData.bamFnamePrefix)))
-		psmcOutput2MSCommandJob = self.addGenericJob(executable=self.GenerateMSCommandFromPSMCOutput, \
-					inputArgumentOption=None, \
-					outputArgumentOption=None, inputFileList=[], \
-					parentJob=None, parentJobLs=[psmcJob, topOutputDirJob], \
-					extraDependentInputLs=[psmcJob.output], extraOutputLs=[msCommandFile], transferOutput=True, \
-					extraArguments='', extraArgumentList=[self.psmcFolderPath, psmcJob.output, msCommandFile, \
-						"-L %s -u %s -g %s -R %s -d %s"%\
-						(self.chromosomeLengthToSimulate, self.mutationRatePerNucleotidePerGeneration, self.noOfYearsPerGeneration, self.recombinationHotSpotRateMultipler, self.divergenceTimeToSimulate)], \
-					job_max_memory=1000,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=None)
-		
-		self.simulateOneAlignmentPSMCResult(alignmentData=alignmentData, passingData=passingData, \
-								psmcOutput2MSCommandJob=psmcOutput2MSCommandJob, outputDirPrefix=passingData.outputDirPrefix, \
-								transferOutput=transferOutput)
-		
-		plotOutputFnamePrefix = os.path.join(plotOutputDirJob.output, '%s'%(passingData.bamFnamePrefix))
-		self.addPSMCPlotJob(inputFileList=[psmcJob.output], \
-						figureLegendList=[self.getPSMCPlotLabelForOneAlignment(alignment)], \
-						figureTitle = 'depth%s-%s'%(minDP, maxDP),\
-						plotOutputFnamePrefix=plotOutputFnamePrefix, \
-						mutationRatePerNucleotidePerGeneration=self.mutationRatePerNucleotidePerGeneration, \
-						minNoOfGenerations=self.minNoOfGenerations, maxNoOfGenerations=self.maxNoOfGenerations, \
-						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
-						parentJobLs=[psmcJob, plotOutputDirJob], extraDependentInputLs=[psmcJob.output], \
-						transferOutput=True, job_max_memory=2000, no_of_cpus=None, max_walltime=None)
+		returnData = self.PSMCOnFastQSubWorkflow(fastQFile=chooseChromosomeConsensusSequenceOutputFile, \
+						outputFilenamePrefix=outputFilenamePrefix, passingData=passingData, \
+						parentJobLs=[chooseChromosomeConsensusSequenceJob], affiliatedDBEntry=alignment,\
+						psmcPlotTitle='depth%s-%s'%(minDP, maxDP), transferOutput=transferOutput)
 		
 		return returnData
-	
-	def getPSMCPlotLabelForOneAlignment(self, individual_alignment=None):
-		"""
-		2013.2.12
-		"""
-		return '%s_%s%dMD'%(individual_alignment.individual_sequence.individual.code, individual_alignment.individual_sequence.individual.sex, individual_alignment.median_depth)
 	
 	def addPSMCPlotJob(self, inputFileList=None, figureLegendList=None, figureTitle=None, \
 					plotOutputFnamePrefix=None, \
@@ -288,7 +428,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 					minNoOfGenerations=None, maxNoOfGenerations=None, maxPopulationSize=None, noOfYearsPerGeneration=None,\
 					parentJob=None, parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 					extraArguments=None, job_max_memory=1000,  \
-					no_of_cpus=None, max_walltime=None, **keywords):
+					no_of_cpus=None, walltime=None, **keywords):
 		"""
 		2013.2.10, add/change argument inputFileList, figureLegendList
 		2013.2.5
@@ -343,7 +483,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 									maxPopulationSize, noOfYearsPerGeneration, figureLegendArgument, figureTitleArgument),\
 							plotOutputFnamePrefix], \
 					job_max_memory=job_max_memory,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=no_of_cpus, max_walltime=max_walltime)
+					key2ObjectForJob=None, no_of_cpus=no_of_cpus, walltime=walltime)
 		
 		plotPNGOutputFile = File('%s.png'%(plotOutputFnamePrefix))
 		self.addConvertImageJob(inputFile=plotOutputFile, \
@@ -353,28 +493,27 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 					frontArgumentList=None, extraArguments=None, extraArgumentList=None, job_max_memory=500)
 		return psmc_plotJob
 	
-	def mapReduceOneAlignment(self, workflow=None, alignmentData=None, passingData=None, \
-						chrIDSet=None, chr2IntervalDataLs=None, chr2VCFFile=None, \
-						outputDirPrefix=None, transferOutput=False, **keywords):
+	def bootstrapOnePSMCFastaFile(self, workflow=None, affiliatedDBEntry=None, passingData=None, \
+							outputFilenamePrefix=None,\
+							chrIDSet=None, chr2IntervalDataLs=None,\
+							fq2psmcfaJob=None, wholeGenomePSMCJob=None,\
+							outputDirPrefix=None, transferOutput=False, **keywords):
 		"""
+		2013.2.16 renamed from mapReduceOneAlignment() and be invoked within mapEachAlignment()
 		2013.1.25
 			run splitfa, 
 			map:
 				bootstrap psmc runs
 			reduce: concatenate all bootstrap-psmc output + the normal psmc output
 				plot the result
-				
 		"""
-		fq2psmcfaJob = passingData.fq2psmcfaJob
-		alignmentData = passingData.alignmentData
 		plotOutputDirJob = passingData.plotOutputDirJob
 		
-		alignment = alignmentData.alignment
-		bootstrapOutputDir = "%sBootstrapPSMC_%s"%(outputDirPrefix, passingData.bamFnamePrefix)
+		bootstrapOutputDir = "%sBootstrapPSMC_%s"%(outputDirPrefix, outputFilenamePrefix)
 		bootstrapOutputDirJob = self.addMkDirJob(outputDir=bootstrapOutputDir)
 		
 		splitPSMCInputFile = File(os.path.join(bootstrapOutputDirJob.output, \
-									'%s.split%s.psmcfa'%(passingData.bamFnamePrefix, self.bootstrapTrunkSize)))
+									'%s.split%s.psmcfa'%(outputFilenamePrefix, self.bootstrapTrunkSize)))
 		splitfaJob = self.addGenericJob(executable=self.splitfa, \
 					inputArgumentOption=None, \
 					outputArgumentOption=None, inputFileList=[], \
@@ -382,19 +521,18 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 					extraDependentInputLs=[fq2psmcfaJob.output], extraOutputLs=[splitPSMCInputFile], transferOutput=True, \
 					extraArgumentList=[self.psmcFolderPath, fq2psmcfaJob.output, splitPSMCInputFile, "%s"%self.bootstrapTrunkSize], \
 					job_max_memory=1000,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=None)
+					key2ObjectForJob=None, no_of_cpus=None, walltime=None)
 		
 		mergeBootstrapPSMCOutputFile = File(os.path.join(bootstrapOutputDirJob.output, \
-									'%s.wholeGenome_%sBootstrap.psmc'%(passingData.bamFnamePrefix, self.noOfBootstraps))) 
+									'%s.wholeGenome_%sBootstrap.psmc'%(outputFilenamePrefix, self.noOfBootstraps))) 
 		mergeBootstrapPSMCOutputJob = self.addStatMergeJob(statMergeProgram=self.MergeSameHeaderTablesIntoOne, \
 				outputF=mergeBootstrapPSMCOutputFile, transferOutput=True, extraArguments='--noHeader --exitNonZeroIfAnyInputFileInexistent', parentJobLs=[bootstrapOutputDirJob])
 		#first add the whole-genome psmc output
-		wholeGenomePSMCJob = passingData.wholeGenomePSMCJob 
 		self.addInputToStatMergeJob(workflow, statMergeJob=mergeBootstrapPSMCOutputJob, \
 								inputF=wholeGenomePSMCJob.output, parentJobLs=[wholeGenomePSMCJob])
 		
 		for i in xrange(self.noOfBootstraps):
-			psmcOutputFile = File(os.path.join(bootstrapOutputDirJob.output, '%s.%s.psmc'%(passingData.bamFnamePrefix,i,)))
+			psmcOutputFile = File(os.path.join(bootstrapOutputDirJob.output, '%s.%s.psmc'%(outputFilenamePrefix,i,)))
 			psmcJob = self.addGenericJob(executable=self.psmc, \
 					inputArgumentOption=None, \
 					outputFile=psmcOutputFile, outputArgumentOption="-o", inputFileList=[splitfaJob.output], \
@@ -404,15 +542,15 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 									self.initThetaRhoRatio, self.patternOfPSMCTimeIntervals), \
 					extraArgumentList=[], \
 					job_max_memory=1000,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=600)	#-b is for bootstrapped input
+					key2ObjectForJob=None, no_of_cpus=None, walltime=600)	#-b is for bootstrapped input
 			self.addInputToStatMergeJob(workflow, statMergeJob=mergeBootstrapPSMCOutputJob, \
 								inputF=psmcJob.output, parentJobLs=[psmcJob])
 		
 		
 		plotOutputFnamePrefix = os.path.join(plotOutputDirJob.output, '%s.wholeGenome_%sBootstrap'%\
-											(passingData.bamFnamePrefix, self.noOfBootstraps))
+											(outputFilenamePrefix, self.noOfBootstraps))
 		psmc_plotJob= self.addPSMCPlotJob(inputFileList=[mergeBootstrapPSMCOutputJob.output], \
-						figureLegendList=[self.getPSMCPlotLabelForOneAlignment(alignment)],\
+						figureLegendList=[affiliatedDBEntry.constructPSMCPlotLabel()],\
 						figureTitle = '%sBootstraps'%(self.noOfBootstraps),\
 						plotOutputFnamePrefix=plotOutputFnamePrefix, \
 						mutationRatePerNucleotidePerGeneration=self.mutationRatePerNucleotidePerGeneration, \
@@ -420,10 +558,11 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
 						parentJobLs=[mergeBootstrapPSMCOutputJob, plotOutputDirJob], \
 						extraDependentInputLs=[], \
-						transferOutput=True, job_max_memory=2000, no_of_cpus=None, max_walltime=None)
+						transferOutput=True, job_max_memory=2000, no_of_cpus=None, walltime=None)
 		return
 	
-	def simulateOneAlignmentPSMCResult(self, alignmentData=None, passingData=None, psmcOutput2MSCommandJob=None,\
+	def simulateOnePSMCResult(self, affiliatedDBEntry=None, passingData=None, psmcOutput2MSCommandJob=None,\
+						outputFilenamePrefix=None, wholeGenomePSMCJob=None, \
 						outputDirPrefix=None, transferOutput=False, **keywords):
 		"""
 		2013.2.10 
@@ -435,24 +574,21 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 			run psmc_plot on all of them (assuming bootstrap mode)
 		"""
 		fq2psmcfaJob = passingData.fq2psmcfaJob
-		alignmentData = passingData.alignmentData
 		plotOutputDirJob = passingData.plotOutputDirJob
 		
-		alignment = alignmentData.alignment
-		simulateOutputDir = "%sSimulatePSMC_%s"%(outputDirPrefix, passingData.bamFnamePrefix)
+		simulateOutputDir = "%sSimulatePSMC_%s"%(outputDirPrefix, outputFilenamePrefix)
 		simulateOutputDirJob = self.addMkDirJob(outputDir=simulateOutputDir)
 		
 		mergeSimulatePSMCOutputFile = File(os.path.join(simulateOutputDirJob.output, \
-									'%s.wholeGenome_%sSimulations.psmc'%(passingData.bamFnamePrefix, self.noOfSimulations))) 
+									'%s.wholeGenome_%sSimulations.psmc'%(outputFilenamePrefix, self.noOfSimulations))) 
 		mergeSimulatePSMCOutputJob = self.addStatMergeJob(statMergeProgram=self.MergeSameHeaderTablesIntoOne, \
 				outputF=mergeSimulatePSMCOutputFile, transferOutput=True, extraArguments='--noHeader --exitNonZeroIfAnyInputFileInexistent', parentJobLs=[simulateOutputDirJob])
 		#first add the whole-genome psmc output
-		wholeGenomePSMCJob = passingData.wholeGenomePSMCJob 
 		self.addInputToStatMergeJob(self, statMergeJob=mergeSimulatePSMCOutputJob, \
 								inputF=wholeGenomePSMCJob.output, parentJobLs=[wholeGenomePSMCJob])
 		
 		newMSCommandFile = File(os.path.join(simulateOutputDirJob.output, \
-									'%s.new_ms_command.sh'%(passingData.bamFnamePrefix)))
+									'%s.new_ms_command.sh'%(outputFilenamePrefix)))
 		replaceMSPathJob = self.addAbstractMapperLikeJob(executable=self.ReplaceMSPathInMSCommandFile, \
 					inputF=psmcOutput2MSCommandJob.output, outputF=newMSCommandFile, extraOutputLs=None,\
 					parentJobLs=[psmcOutput2MSCommandJob, simulateOutputDirJob], transferOutput=True, job_max_memory=2000,\
@@ -462,24 +598,24 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		for i in xrange(self.noOfSimulations):
 
 			msOutputFile = File(os.path.join(simulateOutputDirJob.output, \
-									'%s.sim%s_msOutput.txt.gz'%(passingData.bamFnamePrefix, i)))
+									'%s.sim%s_msOutput.txt.gz'%(outputFilenamePrefix, i)))
 			msJob = self.addGenericJob(executable=self.runShellCommand, inputFile=replaceMSPathJob.output, inputArgumentOption=None, \
 					outputFile=msOutputFile, outputArgumentOption=None, \
 					parentJob=None, parentJobLs=[replaceMSPathJob], extraDependentInputLs=None, transferOutput=False, \
 					frontArgumentList=None, extraArguments=None, extraArgumentList=["1"], job_max_memory=2000,  \
-					no_of_cpus=None, max_walltime=None)	#the extra "1" argument enables gzipping
+					no_of_cpus=None, walltime=None)	#the extra "1" argument enables gzipping
 			
 			#output a fasta file, every 100bp -> N/T/K
 			msOutputFastQFile = File(os.path.join(simulateOutputDirJob.output, \
-									'%s.sim%s_msOutput.fq.gz'%(passingData.bamFnamePrefix, i)))
+									'%s.sim%s_msOutput.fq.gz'%(outputFilenamePrefix, i)))
 			msOutput2FastQJob = self.addGenericJob(executable=self.ConvertMSOutput2FASTQ, inputFile=msJob.output, \
 					outputFile=msOutputFastQFile,\
 					parentJob=None, parentJobLs=[msJob], extraDependentInputLs=None, extraOutputLs=None, transferOutput=False, \
 					frontArgumentList=None, extraArguments="--inputFileFormat 2", extraArgumentList=None, job_max_memory=2000,  \
-					no_of_cpus=None, max_walltime=None)
+					no_of_cpus=None, walltime=None)
 			
 			#added self.minBaseQ to this fq2psmcfa job 
-			psmcInputFile = File(os.path.join(simulateOutputDirJob.output, '%s.sim%s.psmcfa'%(passingData.bamFnamePrefix,i)))
+			psmcInputFile = File(os.path.join(simulateOutputDirJob.output, '%s.sim%s.psmcfa'%(outputFilenamePrefix,i)))
 			fq2psmcfaJob = self.addGenericJob(executable=self.fq2psmcfa, \
 						inputArgumentOption=None, \
 						outputArgumentOption=None, inputFileList=[], \
@@ -488,10 +624,10 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 						extraArguments=None, extraArgumentList=[self.psmcFolderPath, \
 												msOutput2FastQJob.output, psmcInputFile, "%s"%self.minBaseQ], \
 						job_max_memory=1000,  sshDBTunnel=None, \
-						key2ObjectForJob=None, no_of_cpus=None, max_walltime=360)
+						key2ObjectForJob=None, no_of_cpus=None, walltime=360)
 			
 			splitPSMCInputFile = File(os.path.join(simulateOutputDirJob.output, \
-									'%s.sim%s.bootstrap.psmcfa'%(passingData.bamFnamePrefix, i)))
+									'%s.sim%s.bootstrap.psmcfa'%(outputFilenamePrefix, i)))
 			splitfaJob = self.addGenericJob(executable=self.splitfa, \
 						inputArgumentOption=None, \
 						outputArgumentOption=None, inputFileList=[], \
@@ -499,9 +635,9 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 						extraDependentInputLs=[fq2psmcfaJob.output], extraOutputLs=[splitPSMCInputFile], transferOutput=False, \
 						extraArgumentList=[self.psmcFolderPath, fq2psmcfaJob.output, splitPSMCInputFile, "%s"%(self.bootstrapTrunkSize*3)], \
 						job_max_memory=1000,  sshDBTunnel=None, \
-						key2ObjectForJob=None, no_of_cpus=None, max_walltime=None)
+						key2ObjectForJob=None, no_of_cpus=None, walltime=None)
 			
-			psmcOutputFile = File(os.path.join(simulateOutputDirJob.output, '%s.sim%s.psmc'%(passingData.bamFnamePrefix,i,)))
+			psmcOutputFile = File(os.path.join(simulateOutputDirJob.output, '%s.sim%s.psmc'%(outputFilenamePrefix,i,)))
 			psmcJob = self.addGenericJob(executable=self.psmc, \
 					inputArgumentOption=None, \
 					outputFile=psmcOutputFile, outputArgumentOption="-o", inputFileList=[splitfaJob.output], \
@@ -511,15 +647,15 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 									self.initThetaRhoRatio, self.patternOfPSMCTimeIntervals), \
 					extraArgumentList=[], \
 					job_max_memory=1000,  sshDBTunnel=None, \
-					key2ObjectForJob=None, no_of_cpus=None, max_walltime=600)
+					key2ObjectForJob=None, no_of_cpus=None, walltime=600)
 			self.addInputToStatMergeJob(self, statMergeJob=mergeSimulatePSMCOutputJob, \
 								inputF=psmcJob.output, parentJobLs=[psmcJob])
 		
 		
 		plotOutputFnamePrefix = os.path.join(plotOutputDirJob.output, '%s.%sMSSimulations'%\
-											(passingData.bamFnamePrefix, self.noOfSimulations))
+											(outputFilenamePrefix, self.noOfSimulations))
 		psmc_plotJob= self.addPSMCPlotJob(inputFileList=[mergeSimulatePSMCOutputJob.output], \
-						figureLegendList=[self.getPSMCPlotLabelForOneAlignment(alignment)],\
+						figureLegendList=[affiliatedDBEntry.constructPSMCPlotLabel()],\
 						figureTitle = '%sSimulations'%(self.noOfSimulations),\
 						plotOutputFnamePrefix=plotOutputFnamePrefix, \
 						mutationRatePerNucleotidePerGeneration=self.mutationRatePerNucleotidePerGeneration, \
@@ -527,7 +663,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
 						parentJobLs=[mergeSimulatePSMCOutputJob, plotOutputDirJob], \
 						extraDependentInputLs=[], \
-						transferOutput=True, job_max_memory=2000, no_of_cpus=None, max_walltime=None)
+						transferOutput=True, job_max_memory=2000, no_of_cpus=None, walltime=None)
 		return
 	
 	def reduce(self, workflow=None, passingData=None, reduceAfterEachAlignmentDataLs=None,
@@ -535,22 +671,50 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		"""
 		2012.9.17
 		"""
-		returnData = PassingData()
-		returnData.jobDataLs = []
+		returnData = PassingData(jobDataLs = [])
 		
+		
+		wholeGenomePSMCJobList = [mapEachAlignmentData.wholeGenomePSMCJob for mapEachAlignmentData in passingData.mapEachAlignmentDataLs]
+		
+		
+		"""
+		2013.2.17 these ref genomes do not contain heterozygous calls, so no good for PSMC
+		#add a psmc workflow for vervet ref
+		isq_524_psmc_workflow = self.PSMCOnIndividualSequenceSubWorkflow(individual_sequence_id=524, data_dir=self.data_dir, passingData=passingData,\
+												transferOutput=True)
+		wholeGenomePSMCJobList.append(isq_524_psmc_workflow.wholeGenomePSMCJob)
+		# version 1.0.3 of vervet ref
+		isq_3231_psmc_workflow = self.PSMCOnIndividualSequenceSubWorkflow(individual_sequence_id=3231, data_dir=self.data_dir, passingData=passingData,\
+												transferOutput=True)
+		wholeGenomePSMCJobList.append(isq_3231_psmc_workflow.wholeGenomePSMCJob)
+		
+		
+		#2013.2.16 need to tune chrIDSet according to tax_id 
+		# human genome.
+		isq_10_psmc_workflow = self.PSMCOnIndividualSequenceSubWorkflow(individual_sequence_id=10, data_dir=self.data_dir, passingData=passingData,\
+												transferOutput=True)
+		wholeGenomePSMCJobList.append(isq_10_psmc_workflow.wholeGenomePSMCJob)
+		# chimp genome.	#not available
+		#isq_11_psmc_workflow = self.PSMCOnIndividualSequenceSubWorkflow(individual_sequence_id=11, data_dir=self.data_dir, passingData=passingData,\
+		#										transferOutput=True)
+		#wholeGenomePSMCJobList.append(isq_11_psmc_workflow.wholeGenomePSMCJob)
+		
+		# macaque genome.
+		isq_12_psmc_workflow = self.PSMCOnIndividualSequenceSubWorkflow(individual_sequence_id=12, data_dir=self.data_dir, passingData=passingData,\
+												transferOutput=True)
+		wholeGenomePSMCJobList.append(isq_12_psmc_workflow.wholeGenomePSMCJob)
+		"""
 		plotOutputDir = "%sMultiLinePSMCPlot"%(passingData.outputDirPrefix)
 		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
-		
 		
 		psmc_plot_inputFileList = []
 		psmc_plot_parentJobList = []
 		figureLegendList = []
-		for mapEachAlignmentData in passingData.mapEachAlignmentDataLs:
-			wholeGenomePSMCJob = mapEachAlignmentData.wholeGenomePSMCJob
+		for wholeGenomePSMCJob in wholeGenomePSMCJobList:
 			psmc_plot_inputFileList.append(wholeGenomePSMCJob.output)
 			psmc_plot_parentJobList.append(wholeGenomePSMCJob)
-			alignment = wholeGenomePSMCJob.alignmentData.alignment
-			legend = self.getPSMCPlotLabelForOneAlignment(alignment)
+			affiliatedDBEntry = wholeGenomePSMCJob.affiliatedDBEntry
+			legend = affiliatedDBEntry.constructPSMCPlotLabel()
 			figureLegendList.append(legend)
 			
 		plotOutputFnamePrefix = os.path.join(plotOutputDirJob.output, 'MultiLine_%sAlignments'%\
@@ -565,7 +729,7 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 						maxPopulationSize=self.maxPopulationSize, noOfYearsPerGeneration=self.noOfYearsPerGeneration, \
 						parentJobLs=psmc_plot_parentJobList + [plotOutputDirJob], \
 						extraDependentInputLs=[], \
-						transferOutput=True, job_max_memory=2000, no_of_cpus=None, max_walltime=None)
+						transferOutput=True, job_max_memory=2000, no_of_cpus=None, walltime=None)
 		return returnData
 	
 if __name__ == '__main__':
