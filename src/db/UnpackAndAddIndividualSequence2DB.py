@@ -246,11 +246,11 @@ echo %s
 		
 	def addConvertBamToFastqAndGzipJob(self, workflow=None, executable=None, \
 							inputF=None, outputFnamePrefix=None, \
-							parentJobLs=[], job_max_memory=2000, job_max_walltime = 800, extraDependentInputLs=[], \
+							parentJobLs=[], job_max_memory=2000, walltime = 800, extraDependentInputLs=[], \
 							transferOutput=False, **keywords):
 		"""
 		2012.1.3
-			job_max_walltime is in minutes (max time allowed on hoffman2 is 24 hours).
+			walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			The executable should be convertBamToFastqAndGzip.
 			
 		"""
@@ -266,7 +266,7 @@ echo %s
 		job.output1 = output1
 		job.output2 = output2
 		
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime)
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=walltime)
 		workflow.addJob(job)
 		for input in extraDependentInputLs:
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
@@ -276,7 +276,7 @@ echo %s
 	
 	def addSplitReadFileJob(self, workflow=None, executable=None, \
 							inputF=None, outputFnamePrefix=None, outputFnamePrefixTail="",\
-							minNoOfReads=5000000, logFile=None, parentJobLs=[], job_max_memory=2000, job_max_walltime = 800, \
+							minNoOfReads=5000000, logFile=None, parentJobLs=[], job_max_memory=2000, walltime = 800, \
 							extraDependentInputLs=[], \
 							transferOutput=False, **keywords):
 		"""
@@ -291,7 +291,7 @@ echo %s
 			
 			a log file is generated and registered for transfer (so that pegasus won't skip it)
 		
-			job_max_walltime is in minutes (max time allowed on hoffman2 is 24 hours).
+			walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			
 		"""
 		if workflow is None:
@@ -306,7 +306,7 @@ echo %s
 			job.uses(logFile, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
 			job.output = logFile
 		
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime)
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=walltime)
 		workflow.addJob(job)
 		for input in extraDependentInputLs:
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
@@ -317,7 +317,7 @@ echo %s
 	def addRegisterAndMoveSplitFileJob(self, workflow=None, executable=None, \
 							inputDir=None, outputDir=None, relativeOutputDir=None, logFile=None,\
 							individual_sequence_id=None, bamFile=None, library=None, mate_id=None, \
-							parentJobLs=[], job_max_memory=100, job_max_walltime = 60, \
+							parentJobLs=[], job_max_memory=100, walltime = 60, \
 							commit=0, sequence_format='fastq',\
 							extraDependentInputLs=[], extraArguments=None, \
 							transferOutput=False, sshDBTunnel=1, **keywords):
@@ -325,7 +325,7 @@ echo %s
 		2012.4.30
 			add argument extraArguments, sshDBTunnel
 		2012.1.24
-			job_max_walltime is in minutes (max time allowed on hoffman2 is 24 hours).
+			walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			
 		"""
 		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
@@ -347,7 +347,7 @@ echo %s
 			job.output = logFile
 		if extraArguments:
 			job.addArguments(extraArguments)
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, max_walltime=job_max_walltime, sshDBTunnel=sshDBTunnel)
+		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=walltime, sshDBTunnel=sshDBTunnel)
 		workflow.addJob(job)
 		for input in extraDependentInputLs:
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
@@ -632,7 +632,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 								inputF=fastqFile, outputFnamePrefix=splitFastQFnamePrefix, \
 								outputFnamePrefixTail="", minNoOfReads=minNoOfReads, \
 								logFile=logFile, parentJobLs=[splitOutputDirJob], \
-								job_max_memory=2000, job_max_walltime = 800, \
+								job_max_memory=2000, walltime = 800, \
 								extraDependentInputLs=[], transferOutput=True)
 				
 				logFile = File('%s_%s_%s.register.log'%(individual_sequence.id, library, mateID))
@@ -640,7 +640,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 				registerJob1 = self.addRegisterAndMoveSplitFileJob(workflow, executable=workflow.RegisterAndMoveSplitSequenceFiles, \
 								inputDir=splitOutputDir, outputDir=sequenceOutputDir, relativeOutputDir=individual_sequence.path, logFile=logFile,\
 								individual_sequence_id=individual_sequence.id, bamFile=fastqFile, library=library, mate_id=mateID, \
-								parentJobLs=[splitReadFileJob1, sequenceOutputDirJob], job_max_memory=100, job_max_walltime = 60, \
+								parentJobLs=[splitReadFileJob1, sequenceOutputDirJob], job_max_memory=100, walltime = 60, \
 								commit=commit, sequence_format=sequence_format, extraDependentInputLs=[], \
 								extraArguments='--mate_id_associated_with_bam', \
 								transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
@@ -709,7 +709,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			
 			convertBamToFastqAndGzip_job = self.addConvertBamToFastqAndGzipJob(workflow, executable=workflow.convertBamToFastqAndGzip, \
 							inputF=bamInputF, outputFnamePrefix=outputFnamePrefix, \
-							parentJobLs=[sam2fastqOutputDirJob], job_max_memory=2000, job_max_walltime = 800, \
+							parentJobLs=[sam2fastqOutputDirJob], job_max_memory=2000, walltime = 800, \
 							extraDependentInputLs=[], \
 							transferOutput=False)
 			
@@ -725,14 +725,14 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 							inputF=convertBamToFastqAndGzip_job.output1, outputFnamePrefix=splitFastQFnamePrefix, \
 							outputFnamePrefixTail="", minNoOfReads=minNoOfReads, \
 							logFile=logFile, parentJobLs=[convertBamToFastqAndGzip_job, splitOutputDirJob], \
-							job_max_memory=2000, job_max_walltime = 800, \
+							job_max_memory=2000, walltime = 800, \
 							extraDependentInputLs=[], transferOutput=True)
 			
 			logFile = File('%s_%s_%s.register.log'%(individual_sequence.id, library, mate_id))
 			registerJob1 = self.addRegisterAndMoveSplitFileJob(workflow, executable=workflow.RegisterAndMoveSplitSequenceFiles, \
 							inputDir=splitOutputDir, outputDir=sequenceOutputDir, relativeOutputDir=individual_sequence.path, logFile=logFile,\
 							individual_sequence_id=individual_sequence.id, bamFile=bamInputF, library=library, mate_id=mate_id, \
-							parentJobLs=[splitReadFileJob1, sequenceOutputDirJob], job_max_memory=100, job_max_walltime = 60, \
+							parentJobLs=[splitReadFileJob1, sequenceOutputDirJob], job_max_memory=100, walltime = 60, \
 							commit=commit, sequence_format=sequence_format, extraDependentInputLs=[], \
 							transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
 			#handle the 2nd end
@@ -743,14 +743,14 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 							inputF=convertBamToFastqAndGzip_job.output2, outputFnamePrefix=splitFastQFnamePrefix, \
 							outputFnamePrefixTail="", minNoOfReads=minNoOfReads, \
 							logFile=logFile, parentJobLs=[convertBamToFastqAndGzip_job, splitOutputDirJob], \
-							job_max_memory=2000, job_max_walltime = 800, \
+							job_max_memory=2000, walltime = 800, \
 							extraDependentInputLs=[], transferOutput=True)
 			
 			logFile = File('%s_%s_%s.register.log'%(individual_sequence.id, library, mate_id))
 			registerJob1 = self.addRegisterAndMoveSplitFileJob(workflow, executable=workflow.RegisterAndMoveSplitSequenceFiles, \
 							inputDir=splitOutputDir, outputDir=sequenceOutputDir, relativeOutputDir=individual_sequence.path, logFile=logFile,\
 							individual_sequence_id=individual_sequence.id, bamFile=bamInputF, library=library, mate_id=mate_id, \
-							parentJobLs=[splitReadFileJob2, sequenceOutputDirJob], job_max_memory=100, job_max_walltime = 60, \
+							parentJobLs=[splitReadFileJob2, sequenceOutputDirJob], job_max_memory=100, walltime = 60, \
 							commit=commit, sequence_format=sequence_format, extraDependentInputLs=[], \
 							transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
 			
