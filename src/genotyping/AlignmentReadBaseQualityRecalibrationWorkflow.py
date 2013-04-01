@@ -1,27 +1,42 @@
 #!/usr/bin/env python
 """
 Examples:
-	# 2012.9.21 run base quality recalibration on VRC alignments (-S 447), individual_sequence_id from 639-642 (-i ...)
+	# 2012.9.21 run base quality recalibration on VRC alignments (-S 447), individual_sequence_id from 639-642 (--ind_seq_id_ls ...)
 	# filtered sequences (-Q 1), alignment method 2 (-G 2)
 	# --contigMaxRankBySize 1000 (top 1000 contigs)
-	#  -Z 10000000 (10 million bp for each interval) -B 30000 (30kb overlap between intervals),
-	%s -L ~/NetworkData/vervet/db/genotype_file/method_17/ -i 639-642
-		-S 447 -u yh -z localhost -Q1 -G2 -a 524 -o dags/BaseQualityRecalibration/BaseQualityRecalibration_VRC447_vsMethod17.xml
-		-l hcondor -j hcondor -z localhost -u yh --contigMaxRankBySize 1000  -Z 10000000 -B 30000
+	#  --intervalSize 10000000 (10 million bp for each interval) --intervalOverlapSize 30000 (30kb overlap between intervals),
+	%s --inputDir ~/NetworkData/vervet/db/genotype_file/method_17/ --ind_seq_id_ls 639-642
+		-S 447 -u yh -z localhost --sequence_filtered 1 --alignment_method_id 2
+		-a 524 -o dags/BaseQualityRecalibration/BaseQualityRecalibration_VRC447_vsMethod17.xml
+		-l hcondor -j hcondor -z localhost -u yh --contigMaxRankBySize 1000 
+		--intervalSize 10000000 --intervalOverlapSize 30000
 		-e /u/home/eeskin/polyacti
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--needSSHDBTunnel -J ~/bin/jdk/bin/java --mask_genotype_method_id 17
 
 	# 2012.9.18
-	%s  -L ~/NetworkData/vervet/db/genotype_file/method_41 -i 633,634,635,636,637,638 
-		-a 524 -o dags/BaseQualityRecalibration/BaseQualityRecalibration_ISQ633_638_vsMethod41.xml -l hcondor
-		-j hcondor -z localhost -u yh -Z 10000000 -B 30000
+	%s  --inputDir ~/NetworkData/vervet/db/genotype_file/method_41 --ind_seq_id_ls 633,634,635,636,637,638 
+		--ref_ind_seq_id 524
+		-o dags/BaseQualityRecalibration/BaseQualityRecalibration_ISQ633_638_vsMethod41.xml -l hcondor
+		-j hcondor -z localhost -u yh --intervalSize 10000000 --intervalOverlapSize 30000
 		-e /u/home/eeskin/polyacti
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-C 5 --needSSHDBTunnel -J ~/bin/jdk/bin/java --mask_genotype_method_id 41
-		
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--clusters_size 5 --needSSHDBTunnel -J ~/bin/jdk/bin/java --mask_genotype_method_id 41
+	
+	# 2013.3.19 use sequence coverage to filter alignments
+	%s  --inputDir ~/NetworkData/vervet/db/genotype_file/method_41
+		--sequence_min_coverage 0 --sequence_max_coverage 2  --ind_seq_id_ls 632-3230
+		--ref_ind_seq_id 3280 -o dags/BaseQualityRecalibration/BaseQualityRecalibration_ISQ632_3230_coverage0_2_vsMethod41.xml
+		-l hcondor -j hcondor -z localhost -u yh --intervalSize 10000000 --intervalOverlapSize 30000
+		-e /u/home/eeskin/polyacti --contigMaxRankBySize 250
+		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--clusters_size 5 --needSSHDBTunnel -J ~/bin/jdk/bin/java --mask_genotype_method_id 41
+		# --ref_genome_version 2 #(optional, as by default, it gets the outdated_index=0 reference chromosomes from GenomeDB)
+		# --ref_genome_outdated_index 1 #to get old reference. incompatible here as alignment is based on 3280, new ref.
+		# --needFastaDictJob --needFastaIndexJob
+	
 Description:
-	#2012.9.21  recalibration needs ~500K reads to get accurate estimate. So adjust the -Z according to coverage.  
+	#2012.9.21  recalibration needs ~500K reads to get accurate estimate. So adjust the --intervalSize according to coverage.  
 	Input: a VCF folder, list of alignment IDs (or use site_id, ref_ind_seq_id to filter )
 	
 	for each whole-genome alignment
@@ -34,7 +49,7 @@ Description:
 	add alignment file into db (input: parent alignment ID, alignment file path)
 """
 import sys, os, math
-__doc__ = __doc__%(sys.argv[0], sys.argv[0])
+__doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
@@ -176,13 +191,50 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 				extraArguments=None, job_max_memory=2000, needBAMIndexJob=True)
 		"""
 		
+		"""
+		#2013.3.18 local realignment
+		java -Xmx2g -jar GenomeAnalysisTK.jar -I input.bam -R ref.fasta  -T RealignerTargetCreator
+			-o forIndelRealigner.intervals [--known /path/to/indels.vcf]
+			
+		java -Xmx4g -jar GenomeAnalysisTK.jar -I input.bam -R ref.fasta -T IndelRealigner 
+			-targetIntervals forIndelRealigner.intervals \
+			-o realignedBam.bam \
+			[-known /path/to/indels.vcf] \
+			[-compress 0]    (this argument recommended to speed up the process *if* this is only a temporary file; otherwise, use the default value)
+
+		"""
+		realignerTargetIntervalFile = File(os.path.join(topOutputDirJob.output, '%s_%s.forIndelRealigner.intervals'%\
+													(bamFnamePrefix, overlapFilenameSignature)))
+		realignerTargetIntervalJob = self.addGATKJob(executable=self.RealignerTargetCreatorJava, GenomeAnalysisTKJar=self.GenomeAnalysisTK2Jar, \
+					GATKAnalysisType='RealignerTargetCreator',\
+					inputFile=bamF, inputArgumentOption="-I", refFastaFList=passingData.refFastaFList, inputFileList=None,\
+					argumentForEachFileInInputFileList=None,\
+					interval=overlapInterval, outputFile=realignerTargetIntervalFile, \
+					parentJobLs=[topOutputDirJob]+parentJobLs, transferOutput=False, job_max_memory=4000,\
+					frontArgumentList=None, extraArguments=None, extraArgumentList=None, extraOutputLs=None, \
+					extraDependentInputLs=None, no_of_cpus=None, walltime=300)
+		
+		realignedBamFile = File(os.path.join(topOutputDirJob.output, '%s_%s.indelRealigned.bam'%\
+											(bamFnamePrefix, overlapFilenameSignature)))
+		indelRealignmentJob = self.addGATKJob(executable=self.IndelRealignerJava, GenomeAnalysisTKJar=self.GenomeAnalysisTK2Jar, \
+					GATKAnalysisType='IndelRealigner',\
+					inputFile=bamF, inputArgumentOption="-I", refFastaFList=passingData.refFastaFList, inputFileList=None,\
+					argumentForEachFileInInputFileList=None,\
+					interval=overlapInterval, outputFile=realignedBamFile, \
+					parentJobLs=[realignerTargetIntervalJob]+parentJobLs, transferOutput=False, job_max_memory=6000,\
+					frontArgumentList=None, extraArguments=None, \
+					extraArgumentList=['-targetIntervals',realignerTargetIntervalJob.output], \
+					extraOutputLs=None, \
+					extraDependentInputLs=[realignerTargetIntervalJob.output], no_of_cpus=None, walltime=300)
+		
 		recalFile = File(os.path.join(topOutputDirJob.output, '%s_%s.recal_data.grp'%(bamFnamePrefix, overlapFilenameSignature)))
-		countCovariatesJob = self.addGATKBaseRecalibratorJob(GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, inputFile=bamF, \
+		countCovariatesJob = self.addGATKBaseRecalibratorJob(GenomeAnalysisTKJar=workflow.GenomeAnalysisTK2Jar, \
+								inputFile=indelRealignmentJob.output, \
 								VCFFile=VCFFile, interval=overlapInterval, outputFile=recalFile, \
-								refFastaFList=passingData.refFastaFList, parentJobLs=[topOutputDirJob]+parentJobLs, 
+								refFastaFList=passingData.refFastaFList, parentJobLs=[topOutputDirJob, indelRealignmentJob], 
 								extraDependentInputLs=[baiF, VCFFile.tbi_F], \
 								transferOutput=True, \
-								extraArguments=None, job_max_memory=4000)
+								extraArguments=None, job_max_memory=4000, walltime=300)
 		"""
 		countCovariatesJob = mapEachChromosomeData.countCovariatesJob
 		"""
@@ -193,7 +245,7 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 							recalFile=countCovariatesJob.recalFile, interval=overlapInterval, outputFile=recalBAMFile, \
 							refFastaFList=passingData.refFastaFList, parentJobLs=[countCovariatesJob] + parentJobLs, \
 							extraDependentInputLs=[baiF, VCFFile.tbi_F], transferOutput=False, \
-							extraArguments=None, job_max_memory=3000, needBAMIndexJob=True)
+							extraArguments=None, job_max_memory=3000, needBAMIndexJob=True, walltime=300)
 		
 		nonOverlapBamFile = File(os.path.join(topOutputDirJob.output, '%s_%s.bam'%(bamFnamePrefix, intervalFnameSignature)))
 		
@@ -372,6 +424,9 @@ class AlignmentReadBaseQualityRecalibrationWorkflow(parentClass):
 		
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='BaseRecalibratorJava', clusterSizeMultipler=0.5)
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='PrintRecalibratedReadsJava', clusterSizeMultipler=0.5)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='RealignerTargetCreatorJava', clusterSizeMultipler=0.5)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='IndelRealignerJava', clusterSizeMultipler=0.1)
+
 
 if __name__ == '__main__':
 	main_class = AlignmentReadBaseQualityRecalibrationWorkflow
