@@ -305,7 +305,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 			pass
 		else:
 			oneFlagStatOutputF = File(os.path.join(flagStatMapFolderJob.output, '%s_flagstat.txt.gz'%(alignment.id)))
-			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(executable=self.pipeCommandOutput2File, \
+			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(executable=self.samtoolsFlagStat, \
 				samtoolsFile=self.samtoolsFile, inputFile=bamF, outputFile=oneFlagStatOutputF, \
 				parentJobLs=[flagStatMapFolderJob]+ alignmentData.jobLs, extraDependentInputLs=[baiF], transferOutput=False, \
 				extraArguments=None, job_max_memory=1000)
@@ -500,6 +500,8 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 										name='PutFlagstatOutput2DB', clusterSizeMultipler=0)
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'db/input/PutDOCOutput2DB.py'), \
 										name='PutDOCOutput2DB', clusterSizeMultipler=0)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.pymodulePath, 'shell/pipeCommandOutput2File.sh'), \
+										name='samtoolsFlagStat', clusterSizeMultipler=1)
 
 	
 if __name__ == '__main__':
