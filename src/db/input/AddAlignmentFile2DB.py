@@ -145,13 +145,13 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				sys.stderr.write('Except in copying %s to db-storage with except info: %s\n'%(inputFileRealPath, repr(sys.exc_info())))
 				import traceback
 				traceback.print_exc()
-				session.rollback()
 				self.cleanUpAndExitOnFailure(exitCode=5)
+				session.rollback()
 			
 			if exitCode!=0:
-				sys.stderr.write("Error: moveFileIntoDBAffiliatedStorage() exits with %s code.\n"%(exitCode))
-				session.rollback()
+				sys.stderr.write("Error: moveFileIntoDBAffiliatedStorage() exits with code=%s.\n"%(exitCode))
 				self.cleanUpAndExitOnFailure(exitCode=exitCode)
+				session.rollback()
 			try:
 				#make sure these files are stored in self.dstFilenameLs and self.srcFilenameLs
 				#copy further files if there are
@@ -181,8 +181,8 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 				import traceback
 				traceback.print_exc()
-				session.rollback()
 				self.cleanUpAndExitOnFailure(exitCode=5)
+				session.rollback()
 		else:
 			logMessage += "%s doesn't exist.\n"%(inputFileRealPath)
 		self.outputLogMessage(logMessage)
@@ -197,9 +197,9 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				traceback.print_exc()
 				self.cleanUpAndExitOnFailure(exitCode=3)
 		else:
-			session.rollback()
 			#delete all target files but exit gracefully (exit 0)
 			self.cleanUpAndExitOnFailure(exitCode=0)
+			session.rollback()
 	
 
 
