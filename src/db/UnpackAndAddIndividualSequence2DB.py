@@ -21,12 +21,12 @@ Examples:
 	%s -i /Network/Data/vervet/raw_sequence/xfer.genome.wustl.edu/gxfer3/
 		--bamFname2MonkeyIDMapFname ~/mnt/hoffman2/u/home/eeskintmp/polyacti/NetworkData/vervet/raw_sequence/xfer.genome.wustl.edu/gxfer3/46019922623327/Vervet_12_4X_README.tsv
 		 --minNoOfReads 4000000 -u yh --commit
-		-z dl324b-1.cmb.usc.edu -j condorpool -l condorpool -o dags/DownloadUnpackReads/unpackAndAdd12_2007Monkeys2DB_condor.xml
+		-z dl324b-1.cmb.usc.edu -j condorpool -l condorpool -o dags/AddReads2DB/DownloadUnpackReads/unpackAndAdd12_2007Monkeys2DB_condor.xml
 	
 	# 2012.4.30 run on hcondor, to import McGill 1X data (-y2), (-e) is not necessary because it's running on hoffman2 and can recognize home folder.
 	#. --needSSHDBTunnel means it needs sshTunnel for db-interacting jobs.
 	%s -i ~/NetworkData/vervet/raw_sequence/McGill96_1X/ -z localhost -u yh -j hcondor -l hcondor --commit
-		-o dags/DownloadUnpackReads/unpackMcGill96_1X.xml -y2 --needSSHDBTunnel 
+		-o dags/AddReads2DB/unpackMcGill96_1X.xml -y2 --needSSHDBTunnel 
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-e /u/home/eeskin/polyacti
 	
@@ -34,7 +34,7 @@ Examples:
 	# minNoOfReads=2million (--minNoOfReads 2000000)
 	# later manually changed its tissue id to distinguish them from DNA data (below) 
 	%s -i ~namtran/panasas/Data/HiSeqRaw/Ania/SIVpilot/by.Charles.Demultiplexed/ -z localhost -u yh -j hcondor -l hcondor
-		--commit -o dags/DownloadUnpackReads/unpack20SouthAfricaSIVmonkeys.xml -y3 --needSSHDBTunnel
+		--commit -o dags/AddReads2DB/unpack20SouthAfricaSIVmonkeys.xml -y3 --needSSHDBTunnel
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -e /u/home/eeskin/polyacti 
 		--bamFname2MonkeyIDMapFname ~namtran/panasas/Data/HiSeqRaw/Ania/SIVpilot/by.Charles.Demultiplexed/sampleIds.txt
@@ -43,7 +43,7 @@ Examples:
 	# 2012.6.3 add 24 south-african monkeys DNA read data (-y4), sequenced by Joe DeYoung's core (from Nam's folder)
 	# minNoOfReads=2million (--minNoOfReads 2000000)
 	%s -i ~namtran/panasas/Data/HiSeqRaw/Ania/SIVpilot/LowpassWGS/Demultiplexed/
-		-z localhost -u yh -j hcondor -l hcondor --commit -o dags/DownloadUnpackReads/unpack20SouthAfricaSIVmonkeysDNA.xml
+		-z localhost -u yh -j hcondor -l hcondor --commit -o dags/AddReads2DB/unpack20SouthAfricaSIVmonkeysDNA.xml
 		-y4 --needSSHDBTunnel
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-e /u/home/eeskin/polyacti/
