@@ -16,7 +16,7 @@ source ~/.bash_profile
 
 javaPath=~/bin/jdk/bin/java
 javaPath=$1
-XmxMemoryInMegabyte=$2
+XmxMemoryInMegabyte=$2m
 jarPath=$3
 inputFastq=$4
 outputFnamePrefix=$5
@@ -24,8 +24,9 @@ maxNoOfReads=$6
 logFilename=$7
 
 
-commandline="$javaPath -Xms1280m -Xmx$XmxMemoryInMegabyte\m -jar $jarPath VALIDATION_STRINGENCY=LENIENT I=$inputFastq O=$outputFnamePrefix M=$maxNoOfReads >& $logFilename"
+commandline="$javaPath -Xms1280m -Xmx$XmxMemoryInMegabyte -jar $jarPath VALIDATION_STRINGENCY=LENIENT I=$inputFastq O=$outputFnamePrefix M=$maxNoOfReads"
 date
 echo commandline is $commandline
-$commandline
+echo stdout & stderr are redirected to $logFilename.
+$commandline  >& $logFilename
 date
