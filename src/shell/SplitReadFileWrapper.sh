@@ -24,4 +24,8 @@ maxNoOfReads=$6
 logFilename=$7
 
 
-$javaPath -Xms128m -Xmx$XmxMemoryInMegabyte\m -jar $jarPath VALIDATION_STRINGENCY=LENIENT I=$inputFastq O=$outputFnamePrefix M=$maxNoOfReads >& $logFilename
+commandline="$javaPath -Xms1280m -Xmx$XmxMemoryInMegabyte\m -jar $jarPath VALIDATION_STRINGENCY=LENIENT I=$inputFastq O=$outputFnamePrefix M=$maxNoOfReads >& $logFilename"
+date
+echo commandline is $commandline
+$commandline
+date
