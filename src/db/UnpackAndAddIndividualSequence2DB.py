@@ -4,7 +4,7 @@ Examples:
 	# run the program on crocea and output a local condor workflow
 	%s -i ~/NetworkData/vervet/VRC/ -t /u/home/eeskintmp/polyacti/NetworkData/vervet/db/ 
 		--bamFname2MonkeyIDMapFname ~/script/vervet/data/VRC_sequencing_20110802.tsv
-		-u yh -c -z dl324b-1.cmb.usc.edu -o /tmp/condorpool.xml
+		-u yh --commit -z dl324b-1.cmb.usc.edu -o /tmp/condorpool.xml
 
 	#2011-8-26	generate a list of all bam file physical paths through find. (doing this because they are not located on crocea)
 	find /u/home/eeskintmp/polyacti/NetworkData/vervet/raw_sequence/ -name *.bam  > /u/home/eeskintmp/polyacti/NetworkData/vervet/raw_sequence/bamFileList.txt
@@ -15,18 +15,18 @@ Examples:
 		--bamFname2MonkeyIDMapFname ~/mnt/hoffman2/u/home/eeskintmp/polyacti/NetworkData/vervet/raw_sequence/xfer.genome.wustl.edu/gxfer3/46019922623327/Vervet_12_4X_README.tsv
 		-z dl324b-1.cmb.usc.edu -l hoffman2
 		-o unpackAndAdd12_2007Monkeys2DB_hoffman2.xml
-		-c 
+		--commit 
 	
 	# 2011-8-28 output a workflow to run on local condorpool, no db commit (because records are already in db)
 	%s -i /Network/Data/vervet/raw_sequence/xfer.genome.wustl.edu/gxfer3/
 		--bamFname2MonkeyIDMapFname ~/mnt/hoffman2/u/home/eeskintmp/polyacti/NetworkData/vervet/raw_sequence/xfer.genome.wustl.edu/gxfer3/46019922623327/Vervet_12_4X_README.tsv
-		 --minNoOfReads 4000000 -u yh -c
+		 --minNoOfReads 4000000 -u yh --commit
 		-z dl324b-1.cmb.usc.edu -j condorpool -l condorpool -o dags/DownloadUnpackReads/unpackAndAdd12_2007Monkeys2DB_condor.xml
 	
 	# 2012.4.30 run on hcondor, to import McGill 1X data (-y2), (-e) is not necessary because it's running on hoffman2 and can recognize home folder.
-	#. -H means it needs sshTunnel for db-interacting jobs.
-	%s -i ~/NetworkData/vervet/raw_sequence/McGill96_1X/ -z localhost -u yh -j hcondor -l hcondor -c
-		-o dags/DownloadUnpackReads/unpackMcGill96_1X.xml -y2 -H 
+	#. --needSSHDBTunnel means it needs sshTunnel for db-interacting jobs.
+	%s -i ~/NetworkData/vervet/raw_sequence/McGill96_1X/ -z localhost -u yh -j hcondor -l hcondor --commit
+		-o dags/DownloadUnpackReads/unpackMcGill96_1X.xml -y2 --needSSHDBTunnel 
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-e /u/home/eeskin/polyacti
 	
@@ -34,7 +34,8 @@ Examples:
 	# minNoOfReads=2million (--minNoOfReads 2000000)
 	# later manually changed its tissue id to distinguish them from DNA data (below) 
 	%s -i ~namtran/panasas/Data/HiSeqRaw/Ania/SIVpilot/by.Charles.Demultiplexed/ -z localhost -u yh -j hcondor -l hcondor
-		-c -o dags/DownloadUnpackReads/unpack20SouthAfricaSIVmonkeys.xml -y3 -H -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--commit -o dags/DownloadUnpackReads/unpack20SouthAfricaSIVmonkeys.xml -y3 --needSSHDBTunnel
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -e /u/home/eeskin/polyacti 
 		--bamFname2MonkeyIDMapFname ~namtran/panasas/Data/HiSeqRaw/Ania/SIVpilot/by.Charles.Demultiplexed/sampleIds.txt
 		--minNoOfReads 2000000
@@ -42,8 +43,8 @@ Examples:
 	# 2012.6.3 add 24 south-african monkeys DNA read data (-y4), sequenced by Joe DeYoung's core (from Nam's folder)
 	# minNoOfReads=2million (--minNoOfReads 2000000)
 	%s -i ~namtran/panasas/Data/HiSeqRaw/Ania/SIVpilot/LowpassWGS/Demultiplexed/
-		-z localhost -u yh -j hcondor -l hcondor -c -o dags/DownloadUnpackReads/unpack20SouthAfricaSIVmonkeysDNA.xml
-		-y4 -H
+		-z localhost -u yh -j hcondor -l hcondor --commit -o dags/DownloadUnpackReads/unpack20SouthAfricaSIVmonkeysDNA.xml
+		-y4 --needSSHDBTunnel
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-e /u/home/eeskin/polyacti/
 		--minNoOfReads 2000000
@@ -62,7 +63,7 @@ Description:
 			4. outputs the whole unpack workflow to an xml output file.
 		
 		This program has to be run on the pegasus submission host.
-		option "-c" commits the db transaction.
+		option "--commit" commits the db transaction.
 	
 	The bamFname2MonkeyIDMapFname contains a map from monkey ID to the bam filename (only base filename is used, relative directory is not used).
 	Example ("Library" and "Bam Path" are required):
@@ -273,6 +274,7 @@ echo %s
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
 		for parentJob in parentJobLs:
 			workflow.depends(parent=parentJob, child=job)
+		self.no_of_jobs += 1
 		return job
 	
 	def addSplitReadFileJob(self, workflow=None, executable=None, \
@@ -313,6 +315,7 @@ echo %s
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
 		for parentJob in parentJobLs:
 			workflow.depends(parent=parentJob, child=job)
+		self.no_of_jobs += 1
 		return job
 	
 	def addRegisterAndMoveSplitFileJob(self, workflow=None, executable=None, \
@@ -354,6 +357,7 @@ echo %s
 			job.uses(input, transfer=True, register=True, link=Link.INPUT)
 		for parentJob in parentJobLs:
 			workflow.depends(parent=parentJob, child=job)
+		self.no_of_jobs += 1
 		return job
 	
 	def getInputFnameLsFromInput(self, input, suffixSet=set(['.fastq']), fakeSuffix='.gz'):
@@ -601,11 +605,11 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 										sequence_format=sequence_format, data_dir=data_dir)
 			
 			sequenceOutputDir = os.path.join(data_dir, individual_sequence.path)
-			sequenceOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
+			sequenceOutputDirJob = self.addMkDirJob(outputDir=sequenceOutputDir)
 			
 			splitOutputDir = '%s'%(individual_sequence.id)
 			#same directory containing split files from both mates is fine as RegisterAndMoveSplitSequenceFiles could pick up.
-			splitOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=splitOutputDir)
+			splitOutputDirJob = self.addMkDirJob( outputDir=splitOutputDir)
 			
 			
 			
@@ -675,7 +679,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		sys.stderr.write("%s total bam files.\n"%(len(bamFnameLs)))
 		
 		sam2fastqOutputDir = 'sam2fastq'
-		sam2fastqOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sam2fastqOutputDir)
+		sam2fastqOutputDirJob = self.addMkDirJob(outputDir=sam2fastqOutputDir)
 		no_of_jobs = 1
 		for bamFname in bamFnameLs:
 			bamBaseFname = os.path.split(bamFname)[1]
@@ -698,7 +702,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			"""
 			
 			sequenceOutputDir = os.path.join(data_dir, individual_sequence.path)
-			sequenceOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
+			sequenceOutputDirJob = self.addMkDirJob(outputDir=sequenceOutputDir)
 			
 			bamInputF = yh_pegasus.registerFile(workflow, bamFname)
 			
@@ -716,7 +720,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			
 			splitOutputDir = '%s_%s'%(individual_sequence.id, library)
 			#same directory containing split files from both mates is fine as RegisterAndMoveSplitSequenceFiles could pick up.
-			splitOutputDirJob = self.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=splitOutputDir)
+			splitOutputDirJob = self.addMkDirJob( outputDir=splitOutputDir)
 			
 			
 			mate_id = 1
@@ -755,7 +759,6 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 							commit=commit, sequence_format=sequence_format, extraDependentInputLs=[], \
 							transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
 			
-			no_of_jobs += 5
 			"""
 			
 			jobFname = os.path.join(self.jobFileDir, 'job%s.bam2fastq.sh'%(monkeyID))
@@ -764,7 +767,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			if self.commit:	#qsub only when db transaction will be committed.
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 			"""
-		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 	
 	def run(self):
 		"""
