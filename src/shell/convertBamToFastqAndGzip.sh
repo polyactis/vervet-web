@@ -37,7 +37,11 @@ then
 	rm -f $outputFnamePrefix\_2.fastq
 fi
 
-java -jar $picard_tool_path/SamToFastq.jar INPUT=$inputFname F=$outputFnamePrefix\_1.fastq F2=$outputFnamePrefix\_2.fastq
+commandline="java -jar $picard_tool_path/SamToFastq.jar INPUT=$inputFname F=$outputFnamePrefix\_1.fastq F2=$outputFnamePrefix\_2.fastq"
+date
+echo commandline is $commandline
+$commandline
+date
 
 #2011-8-28 delete prior files regardless of whether they exist or not
 if test -w $outputFnamePrefix\_1.fastq.gz
@@ -54,14 +58,18 @@ fi
 
 if test -s $outputFnamePrefix\_1.fastq
 then
+	echo -n "gzipping $outputFnamePrefix\_1.fastq ..."
 	gzip $outputFnamePrefix\_1.fastq
+	echo " ."
 else	#delete it if it's an empty file
 	rm -f $outputFnamePrefix\_1.fastq
 fi
 
 if test -s $outputFnamePrefix\_2.fastq
 then
+	echo -n "gzipping $outputFnamePrefix\_2.fastq ..."
 	gzip $outputFnamePrefix\_2.fastq
+	echo " ."
 else	#delete it if it's an empty file
 	rm -f $outputFnamePrefix\_2.fastq
 fi
