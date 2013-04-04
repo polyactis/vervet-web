@@ -192,7 +192,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 						import traceback
 						traceback.print_exc()
 					self.cleanUpAndExitOnFailure(exitCode=5)
-				if os.path.isfile(baiFilename) and baiFilename not in self.inputFnameLs:
+				if os.path.isfile(baiFilename):
 					srcFilename = baiFilename
 					dstFilename = os.path.join(self.data_dir, '%s.bai'%(individual_alignment.path))
 					utils.copyFile(srcFilename=srcFilename, dstFilename=dstFilename)
