@@ -308,15 +308,16 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(executable=self.samtoolsFlagStat, \
 				samtoolsFile=self.samtoolsFile, inputFile=bamF, outputFile=oneFlagStatOutputF, \
 				parentJobLs=[flagStatMapFolderJob]+ alignmentData.jobLs, extraDependentInputLs=[baiF], transferOutput=False, \
-				extraArguments=None, job_max_memory=1000)
+				extraArguments=None, job_max_memory=1000, walltime=100)
 			self.addRefFastaJobDependency(job=samtoolsFlagStatJob, refFastaF=passingData.refFastaF, \
 						fastaDictJob=passingData.fastaDictJob, refFastaDictF=passingData.refFastaDictF,\
 						fastaIndexJob = passingData.fastaIndexJob, refFastaIndexF=passingData.refFastaIndexF)
 			reformatFlagStatOutputF = File(os.path.join(flagStatMapFolderJob.output, '%s_flagstat.tsv'%(alignment.id)))
 			reformatFlagStatOutputJob = self.addReformatFlagstatOutputJob(workflow, executable=self.ReformatFlagstatOutput, \
 								inputF=oneFlagStatOutputF, alignmentID=alignment.id, outputF=reformatFlagStatOutputF, \
-								parentJobLs=[flagStatMapFolderJob, samtoolsFlagStatJob], extraDependentInputLs=[], transferOutput=False, \
-								extraArguments=None, job_max_memory=20)
+								parentJobLs=[flagStatMapFolderJob, samtoolsFlagStatJob], extraDependentInputLs=[], \
+								transferOutput=False, \
+								extraArguments=None, job_max_memory=20, walltime=30)
 			self.addInputToStatMergeJob(workflow, statMergeJob=passingData.flagStatOutputMergeJob, inputF=reformatFlagStatOutputJob.output, \
 						parentJobLs=[reformatFlagStatOutputJob])
 			self.no_of_alns_with_flagstat_jobs += 1
