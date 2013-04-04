@@ -29,4 +29,11 @@ date
 echo commandline is $commandline
 echo "stdout & stderr are redirected to $logFilename."
 $commandline  >& $logFilename
+#2013.04.03 immediatley test if exit code from previous command is non-zero.
+javaExitCode=$?
+if test "$javaExitCode" != "0"
+then
+	echo "Non-zero exit after running picard's SamToFastq.jar."
+	exit $javaExitCode
+fi
 date
