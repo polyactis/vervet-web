@@ -923,6 +923,8 @@ class IndividualSequenceFile(Entity, AbstractTableWithFilename):
 
 class IndividualSequenceFileRaw(Entity, AbstractTableWithFilename):
 	"""
+	2013.04.03 added column original_path, to take the meaning of "path"
+		"path" is now reserved for db-affiliated file.
 	2012.7.12 add column file_size
 	2012.4.30
 		add column mate_id
@@ -939,7 +941,8 @@ class IndividualSequenceFileRaw(Entity, AbstractTableWithFilename):
 	mate_id = Field(Integer)	#2012.4.30 to handle fastq raw sequence files.
 	read_count = Field(BigInteger)	#2012.2.27
 	base_count = Field(BigInteger)
-	path = Field(Text)	#path to the actual file
+	path = Field(Text)	#path to the file
+	original_path = Field(Text)	#path to the original file
 	md5sum = Field(Text, unique=True)	#used to identify each raw file
 	quality_score_format = Field(String(512), default='Standard')
 		#Standard=Phred+33 (=Sanger), Illumina=Phred+64 (roughly, check pymodule/utils for exact formula)
@@ -2331,16 +2334,16 @@ class VervetDB(ElixirDB):
 			exitCode = 0
 		return exitCode
 	
-	def getIndividualSequenceFileRaw(self, individual_sequence_id=None, library=None, md5sum=None, path=None, mate_id=None,\
-									file_size=None):
+	def getIndividualSequenceFileRaw(self, individual_sequence_id=None, library=None, md5sum=None, path=None, \
+									original_path=None, mate_id=None, file_size=None):
 		"""
+		2013.04.03 argument original_path
 		2012.7.12 add argument file_size
 		2012.4.30
 			add argument mate_id
 		2012.2.14
 		"""
 		#query first
-		import os
 		query = IndividualSequenceFileRaw.query.filter_by(individual_sequence_id=individual_sequence_id)
 		if library:
 			query = query.filter_by(library=library)
@@ -2349,14 +2352,21 @@ class VervetDB(ElixirDB):
 		if path:
 			path = os.path.realpath(path)	#get the realpath
 			query = query.filter_by(path=path)
+		if original_path:
+			original_path = os.path.realpath(original_path)	#get the realpath
+			query = query.filter_by(original_path=original_path)
+		
 		if mate_id:
 			query = query.filter_by(mate_id=mate_id)
 		db_entry = query.first()
 		if not db_entry:
-			if path and os.path.isfile(path) and file_size is None:	#2012.7.12
-				file_size = utils.getFileOrFolderSize(path)
+			if file_size is None:	#2012.7.12
+				if path and os.path.isfile(path):
+					file_size = utils.getFileOrFolderSize(path)
+				elif original_path and os.path.isfile(original_path):
+					file_size = utils.getFileOrFolderSize(path)
 			db_entry = IndividualSequenceFileRaw(individual_sequence_id=individual_sequence_id, library=library, md5sum=md5sum, \
-										path=path, mate_id=mate_id, file_size=file_size)
+										path=path, mate_id=mate_id, file_size=file_size, original_path=original_path)
 			self.session.add(db_entry)
 			self.session.flush()
 		return db_entry
