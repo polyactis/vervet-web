@@ -1,9 +1,10 @@
 
 -- 2013.2.18 good whole-genome alignment
 -- added "individual_sequence_file_raw_id is null" because there are some  sub-alignments (alignment using one lane/library's reads out of all)
+drop view view_good_alignment cascade;
 create or replace view view_good_alignment as select * from view_alignment 
-	where filtered=1 and outdated_index=0 and alignment_method_id=2 and ref_ind_seq_id=524
-	and individual_sequence_file_raw_id is null;
+    where filtered=1 and outdated_index=0 and alignment_method_id=2 and ref_ind_seq_id=3280
+    and individual_sequence_file_raw_id is null;
 
 
 -- 2011-4-29
@@ -21,8 +22,8 @@ create or replace view view_alignment as select i.id as individual_id, i.code, i
     isq.filtered, isq.sequencer_id, isq.sequence_type_id, isq.tissue_id, isq.base_count, 
     isq.coverage as raw_coverage, ia.id as alignment_id, ia.ref_ind_seq_id, ia.alignment_method_id,
     ia.median_depth, ia.mean_depth, ia.mode_depth, ia.outdated_index, ia.individual_sequence_file_raw_id,
-    ia.total_no_of_reads, 
-    ia.date_created, ia.date_updated
+    ia.file_size, ia.total_no_of_reads, ia.parent_individual_alignment_id, ia.mask_genotype_method_id, 
+    ia.date_created as date_alignment_created, ia.date_updated as date_alignment_updated
     from view_individual i, individual_alignment ia, individual_sequence isq where isq.individual_id=i.id and isq.id=ind_seq_id
     order by individual_id, isq.sequencer_id, isq.sequence_type_id, ref_ind_seq_id, alignment_id;
 
@@ -113,10 +114,10 @@ create or replace view view_sequence_before_after_filter as select t2.*, visq.ba
 -- 2013.2.1 updated with sex and relationship info
 drop view view_ind2ind;
 create or replace view view_ind2ind as select i2i.id as i2i_id, i2i.individual1_id, i1.code as i1_code, i1.sex as i1_sex, 
-	i2i.individual2_id, i2.code as i2_code , i2.sex as i2_sex, 
-	i2i.relationship_type_id, r.short_name as relationship
-	from ind2ind i2i, individual i1, individual i2, relationship_type r where  i1.id=i2i.individual1_id and i2.id=i2i.individual2_id
-	and r.id=i2i.relationship_type_id;
+    i2i.individual2_id, i2.code as i2_code , i2.sex as i2_sex, 
+    i2i.relationship_type_id, r.short_name as relationship
+    from ind2ind i2i, individual i1, individual i2, relationship_type r where  i1.id=i2i.individual1_id and i2.id=i2i.individual2_id
+    and r.id=i2i.relationship_type_id;
 
 -- 2012.6.26 view on all the alignments
 drop view view_seq_comparison_with_alignment;
@@ -131,7 +132,7 @@ create or replace view check_isq_file_parity as select individual_sequence_id, l
  as newt group by individual_sequence_id, library, split_order 
  order by count, individual_sequence_id, library, split_order;
 
--- 2012.8.6
+-- 2012.8.6 compare no_of_loci, file_size of two genotype methods side by side
 select t1.genotype_method_id, t1.chromosome, t1.no_of_loci, t1.file_size, 
     t2.genotype_method_id, t2.chromosome, t2.no_of_loci, t2.file_size
     from (select * from genotype_file where genotype_method_id =10) t1 full join 
