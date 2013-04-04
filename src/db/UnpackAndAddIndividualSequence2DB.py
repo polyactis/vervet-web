@@ -173,7 +173,7 @@ class UnpackAndAddIndividualSequence2DB(AbstractVervetWorkflow):
 			elif os.path.isdir(inputFname):
 				self.getAllBamFiles(inputFname, bamFnameLs)
 		
-	def addMonkeySequence(self, db_vervet, monkeyID, sequencer_name='GA', sequence_type_name='100BPPairedEnd', sequence_format='fastq',\
+	def addMonkeySequence(self, db_vervet=None, monkeyID=None, sequencer_name='GA', sequence_type_name='100BPPairedEnd', sequence_format='fastq',\
 						path_to_original_sequence=None, data_dir=None):
 		"""
 		2012.4.30
@@ -184,7 +184,8 @@ class UnpackAndAddIndividualSequence2DB(AbstractVervetWorkflow):
 		individual_sequence = db_vervet.getIndividualSequence(individual_id=individual.id, sequencer_name=sequencer_name, \
 						sequence_type_name=sequence_type_name, sequence_format=sequence_format, \
 						path_to_original_sequence=path_to_original_sequence, tissue_name=None, coverage=None,\
-						subFolder='individual_sequence', data_dir=data_dir, sequence_batch_id=None, version=None)
+						subFolder='individual_sequence', data_dir=data_dir, sequence_batch_id=None, \
+						filtered=0, version=None, is_contaminated=0, outdated_index=0)
 		
 		return individual_sequence
 	
@@ -215,74 +216,71 @@ echo %s
 		"""
 		2012.1.3
 		"""
-		namespace = workflow.namespace
-		version = workflow.version
-		operatingSystem = workflow.operatingSystem
-		architecture = workflow.architecture
-		clusters_size = workflow.clusters_size
-		site_handler = workflow.site_handler
-		vervetSrcPath = self.vervetSrcPath
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'shell/convertBamToFastqAndGzip.sh'), \
+										name='convertBamToFastqAndGzip', clusterSizeMultipler=0.05)
 		
-		convertBamToFastqAndGzip = Executable(namespace=namespace, name="convertBamToFastqAndGzip", version=version, \
-									os=operatingSystem, \
-									arch=architecture, installed=True)
-		convertBamToFastqAndGzip.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'shell/convertBamToFastqAndGzip.sh'), site_handler))
-		#convertBamToFastqAndGzip.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(convertBamToFastqAndGzip)
-		workflow.convertBamToFastqAndGzip = convertBamToFastqAndGzip
-		
-		splitReadFile = Executable(namespace=namespace, name="splitReadFile", version=version, os=operatingSystem, \
-								arch=architecture, installed=True)
-		splitReadFile.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'shell/SplitReadFileWrapper.sh'), site_handler))
-		#splitReadFile.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(splitReadFile)
-		workflow.splitReadFile = splitReadFile
-		
-		RegisterAndMoveSplitSequenceFiles  = Executable(namespace=namespace, name="RegisterAndMoveSplitSequenceFiles", version=version, \
-								os=operatingSystem, \
-								arch=architecture, installed=True)
-		RegisterAndMoveSplitSequenceFiles.addPFN(PFN("file://" + os.path.join(vervetSrcPath, 'db/input/RegisterAndMoveSplitSequenceFiles.py'), site_handler))
-		#RegisterAndMoveSplitSequenceFiles.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(RegisterAndMoveSplitSequenceFiles)
-		workflow.RegisterAndMoveSplitSequenceFiles = RegisterAndMoveSplitSequenceFiles
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'shell/SplitReadFileWrapper.sh'), \
+										name='SplitReadFileWrapper', clusterSizeMultipler=0.05)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'db/input/RegisterAndMoveSplitSequenceFiles.py'), \
+										name='RegisterAndMoveSplitSequenceFiles', clusterSizeMultipler=0.05)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, \
+										name='SamToFastqJava', clusterSizeMultipler=0.05)
 		
 	def addConvertBamToFastqAndGzipJob(self, workflow=None, executable=None, \
 							inputF=None, outputFnamePrefix=None, \
-							parentJobLs=[], job_max_memory=2000, walltime = 800, extraDependentInputLs=[], \
+							parentJobLs=None, job_max_memory=2000, walltime = 800, extraDependentInputLs=None, \
 							transferOutput=False, **keywords):
 		"""
+		2013.04.03 use addGenericJob()
 		2012.1.3
 			walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			The executable should be convertBamToFastqAndGzip.
 			
 		"""
-		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
-		job.addArguments(inputF, outputFnamePrefix)
-		job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
-		output1 = "%s_1.fastq.gz"%(outputFnamePrefix)
-		output2 = "%s_2.fastq.gz"%(outputFnamePrefix)
+		if workflow is None:
+			workflow = self
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		if executable is None:
+			executable = self.SamToFastqJava
+		extraArgumentList = [outputFnamePrefix]
+		output1 = File("%s_1.fastq"%(outputFnamePrefix))
+		output2 = File("%s_2.fastq"%(outputFnamePrefix))
+		extraOutputLs= [output1, output2]
 		
-		job.uses(output1, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
-		job.uses(output2, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
+		job = self.addGenericJavaJob(executable=self.SamToFastqJava, jarFile=self.SamToFastqJar, \
+					inputFile=inputF, inputArgumentOption="", \
+					inputFileList=None, argumentForEachFileInInputFileList=None,\
+					outputFile=None, outputArgumentOption="",\
+					parentJobLs=parentJobLs, transferOutput=transferOutput, job_max_memory=job_max_memory,\
+					frontArgumentList=None, extraArguments=None, extraArgumentList=extraArgumentList, extraOutputLs=extraOutputLs, \
+					extraDependentInputLs=extraDependentInputLs, no_of_cpus=None, \
+					walltime=walltime, sshDBTunnel=None, **keywords)
 		
+		"""
+		#2013.04.04 old way through a shell wrapper
+		
+		job = self.addGenericJob(executable=self.convertBamToFastqAndGzip, inputFile=inputF, inputArgumentOption="", \
+					outputFile=None, outputArgumentOption=None, \
+					inputFileList=None, argumentForEachFileInInputFileList=None, \
+					parentJob=None, parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+					extraOutputLs=extraOutputLs, transferOutput=transferOutput, \
+					frontArgumentList=None, \
+					extraArguments=None, extraArgumentList=extraArgumentList, \
+					job_max_memory=job_max_memory,  sshDBTunnel=None, \
+					key2ObjectForJob=None, objectWithDBArguments=None, no_of_cpus=None, walltime=walltime)
+		"""
 		job.output1 = output1
 		job.output2 = output2
-		
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=walltime)
-		workflow.addJob(job)
-		for input in extraDependentInputLs:
-			job.uses(input, transfer=True, register=True, link=Link.INPUT)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=job)
-		self.no_of_jobs += 1
 		return job
 	
 	def addSplitReadFileJob(self, workflow=None, executable=None, \
 							inputF=None, outputFnamePrefix=None, outputFnamePrefixTail="",\
-							minNoOfReads=5000000, logFile=None, parentJobLs=[], job_max_memory=2000, walltime = 800, \
-							extraDependentInputLs=[], \
+							minNoOfReads=5000000, logFile=None, parentJobLs=None, job_max_memory=2000, walltime = 800, \
+							extraDependentInputLs=None, \
 							transferOutput=False, **keywords):
 		"""
+		2013.04.03 use addGenericJob()
 		2012.2.9
 			argument outputFnamePrefixTail is now useless.
 		2012.1.24
@@ -299,68 +297,62 @@ echo %s
 		"""
 		if workflow is None:
 			workflow = self
-		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
-		job.addArguments(self.javaPath, repr(job_max_memory), workflow.SplitReadFileJar, inputF, outputFnamePrefix, \
-						repr(minNoOfReads))
-		self.addJobUse(job, file=workflow.SplitReadFileJar, transfer=True, register=True, link=Link.INPUT)
-		job.uses(inputF, transfer=True, register=True, link=Link.INPUT)
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		frontArgumentList = [self.javaPath, repr(job_max_memory), workflow.SplitReadFileJar]
+		extraArgumentList = [outputFnamePrefix, repr(minNoOfReads)]
+		extraDependentInputLs.append(workflow.SplitReadFileJar)
 		if logFile:
-			job.addArguments(logFile)
-			job.uses(logFile, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
-			job.output = logFile
+			extraArgumentList.append(logFile)
 		
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=walltime)
-		workflow.addJob(job)
-		for input in extraDependentInputLs:
-			job.uses(input, transfer=True, register=True, link=Link.INPUT)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=job)
-		self.no_of_jobs += 1
+		job = self.addGenericJob(executable=executable, inputFile=inputF, inputArgumentOption="", \
+					outputFile=None, outputArgumentOption="-o", \
+					inputFileList=None, argumentForEachFileInInputFileList=None, \
+					parentJob=None, parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+					extraOutputLs=[logFile], transferOutput=transferOutput, \
+					frontArgumentList=frontArgumentList, \
+					extraArguments=None, extraArgumentList=extraArgumentList, \
+					job_max_memory=job_max_memory,  sshDBTunnel=None, \
+					key2ObjectForJob=None, objectWithDBArguments=None, no_of_cpus=None, walltime=walltime)
 		return job
 	
 	def addRegisterAndMoveSplitFileJob(self, workflow=None, executable=None, \
 							inputDir=None, outputDir=None, relativeOutputDir=None, logFile=None,\
 							individual_sequence_id=None, bamFile=None, library=None, mate_id=None, \
-							parentJobLs=[], job_max_memory=100, walltime = 60, \
+							parentJobLs=None, job_max_memory=100, walltime = 60, \
 							commit=0, sequence_format='fastq',\
-							extraDependentInputLs=[], extraArguments=None, \
+							extraDependentInputLs=None, extraArguments=None, \
 							transferOutput=False, sshDBTunnel=1, **keywords):
 		"""
-		2012.4.30
+		2013.04.03 call addGenericFile2DBJob() instead
+		2012.04.30
 			add argument extraArguments, sshDBTunnel
-		2012.1.24
+		2012.01.24
 			walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			
 		"""
-		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
-		job.addArguments('--drivername', self.drivername, '--hostname', self.hostname, '--dbname', self.dbname,\
-						'--schema', self.schema, '--db_user', self.db_user, '--db_passwd', self.db_passwd, \
-						'--inputDir', inputDir, '--outputDir', outputDir, '--relativeOutputDir', relativeOutputDir,\
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		extraArgumentList =['--inputDir', inputDir, '--outputDir', outputDir, '--relativeOutputDir', relativeOutputDir,\
 						'--library', library, '--individual_sequence_id %s'%individual_sequence_id, \
-						'--sequence_format', sequence_format)
-		if commit:
-			job.addArguments("--commit")
+						'--sequence_format', sequence_format]
 		if mate_id:
-			job.addArguments('--mate_id %s'%(mate_id))
+			extraArgumentList.append('--mate_id %s'%(mate_id))
 		if bamFile:
-			job.addArguments('--bamFilePath', bamFile)
-			job.uses(bamFile, transfer=True, register=True, link=Link.INPUT)
-		if logFile:
-			job.addArguments('--logFilename', logFile)
-			job.uses(logFile, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
-			job.output = logFile
-		if extraArguments:
-			job.addArguments(extraArguments)
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=walltime, sshDBTunnel=sshDBTunnel)
-		workflow.addJob(job)
-		for input in extraDependentInputLs:
-			job.uses(input, transfer=True, register=True, link=Link.INPUT)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=job)
-		self.no_of_jobs += 1
+			extraArgumentList.extend(['--bamFilePath', bamFile])
+			extraDependentInputLs.append(bamFile)
+		
+		job = self.addGenericFile2DBJob(executable=executable, inputFile=None, inputArgumentOption="-i", \
+					outputFile=None, outputArgumentOption="-o", inputFileList=None, \
+					data_dir=None, logFile=logFile, commit=commit,\
+					parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+					extraOutputLs=None, transferOutput=transferOutput, \
+					extraArguments=extraArguments, extraArgumentList=extraArgumentList, \
+					job_max_memory=job_max_memory,  sshDBTunnel=sshDBTunnel, walltime=walltime,\
+					key2ObjectForJob=None, objectWithDBArguments=self)
 		return job
 	
-	def getInputFnameLsFromInput(self, input, suffixSet=set(['.fastq']), fakeSuffix='.gz'):
+	def getInputFnameLsFromInput(self, input=None, suffixSet=set(['.fastq']), fakeSuffix='.gz'):
 		"""
 		2012.4.30
 			this function supercedes self.getAllBamFiles() and it's more flexible.
@@ -601,8 +593,9 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		sys.stderr.write("Adding split-read & register jobs ...")
 		filenameKey2PegasusFile = {}
 		for monkeyID, fastqObjectLs in monkeyID2FastqObjectLs.iteritems():
-			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, \
-										sequence_format=sequence_format, data_dir=data_dir)
+			individual_sequence = self.addMonkeySequence(db_vervet=db_vervet, monkeyID=monkeyID, \
+								sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, \
+								sequence_format=sequence_format, data_dir=data_dir)
 			
 			sequenceOutputDir = os.path.join(data_dir, individual_sequence.path)
 			sequenceOutputDirJob = self.addMkDirJob(outputDir=sequenceOutputDir)
@@ -633,7 +626,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			
 				splitFastQFnamePrefix = os.path.join(splitOutputDir, '%s_%s_%s'%(individual_sequence.id, library, mateID))
 				logFile = File('%s_%s_%s.split.log'%(individual_sequence.id, library, mateID))
-				splitReadFileJob1 = self.addSplitReadFileJob(workflow, executable=workflow.splitReadFile, \
+				splitReadFileJob1 = self.addSplitReadFileJob(workflow, executable=workflow.SplitReadFileWrapper, \
 								inputF=fastqFile, outputFnamePrefix=splitFastQFnamePrefix, \
 								outputFnamePrefixTail="", minNoOfReads=minNoOfReads, \
 								logFile=logFile, parentJobLs=[splitOutputDirJob], \
@@ -680,15 +673,16 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 		
 		sam2fastqOutputDir = 'sam2fastq'
 		sam2fastqOutputDirJob = self.addMkDirJob(outputDir=sam2fastqOutputDir)
-		no_of_jobs = 1
+		
 		for bamFname in bamFnameLs:
 			bamBaseFname = os.path.split(bamFname)[1]
 			if bamBaseFname not in bamBaseFname2MonkeyID:
 				sys.stderr.write("%s doesn't have monkeyID affiliated with.\n"%(bamFname))
 				continue
 			monkeyID = bamBaseFname2MonkeyID.get(bamBaseFname)
-			individual_sequence = self.addMonkeySequence(db_vervet, monkeyID, sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, \
-										sequence_format=sequence_format, data_dir=data_dir)
+			individual_sequence = self.addMonkeySequence(db_vervet=db_vervet, monkeyID=monkeyID, \
+								sequencer_name=sequencer_name, sequence_type_name=sequence_type_name, \
+								sequence_format=sequence_format, data_dir=data_dir)
 			#2012.2.10 stop passing path_to_original_sequence=bamFname to self.addMonkeySequence()
 			
 			"""
@@ -712,7 +706,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			
 			outputFnamePrefix = os.path.join(sam2fastqOutputDir, '%s_%s'%(individual_sequence.id, library))
 			
-			convertBamToFastqAndGzip_job = self.addConvertBamToFastqAndGzipJob(workflow, executable=workflow.convertBamToFastqAndGzip, \
+			convertBamToFastqAndGzip_job = self.addConvertBamToFastqAndGzipJob(executable=workflow.SamToFastqJava, \
 							inputF=bamInputF, outputFnamePrefix=outputFnamePrefix, \
 							parentJobLs=[sam2fastqOutputDirJob], job_max_memory=2000, walltime = 800, \
 							extraDependentInputLs=[], \
@@ -726,7 +720,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			mate_id = 1
 			splitFastQFnamePrefix = os.path.join(splitOutputDir, '%s_%s_%s'%(individual_sequence.id, library, mate_id))
 			logFile = File('%s_%s_%s.split.log'%(individual_sequence.id, library, mate_id))
-			splitReadFileJob1 = self.addSplitReadFileJob(workflow, executable=workflow.splitReadFile, \
+			splitReadFileJob1 = self.addSplitReadFileJob(workflow, executable=workflow.SplitReadFileWrapper, \
 							inputF=convertBamToFastqAndGzip_job.output1, outputFnamePrefix=splitFastQFnamePrefix, \
 							outputFnamePrefixTail="", minNoOfReads=minNoOfReads, \
 							logFile=logFile, parentJobLs=[convertBamToFastqAndGzip_job, splitOutputDirJob], \
@@ -744,7 +738,7 @@ HI.0628.001.D701.VGA00010_R2.fastq.gz  HI.0628.004.D703.VWP00384_R2.fastq.gz  HI
 			mate_id = 2
 			splitFastQFnamePrefix = os.path.join(splitOutputDir, '%s_%s_%s'%(individual_sequence.id, library, mate_id))
 			logFile = File('%s_%s_%s.split.log'%(individual_sequence.id, library, mate_id))
-			splitReadFileJob2 = self.addSplitReadFileJob(workflow, executable=workflow.splitReadFile, \
+			splitReadFileJob2 = self.addSplitReadFileJob(workflow, executable=workflow.SplitReadFileWrapper, \
 							inputF=convertBamToFastqAndGzip_job.output2, outputFnamePrefix=splitFastQFnamePrefix, \
 							outputFnamePrefixTail="", minNoOfReads=minNoOfReads, \
 							logFile=logFile, parentJobLs=[convertBamToFastqAndGzip_job, splitOutputDirJob], \
