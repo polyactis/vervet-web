@@ -72,6 +72,14 @@ if test -s $outputFname1
 then
 	echo -n "gzipping $outputFname1 ..."
 	gzip $outputFname1
+	#2013.04.03 immediatley test if exit code from previous command is non-zero.
+	javaExitCode=$?
+	if test "$javaExitCode" != "0"
+	then
+		echo "Non-zero exit after running picard's SamToFastq.jar."
+		exit $javaExitCode
+	fi
+	
 	echo " ."
 else	#delete it if it's an empty file
 	rm -f $outputFname1
@@ -81,6 +89,14 @@ if test -s $outputFname2
 then
 	echo -n "gzipping $outputFname2 ..."
 	gzip $outputFname2
+	#2013.04.03 immediatley test if exit code from previous command is non-zero.
+	javaExitCode=$?
+	if test "$javaExitCode" != "0"
+	then
+		echo "Non-zero exit after running picard's SamToFastq.jar."
+		exit $javaExitCode
+	fi
+	
 	echo " ."
 else	#delete it if it's an empty file
 	rm -f $outputFname2
