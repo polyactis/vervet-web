@@ -51,6 +51,7 @@ class RegisterAndMoveSplitSequenceFiles(AbstractVervetMapper):
 	
 	def addBamFileToDB(self, db_vervet, bamFilePath, library=None, individual_sequence_id=None, mate_id=None):
 		"""
+		2013.04.03 bamFilePath passed to original_path
 		2012.4.30
 			add mate_id
 		2012.1.27
@@ -68,12 +69,7 @@ class RegisterAndMoveSplitSequenceFiles(AbstractVervetMapper):
 			#sys.exit(3)
 		else:
 			db_entry = db_vervet.getIndividualSequenceFileRaw(individual_sequence_id, library=library, md5sum=md5sum, \
-											path=bamFilePath, mate_id=mate_id)
-		realpath = os.path.realpath(bamFilePath)
-		if realpath!=db_entry.path:
-			db_entry.path = realpath
-			db_vervet.session.add(db_entry)
-			db_vervet.session.flush()
+											original_path=bamFilePath, mate_id=mate_id)
 		mate_id2split_order_ls = {}
 		for individual_sequence_file in db_entry.individual_sequence_file_ls:
 			mate_id = individual_sequence_file.mate_id
@@ -111,49 +107,6 @@ class RegisterAndMoveSplitSequenceFiles(AbstractVervetMapper):
 		else:
 			split_order = None
 		return split_order
-	
-	def moveNewISQFileIntoDBStorage(self, session, individual_sequence_file=None, filename=None, inputDir=None, outputDir=None, \
-								relativeOutputDir=None, shellCommand='cp', srcFilenameLs=None, dstFilenameLs=None):
-		"""
-		2012.7.13 superceded by VervetDB.moveFileIntoDBAffiliatedStorage()
-		2012.7.4
-			add srcFilename and dstFilename into given arguments (srcFilenameLs, dstFilenameLs) for later undo
-		2012.6.8
-			return non-zero if failure in move or destinaion file already exists
-		2012.2.10
-			this function moves a file to a db-affiliated storage path
-		"""
-		newfilename = '%s_%s'%(individual_sequence_file.id, filename)
-		newPath = os.path.join(relativeOutputDir, newfilename)
-		if individual_sequence_file.path!=newPath:
-			individual_sequence_file.path = newPath
-			session.add(individual_sequence_file)
-			session.flush()
-		
-		srcFilename = os.path.join(inputDir, filename)
-		dstFilename = os.path.join(outputDir, newfilename)
-		if os.path.isfile(dstFilename):
-			sys.stderr.write("Error: destination %s already exits.\n"%(dstFilename))
-			exitCode = 2
-		else:
-			#move the file
-			commandline = '%s %s %s'%(shellCommand, srcFilename, dstFilename)
-			return_data = utils.runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-			if srcFilenameLs is not None:
-				srcFilenameLs.append(srcFilename)
-			if dstFilenameLs is not None:
-				dstFilenameLs.append(dstFilename)
-			
-			if return_data.stderr_content:
-				#something wrong. abort
-				sys.stderr.write("commandline %s failed: %s\n"%(commandline, return_data.stderr_content))
-				#remove the db entry
-				session.delete(individual_sequence_file)
-				session.flush()
-				exitCode = 3
-			else:
-				exitCode = 0
-		return exitCode
 	
 	def run(self):
 		"""
@@ -206,11 +159,6 @@ class RegisterAndMoveSplitSequenceFiles(AbstractVervetMapper):
 								relativeOutputDir=self.relativeOutputDir, shellCommand='cp -rL', \
 								srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs,\
 								constructRelativePathFunction=None)
-				"""
-				exitCode = self.moveNewISQFileIntoDBStorage(session, individual_sequence_file=db_entry, filename=filename, inputDir=self.inputDir, \
-										outputDir=self.outputDir, relativeOutputDir=self.relativeOutputDir,\
-										shellCommand='cp', srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs)
-				"""
 				if exitCode!=0:
 					sys.stderr.write("Error: moveFileIntoDBAffiliatedStorage() exits with %s code.\n"%(exitCode))
 					session.rollback()
