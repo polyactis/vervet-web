@@ -1776,6 +1776,8 @@ class VervetDB(ElixirDB):
 				if excludeAlignmentWithoutLocalFile:
 					if os.path.isfile(abs_path):
 						alignmentLs.append(row)
+					else:
+						sys.stderr.write("getAlignments() Warning: file %s does not exist. so skipping this alignment.\n"%(abs_path))
 				else:
 					alignmentLs.append(row)
 				
