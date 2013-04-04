@@ -41,6 +41,15 @@ commandline="java -jar $picard_tool_path/SamToFastq.jar INPUT=$inputFname F=$out
 date
 echo commandline is $commandline
 $commandline
+
+#2013.04.03 immediatley test if exit code from previous command is non-zero.
+javaExitCode=$?
+if test "$javaExitCode" != "0"
+then
+	echo "Non-zero exit after running picard's SamToFastq.jar."
+	exit $javaExitCode
+fi
+
 date
 
 #2011-8-28 delete prior files regardless of whether they exist or not
