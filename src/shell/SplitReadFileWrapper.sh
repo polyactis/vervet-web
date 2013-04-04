@@ -27,6 +27,6 @@ logFilename=$7
 commandline="$javaPath -Xms1280m -Xmx$XmxMemoryInMegabyte -jar $jarPath VALIDATION_STRINGENCY=LENIENT I=$inputFastq O=$outputFnamePrefix M=$maxNoOfReads"
 date
 echo commandline is $commandline
-echo stdout & stderr are redirected to $logFilename.
+echo "stdout & stderr are redirected to $logFilename."
 $commandline  >& $logFilename
 date
