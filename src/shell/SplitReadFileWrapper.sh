@@ -28,12 +28,19 @@ commandline="$javaPath -Xms1280m -Xmx$XmxMemoryInMegabyte -jar $jarPath VALIDATI
 date
 echo commandline is $commandline
 echo "stdout & stderr are redirected to $logFilename."
-$commandline  >& $logFilename
-#2013.04.03 immediatley test if exit code from previous command is non-zero.
-javaExitCode=$?
-if test "$javaExitCode" != "0"
+$commandline 2>&1 | tee $logFilename
+
+exitCodeAll="${PIPESTATUS[0]} ${PIPESTATUS[1]}"	#must be together in one line. PIPESTATUS[1] in subsequent lines has different meaning.
+exitCode1=`echo $exitCodeAll|awk -F ' ' '{print $1}'`
+exitCode2=`echo $exitCodeAll|awk -F ' ' '{print $2}'`
+
+echo "exit codes: $exitCode1, $exitCode2"
+
+if test "$exitCode1" = "0" && test "$exitCode2" = "0"
 then
+	exit 0
+else
 	echo "Non-zero exit after running picard's SamToFastq.jar."
-	exit $javaExitCode
+	exit 3
 fi
 date
