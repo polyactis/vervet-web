@@ -25,19 +25,22 @@ parameter=''
 #done
 picard_tool_path=$HOME/script/picard/dist/
 
+#2013.04.03 bugfix. create these variables to avoid  putting "\" in the "" for the commandline variable. 
+outputFname1=$outputFnamePrefix\_1
+outputFname2=$outputFnamePrefix\_2
 #2011-8-28 delete prior files regardless of whether they exist or not ("-w" is test for exist and writable file.)
-if test -w $outputFnamePrefix\_1.fastq
+if test -w $outputFname1.fastq
 then
-	echo "$outputFnamePrefix\_1.fastq already exists. Delete it now.\n"
-	rm -f $outputFnamePrefix\_1.fastq
+	echo "$outputFname1.fastq already exists. Delete it now.\n"
+	rm -f $outputFname1.fastq
 fi
-if test -w $outputFnamePrefix\_2.fastq
+if test -w $outputFname2.fastq
 then
-	echo "$outputFnamePrefix\_2.fastq already exists. Delete it now.\n"
-	rm -f $outputFnamePrefix\_2.fastq
+	echo "$outputFname2.fastq already exists. Delete it now.\n"
+	rm -f $outputFname2.fastq
 fi
 
-commandline="java -jar $picard_tool_path/SamToFastq.jar INPUT=$inputFname F=$outputFnamePrefix\_1.fastq F2=$outputFnamePrefix\_2.fastq"
+commandline="java -jar $picard_tool_path/SamToFastq.jar INPUT=$inputFname F=$outputFname1.fastq F2=$outputFname2.fastq"
 date
 echo commandline is $commandline
 $commandline
@@ -53,34 +56,34 @@ fi
 date
 
 #2011-8-28 delete prior files regardless of whether they exist or not
-if test -w $outputFnamePrefix\_1.fastq.gz
+if test -w $outputFname1.fastq.gz
 then
-	echo "$outputFnamePrefix\_1.fastq.gz already exists. Delete it now.\n"
-	rm -f $outputFnamePrefix\_1.fastq.gz
+	echo "$outputFname1.fastq.gz already exists. Delete it now.\n"
+	rm -f $outputFname1.fastq.gz
 fi
 
-if test -w $outputFnamePrefix\_2.fastq.gz
+if test -w $outputFname2.fastq.gz
 then
-	echo "$outputFnamePrefix\_2.fastq.gz already exists. Delete it now.\n"
-	rm -f $outputFnamePrefix\_2.fastq.gz
+	echo "$outputFname2.fastq.gz already exists. Delete it now.\n"
+	rm -f $outputFname2.fastq.gz
 fi
 
-if test -s $outputFnamePrefix\_1.fastq
+if test -s $outputFname1.fastq
 then
-	echo -n "gzipping $outputFnamePrefix\_1.fastq ..."
-	gzip $outputFnamePrefix\_1.fastq
+	echo -n "gzipping $outputFname1.fastq ..."
+	gzip $outputFname1.fastq
 	echo " ."
 else	#delete it if it's an empty file
-	rm -f $outputFnamePrefix\_1.fastq
+	rm -f $outputFname1.fastq
 fi
 
-if test -s $outputFnamePrefix\_2.fastq
+if test -s $outputFname2.fastq
 then
-	echo -n "gzipping $outputFnamePrefix\_2.fastq ..."
-	gzip $outputFnamePrefix\_2.fastq
+	echo -n "gzipping $outputFname2.fastq ..."
+	gzip $outputFname2.fastq
 	echo " ."
 else	#delete it if it's an empty file
-	rm -f $outputFnamePrefix\_2.fastq
+	rm -f $outputFname2.fastq
 fi
 
 
