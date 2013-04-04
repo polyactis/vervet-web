@@ -45,12 +45,12 @@ date
 echo commandline is $commandline
 $commandline
 
-#2013.04.03 immediatley test if exit code from previous command is non-zero.
-javaExitCode=$?
-if test "$javaExitCode" != "0"
+#2013.04.03 immediately test if exit code from previous command is non-zero.
+commandExitCode=$?
+if test "$commandExitCode" != "0"
 then
 	echo "Non-zero exit after running picard's SamToFastq.jar."
-	exit $javaExitCode
+	exit $commandExitCode
 fi
 
 date
@@ -72,12 +72,12 @@ if test -s $outputFname1
 then
 	echo -n "gzipping $outputFname1 ..."
 	gzip $outputFname1
-	#2013.04.03 immediatley test if exit code from previous command is non-zero.
-	javaExitCode=$?
-	if test "$javaExitCode" != "0"
+	#2013.04.03 immediately test if exit code from previous command is non-zero.
+	commandExitCode=$?
+	if test "$commandExitCode" != "0"
 	then
 		echo "Non-zero exit after running picard's SamToFastq.jar."
-		exit $javaExitCode
+		exit $commandExitCode
 	fi
 	
 	echo " ."
@@ -89,12 +89,12 @@ if test -s $outputFname2
 then
 	echo -n "gzipping $outputFname2 ..."
 	gzip $outputFname2
-	#2013.04.03 immediatley test if exit code from previous command is non-zero.
-	javaExitCode=$?
-	if test "$javaExitCode" != "0"
+	#2013.04.03 immediately test if exit code from previous command is non-zero.
+	commandExitCode=$?
+	if test "$commandExitCode" != "0"
 	then
 		echo "Non-zero exit after running picard's SamToFastq.jar."
-		exit $javaExitCode
+		exit $commandExitCode
 	fi
 	
 	echo " ."
