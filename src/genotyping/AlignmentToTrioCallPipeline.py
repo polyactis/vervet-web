@@ -461,8 +461,11 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 							extraDependentInputLs=[trioGzipOutput_tbi_F])
 				
 				
-				lisOfJobs = [preTrioCallerCallJob]
-				for job in lisOfJobs:
+				lisOfJobsThatNeedRefIndexFiles = [preTrioCallerCallJob, mergeVCFReplicateColumnsJob,\
+										replicateVCFGenotypeColumnsJob, round1_vcf_convert_job,\
+										round1SelectVariantJob, vcf1FilterByDepthJob,\
+										preTrioCallerCallJob]
+				for job in lisOfJobsThatNeedRefIndexFiles:
 					self.addRefFastaJobDependency(workflow, job, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
 							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
 				
@@ -660,7 +663,11 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						parentJob=vcf_convert_TrioCallerOutputJob, inputF=vcf4_trioCallerOutputF, outputF=trioGzipOutputF, \
 						transferOutput=False)
 				
-				
+				lisOfJobsThatNeedRefIndexFiles = [round1_vcf_convert_job, replicateVCFGenotypeColumnsJob, \
+												mergeVCFReplicateColumnsJob]
+				for job in lisOfJobsThatNeedRefIndexFiles:
+					self.addRefFastaJobDependency(workflow, job, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
+							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
 				#add this output to the union job
 				# 2012.6.1 done it through addInputToStatMergeJob()
 				self.addInputToStatMergeJob(statMergeJob=trioCallerWholeContigConcatJob, inputF=trioGzipOutputF, \
@@ -719,19 +726,10 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		2011-7-11
 		"""
 		
-		if self.debug:
-			import pdb
-			pdb.set_trace()
+		pdata = self.setup_run()
+		workflow = pdata.workflow
+		db_vervet = self.db
 		
-		db_vervet = self.db_vervet
-		
-		if not self.data_dir:
-			self.data_dir = db_vervet.data_dir
-		
-		if not self.local_data_dir:
-			self.local_data_dir = db_vervet.data_dir
-		
-		workflow = self.initiateWorkflow()
 		if self.run_type==1:
 			alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
 										alignment_method_id=self.alignment_method_id, data_dir=self.local_data_dir)
@@ -756,19 +754,12 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
 															defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
 		
-		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
-		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
-							input_site_handler=self.input_site_handler,\
-							checkAffiliateFileExistence=True)
+		registerReferenceData = pdata.registerReferenceData
 		
-		self.registerJars()
-		self.registerExecutables()
-		self.registerCustomExecutables(workflow)
 		
 		if self.run_type==1:
 			alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow, alignmentLs, data_dir=self.data_dir)
-			chr2size = self.getTopNumberOfContigs(self.topNumberOfContigs, contigMinRankBySize=self.contigMinRankBySize)
+			chr2size = self.chr2size
 			#chr2size = set(['Contig149'])	#temporary when testing Contig149
 			#chr2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
 			chrLs = chr2size.keys()
