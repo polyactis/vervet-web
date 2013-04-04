@@ -52,7 +52,6 @@ then
 	echo "Non-zero exit after running picard's SamToFastq.jar."
 	exit $commandExitCode
 fi
-
 date
 
 #2011-8-28 delete prior files regardless of whether they exist or not
