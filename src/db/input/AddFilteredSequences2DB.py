@@ -24,20 +24,20 @@ else:   #32bit
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 from pymodule import PassingData, ProcessOptions, utils, yh_matplotlib
-from pymodule.AbstractDBInteractingClass import AbstractDBInteractingClass
+from pymodule import AbstractDBInteractingJob
 from vervet.src.db.input.RegisterAndMoveSplitSequenceFiles import RegisterAndMoveSplitSequenceFiles
 from vervet.src import VervetDB	#have to import it from vervet.src, not directly cuz that's how it's imported in RegisterAndMoveSplitSequenceFiles
 
 
 class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 	__doc__ = __doc__
-	option_default_dict = AbstractDBInteractingClass.option_default_dict.copy()
+	option_default_dict = AbstractDBInteractingJob.option_default_dict.copy()
+	option_default_dict.pop(('outputFname', 0, ))
+	option_default_dict.pop(('outputFnamePrefix', 0, ))
 	option_default_dict.update({
-						('inputFname', 1, ): ['', 'i', 1, 'the filtered fastq files', ],\
 						('individual_sequence_id', 1, int): [None, 'n', 1, 'The individual_sequence id of the input sequence file.', ],\
-						('parent_individual_sequence_file_id', 1, int): [None, 'e', 1, 'ID of the parent of this filtered individual_sequence_file' ],\
-						('outputDir', 1, ): ['', 'o', 1, 'output folder to which split files from inputDir will be moved', ],\
-						('logFilename', 0, ): [None, 'g', 1, 'file to contain logs. use it only if this program is at the end of pegasus workflow'],\
+						('parent_individual_sequence_file_id', 1, int): [None, '', 1, 'ID of the parent of this filtered individual_sequence_file' ],\
+						('outputDir', 1, ): ['', '', 1, 'output folder to which split files from inputDir will be moved', ],\
 						})
 
 	def __init__(self, **keywords):
@@ -55,18 +55,6 @@ class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 		if self.debug:
 			import pdb
 			pdb.set_trace()
-			debug = True
-		else:
-			debug =False
-		
-		if self.sshTunnelCredential and self.port:
-			try:
-				utils.sshTunnel(serverHostname=self.hostname, port=self.port, middleManCredential=self.sshTunnelCredential)
-				self.hostname = 'localhost'	#now the tunnel is built, access is on localhost
-			except:
-				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-				import traceback
-				traceback.print_exc()
 		
 		db_vervet = self.db_vervet
 		session = db_vervet.session
@@ -107,9 +95,12 @@ class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 			sys.stderr.write("Error: IndividualSequenceFile db entry is None.\n")
 			sys.exit(3)
 		
+		outputMsg = "file %s was added into db.\n"%(self.inputFname)
+		sys.stderr.write(outputMsg)
+		
 		if self.logFilename:
 			outf = open(self.logFilename, 'w')
-			outf.write("file %s was added into db.\n"%(self.inputFname))
+			outf.write(outputMsg)
 			outf.close()
 		
 		if self.commit:
