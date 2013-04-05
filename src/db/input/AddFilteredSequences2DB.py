@@ -25,7 +25,7 @@ else:   #32bit
 
 from pymodule import PassingData, ProcessOptions, utils, yh_matplotlib
 from pymodule.AbstractDBInteractingClass import AbstractDBInteractingClass
-from vervet.src.mapper.RegisterAndMoveSplitSequenceFiles import RegisterAndMoveSplitSequenceFiles
+from vervet.src.db.input.RegisterAndMoveSplitSequenceFiles import RegisterAndMoveSplitSequenceFiles
 from vervet.src import VervetDB	#have to import it from vervet.src, not directly cuz that's how it's imported in RegisterAndMoveSplitSequenceFiles
 
 
@@ -68,9 +68,7 @@ class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 				import traceback
 				traceback.print_exc()
 		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, hostname=self.hostname, database=self.dbname, schema=self.schema,\
-						username=self.db_user, password=self.db_passwd,	port=self.port)
-		db_vervet.setup(create_tables=False)
+		db_vervet = self.db_vervet
 		session = db_vervet.session
 		session.begin()	#no transaction for input node as there is no data insertion
 		
@@ -102,10 +100,9 @@ class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 			"""
 			if exitCode!=0:
 				sys.stderr.write("Error: moveNewISQFileIntoDBStorage() exits with %s code.\n"%(exitCode))
-				session.rollback()
+				self.sessionRollback(session)
 				#delete all recorded target files
-				self.rmGivenFiles(filenameLs=self.dstFilenameLs)
-				sys.exit(exitCode)
+				self.cleanUpAndExitOnFailure(exitCode=exitCode)
 		else:
 			sys.stderr.write("Error: IndividualSequenceFile db entry is None.\n")
 			sys.exit(3)
@@ -125,12 +122,11 @@ class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 				import traceback
 				traceback.print_exc()
 				#delete all recorded target files
-				self.rmGivenFiles(filenameLs=self.dstFilenameLs)
-				sys.exit(3)
+				self.cleanUpAndExitOnFailure(exitCode=3)
 		else:
-			session.rollback()
+			self.sessionRollback(session)
 			#delete all target files
-			self.rmGivenFiles(filenameLs=self.dstFilenameLs)
+			self.cleanUpAndExitOnFailure(exitCode=0)
 			
 
 if __name__ == '__main__':
