@@ -2,55 +2,55 @@
 """
 Examples:
 	# 2011-8-30 workflow on condor, always commit (--commit)
-	%s -i 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9 -l condorpool
+	%s --ind_seq_id_ls 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9 -l condorpool
 		-n1 -z dl324b-1.cmb.usc.edu --commit --needSSHDBTunnel
 	
 	# 2011-8-30 a workflow with 454 long-read and short-read PE. need a ref index job (-n1). 
-	%s -i 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9
+	%s --ind_seq_id_ls 165-167 -o ShortRead2Alignment_isq_id_165_167_vs_9.xml -u yh -a 9
 		-e /u/home/eeskin/polyacti -l hoffman2 --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db -n1
 		-z dl324b-1.cmb.usc.edu --commit
 		--tmpDir /work/ --needSSHDBTunnel
 	
 	# 2011-8-30 output a workflow to run alignments on hoffman2's condor pool (--local_data_dir changes local_data_dir. --data_dir changes data_dir.)
 	# 2012.3.20 use /work/ or /u/scratch/p/polyacti/tmp as TMP_DIR for MarkDuplicates.jar (/tmp is too small for 30X genome)
-	# 2012.5.4 cluster 4 alignment jobs (before merging) as a unit (--cluster_size_for_aln_jobs 0.2), skip done alignment (--skipDoneAlignment)
+	# 2012.5.4 cluster 4 alignment jobs (before merging) as a unit (--alignmentJobClustersSizeFraction 0.2), skip done alignment (--skipDoneAlignment)
 	# 2012.9.21 add "--needSSHDBTunnel" because AddAlignmentFile2DB need db conneciton
 	# 2012.9.21 add "--alignmentPerLibrary" to also get alignment for each library within one individual_sequence
 	# 2013.3.15 add "--coreAlignmentJobWallTimeMultiplier 0.5" to reduce wall time for core-alignment (bwa/stampy) jobs by half 
-	ref=3280; %s -i 632-3230 --sequence_min_coverage 15 --sequence_max_coverage 80 --site_id_ls 447 --sequence_filtered 1
+	ref=3280; %s --ind_seq_id_ls 632-3230 --sequence_min_coverage 15 --sequence_max_coverage 80 --site_id_ls 447 --sequence_filtered 1
 		--excludeContaminant -a $ref -o dags/ShortRead2Alignment/ShortRead2AlignmentPipeline_VRCPart1_vs_$ref\_AlnMethod2.xml
 		-u yh -l hcondor -j hcondor -z localhost -u yh --commit --tmpDir /work/
 		--home_path /u/home/eeskin/polyacti --no_of_aln_threads 1 --skipDoneAlignment
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		--clusters_size 20 --alignment_method_name bwaShortRead
 		--coreAlignmentJobWallTimeMultiplier 0.5
-		--cluster_size_for_aln_jobs 0.2 
+		--alignmentJobClustersSizeFraction 0.2 
 		--needSSHDBTunnel --ref_genome_version 2 --needRefIndexJob --db_passwd secret
 		#--alignmentPerLibrary
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files. need ref index job (--needRefIndexJob).
 	# If input_site_handler is "local", pegasus will report error saying it doesn't know how to replica-transfer input files.
-	%s -i 176,178-183,207-211
+	%s --ind_seq_id_ls 176,178-183,207-211
 		-o ShortRead2Alignment_8VWP_vs_9_condor_no_refIndex.xml
 		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z dl324b-1.cmb.usc.edu -p secret  --commit --needSSHDBTunnel
 	
 	# 2011-8-30 a workflow to run on condorpool, no ref index job. Note the site_handler and input_site_handler are both condorpool
 	# to enable symlink of input files.
 	# If input_site_handler is "local", pegasus will report error saying it doesn't know how to replica-transfer input files.
-	%s -i 176,178-183,207-211
+	%s --ind_seq_id_ls 176,178-183,207-211
 		-o ShortRead2Alignment_8VWP_vs_9_condor_no_refIndex.xml
 		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z dl324b-1.cmb.usc.edu -p secret  --commit --needSSHDBTunnel
 		
 	# 2011-8-30 a workflow to run on uschpc, with ref index job. Note the site_handler and input_site_handler.
 	# to enable replica-transfer.
-	%s -i 391-397,456,473,493
+	%s --ind_seq_id_ls 391-397,456,473,493
 		-o ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
 		-j local -l uschpc -n1 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10 -p secret  --commit --needSSHDBTunnel
 
 	# 2011-8-30 a workflow to run on uschpc, Need ref index job (--needRefIndexJob), and 4 threads for each alignment job 
 	# Note the site_handler, input_site_handler and "--data_dir ..." to enable symlink
-	%s -i 391-397,456,473,493
+	%s --ind_seq_id_ls 391-397,456,473,493
 		-o ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_uschpc.xml -u yh -a 9
 		-j uschpc -l uschpc --needRefIndexJob -p secret --commit --no_of_aln_threads 4 --needSSHDBTunnel
 		-e /home/cmb-03/mn/yuhuang -z 10.8.0.10 
@@ -58,36 +58,51 @@ Examples:
 	
 	# 2011-11-16 a workflow to run on uschpc, Need ref index job (--needRefIndexJob), and 4 threads for each alignment job 
 	# Note the site_handler, input_site_handler. this will stage in all input and output (--notStageOutFinalOutput).
-	%s -i 391-397,456,473,493
+	%s --ind_seq_id_ls 391-397,456,473,493
 		-o dags/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_local2usc.xml -u yh -a 9
 		-j local -l uschpc --needRefIndexJob -p secret --commit --no_of_aln_threads 4
 		-e /home/cmb-03/mn/yuhuang -z 10.8.0.10 
-		--javaPath /home/cmb-03/mn/yuhuang/bin/jdk/bin/java  --needSSHDBTunnel
+		--javaPath /home/cmb-03/mn/yuhuang/bin/jdk/bin/java
+		--needSSHDBTunnel
 	
 	
 	#2011-9-13 no ref index job, staging input files from localhost to uschpc, stage output files back to localhost
 	# modify the refFastaFile's path in xml manually
-	%s -i 1-3 -o ShortRead2Alignment_1_3_vs_524_local2uschpc.xml -u yh -a 524
+	%s --ind_seq_id_ls 1-3 -o ShortRead2Alignment_1_3_vs_524_local2uschpc.xml -u yh -a 524
 		-j local -l uschpc --needRefIndexJob -p secret --commit --no_of_aln_threads 4 -e /home/cmb-03/mn/yuhuang -z 10.8.0.10
-		--data_dir /Network/Data/vervet/db/  --needSSHDBTunnel
+		--data_dir /Network/Data/vervet/db/
+		--needSSHDBTunnel
 	
 	# 2011-8-31 output the same workflow above but for condorpool
-	%s -i 391-397,456,473,493, -o dags/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_condorpool.xml
-		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z 10.8.0.10  -p secret  --commit --alignmentPerLibrary  --needSSHDBTunnel
+	%s --ind_seq_id_ls 391-397,456,473,493, -o dags/ShortRead2Alignment/ShortRead2Alignment_4DeepVRC_6LowCovVRC_392_397_vs_9_condorpool.xml
+		-u yh -a 9 -j condorpool -l condorpool --needRefIndexJob -z 10.8.0.10  -p secret  --commit --alignmentPerLibrary
 	
 	# 2012-4-5 new alignment method, stampy (--alignment_method_name)
-	%s -i 167,176,178,182,183,207-211,391-397,456,473,493
+	%s --ind_seq_id_ls 167,176,178,182,183,207-211,391-397,456,473,493
 		-o dags/ShortRead2Alignment/ShortRead2Alignment_10VWP_4DeepVRC_6LowCovVRC_392_397_vs_508_condorpool.xml
-		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  --commit --alignment_method_name stampy  --needSSHDBTunnel
+		-u yh -a 508 -j condorpool -l condorpool -n1 -z 10.8.0.10  -p secret  --commit --alignment_method_name stampy
 	
 	# 2013.2.28 use the new alignment-method: bwaShortReadHighMismatches
-	#double the core alignment (bwa aln) job walltime (--coreAlignmentJobWallTimeMultiplier) 
-	ref=3231; %s -i 638 -a $ref
-		-o workflow/ShortRead2Alignment/ShortRead2AlignmentPipeline_Aethiops_vs_$ref\_AlnMethod5.xml
+	#double the core alignment (bwa aln) job walltime (=23 hrs) (--coreAlignmentJobWallTimeMultiplier) because it takes much longer
+	# set max walltime for any job to be 1 day (--max_walltime 1440)
+	ref=3231; %s --ind_seq_id_ls 638 -a $ref
+		-o dags/ShortRead2Alignment/ShortRead2AlignmentPipeline_Aethiops_vs_$ref\_AlnMethod5.xml
 		-u yh -l hcondor -j hcondor -z localhost -u yh --commit --tmpDir /work/ --home_path /u/home/eeskin/polyacti
 		--no_of_aln_threads 1 --skipDoneAlignment -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ --clusters_size 1 --alignment_method_name bwaShortReadHighMismatches
 		--coreAlignmentJobWallTimeMultiplier 2  --needSSHDBTunnel
+		--max_walltime 1440
+	
+	# 2013.04.04 use the new alignment-method: bwa-mem, get rid of "-q 20" by --additionalArguments " " as mem doesn't support -q.
+	# 23*0.1 hrs walltime for the core alignment (bwa mem) jobs (--coreAlignmentJobWallTimeMultiplier 0.1) because it's much faster
+	# set max walltime for any job to be 1 day (--max_walltime 1440)
+	ref=3280; %s --ind_seq_id_ls 638 -a $ref --additionalArguments " "
+		-o dags/ShortRead2Alignment/ShortRead2AlignmentPipeline_Aethiops_vs_$ref\_AlnMethod6.xml
+		-u yh -l hcondor -j hcondor -z localhost -u yh --commit --tmpDir /work/ --home_path /u/home/eeskin/polyacti
+		--no_of_aln_threads 1 --skipDoneAlignment -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ --clusters_size 1 --alignment_method_name mem
+		--coreAlignmentJobWallTimeMultiplier 0.1  --needSSHDBTunnel
+		--max_walltime 1440
 Description:
 	2012.5.3
 		a program which generates a pegasus workflow dag (xml file) which does the alignment for all available sequences.
@@ -95,11 +110,11 @@ Description:
 		It will also stage out every output file.
 		Be careful about -R, only toggle it if you know every input individual_sequence_file is not empty.
 			Empty read files would fail alignment jobs and thus no final alignment for a few indivdiuals.
-		Use "--cluster_size_for_aln_jobs 10" to cluster the alignment jobs if the input read file is small enough (~1Million reads for bwa, ~300K for stampy). 
+		Use "--alignmentJobClustersSizeFraction ..." to cluster the alignment jobs if the input read file is small enough (~1Million reads for bwa, ~300K for stampy). 
 """
 import sys, os
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], \
-				sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
+				sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
 
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
@@ -111,16 +126,12 @@ from pymodule.pegasus import yh_pegasus
 from pymodule.pegasus.ShortRead2AlignmentWorkflow import ShortRead2AlignmentWorkflow
 from vervet.src import VervetDB
 
-
 class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 	__doc__ = __doc__
 	option_default_dict = copy.deepcopy(ShortRead2AlignmentWorkflow.option_default_dict)
 	option_default_dict.pop(('refSequenceFname', 1, ))
 	option_default_dict.update({
-						('ref_ind_seq_id', 1, int): [120, 'a', 1, 'IndividualSequence.id. To pick alignments with this sequence as reference', ],\
-						('ind_seq_id_ls', 1, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. \
-									non-fastq entries will be discarded.', ],\
-						('skipDoneAlignment', 0, int):[0, 'K', 0, 'skip alignment whose path is a valid file'],\
+						('skipDoneAlignment', 0, int):[0, '', 0, 'skip alignment whose path is a valid file'],\
 						("alignmentPerLibrary", 0, int): [0, '', 0, 'toggle to run alignment for each library of one individual_sequence'],\
 						})
 
@@ -139,7 +150,8 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 	def addAllAlignmentJobs(self, db_vervet=None, individualSequenceID2FilePairLs=None, \
 					data_dir=None, \
 					isqLs=None,\
-					refSequence=None, refFastaFList=None, refIndexJob=None,
+					refSequence=None, registerReferenceData=None, \
+					chr2IntervalDataLs=None,\
 					workflow=None, bwa=None, additionalArguments=None, samtools=None, mkdirWrap=None, mv=None,\
 					java=None, MergeSamFilesJava=None, MergeSamFilesJar=None, \
 					MarkDuplicatesJava=None, MarkDuplicatesJar=None, tmpDir='/tmp',\
@@ -152,6 +164,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					no_of_aln_threads=3, stampy=None, skipDoneAlignment=False, \
 					alignmentPerLibrary=False, outputDirPrefix="", **keywords):
 		"""
+		2013.03.29 scale MarkDuplicates and MergeSam jobs memory & walltime to the sequence coverage
 		2013.3.13 individual_sequence.sequencer and individual_sequence.sequence_type has changed its meaning
 		2012.9.19
 			isq_id2LibrarySplitOrder2FileLs is replaced by isqLs.
@@ -185,6 +198,17 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		oneLibraryAlignmentFolder = "%sOneLibAlignment"%(outputDirPrefix)
 		oneLibraryAlignmentFolderJob = self.addMkDirJob(outputDir=oneLibraryAlignmentFolder)
 		
+		refFastaFList = registerReferenceData.refFastaFList
+		refIndexJob = None
+		if self.needRefIndexJob or registerReferenceData.needBWARefIndexJob or registerReferenceData.needStampyRefIndexJob:
+			if self.alignment_method_name.find('bwa')>=0 and registerReferenceData.needBWARefIndexJob:
+				refIndexJob = self.addBWAReferenceIndexJob(workflow, refFastaFList=refFastaFList, \
+												refSequenceBaseCount=refSequence.base_count, bwa=workflow.bwa)
+			elif self.alignment_method_name.find('stampy')>=0 and registerReferenceData.needStampyRefIndexJob:
+				refIndexJob = self.addStampyGenomeIndexHashJob(workflow, executable=workflow.stampy, refFastaFList=refFastaFList, \
+						parentJobLs=None, job_max_memory=3000, walltime = 200, \
+						extraDependentInputLs=None, \
+						transferOutput=True)
 		
 		for individual_sequence  in isqLs:
 			if individual_sequence is not None and individual_sequence.format=='fastq':
@@ -216,9 +240,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 									data_dir=data_dir)
 				skipIndividualAlignment = False
 				if individual_alignment.path:
-					alignmentAbsPath= os.path.join(data_dir, individual_alignment.path)
-					#2012.3.29	check if the alignment exists or not. if it already exists, no alignment jobs.
-					if skipDoneAlignment and os.path.isfile(alignmentAbsPath):
+					if skipDoneAlignment and db_vervet.isThisAlignmentComplete(individual_alignment=individual_alignment, data_dir=data_dir):
 						skipIndividualAlignment = True
 				#2012.3.29 this folder will store the alignment output by the alignment jbos
 				tmpOutputDir = os.path.basename(individual_sequence.path)
@@ -244,9 +266,10 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 									data_dir=data_dir, individual_sequence_file_raw_id=minIsqFileRawID)
 						skipLibraryAlignment = False
 						if oneLibraryAlignmentEntry.path:
-							alignmentAbsPath= os.path.join(data_dir, oneLibraryAlignmentEntry.path)
-							#2012.3.29	check if the alignment exists or not. if it already exists, no alignment jobs.
-							if skipDoneAlignment and os.path.isfile(alignmentAbsPath):
+							if skipDoneAlignment and db_vervet.isThisAlignmentComplete(individual_alignment=individual_alignment, data_dir=data_dir):
+								# 2013.3.22
+								# file_size is updated in the last of AddAlignmentFile2DB.py.
+								# if it fails in the middle of copying, file_size would be None.
 								skipLibraryAlignment = True
 					else:
 						skipLibraryAlignment = True
@@ -288,7 +311,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 												AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar,\
 												parentJobLs=[alignmentJob, mkdirJob], extraDependentInputLs=None, \
 												extraArguments=None, job_max_memory = 2500, transferOutput=False)
-							AlignmentJobAndOutputLs.append([addRGJob, addRGJob.output])
+							AlignmentJobAndOutputLs.append(PassingData(parentJobLs=[addRGJob], file=addRGJob.output))
 						if not skipLibraryAlignment:
 							#2012.9.19 add a AddReadGroup job for the library bam file
 							outputRGBAM = File(os.path.join(tmpOutputDir, "%s.isq_library_%s_RG.bam"%(fname_prefix, library)))
@@ -299,7 +322,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 												AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar,\
 												parentJobLs=[alignmentJob, mkdirJob], extraDependentInputLs=None, \
 												extraArguments=None, job_max_memory = 2500, transferOutput=False)
-							oneLibraryAlignmentJobAndOutputLs.append([addRGJob, addRGJob.output])
+							oneLibraryAlignmentJobAndOutputLs.append(PassingData(parentJobLs=[addRGJob], file=addRGJob.output))
 					if alignmentPerLibrary and not skipLibraryAlignment and oneLibraryAlignmentJobAndOutputLs:	#2012.9.19
 						fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
 														os.path.basename(oneLibraryAlignmentEntry.constructRelativePath()))[0]
@@ -309,9 +332,11 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 											outputBamFile=mergedBamFile, \
 											samtools=samtools, java=java, \
 											MergeSamFilesJava=MergeSamFilesJava, MergeSamFilesJar=MergeSamFilesJar, \
-											BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexJar=BuildBamIndexJar, \
+											BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, \
+											BuildBamIndexJar=BuildBamIndexJar, \
 											mv=mv, namespace=namespace, version=version, \
-											transferOutput=False, parentJobLs=[oneLibraryAlignmentFolderJob])
+											transferOutput=False, \
+											job_max_memory=4000, walltime=600, parentJobLs=[oneLibraryAlignmentFolderJob])
 						
 						finalBamFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_dupMarked.bam'%(fname_prefix, library)))
 						markDupJob, markDupBamIndexJob = self.addMarkDupJob(workflow, parentJobLs=[alignmentMergeJob, bamIndexJob], \
@@ -319,23 +344,53 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 								inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
 								MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=tmpDir,\
 								BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexJar=BuildBamIndexJar, \
-								namespace=namespace, version=version, transferOutput=False)
+								namespace=namespace, version=version, job_max_memory=4000, walltime=600, transferOutput=False)
 						no_of_merging_jobs += 1
+						
+						alignmentData = PassingData(jobLs=[markDupJob, markDupBamIndexJob], bamF=markDupJob.output, \
+												baiF=markDupBamIndexJob.output, alignment=oneLibraryAlignmentEntry)
+						#2013.03.31
+						realignedBamMergeJob, indexRealignedBamJob = self.addLocalRealignmentSubWorkflow(workflow=workflow, \
+							chr2IntervalDataLs=chr2IntervalDataLs, \
+							registerReferenceData=registerReferenceData, \
+							alignmentData=alignmentData,\
+							inputBamF=markDupJob.output, \
+							outputBamF=None, \
+							parentJobLs=[markDupJob, markDupBamIndexJob], \
+							outputDirPrefix='%s_%s_localRealignment'%(fname_prefix, library), transferOutput=False)
 						
 						#2012.9.19 add/copy the alignment file to db-affliated storage
 						#add the metric file to AddAlignmentFile2DB.py as well (to be moved into db-affiliated storage)
 						logFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_2db.log'%(fname_prefix, library)))
 						alignment2DBJob = self.addAddAlignmentFile2DBJob(workflow=workflow, executable=self.AddAlignmentFile2DB, \
-											inputFile=markDupJob.output, otherInputFileList=[markDupJob.MarkDupOutputMetricF], \
+											inputFile=realignedBamMergeJob.output, \
+											otherInputFileList=[], \
 											individual_alignment_id=oneLibraryAlignmentEntry.id, \
 											individual_sequence_file_raw_id=minIsqFileRawID,\
 											logFile=logFile, data_dir=data_dir, \
-											parentJobLs=[markDupJob, markDupBamIndexJob], \
-											extraDependentInputLs=[markDupBamIndexJob.output,], \
+											parentJobLs=[realignedBamMergeJob, indexRealignedBamJob], \
+											extraDependentInputLs=[indexRealignedBamJob.output,], \
 											extraArguments=None, transferOutput=transferOutput, \
-											job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, commit=True)
+											job_max_memory=2000, walltime=180, \
+											sshDBTunnel=self.needSSHDBTunnel, commit=True)
 						
 				if AlignmentJobAndOutputLs and not skipIndividualAlignment:
+					baseCoverage = 4	#baseline
+					actualCoverage = getattr(individual_sequence, 'coverage', baseCoverage)
+					minMergeAlignmentWalltime = 240	#in minutes, 4 hours, when coverage is defaultCoverage
+					maxMergeAlignmentWalltime = 2880	#in minutes, 2 days
+					minMergeAlignmentMaxMemory = 5000	#in MB, when coverage is defaultCoverage
+					maxMergeAlignmentMaxMemory = 12000	#in MB
+					
+					mergeAlignmentWalltime = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=actualCoverage, \
+											baseInputVolume=baseCoverage, baseJobPropertyValue=minMergeAlignmentWalltime, \
+											minJobPropertyValue=minMergeAlignmentWalltime, maxJobPropertyValue=maxMergeAlignmentWalltime).value
+					mergeAlignmentMaxMemory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=actualCoverage, \
+											baseInputVolume=baseCoverage, baseJobPropertyValue=minMergeAlignmentMaxMemory, \
+											minJobPropertyValue=minMergeAlignmentMaxMemory, maxJobPropertyValue=maxMergeAlignmentMaxMemory).value
+					markDuplicateWalltime= mergeAlignmentWalltime
+					markDuplicateMaxMemory = mergeAlignmentMaxMemory
+					
 					#2012.3.29	merge alignment output only when there is something to merge!
 					fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
 													os.path.basename(individual_alignment.constructRelativePath()))[0]
@@ -346,7 +401,9 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 										MergeSamFilesJava=MergeSamFilesJava, MergeSamFilesJar=MergeSamFilesJar, \
 										BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexJar=BuildBamIndexJar, \
 										mv=mv, namespace=namespace, version=version, \
-										transferOutput=False, parentJobLs=[alignmentFolderJob])
+										parentJobLs=[alignmentFolderJob],\
+										transferOutput=False, job_max_memory=mergeAlignmentMaxMemory, \
+										walltime=mergeAlignmentWalltime)
 					#relative path in the scratch
 					finalBamFile = File(os.path.join(alignmentFolder, '%s_dupMarked.bam'%(fname_prefix)))
 					
@@ -355,20 +412,36 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 							inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
 							MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=tmpDir,\
 							BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexJar=BuildBamIndexJar, \
-							namespace=namespace, version=version, transferOutput=False)
+							namespace=namespace, version=version, job_max_memory=markDuplicateMaxMemory, \
+							walltime=markDuplicateWalltime, \
+							transferOutput=False)
 					no_of_merging_jobs += 1
 					
+					
+					#2013.03.31
+					alignmentData = PassingData(jobLs=[markDupJob, markDupBamIndexJob], bamF=markDupJob.output, \
+												baiF=markDupBamIndexJob.output, alignment=individual_alignment)
+					realignedBamMergeJob, indexRealignedBamJob = self.addLocalRealignmentSubWorkflow(workflow=workflow, \
+						chr2IntervalDataLs=chr2IntervalDataLs, registerReferenceData=registerReferenceData, \
+						alignmentData=alignmentData,\
+						inputBamF=markDupJob.output, \
+						outputBamF=None, \
+						parentJobLs=[markDupJob, markDupBamIndexJob], \
+						outputDirPrefix='%s_localRealignment'%(fname_prefix), transferOutput=False)
+				
 					#2012.9.19 add/copy the alignment file to db-affliated storage
 					#add the metric file to AddAlignmentFile2DB.py as well (to be moved into db-affiliated storage)
 					logFile = File(os.path.join(alignmentFolder, '%s_2db.log'%(fname_prefix)))
 					alignment2DBJob = self.addAddAlignmentFile2DBJob(workflow=workflow, executable=self.AddAlignmentFile2DB, \
-										inputFile=markDupJob.output, otherInputFileList=[markDupJob.MarkDupOutputMetricF],\
+										inputFile=realignedBamMergeJob.output, \
+										otherInputFileList=[],\
 										individual_alignment_id=individual_alignment.id, \
 										logFile=logFile, data_dir=data_dir, \
-										parentJobLs=[markDupJob, markDupBamIndexJob], \
-										extraDependentInputLs=[markDupBamIndexJob.output], \
+										parentJobLs=[realignedBamMergeJob, indexRealignedBamJob], \
+										extraDependentInputLs=[indexRealignedBamJob.output], \
 										extraArguments=None, transferOutput=transferOutput, \
-										job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, commit=True)
+										job_max_memory=2000, walltime=max(180, markDuplicateWalltime/4), \
+										sshDBTunnel=self.needSSHDBTunnel, commit=True)
 					
 		sys.stderr.write("%s alignment jobs; %s merge alignment jobs; %s jobs in total.\n"%(no_of_alignment_jobs, no_of_merging_jobs,\
 																				self.no_of_jobs))
@@ -400,248 +473,6 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		#workflow.addJob(mkdirJob)
 		#return mkdirJob
 	
-	def addAlignmentJobPipe(self, workflow, filePair, data_dir=None, refFastaFile=None, bwa=None, additionalArguments=None, \
-					samtools=None, refIndexJob=None, mkdirJob=None,\
-					alignment_method=None, outputDir=None, namespace='workflow', version='1.0',\
-					PEAlignmentByBWA=None, ShortSEAlignmentByBWA=None, LongSEAlignmentByBWA=None,\
-					no_of_aln_threads=3, **keywords):
-		"""
-		2011-9-7
-			version that uses shell(bash) pipes to skip files.
-		"""
-		#in MB, 2.5GB for one  aln, 5G for sampe (input is 4.5G gzipped fastq, versus 480K contigs (total size~3G)), 2G for sort
-		# paired end
-		pe_job_max_memory = 11000
-		#pe_job_max_memory = 7000	#lie about the usage. on usc cluster, this is translated into min memory requirement.
-		## single end
-		se_job_max_memory = 9000
-		#se_job_max_memory = 6500	#lie about the usage. on usc cluster, this is translated into min memory requirement.
-		if len(filePair)==1:	#single end
-			fileRecord = filePair[0]
-			fastqF, format, sequence_type, sequencer = fileRecord[:4]
-			relativePath = fastqF.name
-			fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
-			bam_output_fname_prefix = '%s.sorted'%(os.path.join(outputDir, fname_prefix))
-			sortBamF = File('%s.bam'%(bam_output_fname_prefix))
-			if alignment_method.command=='aln' and sequencer.short_name!='454':	#short single-end read
-				alignmentJob = Job(namespace=namespace, name=ShortSEAlignmentByBWA.name, version=version)
-			elif alignment_method.command=='bwasw' or sequencer.short_name=='454':	#long single-end read
-				alignmentJob = Job(namespace=namespace, name=LongSEAlignmentByBWA.name, version=version)
-			
-			alignmentJob.addArguments(refFastaFile, fastqF, bam_output_fname_prefix)
-			alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
-			alignmentJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%se_job_max_memory))
-			alignmentJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%se_job_max_memory))
-			#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="RequestCpus", value="%s"%no_of_aln_threads))
-		
-		elif len(filePair)==2:	#paired end
-			fastqF1, format, sequence_type = filePair[0][:3]
-			fastqF2, format, sequence_type = filePair[1][:3]
-			relativePath = fastqF1.name
-			fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
-			fname_prefix = fname_prefix[:-2]
-			bam_output_fname_prefix = '%s.sorted'%(os.path.join(outputDir, fname_prefix))
-			sortBamF = File('%s.bam'%(bam_output_fname_prefix))
-			alignmentJob = Job(namespace=namespace, name=PEAlignmentByBWA.name, version=version)
-			alignmentJob.addArguments(refFastaFile, fastqF1, fastqF2, bam_output_fname_prefix)
-			alignmentJob.uses(fastqF1, transfer=True, register=True, link=Link.INPUT)
-			alignmentJob.uses(fastqF2, transfer=True, register=True, link=Link.INPUT)
-			
-			alignmentJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%pe_job_max_memory))
-			alignmentJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%pe_job_max_memory))
-			#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="RequestCpus", value="%s"%no_of_aln_threads))
-			
-		alignmentJob.uses(sortBamF, transfer=False, register=True, link=Link.OUTPUT)
-		workflow.addJob(alignmentJob)
-		if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-			alignmentJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
-		if mkdirJob:
-			workflow.depends(parent=mkdirJob, child=alignmentJob)
-		return alignmentJob, sortBamF
-	
-	def addAlignmentJobNoPipe(self, workflow, filePair, data_dir=None, refFastaFile=None, bwa=None, additionalArguments=None, \
-					samtools=None, refIndexJob=None, mkdirJob=None,\
-					alignment_method=None, outputDir=None, namespace='workflow', version='1.0',\
-					PEAlignmentByBWA=None, ShortSEAlignmentByBWA=None, LongSEAlignmentByBWA=None,\
-					no_of_aln_threads=3, **keywords):
-		"""
-		2011-8-28
-		"""
-		aln_job_max_memory = 3000	#in MB, 2.5GB is enough for 4.5G gzipped fastq versus 480K contigs (total size~3G)
-		if len(filePair)==1:	#single end
-			fileRecord = filePair[0]
-			fastqF, format, sequence_type, sequencer = fileRecord[:4]
-			relativePath = fastqF.name
-			
-			if alignment_method.command=='aln' and sequencer.short_name!='454':	#short single-end read
-				alignmentJob = Job(namespace=namespace, name=bwa.name, version=version)
-				fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
-				outputFname = os.path.join(outputDir, '%s.sai'%fname_prefix)
-				saiOutput = File(outputFname)
-				alignmentJob.addArguments(alignment_method.command, additionalArguments,"-t %s"%no_of_aln_threads, \
-										"-f", saiOutput, refFastaFile, \
-										fastqF)
-				alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
-				if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-					alignmentJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
-				alignmentJob.uses(saiOutput, transfer=False, register=True, link=Link.OUTPUT)
-				alignmentJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%aln_job_max_memory))
-				alignmentJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%aln_job_max_memory))
-				#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="RequestCpus", value="%s"%no_of_aln_threads))
-				workflow.addJob(alignmentJob)
-				
-				sai2samJob = Job(namespace=namespace, name=bwa.name, version=version)
-				outputFname = os.path.join(outputDir, '%s.sam'%fname_prefix)
-				alignmentSamF = File(outputFname)
-				sai2samJob.addArguments("samse", "-f", outputFname, refFastaFile, saiOutput, fastqF)
-				sai2samJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
-				if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-					sai2samJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
-				sai2samJob.uses(saiOutput, transfer=True, register=True, link=Link.INPUT)
-				sai2samJob.uses(alignmentSamF, transfer=False, register=True, link=Link.OUTPUT)
-				job_max_memory = 2500	#in MB
-				sai2samJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
-				sai2samJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
-				
-				
-				workflow.addJob(sai2samJob)
-				workflow.depends(parent=alignmentJob, child=sai2samJob)
-				
-			elif alignment_method.command=='bwasw' or sequencer.short_name=='454':	#long single-end read
-				alignmentJob = Job(namespace=namespace, name=bwa.name, version=version)
-				fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
-				outputFname = os.path.join(outputDir, '%s.sam'%fname_prefix)
-				alignmentSamF = File(outputFname)
-				alignmentJob.addArguments('bwasw', additionalArguments, "-t %s"%(no_of_aln_threads), "-f", alignmentSamF, refFastaFile, \
-									fastqF)
-				alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
-				if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-					alignmentJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
-				alignmentJob.uses(alignmentSamF, transfer=False, register=True, link=Link.OUTPUT)
-				alignmentJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%aln_job_max_memory))
-				alignmentJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%aln_job_max_memory))
-				#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="RequestCpus", value="%s"%no_of_aln_threads))
-				workflow.addJob(alignmentJob)
-				#fake a sai2samJob
-				sai2samJob = alignmentJob
-				
-			if refIndexJob:
-				workflow.depends(parent=refIndexJob, child=alignmentJob)
-			if mkdirJob:
-				workflow.depends(parent=mkdirJob, child=alignmentJob)
-			
-		elif len(filePair)==2:	#paired end
-			### run sampe to combine two paired-end results into one sam file
-			"bwa sampe -a 1000 -P hsref.fa ga1.sai ga2.sai ga1.fq ga2.fq | gzip > ga.sam.gz"
-			sai2samJob = Job(namespace=namespace, name=bwa.name, version=version)
-			# -P of sampe speeds things up but requires 4-5G memory for a human-size genome
-			# "-a 1000" means maximum insert size is 1000.
-			sai2samJob.addArguments('sampe', "-P")
-			job_max_memory = 6000	#in MB
-			sai2samJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
-			sai2samJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
-			sai2samJob.addProfile(Profile(Namespace.CONDOR, key="request_memory", value="%s"%job_max_memory))
-			fileRecord, fileRecord2 = filePair[:2]
-			fastqF, format, sequence_type = fileRecord[:3]
-			relativePath = fastqF.name
-			fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
-			# remove the _1 or _2 in the end of the two paired-end filenames.
-			fname_prefix = fname_prefix[:-2]
-			samOutputFname = os.path.join(outputDir, '%s.sam'%fname_prefix)
-			alignmentSamF = File(samOutputFname)
-			sai2samJob.addArguments("-f", alignmentSamF)
-			sai2samJob.addArguments(refFastaFile)
-			if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-				sai2samJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
-			sai2samJob.uses(alignmentSamF, transfer=False, register=True, link=Link.OUTPUT)
-			workflow.addJob(sai2samJob)
-			for fileRecord in filePair:
-				fastqF, format, sequence_type = fileRecord[:3]
-				relativePath = fastqF.name
-				#relativePath, format, sequence_type = fileRecord[:3]
-				tmp_fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(relativePath))[0]
-				
-				alignmentJob = Job(namespace=namespace, name=bwa.name, version=version)
-				outputFname = os.path.join(outputDir, '%s.sai'%tmp_fname_prefix)
-				saiOutput = File(outputFname)
-				alignmentJob.addArguments(alignment_method.command, additionalArguments, "-t %s"%(no_of_aln_threads), \
-										"-f", saiOutput, refFastaFile, fastqF)
-				alignmentJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%aln_job_max_memory))
-				alignmentJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%aln_job_max_memory))
-				#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="RequestCpus", value="%s"%no_of_aln_threads))
-				#alignmentJob.addProfile(Profile(Namespace.CONDOR, key="request_cpus", value="%s"%no_of_aln_threads))
-				alignmentJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
-				if refIndexJob:	#if this job is present, yes transfer it. otherwise assume it's there already
-					alignmentJob.uses(refFastaFile, transfer=True, register=True, link=Link.INPUT)
-				alignmentJob.uses(saiOutput, transfer=False, register=True, link=Link.OUTPUT)
-				workflow.addJob(alignmentJob)
-				
-				if refIndexJob:
-					workflow.depends(parent=refIndexJob, child=alignmentJob)
-				if mkdirJob:
-					workflow.depends(parent=mkdirJob, child=alignmentJob)
-				
-				sai2samJob.addArguments(saiOutput)
-				sai2samJob.uses(fastqF, transfer=True, register=True, link=Link.INPUT)
-				sai2samJob.uses(saiOutput, transfer=True, register=True, link=Link.INPUT)
-				workflow.depends(parent=alignmentJob, child=sai2samJob)
-				
-			
-			#add a pair of fastq files to sampe in the end
-			for fileRecord in filePair:
-				fastqF = fileRecord[0]
-				sai2samJob.addArguments(fastqF)
-		
-		
-		## convert sam into bam and remove unmapped reads (or queries)
-		sam_convert_job = Job(namespace=namespace, name=samtools.name, version=version)
-		bamOutputF = File(os.path.join(outputDir, "%s.bam"%(fname_prefix)))
-		sam_convert_job.addArguments('view',  '-F', '4', '-bSh', '-o', bamOutputF, alignmentSamF)
-		sam_convert_job.uses(alignmentSamF, transfer=True, register=True, link=Link.INPUT)
-		sam_convert_job.uses(bamOutputF, transfer=False, register=True, link=Link.OUTPUT)
-		workflow.addJob(sam_convert_job)
-		workflow.depends(parent=sai2samJob, child=sam_convert_job)
-		
-		"""
-		# 2010-2-4
-			sort it so that it could be used for merge
-		"""
-		bam_output_fname_prefix = '%s.sorted'%(os.path.join(outputDir, fname_prefix))
-		sam_sort_job = Job(namespace=namespace, name=samtools.name, version=version)
-		sam_sort_job.addArguments('sort', '-m', '2000000000', bamOutputF, bam_output_fname_prefix)	#maxMemory is down to 2G
-		sortBamF = File('%s.bam'%(bam_output_fname_prefix))
-		sam_sort_job.uses(bamOutputF, transfer=True, register=True, link=Link.INPUT)
-		sam_sort_job.uses(sortBamF, transfer=False, register=True, link=Link.OUTPUT)
-		job_max_memory = 2000	#in MB
-		sam_sort_job.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
-		sam_sort_job.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
-		workflow.addJob(sam_sort_job)
-		workflow.depends(parent=sam_convert_job, child=sam_sort_job)
-		
-		return sam_sort_job, sortBamF
-
-	
-	@classmethod
-	def addLocalRealignmentJob(cls, workflow, samtoolsCalmd=None, inputBamF=None, \
-					refFastaFList=None, outputBamF=None, \
-					parentJob=None, \
-					BuildBamIndexFilesJava=None, BuildBamIndexJar=None, \
-					namespace='workflow', version='1.0', transferOutput=True,\
-					**keywords):
-		"""
-		2011-11-20
-			create a sub-workflow to do local re-alignment for one inputBAM
-			for each 2million bp interval
-				split a small bam out of input bam (add 1kb on both ends of interval)
-				index the small bam
-				run RealignerTargetCreator
-				run IndelRealigner
-				(extract the exact interval out of bam if 1kb is added to both ends of input interval)
-			merge all intervals back into one bam
-			index the merged bam
-			
-		"""
-
 	def run(self):
 		"""
 		2011-7-11
@@ -671,6 +502,9 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		self.registerExecutables(workflow)
 		self.registerCustomExecutables(workflow)
 		
+		chr2IntervalDataLs = self.getChr2IntervalDataLsBySplitChrSize(chr2size=self.chr2size, \
+													intervalSize=self.intervalSize, \
+													intervalOverlapSize=self.intervalOverlapSize)
 		
 		#individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, data_dir=self.local_data_dir)
 		isqLs = db_vervet.getISQDBEntryLsForAlignment(self.ind_seq_id_ls, data_dir=self.data_dir, \
@@ -691,27 +525,14 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		
 		#2011-11-16 new way of registering reference fasta file. but still dont' want to trasnfer 7Gb of data
 		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		refFastaFList = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, input_site_handler=self.input_site_handler,\
+		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
-
-		if self.needRefIndexJob:
-			if self.alignment_method_name.find('bwa')>=0:
-				refIndexJob = self.addBWAReferenceIndexJob(workflow, refFastaFList=refFastaFList, \
-												refSequenceBaseCount=refSequence.base_count, bwa=workflow.bwa)
-			elif self.alignment_method_name.find('stampy')>=0:
-				refIndexJob = self.addStampyGenomeIndexHashJob(workflow, executable=workflow.stampy, refFastaFList=refFastaFList, \
-						parentJobLs=[], job_max_memory=3000, job_max_walltime = 200, \
-						extraDependentInputLs=[], \
-						transferOutput=True)
-			else:
-				refIndexJob = None
-		else:
-			refIndexJob = None
 		
-		self.addAllAlignmentJobs(db_vervet, individualSequenceID2FilePairLs=None, \
+		self.addAllAlignmentJobs(db_vervet=db_vervet, individualSequenceID2FilePairLs=None, \
 					isqLs = isqLs,\
 					data_dir=self.data_dir,\
-					refSequence=refSequence, refFastaFList=refFastaFList, refIndexJob=refIndexJob,
+					refSequence=refSequence, registerReferenceData=registerReferenceData, \
+					chr2IntervalDataLs=chr2IntervalDataLs,\
 					workflow=workflow, bwa=workflow.bwa, additionalArguments=self.additionalArguments, \
 					samtools=workflow.samtools, \
 					mkdirWrap=workflow.mkdirWrap, mv=workflow.cp, \
