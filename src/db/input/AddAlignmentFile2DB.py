@@ -124,12 +124,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 			if db_entry and db_entry.id!=individual_alignment.id and db_entry.path and os.path.isfile(os.path.join(data_dir, db_entry.path)):
 				sys.stderr.write("Warning: another file %s with the identical md5sum %s as this file %s, is already in db.\n"%\
 								(db_entry.path, md5sum, inputFileRealPath))
-				try:
-					session.rollback()
-				except:
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
+				self.sessionRollback(session)
 				self.cleanUpAndExitOnFailure(exitCode=3)
 			
 			
@@ -148,22 +143,12 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				sys.stderr.write('Except in copying %s to db-storage with except info: %s\n'%(inputFileRealPath, repr(sys.exc_info())))
 				import traceback
 				traceback.print_exc()
-				try:
-					session.rollback()
-				except:
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
+				self.sessionRollback(session)
 				self.cleanUpAndExitOnFailure(exitCode=5)
 			
 			if exitCode!=0:
 				sys.stderr.write("Error: moveFileIntoDBAffiliatedStorage() exits with code=%s.\n"%(exitCode))
-				try:
-					session.rollback()
-				except:
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
+				self.sessionRollback(session)
 				self.cleanUpAndExitOnFailure(exitCode=exitCode)
 			try:
 				#make sure these files are stored in self.dstFilenameLs and self.srcFilenameLs
@@ -185,12 +170,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				baiFilename = '%s.bai'%(self.inputFname)
 				if not os.path.isfile(baiFilename):
 					sys.stderr.write("")
-					try:
-						session.rollback()
-					except:
-						sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-						import traceback
-						traceback.print_exc()
+					self.sessionRollback(session)
 					self.cleanUpAndExitOnFailure(exitCode=5)
 				if os.path.isfile(baiFilename):
 					srcFilename = baiFilename
@@ -203,12 +183,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
 				import traceback
 				traceback.print_exc()
-				try:
-					session.rollback()
-				except:
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
+				self.sessionRollback(session)
 				self.cleanUpAndExitOnFailure(exitCode=5)
 		else:
 			logMessage += "%s doesn't exist.\n"%(inputFileRealPath)
@@ -225,12 +200,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 				self.cleanUpAndExitOnFailure(exitCode=3)
 		else:
 			#delete all target files but exit gracefully (exit 0)
-			try:
-				session.rollback()
-			except:
-				sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-				import traceback
-				traceback.print_exc()
+			self.sessionRollback(session)
 			self.cleanUpAndExitOnFailure(exitCode=0)
 	
 
