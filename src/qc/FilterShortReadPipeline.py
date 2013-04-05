@@ -3,19 +3,20 @@
 Examples:
 	
 	# 2011-8-16 on condorpool.
-	%s -o filterShortReadPipeline.xml -u yh -i 1-507 -z uclaOffice -j condorpool -l condorpool -c
+	%s -o filterShortReadPipeline.xml -u yh -i 1-507 -z uclaOffice -j condorpool -l condorpool --commit
 	
-	# 2011-8-16 use hoffman2 site_handler. needs ssh tunnel for db-access jobs (-H), always commit (-c) otherwise, no records in IndividualSequence
+	# 2011-8-16 use hoffman2 site_handler. needs ssh tunnel for db-access jobs (-H), always commit (--commit) otherwise, no records in IndividualSequence
 	# make job cluster size=50 (-C 50)
-	%s -o filterShortReadPipeline.xml -i 1-8,15-130 
-		-z localhost -c -u yh
+	%s -o dags/FilterReads/FilterShortReadPipeline.xml -i 1-8,15-130 
+		-z localhost --commit -u yh
 		-l hcondor -j hcondor -e /u/home/eeskin/polyacti
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		-J ~/bin/jdk/bin/java
 		-H -C 50
 	
 	#2012.2.15
-	%s -z uclaOffice -c -l condorpool -j condorpool  -o workflow/FilterReadPipeline_isq_id_527_626.xml  -i 527-626 -u yh
+	%s -z uclaOffice --commit -l condorpool -j condorpool  -o dags/FilterReadPipeline_isq_id_527_626.xml 
+		-i 527-626 -u yh
 	
 Description:
 	2011-8-16
@@ -46,7 +47,6 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 						{
 						('ind_seq_id_ls', 1, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. \
 									no-individual_sequence_file-affiliated entries will be discarded.', ],\
-						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_alignment and/or individual_alignment.path'],\
 						})
 	# 2012.6.8 skipFilteredSequenceFiles is automatically enforced by checking library_split_order2filtered_db_entry_ls.
 		# 
@@ -66,24 +66,17 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 		"""
 		2012.1.3
 		"""
-		namespace = workflow.namespace
-		version = workflow.version
-		operatingSystem = workflow.operatingSystem
-		architecture = workflow.architecture
-		clusters_size = workflow.clusters_size
-		site_handler = workflow.site_handler
 		vervetSrcPath = self.vervetSrcPath
 		
-		addFilteredSequences2DB = Executable(namespace=namespace, name="AddFilteredSequences2DB", version=version, \
-								os=operatingSystem, arch=architecture, installed=True)
-		addFilteredSequences2DB.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/input/AddFilteredSequences2DB.py"), site_handler))
-		addFilteredSequences2DB.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(addFilteredSequences2DB)
-		workflow.addFilteredSequences2DB = addFilteredSequences2DB
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(vervetSrcPath, "db/input/AddFilteredSequences2DB.py"), \
+										name='AddFilteredSequences2DB', clusterSizeMultipler=0.1)
+		
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, \
+										name='FilterReadJava', clusterSizeMultipler=0.6)
 		#2012.7.13 don't cluster add-to-DB jobs because if one of them fail, the previous ones will be re-run.
 		#workflow.java.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
 		
-		"""2011-8-31 replace filterReadJar
+		"""2011-8-31 replace FilterReadJar
 		filterShortRead = Executable(namespace=namespace, name="FilterShortRead", version=version, \
 								os=operatingSystem, arch=architecture, installed=True)
 		filterShortRead.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "FilterShortRead.py"), site_handler))
@@ -94,66 +87,49 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 		"""
 		2012.2.10
 		"""
-		site_handler = self.site_handler
 		
-		abs_path = os.path.join(self.picard_path, 'FilterRead.jar')
-		filterReadJar = File(abs_path)
-		filterReadJar.addPFN(PFN("file://" + abs_path, site_handler))
-		workflow.addFile(filterReadJar)
-		workflow.filterReadJar = filterReadJar
-		
+		self.registerOneJar(name="FilterReadJar", path=os.path.join(self.picard_path, 'FilterRead.jar'))
 	
-	def addAddFilteredSequences2DB_job(self, workflow, executable=None, \
+	def addAddFilteredSequences2DB_job(self, workflow=None, executable=None, \
 							inputFile=None, individual_sequence_id=None, outputDir=None, logFile=None,\
 							parent_individual_sequence_file_id=None, \
-							parentJobLs=[], job_max_memory=100, walltime = 60, \
+							parentJobLs=None, job_max_memory=100, walltime = 60, \
 							commit=0, \
-							extraDependentInputLs=[], \
+							extraDependentInputLs=None, \
 							transferOutput=False, sshDBTunnel=1, **keywords):
 		"""
+		2013.04.05 call addGenericFile2DBJob
 		2012.4.18
 			add argument sshDBTunnel
 		2012.2.10
 			walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			
 		"""
-		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
-		self.addDBArgumentsToOneJob(job, objectWithDBArguments=self)
-		job.addArguments('-i', inputFile, '-n', str(individual_sequence_id), '-o', outputDir, \
-						'-e %s'%(parent_individual_sequence_file_id))
-		if commit:
-			job.addArguments("-c")
-		if self.port:
-			job.addArguments("--port=%s"%self.port)
-		
-		job.uses(inputFile, transfer=True, register=True, link=Link.INPUT)
-		if logFile:
-			job.addArguments('-g', logFile)
-			job.uses(logFile, transfer=transferOutput, register=transferOutput, link=Link.OUTPUT)
-			job.output = logFile
-		
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=walltime, sshDBTunnel=sshDBTunnel)
-		workflow.addJob(job)
-		for input in extraDependentInputLs:
-			job.uses(input, transfer=True, register=True, link=Link.INPUT)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=job)
+		extraArgumentList = ["--individual_sequence_id %s"%(individual_sequence_id), '--outputDir %s'%(outputDir), \
+						'--parent_individual_sequence_file_id %s'%(parent_individual_sequence_file_id)]
+		job = self.addGenericFile2DBJob(executable=executable, inputFile=inputFile, inputArgumentOption="-i", \
+					outputFile=None, outputArgumentOption="-o", inputFileList=None, \
+					data_dir=None, logFile=logFile, commit=commit,\
+					parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+					extraOutputLs=None, transferOutput=transferOutput, \
+					extraArguments=None, extraArgumentList=extraArgumentList, \
+					job_max_memory=job_max_memory,  sshDBTunnel=sshDBTunnel, walltime=walltime,\
+					key2ObjectForJob=None, objectWithDBArguments=self, **keywords)
 		return job
 	
 	
-	def addFilterReadJob(self, workflow, executable=None, jar=None,\
-					parentJobLs=[], job_max_memory=2000, walltime = 120, \
-					extraDependentInputLs=[], \
+	def addFilterReadJob(self, workflow=None, executable=None, jar=None,\
+					parentJobLs=None, job_max_memory=2000, walltime = 120, \
+					extraDependentInputLs=None, \
 					transferOutput=False, **keywords):
 		"""
+		2013.04.05 use addGenericJavaJob()
 		2012.2.9
 			walltime is in minutes (max time allowed on hoffman2 is 24 hours).
 			
 		"""
-		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
-		job = Job(namespace=workflow.namespace, name=executable.name, version=workflow.version)
-		job.addArguments(javaMemRequirement, '-jar', jar,\
-						'M=20', 'N=50', 'a=0.3', 'l=2')
+		
+		extraArgumentList = ['M=20', 'N=50', 'a=0.3', 'l=2']
 		"""
 		m = "Minimum phred score. any base with phred score below this number will be turned into N")
 	
@@ -163,12 +139,16 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 		
 		@Option(shortName = "l", doc = "during head/tail trimming, smoothing phred score is applied. amounts to how many flanking bases used"
 		"""
-		yh_pegasus.setJobProperRequirement(job, job_max_memory=job_max_memory, walltime=walltime)
-		workflow.addJob(job)
-		for input in extraDependentInputLs:
-			job.uses(input, transfer=True, register=True, link=Link.INPUT)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=job)
+		
+		job = self.addGenericJavaJob(executable=executable, jarFile=jar, \
+					inputFile=None, inputArgumentOption=None, \
+					inputFileList=None, argumentForEachFileInInputFileList=None,\
+					outputFile=None, outputArgumentOption=None,\
+					parentJobLs=parentJobLs, transferOutput=transferOutput, job_max_memory=job_max_memory,\
+					frontArgumentList=None, \
+					extraArguments=None, extraArgumentList=extraArgumentList, extraOutputLs=None, \
+					extraDependentInputLs=extraDependentInputLs, \
+					no_of_cpus=None, walltime=walltime, sshDBTunnel=None, **keywords)
 		return job
 	
 	def getLibrarySplitOrder2DBEntryLs(self, individual_sequence):
@@ -212,7 +192,8 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 		
 		isq_id2LibrarySplitOrder2FileLs = db_vervet.getISQ_ID2LibrarySplitOrder2FileLs(self.ind_seq_id_ls, data_dir=self.data_dir, \
 													filtered=0, ignoreEmptyReadFile=False)	#2012.6.1 unfiltered read file shoudn't be empty
-		no_of_jobs = 0
+		to_work_ind_seq_id_set = set()
+		parent_individual_sequence_file_id_set = set()
 		for ind_seq_id, LibrarySplitOrder2FileLs in isq_id2LibrarySplitOrder2FileLs.iteritems():
 			parent_individual_sequence = VervetDB.IndividualSequence.get(ind_seq_id)
 			if parent_individual_sequence is not None and parent_individual_sequence.format=='fastq':
@@ -233,28 +214,33 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 				"""
 				library_split_order2filtered_db_entry_ls = self.getLibrarySplitOrder2DBEntryLs(individual_sequence)
 				
-				sequenceOutputDir = os.path.join(self.data_dir, individual_sequence.path)
-				sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
-				no_of_jobs += 1
-				
-				filteredReadOutputDir = os.path.join(os.path.basename(individual_sequence.path))
-				filteredReadOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=filteredReadOutputDir)
-				no_of_jobs += 1
+				sequenceOutputDirJob = None
+				filteredReadOutputDirJob = None
 				for key, fileObjLs in LibrarySplitOrder2FileLs.iteritems():
 					if key in library_split_order2filtered_db_entry_ls:
-						sys.stderr.write("Warning: this pair of filtered individual_sequence_file(s), %s, have been in db already. skip.\n"%(repr(key)))
+						sys.stderr.write("Warning: this pair of filtered individual_sequence_file(s), %s, parent_individual_sequence (id=%s, %s),\
+			individual_sequence (id=%s, %s) are already in db. skip.\n"%\
+										(repr(key), parent_individual_sequence.id, parent_individual_sequence.individual.code,\
+										individual_sequence.id, individual_sequence.individual.code))
 						continue
+					else:
+						if sequenceOutputDirJob is None:
+							sequenceOutputDir = os.path.join(self.data_dir, individual_sequence.path)
+							sequenceOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=sequenceOutputDir)
+						if filteredReadOutputDirJob is None:
+							filteredReadOutputDir = os.path.join(os.path.basename(individual_sequence.path))
+							filteredReadOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=filteredReadOutputDir)
+						
 					library, split_order = key[:2]
 					
 					#add filter jobs
-					filterShortRead_job = self.addFilterReadJob(workflow, executable=workflow.java, jar=workflow.filterReadJar,\
+					filterShortRead_job = self.addFilterReadJob(executable=self.FilterReadJava, jar=workflow.FilterReadJar,\
 						parentJobLs=[filteredReadOutputDirJob], job_max_memory=2000, walltime = 120, \
-						extraDependentInputLs=[], transferOutput=False)
-					no_of_jobs += 1
+						extraDependentInputLs=None, transferOutput=False)
 					for i in xrange(len(fileObjLs)):
 						fileObj = fileObjLs[i]
 						try:	#2012.7.2
-							inputFile = self.registerOneInputFile(workflow, fileObj.path)
+							inputFile = self.registerOneInputFile(workflow, inputFname=fileObj.path, folderName='inputIndividualSequenceFile')
 						except:
 							import pdb
 							pdb.set_trace()
@@ -272,14 +258,17 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 						filterShortRead_job.uses(outputFile, transfer=False, register=True, link=Link.OUTPUT)
 						
 						logFile = File('%s_%s.register.log'%(individual_sequence.id, fileObj.db_entry.id))
-						addFilteredSequences2DB_job = self.addAddFilteredSequences2DB_job(workflow, executable=workflow.addFilteredSequences2DB, \
+						addFilteredSequences2DB_job = self.addAddFilteredSequences2DB_job(workflow, \
+									executable=workflow.AddFilteredSequences2DB, \
 									inputFile=outputFile, individual_sequence_id=individual_sequence.id, outputDir=sequenceOutputDir, \
 									logFile=logFile, \
 									parent_individual_sequence_file_id=fileObj.db_entry.id,\
 									parentJobLs=[sequenceOutputDirJob, filterShortRead_job], commit=self.commit, \
-									extraDependentInputLs=[], transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
-						no_of_jobs += 1
-		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
+									extraDependentInputLs=None, transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
+						to_work_ind_seq_id_set.add(ind_seq_id)
+						parent_individual_sequence_file_id_set.add(fileObj.db_entry.id)
+		sys.stderr.write("%s jobs, %s individual_sequence entries, %s parent_individual_sequence_file_id s.\n"%\
+						(self.no_of_jobs, len(to_work_ind_seq_id_set), len(parent_individual_sequence_file_id_set)))
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
 		workflow.writeXML(outf)
