@@ -161,7 +161,7 @@ class RegisterAndMoveSplitSequenceFiles(AbstractVervetMapper):
 								constructRelativePathFunction=None)
 				if exitCode!=0:
 					sys.stderr.write("Error: moveFileIntoDBAffiliatedStorage() exits with %s code.\n"%(exitCode))
-					session.rollback()
+					self.sessionRollback(session)
 					#delete all recorded target files
 					self.cleanUpAndExitOnFailure(exitCode=exitCode)
 				real_counter += 1
@@ -183,7 +183,7 @@ class RegisterAndMoveSplitSequenceFiles(AbstractVervetMapper):
 				#delete all target files.
 				self.cleanUpAndExitOnFailure(exitCode=3)
 		else:
-			session.rollback()
+			self.sessionRollback(session)
 			#delete all target files
 			self.cleanUpAndExitOnFailure(exitCode=0)
 		
