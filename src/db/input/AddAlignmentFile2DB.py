@@ -48,6 +48,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 	if given, an individual_alignment db entry will be created as a copy of this one.'],\
 						('mask_genotype_method_id', 0, int):[None, '', 1, 'for alignments coming out of base quality recalibration'],\
 						('individual_sequence_file_raw_id', 0, int):[None, '', 1, 'for library specific alignment'],\
+						('local_realigned', 0, int):[0, '', 1, 'value for IndividualAlignment.local_realigned'],\
 						('format', 0, ):[None, 'f', 1, 'format for GenotypeFile entry'],\
 						})
 	def __init__(self, inputFnameLs=None, **keywords):
@@ -79,7 +80,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 			elif self.parent_individual_alignment_id:
 				individual_alignment = self.db_vervet.copyParentIndividualAlignment(parent_individual_alignment_id=self.parent_individual_alignment_id,\
 																	mask_genotype_method_id=self.mask_genotype_method_id,\
-																	data_dir=self.data_dir)
+																	data_dir=self.data_dir, local_realigned=self.local_realigned)
 			else:
 				#alignment for this library of the individual_sequence
 				individual_sequence = VervetDB.IndividualSequence.get(self.individual_sequence_id)
@@ -93,7 +94,8 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 										data_dir=data_dir, \
 										mask_genotype_method_id=self.mask_genotype_method_id, \
 										parent_individual_alignment_id=self.parent_individual_alignment_id,\
-										individual_sequence_file_raw_id=self.individual_sequence_file_raw_id)
+										individual_sequence_file_raw_id=self.individual_sequence_file_raw_id,\
+										local_realigned=self.local_realigned)
 			needSessionFlush = False
 			if not individual_alignment.path:
 				individual_alignment.path = individual_alignment.constructRelativePath()
