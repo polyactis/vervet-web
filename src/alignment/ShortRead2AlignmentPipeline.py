@@ -104,13 +104,14 @@ Examples:
 		--coreAlignmentJobWallTimeMultiplier 0.1  --needSSHDBTunnel
 		--max_walltime 1440
 Description:
-	2012.5.3
-		a program which generates a pegasus workflow dag (xml file) which does the alignment for all available sequences.
+	2013.04.07
+		A program which generates a pegasus workflow dag (xml file) which does the alignment for all available sequences.
 		The workflow will stage in (or symlink if site_handler and input_site_handler are same.) every input file.
 		It will also stage out every output file.
 		Be careful about -R, only toggle it if you know every input individual_sequence_file is not empty.
 			Empty read files would fail alignment jobs and thus no final alignment for a few indivdiuals.
-		Use "--alignmentJobClustersSizeFraction ..." to cluster the alignment jobs if the input read file is small enough (~1Million reads for bwa, ~300K for stampy). 
+		Use "--alignmentJobClustersSizeFraction ..." to cluster the alignment jobs if the input read file is small enough (~1Million reads for bwa, ~300K for stampy).
+		The arguments related to how many chromosomes/contigs do not matter unless local_realigned=1. 
 """
 import sys, os
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], \
@@ -134,7 +135,8 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 						('skipDoneAlignment', 0, int):[0, '', 0, 'skip alignment whose path is a valid file'],\
 						("alignmentPerLibrary", 0, int): [0, '', 0, 'toggle to run alignment for each library of one individual_sequence'],\
 						})
-
+	option_default_dict[('local_realigned', 0, int)][0] = 0
+	
 	def __init__(self,  **keywords):
 		"""
 		2012.3.29
@@ -237,7 +239,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 									ref_individual_sequence_id=refSequence.id, \
 									alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
 									individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
-									data_dir=data_dir)
+									data_dir=data_dir, local_realigned=self.local_realigned)
 				skipIndividualAlignment = False
 				if individual_alignment.path:
 					if skipDoneAlignment and db_vervet.isThisAlignmentComplete(individual_alignment=individual_alignment, data_dir=data_dir):
@@ -254,6 +256,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					oneLibraryAlignmentJobAndOutputLs = []
 					splitOrderLs = splitOrder2Index.keys()
 					splitOrderLs.sort()
+					oneLibraryCumulativeBaseCount = 0
 					if alignmentPerLibrary:
 						#alignment for this library of the individual_sequence
 						oneLibraryAlignmentEntry = db_vervet.getAlignment(individual_code=individual_sequence.individual.code, \
@@ -263,7 +266,8 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 									ref_individual_sequence_id=refSequence.id, \
 									alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
 									individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
-									data_dir=data_dir, individual_sequence_file_raw_id=minIsqFileRawID)
+									data_dir=data_dir, individual_sequence_file_raw_id=minIsqFileRawID,\
+									local_realigned=self.local_realigned)
 						skipLibraryAlignment = False
 						if oneLibraryAlignmentEntry.path:
 							if skipDoneAlignment and db_vervet.isThisAlignmentComplete(individual_alignment=individual_alignment, data_dir=data_dir):
@@ -278,7 +282,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					for splitOrder in splitOrderLs:
 						splitOrderIndex = splitOrder2Index[splitOrder]
 						fileObjectLs = fileObjectPairLs[splitOrderIndex]
-
+						oneLibraryCumulativeBaseCount += sum([fileObject.db_entry.base_count for fileObject in fileObjectLs])
 						if mkdirJob is None:	#now it's time to add the mkdirJob
 							# add a mkdir job
 							mkdirJob = self.addMKDIRJob(workflow, mkdirWrap=mkdirWrap, dirName=tmpOutputDir)
@@ -324,6 +328,20 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 												extraArguments=None, job_max_memory = 2500, transferOutput=False)
 							oneLibraryAlignmentJobAndOutputLs.append(PassingData(parentJobLs=[addRGJob], file=addRGJob.output))
 					if alignmentPerLibrary and not skipLibraryAlignment and oneLibraryAlignmentJobAndOutputLs:	#2012.9.19
+						baseCoverage = 4*3000000000	#baseline
+						minMergeAlignmentWalltime = 240	#in minutes, 4 hours, when coverage is defaultCoverage
+						maxMergeAlignmentWalltime = 2880	#in minutes, 2 days
+						minMergeAlignmentMaxMemory = 5000	#in MB, when coverage is defaultCoverage
+						maxMergeAlignmentMaxMemory = 12000	#in MB
+						
+						mergeAlignmentWalltime = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=oneLibraryCumulativeBaseCount, \
+												baseInputVolume=baseCoverage, baseJobPropertyValue=minMergeAlignmentWalltime, \
+												minJobPropertyValue=minMergeAlignmentWalltime, maxJobPropertyValue=maxMergeAlignmentWalltime).value
+						mergeAlignmentMaxMemory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=oneLibraryCumulativeBaseCount, \
+												baseInputVolume=baseCoverage, baseJobPropertyValue=minMergeAlignmentMaxMemory, \
+												minJobPropertyValue=minMergeAlignmentMaxMemory, maxJobPropertyValue=maxMergeAlignmentMaxMemory).value
+						markDuplicateWalltime= mergeAlignmentWalltime
+						markDuplicateMaxMemory = mergeAlignmentMaxMemory
 						fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
 														os.path.basename(oneLibraryAlignmentEntry.constructRelativePath()))[0]
 						mergedBamFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_merged.bam'%(fname_prefix, library)))
@@ -336,7 +354,8 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 											BuildBamIndexJar=BuildBamIndexJar, \
 											mv=mv, namespace=namespace, version=version, \
 											transferOutput=False, \
-											job_max_memory=4000, walltime=600, parentJobLs=[oneLibraryAlignmentFolderJob])
+											job_max_memory=mergeAlignmentMaxMemory, walltime=mergeAlignmentWalltime, \
+											parentJobLs=[oneLibraryAlignmentFolderJob])
 						
 						finalBamFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_dupMarked.bam'%(fname_prefix, library)))
 						markDupJob, markDupBamIndexJob = self.addMarkDupJob(workflow, parentJobLs=[alignmentMergeJob, bamIndexJob], \
@@ -344,32 +363,37 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 								inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
 								MarkDuplicatesJava=MarkDuplicatesJava, MarkDuplicatesJar=MarkDuplicatesJar, tmpDir=tmpDir,\
 								BuildBamIndexFilesJava=workflow.IndexMergedBamIndexJava, BuildBamIndexJar=BuildBamIndexJar, \
-								namespace=namespace, version=version, job_max_memory=4000, walltime=600, transferOutput=False)
+								namespace=namespace, version=version, job_max_memory=markDuplicateMaxMemory, \
+								walltime=markDuplicateWalltime, transferOutput=False)
 						no_of_merging_jobs += 1
 						
-						alignmentData = PassingData(jobLs=[markDupJob, markDupBamIndexJob], bamF=markDupJob.output, \
-												baiF=markDupBamIndexJob.output, alignment=oneLibraryAlignmentEntry)
-						#2013.03.31
-						realignedBamMergeJob, indexRealignedBamJob = self.addLocalRealignmentSubWorkflow(workflow=workflow, \
-							chr2IntervalDataLs=chr2IntervalDataLs, \
-							registerReferenceData=registerReferenceData, \
-							alignmentData=alignmentData,\
-							inputBamF=markDupJob.output, \
-							outputBamF=None, \
-							parentJobLs=[markDupJob, markDupBamIndexJob], \
-							outputDirPrefix='%s_%s_localRealignment'%(fname_prefix, library), transferOutput=False)
-						
+						if self.local_realigned:
+							alignmentData = PassingData(jobLs=[markDupJob, markDupBamIndexJob], bamF=markDupJob.output, \
+													baiF=markDupBamIndexJob.output, alignment=oneLibraryAlignmentEntry)
+							#2013.03.31
+							preDBAlignmentJob, preDBAlignmentIndexJob = self.addLocalRealignmentSubWorkflow(workflow=workflow, \
+								chr2IntervalDataLs=chr2IntervalDataLs, \
+								registerReferenceData=registerReferenceData, \
+								alignmentData=alignmentData,\
+								inputBamF=markDupJob.output, \
+								outputBamF=None, \
+								parentJobLs=[markDupJob, markDupBamIndexJob], \
+								outputDirPrefix='%s_%s_localRealignment'%(fname_prefix, library), transferOutput=False)
+						else:
+							preDBAlignmentJob = markDupJob
+							preDBAlignmentIndexJob = markDupBamIndexJob
 						#2012.9.19 add/copy the alignment file to db-affliated storage
 						#add the metric file to AddAlignmentFile2DB.py as well (to be moved into db-affiliated storage)
 						logFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_2db.log'%(fname_prefix, library)))
 						alignment2DBJob = self.addAddAlignmentFile2DBJob(workflow=workflow, executable=self.AddAlignmentFile2DB, \
-											inputFile=realignedBamMergeJob.output, \
+											inputFile=preDBAlignmentJob.output, \
 											otherInputFileList=[], \
 											individual_alignment_id=oneLibraryAlignmentEntry.id, \
 											individual_sequence_file_raw_id=minIsqFileRawID,\
+											format=None, local_realigned=self.local_realigned,\
 											logFile=logFile, data_dir=data_dir, \
-											parentJobLs=[realignedBamMergeJob, indexRealignedBamJob], \
-											extraDependentInputLs=[indexRealignedBamJob.output,], \
+											parentJobLs=[preDBAlignmentJob, preDBAlignmentIndexJob], \
+											extraDependentInputLs=[preDBAlignmentIndexJob.output,], \
 											extraArguments=None, transferOutput=transferOutput, \
 											job_max_memory=2000, walltime=180, \
 											sshDBTunnel=self.needSSHDBTunnel, commit=True)
@@ -418,27 +442,31 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					no_of_merging_jobs += 1
 					
 					
-					#2013.03.31
-					alignmentData = PassingData(jobLs=[markDupJob, markDupBamIndexJob], bamF=markDupJob.output, \
-												baiF=markDupBamIndexJob.output, alignment=individual_alignment)
-					realignedBamMergeJob, indexRealignedBamJob = self.addLocalRealignmentSubWorkflow(workflow=workflow, \
-						chr2IntervalDataLs=chr2IntervalDataLs, registerReferenceData=registerReferenceData, \
-						alignmentData=alignmentData,\
-						inputBamF=markDupJob.output, \
-						outputBamF=None, \
-						parentJobLs=[markDupJob, markDupBamIndexJob], \
-						outputDirPrefix='%s_localRealignment'%(fname_prefix), transferOutput=False)
-				
+					if self.local_realigned:
+						#2013.03.31
+						alignmentData = PassingData(jobLs=[markDupJob, markDupBamIndexJob], bamF=markDupJob.output, \
+													baiF=markDupBamIndexJob.output, alignment=individual_alignment)
+						preDBAlignmentJob, preDBAlignmentIndexJob = self.addLocalRealignmentSubWorkflow(workflow=workflow, \
+							chr2IntervalDataLs=chr2IntervalDataLs, registerReferenceData=registerReferenceData, \
+							alignmentData=alignmentData,\
+							inputBamF=markDupJob.output, \
+							outputBamF=None, \
+							parentJobLs=[markDupJob, markDupBamIndexJob], \
+							outputDirPrefix='%s_localRealignment'%(fname_prefix), transferOutput=False)
+					else:
+						preDBAlignmentJob = markDupJob
+						preDBAlignmentIndexJob = markDupBamIndexJob
 					#2012.9.19 add/copy the alignment file to db-affliated storage
 					#add the metric file to AddAlignmentFile2DB.py as well (to be moved into db-affiliated storage)
 					logFile = File(os.path.join(alignmentFolder, '%s_2db.log'%(fname_prefix)))
 					alignment2DBJob = self.addAddAlignmentFile2DBJob(workflow=workflow, executable=self.AddAlignmentFile2DB, \
-										inputFile=realignedBamMergeJob.output, \
+										inputFile=preDBAlignmentJob.output, \
 										otherInputFileList=[],\
 										individual_alignment_id=individual_alignment.id, \
+										format=None, local_realigned=self.local_realigned,\
 										logFile=logFile, data_dir=data_dir, \
-										parentJobLs=[realignedBamMergeJob, indexRealignedBamJob], \
-										extraDependentInputLs=[indexRealignedBamJob.output], \
+										parentJobLs=[preDBAlignmentJob, preDBAlignmentIndexJob], \
+										extraDependentInputLs=[preDBAlignmentIndexJob.output], \
 										extraArguments=None, transferOutput=transferOutput, \
 										job_max_memory=2000, walltime=max(180, markDuplicateWalltime/4), \
 										sshDBTunnel=self.needSSHDBTunnel, commit=True)
