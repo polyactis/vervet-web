@@ -131,7 +131,7 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVervetWorkflow):
 		return returnData
 	
 	def mapEachInterval(self, workflow=None, \
-					VCFFile=None, passingData=None, transferOutput=False, **keywords):
+					VCFJobData=None, passingData=None, transferOutput=False, **keywords):
 		"""
 		2012.9.22
 		"""
@@ -149,7 +149,7 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVervetWorkflow):
 		genotypeCallOutputFname = os.path.join(callOutputDirJob.output, '%s.call'%(intervalFnamePrefix))
 		genotypeCallOutput = File(genotypeCallOutputFname)
 		genotypeCallByCoverage_job = self.addVCF2MatrixJob(workflow, executable=self.GenotypeCallByCoverage, \
-											inputVCF=VCFFile, outputFile=genotypeCallOutput, \
+											inputVCF=VCFJobData.file, outputFile=genotypeCallOutput, \
 					refFastaF=None, run_type=3, numberOfReadGroups=10, minDepth=self.minDepth,\
 					parentJobLs=[callOutputDirJob, splitVCFJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=False, \
 					extraArguments=None, job_max_memory=2000)
