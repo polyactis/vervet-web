@@ -331,7 +331,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		return returnData
 	
 	def mapEachChromosome(self, workflow=None, alignmentData=None, chromosome=None,\
-				VCFFile=None, passingData=None, reduceBeforeEachAlignmentData=None, transferOutput=True, **keywords):
+				VCFJobData=None, passingData=None, reduceBeforeEachAlignmentData=None, transferOutput=True, **keywords):
 		"""
 		2012.9.17
 		"""

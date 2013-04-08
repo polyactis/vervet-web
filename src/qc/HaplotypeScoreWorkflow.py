@@ -89,7 +89,7 @@ class HaplotypeScoreWorkflow(parentClass):
 		mergeOutputF = File(os.path.join(statOutputDirJob.output, '%s_%s.tsv'%(passingData.bamFnamePrefix, passingData.annotationName)))
 		mergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=mergeOutputF, transferOutput=transferOutput, parentJobLs=[statOutputDirJob],)
-		returnData.jobDataLs.append(PassingData(jobLs=[mergeJob ], file=mergeJob.output, fileList=[mergeJob.output], mergeJob=mergeJob))
+		returnData.jobDataLs.append(PassingData(jobLs=[mergeJob ], file=mergeJob.output, fileLs=[mergeJob.output], mergeJob=mergeJob))
 		self.no_of_jobs += 1
 		
 		outputFnamePrefix = os.path.join(plotOutputDirJob.output, '%s_%s_Plot'%(passingData.bamFnamePrefix, passingData.annotationName))
@@ -170,7 +170,7 @@ class HaplotypeScoreWorkflow(parentClass):
 						key2ObjectForJob=None)
 		
 		returnData.jobDataLs.append(PassingData(jobLs=[variantAnnotatorJob, extractInfoJob], file=variantAnnotatorJob.output, \
-											fileList=[variantAnnotatorJob.output, extractInfoJob.output]))
+											fileLs=[variantAnnotatorJob.output, extractInfoJob.output]))
 		returnData.variantAnnotatorJob=variantAnnotatorJob
 		returnData.extractInfoJob=extractInfoJob
 		#add the sub-alignment to the alignment merge job

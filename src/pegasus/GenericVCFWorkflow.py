@@ -223,7 +223,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			returnData.tfamJob = tfamJob	#2013.1.29
 			if returnMode==4:	#2013.1.29
 				returnData.jobDataLs.append(PassingData(jobLs=[modifyTPEDJob], file=modifyTPEDJob.output, \
-											fileList=modifyTPEDJob.outputLs))
+											fileLs=modifyTPEDJob.outputLs))
 			elif returnMode==2 or returnMode==3:
 				#convert single plink tped file into binary bed file
 				#add it to 
@@ -237,7 +237,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 					extraArguments=None, job_max_memory=2000,\
 					parentJobLs = convertSingleTPED2BEDParentJobLs)
 				returnData.jobDataLs.append(PassingData(jobLs=[convertSingleTPED2BEDJob], file=convertSingleTPED2BEDJob.bedFile, \
-											fileList=convertSingleTPED2BEDJob.outputLs))
+											fileLs=convertSingleTPED2BEDJob.outputLs))
 		
 		if returnMode==1 or returnMode==3:
 			#convert merged plain tped file into binary bed files
@@ -250,14 +250,14 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 					extraDependentInputLs=None, transferOutput=transferOutput, \
 					extraArguments=None, job_max_memory=2000, parentJobLs=[mergedOutputDirJob, tpedFileMergeJob, tfamJob])
 			returnData.jobDataLs.append(PassingData(jobLs=[convertMergedTPED2BEDJob], file=convertMergedTPED2BEDJob.bedFile, \
-											fileList=convertMergedTPED2BEDJob.outputLs))
+											fileLs=convertMergedTPED2BEDJob.outputLs))
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		##2012.8.9 gzip workflow is not needed anymore as binary bed is used instead.
 		##2012.7.21 gzip the final output
 		gzipInputData = PassingData()
 		gzipInputData.jobDataLs = []
 		gzipInputData.jobDataLs.append(PassingData(jobLs=[tpedFileMergeJob], file=tpedFileMergeJob.output, \
-												fileList=tpedFileMergeJob.outputLs))
+												fileLs=tpedFileMergeJob.outputLs))
 		self.addGzipSubWorkflow(workflow=workflow, inputData=gzipInputData, transferOutput=transferOutput,\
 						outputDirPrefix="gzipMergedTPED")
 		#2013.1.29 return the un-gzipped data so that downstream sub-workflows could work on un-gzipped files
@@ -328,7 +328,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			
 			if returnMode==2 or returnMode==3:
 				returnData.jobDataLs.append(PassingData(jobLs=[vcf2BjarniFormatJob], file=vcf2BjarniFormatJob.output, \
-											fileList=vcf2BjarniFormatJob.outputLs))
+											fileLs=vcf2BjarniFormatJob.outputLs))
 			
 
 		if returnMode==1 or returnMode==3:
@@ -342,7 +342,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 #					key2ObjectForJob=None)
 #			no_of_jobs += 1
 #			returnData.jobDataLs.append(PassingData(jobLs=[bjar2YuFormatJob], file=bjar2YuFormatJob.output, \
-#											fileList=bjar2YuFormatJob.outputLs))
+#											fileLs=bjar2YuFormatJob.outputLs))
 			pass	#too much memory
 		sys.stderr.write("%s jobs. Done.\n"%(self.no_of_jobs))
 		##2012.8.9 gzip workflow is not needed anymore as binary bed is used instead.
@@ -420,7 +420,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			
 			returnData.jobDataLs.append(PassingData(jobLs=[bgzip_tabix_VCF_job], vcfFile=VCFGzipOutputF, \
 									tbi_F=VCFGzipOutput_tbi_F, \
-									fileList=[VCFGzipOutputF, VCFGzipOutput_tbi_F]))
+									fileLs=[VCFGzipOutputF, VCFGzipOutput_tbi_F]))
 			
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
@@ -482,7 +482,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			
 			returnData.jobDataLs.append(PassingData(jobLs=[bgzip_tabix_VCF_job], vcfFile=VCFGzipOutputF, \
 									tbi_F=VCFGzipOutput_tbi_F, \
-									fileList=[VCFGzipOutputF, VCFGzipOutput_tbi_F]))
+									fileLs=[VCFGzipOutputF, VCFGzipOutput_tbi_F]))
 			
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
@@ -532,7 +532,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			
 			returnData.jobDataLs.append(PassingData(jobLs=[bgzip_tabix_VCF_job], vcfFile=VCFGzipOutputF, \
 									tbi_F=VCFGzipOutput_tbi_F, \
-									fileList=[VCFGzipOutputF, VCFGzipOutput_tbi_F]))
+									fileLs=[VCFGzipOutputF, VCFGzipOutput_tbi_F]))
 			
 			no_of_jobs += 2
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
@@ -609,9 +609,9 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
 		
 		returnData.jobDataLs.append(PassingData(jobLs=[haplotypeDistanceMergeJob], file=haplotypeDistanceMergeFile, \
-											fileList=[haplotypeDistanceMergeFile]))
+											fileLs=[haplotypeDistanceMergeFile]))
 		returnData.jobDataLs.append(PassingData(jobLs=[majoritySupportMergeJob], file=majoritySupportMergeFile, \
-											fileList=[majoritySupportMergeFile]))
+											fileLs=[majoritySupportMergeFile]))
 		#2012.7.21 gzip the final output
 		newReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
 						outputDirPrefix="")
@@ -682,7 +682,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		returnData = PassingData()
 		returnData.jobDataLs = []
 		returnData.jobDataLs.append(PassingData(jobLs=[unionJob], file=unionJob.output, \
-											fileList=unionJob.outputLs))
+											fileLs=unionJob.outputLs))
 		
 		for i in xrange(len(inputData.jobDataLs)):
 			jobData = inputData.jobDataLs[i]

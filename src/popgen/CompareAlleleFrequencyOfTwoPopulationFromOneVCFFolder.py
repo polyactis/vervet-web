@@ -213,7 +213,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 					key2ObjectForJob=None)
 		
 		returnData.jobDataLs.append(PassingData(jobLs=[juxtaposeAFJob], file=juxtaposeAFJob.output, \
-											fileList=[juxtaposeAFJob.output]))
+											fileLs=[juxtaposeAFJob.output]))
 		returnData.juxtaposeAFJob = juxtaposeAFJob
 		return returnData
 		
@@ -244,7 +244,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 									extraDependentInputLs=[], transferOutput=transferOutput,)
 		#2012.10.7 don't add it to returnData.jobDataLs unless it needs to be gzipped and transferred out
 		#returnData.jobDataLs.append(PassingData(jobLs=[reduceEachChromosomeJob], file=reduceEachChromosomeJob.output, \
-		#									fileList=[reduceEachChromosomeJob.output]))
+		#									fileLs=[reduceEachChromosomeJob.output]))
 		returnData.reduceEachChromosomeJob = reduceEachChromosomeJob
 		
 		for reduceEachVCFData in reduceEachVCFDataLs:
@@ -276,7 +276,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 									parentJobLs=[reduceOutputDirJob],extraOutputLs=[], \
 									extraDependentInputLs=[], transferOutput=transferOutput,)
 		returnData.jobDataLs.append(PassingData(jobLs=[reduceJob], file=reduceJob.output, \
-											fileList=[reduceJob.output]))
+											fileLs=[reduceJob.output]))
 		
 		for reduceEachChromosomeData in reduceEachChromosomeDataLs:
 			parentJob = reduceEachChromosomeData.reduceEachChromosomeJob
@@ -315,7 +315,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 					extraArgumentList=extraArgumentList, extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
 		
 		returnData.jobDataLs.append(PassingData(jobLs=[estimateOutlierJob], file=estimateOutlierJob.output, \
-											fileList=[estimateOutlierJob.output]))
+											fileLs=[estimateOutlierJob.output]))
 		returnData.estimateOutlierJob = estimateOutlierJob
 		
 		return returnData

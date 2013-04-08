@@ -250,7 +250,7 @@ Available Options
 		selfSampleMixupMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=selfSampleMixupMergeFile, transferOutput=False)
 		returnData.jobDataLs.append(PassingData(jobLs=[selfSampleMixupMergeJob], \
-												fileList=[selfSampleMixupMergeFile]))
+												fileLs=[selfSampleMixupMergeFile]))
 		no_of_jobs += 1
 		"""
 		output of *.selfSM from verifyBamID
@@ -398,7 +398,7 @@ Available Options
 		self.addInputToStatMergeJob(workflow, statMergeJob=likSubstractedSelfSampleMixupMergeJob, inputF=selfSampleMixupMergeJob.output,\
 						parentJobLs=[selfSampleMixupMergeJob])
 		returnData.jobDataLs.append(PassingData(jobLs=[likSubstractedSelfSampleMixupMergeJob], \
-								fileList=[likSubstractedSelfSampleMixupMergeFile]))
+								fileLs=[likSubstractedSelfSampleMixupMergeFile]))
 		no_of_jobs += 1
 		
 		outputFile = File(os.path.join(plotOutputDir, 'freeMix_vs_deltaMinusLogLikelihood.png'))
@@ -421,7 +421,7 @@ Available Options
 		selfRGMixupMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=selfRGMixupMergeFile, transferOutput=False)
 		returnData.jobDataLs.append(PassingData(jobLs=[selfRGMixupMergeJob], \
-												fileList=[selfRGMixupMergeFile]))
+												fileLs=[selfRGMixupMergeFile]))
 		no_of_jobs += 1
 		
 		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs

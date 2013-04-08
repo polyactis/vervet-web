@@ -279,7 +279,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		homoHetCountMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=homoHetCountFinalOutputF, transferOutput=False)
 		returnData.jobDataLs.append(PassingData(jobLs=[homoHetCountMergeJob ], \
-											fileList=[homoHetCountFinalOutputF]))
+											fileLs=[homoHetCountFinalOutputF]))
 		passingData.homoHetCountMergeJob = homoHetCountMergeJob
 		
 		homoHetCountReduceOutputF = File(os.path.join(statOutputDir, 'homoHetCountPerSample.tsv'))
@@ -291,7 +291,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 					# it first does ReduceMatrixByChosenColumn and then divides the 1st chosen column by the 2nd chosen column.
 					# that's why 7 (NoOfHet) and 3 (NoOfTotal) are the 1st two in extraArguments.
 		returnData.jobDataLs.append(PassingData(jobLs=[homoHetCountReduceJob], \
-											fileList=[homoHetCountReduceOutputF ]))
+											fileLs=[homoHetCountReduceOutputF ]))
 		passingData.homoHetCountReduceJob = homoHetCountReduceJob
 		
 		outputFile = File( os.path.join(plotOutputDir, 'HeterozygoteFractionPerIndividual_Hist.png'))
@@ -309,7 +309,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		siteGapOutputF = File(os.path.join(statOutputDir, 'siteGap.tsv'))
 		siteGapMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=siteGapOutputF, transferOutput=False)
-		returnData.jobDataLs.append(PassingData(jobLs=[siteGapMergeJob ], fileList=[siteGapOutputF]))
+		returnData.jobDataLs.append(PassingData(jobLs=[siteGapMergeJob ], fileLs=[siteGapOutputF]))
 		passingData.siteGapMergeJob = siteGapMergeJob
 		
 		outputFile = File( os.path.join(plotOutputDir, 'siteGapHist.png'))
@@ -328,7 +328,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		largeSiteGapOutputF = File(os.path.join(statOutputDir, 'largeSiteGapMin%s.tsv'%(self.minSiteGap)))
 		largeSiteGapMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=largeSiteGapOutputF, transferOutput=False)
-		returnData.jobDataLs.append(PassingData(jobLs=[largeSiteGapMergeJob ], fileList=[largeSiteGapOutputF]))
+		returnData.jobDataLs.append(PassingData(jobLs=[largeSiteGapMergeJob ], fileLs=[largeSiteGapOutputF]))
 		passingData.largeSiteGapMergeJob = largeSiteGapMergeJob
 		
 		outputFile = File( os.path.join(plotOutputDir, 'largeSiteGap%sHist.png'%(self.minSiteGap)))
@@ -348,7 +348,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		perIndividualHetReduceJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 							outputF=perIndividualHetReduceFile, extraArguments='-k 0 -v 1-3', transferOutput=False)
 		returnData.jobDataLs.append(PassingData(jobLs=[perIndividualHetReduceJob], \
-											fileList=[perIndividualHetReduceFile]))
+											fileLs=[perIndividualHetReduceFile]))
 		passingData.perIndividualHetReduceJob = perIndividualHetReduceJob
 		
 		if self.windowSize>0:
@@ -356,7 +356,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 			TiTvMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 								outputF=TiTvFinalOutputF, transferOutput=False)
 			returnData.jobDataLs.append(PassingData(jobLs=[TiTvMergeJob], \
-												fileList=[TiTvFinalOutputF ]))
+												fileLs=[TiTvFinalOutputF ]))
 			passingData.TiTvMergeJob = TiTvMergeJob
 			
 			outputFnamePrefix = os.path.join(plotOutputDir, 'TiTvWindowSize%s_Plot'%(self.windowSize))
@@ -376,7 +376,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 			TiTvSummaryReduceJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 							outputF=TiTvSummaryReduceOutputF, extraArguments='-k 0 -v 1', transferOutput=False)
 			
-			returnData.jobDataLs.append(PassingData(jobLs=[TiTvSummaryReduceJob], fileList=[TiTvSummaryReduceOutputF]))
+			returnData.jobDataLs.append(PassingData(jobLs=[TiTvSummaryReduceJob], fileLs=[TiTvSummaryReduceOutputF]))
 			passingData.TiTvSummaryReduceJob = TiTvSummaryReduceJob
 		
 		if self.windowSize>0:
@@ -384,7 +384,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 			windowedPiMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 								outputF=windowedPiFinalOutputF, transferOutput=False)
 			returnData.jobDataLs.append(PassingData(jobLs=[windowedPiMergeJob, ], \
-												fileList=[windowedPiFinalOutputF]))
+												fileLs=[windowedPiFinalOutputF]))
 			passingData.windowedPiMergeJob = windowedPiMergeJob
 		
 		
@@ -393,7 +393,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 			snpDensityMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 								outputF=snpDensityOutputF, transferOutput=False)
 			returnData.jobDataLs.append(PassingData(jobLs=[snpDensityMergeJob], \
-												fileList=[ snpDensityOutputF]))
+												fileLs=[ snpDensityOutputF]))
 			passingData.snpDensityMergeJob = snpDensityMergeJob
 			
 			outputFnamePrefix = os.path.join(plotOutputDir, 'SNPDensityWindowSize%s_Plot'%(self.windowSize))
@@ -413,7 +413,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		hweMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=hweMergeFile, transferOutput=False)
 		returnData.jobDataLs.append(PassingData(jobLs=[hweMergeJob ], \
-											fileList=[hweMergeFile]))
+											fileLs=[hweMergeFile]))
 		passingData.hweMergeJob = hweMergeJob
 		
 		outputFnamePrefix = os.path.join(plotOutputDir, 'HWEPlot')
@@ -443,7 +443,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		siteMeanDepthMergeFile = File(os.path.join(statOutputDir, 'siteMeanDepthMerge.tsv'))
 		siteMeanDepthMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=siteMeanDepthMergeFile, transferOutput=False)
-		returnData.jobDataLs.append(PassingData(jobLs=[siteMeanDepthMergeJob], fileList=[siteMeanDepthMergeFile]))
+		returnData.jobDataLs.append(PassingData(jobLs=[siteMeanDepthMergeJob], fileLs=[siteMeanDepthMergeFile]))
 		passingData.siteMeanDepthMergeJob = siteMeanDepthMergeJob
 		
 		outputFnamePrefix = os.path.join(plotOutputDir, 'siteMeanDepth')
@@ -474,7 +474,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		imissingReduceJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 						outputF=imissingReduceFile, extraArguments='-k 0 -v 1-4', transferOutput=False)
 		returnData.jobDataLs.append(PassingData(jobLs=[imissingReduceJob ], \
-											fileList=[imissingReduceFile]))
+											fileLs=[imissingReduceFile]))
 		passingData.imissingReduceJob = imissingReduceJob
 		
 		
@@ -483,7 +483,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		lmissingMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 											outputF=lmissingMergeFile, transferOutput=False)
 		returnData.jobDataLs.append(PassingData(jobLs=[lmissingMergeJob], \
-											fileList=[lmissingMergeFile]))
+											fileLs=[lmissingMergeFile]))
 		passingData.lmissingMergeJob = lmissingMergeJob
 		
 		outputFnamePrefix = os.path.join(plotOutputDir, 'lmissingPlot')
@@ -504,7 +504,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 			LDMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 								outputF=LDMergeFile, transferOutput=False)
 			returnData.jobDataLs.append(PassingData(jobLs=[LDMergeJob], \
-												fileList=[LDMergeFile]))
+												fileLs=[LDMergeFile]))
 			passingData.LDMergeJob = LDMergeJob
 			
 			windowStep = int(self.LDWindowSize/30)
@@ -541,7 +541,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		siteQualityMergeFile = File(os.path.join(statOutputDir, 'siteQualityMerge.tsv'))
 		siteQualityMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=siteQualityMergeFile, transferOutput=False)
-		returnData.jobDataLs.append(PassingData(jobLs=[siteQualityMergeJob], fileList=[siteQualityMergeFile]))
+		returnData.jobDataLs.append(PassingData(jobLs=[siteQualityMergeJob], fileLs=[siteQualityMergeFile]))
 		passingData.siteQualityMergeJob = siteQualityMergeJob
 		
 		outputFnamePrefix = os.path.join(plotOutputDir, 'siteQualityPlot')
@@ -561,7 +561,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		AACTallyReduceJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 							outputF=AACTallyReduceOutputF, extraArguments='-k 0 -v 1', transferOutput=False)
 		returnData.jobDataLs.append(PassingData(jobLs=[AACTallyReduceJob], \
-											fileList=[AACTallyReduceOutputF]))
+											fileLs=[AACTallyReduceOutputF]))
 		passingData.AACTallyReduceJob = AACTallyReduceJob
 		
 		outputFile = File( os.path.join(plotOutputDir, 'NoOfLoci_vs_AAC.png'))

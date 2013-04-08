@@ -128,7 +128,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		mendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=mendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob])
 		returnData.jobDataLs.append(PassingData(jobLs=[mendelMergeJob], file=mendelMergeJob.output, \
-											fileList=mendelMergeJob.outputLs))
+											fileLs=mendelMergeJob.outputLs))
 		
 		imendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_imendel.tsv'))
 		#each input has no header
@@ -137,7 +137,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							extraArguments='--keyColumnLs 1 --valueColumnLs 2')
 		
 		returnData.jobDataLs.append(PassingData(jobLs=[imendelMergeJob], file=imendelMergeJob.output, \
-											fileList=imendelMergeJob.outputLs))
+											fileLs=imendelMergeJob.outputLs))
 		
 		outputFile = File( os.path.join(plotOutputDir, 'individualMendelErrorHist.png'))
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -155,14 +155,14 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		fmendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=fmendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob])
 		returnData.jobDataLs.append(PassingData(jobLs=[fmendelMergeJob], file=fmendelMergeJob.output, \
-											fileList=fmendelMergeJob.outputLs))
+											fileLs=fmendelMergeJob.outputLs))
 		
 		lmendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_lmendel.tsv'))
 		lmendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
 							outputF=lmendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob], \
 							extraArguments='')
 		returnData.jobDataLs.append(PassingData(jobLs=[lmendelMergeJob], file=lmendelMergeJob.output, \
-											fileList=lmendelMergeJob.outputLs))
+											fileLs=lmendelMergeJob.outputLs))
 		
 		outputFile = File( os.path.join(plotOutputDir, 'locusMendelErrorHist.png'))
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
@@ -188,7 +188,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							transferOutput=False)
 		returnData.jobDataLs.append(PassingData(jobLs=[meanMedianModePerLocusMendelErrorJob], \
 									file=meanMedianModePerLocusMendelErrorJob.output, \
-									fileList=meanMedianModePerLocusMendelErrorJob.outputLs))
+									fileLs=meanMedianModePerLocusMendelErrorJob.outputLs))
 		
 		#2013.1.8 next add a job that calculates the number of nuclear families (plink definition) and divide above meanMendelError with that
 		# => meanMendelErrorRate per site
@@ -320,7 +320,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						extraArguments=modifyTPEDJobExtraArguments, extraArgumentList=extraArgumentList,\
 						extraDependentInputLs=[plinkMendelJob.mendelFile, tfamJob.tfamFile])
 			returnData.jobDataLs.append(PassingData(jobLs=[modifyTPEDJob], file=modifyTPEDJob.output, \
-											fileList=modifyTPEDJob.outputLs))
+											fileLs=modifyTPEDJob.outputLs))
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
@@ -383,7 +383,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			plinkTPED2BEDJobList.append(convertSingleTPED2BEDJob)
 			
 			#returnData.jobDataLs.append(PassingData(jobLs=[convertSingleTPED2BEDJob], file=convertSingleTPED2BEDJob.bedFile, \
-			#							fileList=convertSingleTPED2BEDJob.outputLs))
+			#							fileLs=convertSingleTPED2BEDJob.outputLs))
 		
 			if i>0:	#the 1st one is to be directly added to the plink merge job 
 				extractedFilenameTupleList.append([convertSingleTPED2BEDJob.bedFile.name, convertSingleTPED2BEDJob.bimFile.name, convertSingleTPED2BEDJob.famFile.name])
@@ -391,7 +391,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			i += 1
 			if returnMode==1:
 				returnData.jobDataLs.append(PassingData(jobLs=[convertSingleTPED2BEDJob], file=convertSingleTPED2BEDJob.bedFile, \
-											fileList=convertSingleTPED2BEDJob.outputLs))
+											fileLs=convertSingleTPED2BEDJob.outputLs))
 		
 		#fill up the mergeListFile
 		self.writePlinkMergeListFile(outputFname=yh_pegasus.getAbsPathOutOfFile(mergeListFile),\
@@ -410,7 +410,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		
 		if returnMode==2:
 			returnData.jobDataLs.append(PassingData(jobLs=[plinkMergeJob], file=plinkMergeJob.bedFile, \
-											fileList=plinkMergeJob.outputLs))
+											fileLs=plinkMergeJob.outputLs))
 		
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
@@ -487,7 +487,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			i += 1
 			if returnMode==2:
 				returnData.jobDataLs.append(PassingData(jobLs=[plinkExtractJob], file=plinkExtractJob.bedFile, \
-											fileList=plinkExtractJob.outputLs))
+											fileLs=plinkExtractJob.outputLs))
 		
 		#fill up the mergeListFile
 		self.writePlinkMergeListFile(outputFname=yh_pegasus.getAbsPathOutOfFile(mergeListFile),\
@@ -507,7 +507,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		
 		if returnMode==1 or returnMode==3:
 			returnData.jobDataLs.append(PassingData(jobLs=[plinkMergeJob], file=plinkMergeJob.bedFile, \
-											fileList=plinkMergeJob.outputLs))
+											fileLs=plinkMergeJob.outputLs))
 			
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
@@ -706,7 +706,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
 			
 			returnData.jobDataLs.append(PassingData(jobLs=[toTsvMatrixJob], file=toTsvMatrixJob.output, \
-											fileList=toTsvMatrixJob.outputLs))
+											fileLs=toTsvMatrixJob.outputLs))
 			if kinshipFile:
 				wrongLabelOutputFnamePrefix = 'wrongLabelChiSq_greedy'
 				outputFile = File(os.path.join(topOutputDir, '%s.tsv'%(wrongLabelOutputFnamePrefix)))
@@ -911,7 +911,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 					extraArguments=None, job_max_memory=2000,\
 					parentJobLs =[topOutputDirJob]+ jobData.jobLs)
 			returnData.jobDataLs.append(PassingData(jobLs=[plinkJob], file=plinkJob.sexcheckFile, \
-											fileList=plinkJob.outputLs))
+											fileLs=plinkJob.outputLs))
 			
 			outputFile = File( os.path.join(plotOutputDir, '%s_inbreedCoeffByChrX_vs_sexByInput.png'%(commonPrefix)))
 			#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)

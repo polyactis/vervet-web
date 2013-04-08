@@ -3529,7 +3529,7 @@ class DBVervet(object):
 	"""
 	
 	@classmethod
-	def indexBamAlignmentFilesInDB(cls, db_vervet, samtools_path=os.path.expanduser("~/bin/samtools")):
+	def indexBamAlignmentFilesInDB(cls, db_vervet=None, data_dir=None, samtools_path=os.path.expanduser("~/bin/samtools")):
 		"""
 		2011-5-9
 		"""
@@ -3539,32 +3539,42 @@ class DBVervet(object):
 		counter = 0
 		real_counter = 0
 		for row in query:
-			counter += 1
-			sys.stderr.write('%s: %s'%(counter, row.getFilePath()))
-			absFilePath = os.path.join(db_vervet.data_dir, row.getFilePath())
-			bam_index_pathname = os.path.join(db_vervet.data_dir, '%s.bai'%(row.path))
-			if not os.path.isfile(bam_index_pathname):	#index doesn't exist
-				commandline = '%s index %s'%(samtools_path, absFilePath)
-				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-				real_counter += 1
+			if row.getFilePath():
+				counter += 1
+				sys.stderr.write('%s: %s'%(counter, row.getFilePath()))
+				absFilePath = row.getFileAbsPath(newDataDir=data_dir)
+				bam_index_pathname ='%s.bai'%(absFilePath)
+				if os.path.isfile(absFilePath) and not os.path.isfile(bam_index_pathname):	#index doesn't exist
+					commandline = '%s index %s'%(samtools_path, absFilePath)
+					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+					real_counter += 1
 			sys.stderr.write('.\n')
-		sys.stderr.write("Done.\n")
+		sys.stderr.write(" %s entries. %s without index file.\n"%(counter, real_counter))
 	
 	"""
+		#2013.3.24
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+		DBVervet.indexBamAlignmentFilesInDB(db_vervet, data_dir=data_dir)
+		sys.exit(0)
+		
 		#2011-5-9
-		DBVervet.indexBamAlignmentFilesInDB(db_vervet)
+		data_dir = 
+		DBVervet.indexBamAlignmentFilesInDB(db_vervet, data_dir=data_dir)
 		sys.exit(0)
 		
 		
 	"""
 	
 	@classmethod
-	def removeOutdatedAndUnusedAlignmentFiles(cls, db_vervet=None, data_dir=None, commit=False):
+	def removeOutdatedAndUnusedAlignmentFiles(cls, db_vervet=None, data_dir=None, ref_ind_seq_id=524, commit=False):
 		"""
-		2013.2.5
+		2013.3.18
+		an alignment is outdated if any of the following conditions is true:
 			outdated_index=1
 			alignment_method_id=4 (4=stampy)
 			sequence filtered=0
+			ref_ind_seq_id = (designated in argument)
+		2013.2.5
 		"""
 		sys.stderr.write("Removing alignment files (not db entries) that are no longer used or outdated ... \n")
 		from sqlalchemy import and_, or_
@@ -3575,33 +3585,59 @@ class DBVervet(object):
 		
 		TableClass = VervetDB.IndividualAlignment
 		query = TableClass.query.filter(or_(TableClass.outdated_index==1, TableClass.alignment_method_id==4, \
-										TableClass.individual_sequence.has(filtered=0)))
+							TableClass.individual_sequence.has(filtered=0), TableClass.ref_ind_seq_id==ref_ind_seq_id))
 		counter = 0
 		real_counter = 0
 		total_file_size = 0
 		no_of_files_without_size= 0 
+		no_of_files_deleted = 0
 		for row in query:
-			counter += 1
-			if row.file_size:
-				total_file_size += row.file_size
-			else:
-				no_of_files_without_size += 1
-			sys.stderr.write('%s: %s'%(counter, row.path))
-			
-			absFilePath = row.getFileAbsPath(oldDataDir=None, newDataDir=data_dir)
-			if os.path.isfile(absFilePath):
-				real_counter += 1
-				if commit:
-					commandline = 'rm %s'%(absFilePath)
-					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
-			sys.stderr.write('.\n')
-		sys.stderr.write(" total_file_size=%s for %s files, %s/%s alignment files deleted.\n"%(total_file_size, counter-no_of_files_without_size,\
-																				real_counter, counter))
+			if row.path:
+				counter += 1
+				if row.file_size:
+					total_file_size += row.file_size
+				else:
+					no_of_files_without_size += 1
+				sys.stderr.write('%s: %s'%(counter, row.path))
+				
+				absFilePath = row.getFileAbsPath(oldDataDir=None, newDataDir=data_dir)
+				if absFilePath and os.path.isfile(absFilePath):
+					real_counter += 1
+					if commit:
+						commandline = 'rm %s'%(absFilePath)
+						return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+						no_of_files_deleted += 1
+				if absFilePath:
+					prefix, suffix= os.path.splitext(absFilePath)
+					metricFileAbsPath = '%s.metric'%(prefix)
+					if os.path.isfile(metricFileAbsPath) and commit:
+						commandline = 'rm %s'%(metricFileAbsPath)
+						return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+						no_of_files_deleted += 1
+					baiFileAbsPath = '%s.bam.bai'%(prefix)
+					if os.path.isfile(baiFileAbsPath) and commit:
+						commandline = 'rm %s'%(baiFileAbsPath)
+						return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+						no_of_files_deleted += 1
+				sys.stderr.write('.\n')
+		sys.stderr.write(" total_file_size=%s for %s files, %s/%s alignment files deleted. total files deleted %s.\n"%\
+						(total_file_size, counter-no_of_files_without_size,real_counter, counter, \
+						no_of_files_deleted))
 	
 	"""
+		#2013.3.19
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=12, commit=True)
+		sys.exit(0)
+		
+		#2013.3.18
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=524, commit=False)
+		sys.exit(0)
+		
 		#2013.2.5
-		data_dir = 
-		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, commit=False)
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True)
 		sys.exit(0)
 		
 	"""
@@ -3609,6 +3645,8 @@ class DBVervet(object):
 	@classmethod
 	def removeUnfilteredSequenceFiles(cls, db_vervet=None, data_dir=None, commit=False):
 		"""
+		2013.3.18
+			only VRC (site_id=447), and fastq files
 		2013.2.5
 			sequence filtered=0
 		"""
@@ -3617,26 +3655,32 @@ class DBVervet(object):
 			data_dir = db_vervet.data_dir
 		session = db_vervet.session
 		session.begin()
-		query = VervetDB.IndividualSequence.query.filter_by(filtered=0)
+		query = VervetDB.IndividualSequenceFile.query.filter_by(filtered=0).filter_by(format='fastq')
 		counter = 0
 		real_counter = 0
+		individual_id_set = set()
+		site_id_set = set()
 		for row in query:
-			counter += 1
-			sys.stderr.write('%s: %s'%(counter, row.path))
-			
-			absFilePath = row.getFileAbsPath(oldDataDir=None, newDataDir=data_dir)
-			if os.path.isfile(absFilePath):
-				real_counter += 1
-				if commit:
-					commandline = 'rm %s'%(absFilePath)
-					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+			if row.path and row.individual_sequence.individual.site_id==447:	#only VRC
+				counter += 1
+				sys.stderr.write('%s: %s'%(counter, row.path))
+				
+				absFilePath = row.getFileAbsPath(oldDataDir=None, newDataDir=data_dir)
+				individual_id_set.add(row.individual_sequence.individual_id)
+				site_id_set.add(row.individual_sequence.individual.site_id)
+				if os.path.isfile(absFilePath):
+					real_counter += 1
+					if commit:
+						commandline = 'rm %s'%(absFilePath)
+						return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 			sys.stderr.write('.\n')
-		sys.stderr.write("%s/%s alignment files deleted.\n"%(real_counter, counter))
+		sys.stderr.write("%s/%s files (from %s individuals, %s sites) deleted.\n"%\
+						(real_counter, counter, len(individual_id_set), len(site_id_set)))
 	
 	"""
-		#2013.2.5
-		data_dir = 
-		DBVervet.removeUnfilteredSequenceFiles(db_vervet=db_vervet, data_dir=data_dir, commit=False)
+		#2013.3.19
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+		DBVervet.removeUnfilteredSequenceFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True)
 		sys.exit(0)
 		
 	"""
@@ -5953,6 +5997,31 @@ class DBVervet(object):
 		sys.exit(0)
 		
 	"""
+	
+	@classmethod
+	def findBrokenIndividualAlignmentFiles(cls, db_vervet=None, data_dir=None):
+		"""
+		2013.3.22
+			the file is there but its db entry file_size is not there.
+		"""
+		counter = 0
+		real_counter = 0
+		alignmentFolder = os.path.join(data_dir, VervetDB.IndividualAlignment.folderName)
+		for file in os.listdir(alignmentFolder):
+			alignmentID = int(file.split('_')[0])
+			individual_alignment = VervetDB.IndividualAlignment.get(alignmentID)
+			if individual_alignment and individual_alignment.file_size is None:
+				real_counter += 1
+				sys.stderr.write("%s: file %s \n"%(real_counter, file))
+	"""
+		
+		#2013.3.22
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+		DBVervet.findBrokenIndividualAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir)
+		sys.exit(0)
+		
+	"""
+	
 	@classmethod
 	def filterValue(cls, value, data_type=None, NA_str_set=set(["", "NA", "N/A", 'n/a'])):
 		"""
@@ -5967,6 +6036,67 @@ class DBVervet(object):
 		if value is not None and data_type is not None:
 			value = data_type(value)
 		return value
+	
+	@classmethod
+	def fixLibraryNameInRecentIndividualSequenceFileAndRawEntries(cls, db_vervet=None, latestDate='2013-04-04 16:00:00',\
+												TableClass=None, commit=False, \
+												excludeIndividualSequenceIDSet=set([3327, 3328, 3329, ])):
+		"""
+		excludeIndividualSequenceIDSet is three individuals that actually come from 2 different libraries
+			(>1, so do not modify it in this procedure. do it manually)
+		2013.04.05 some UNGC entries were added into db with two ends of PE reads having different libraries.
+			TableClass could be VervetDB.IndividualSequenceFile or VervetDB.IndividualSequenceFileRaw
+		
+		"""
+		db_vervet.session.begin()
+		tablename = TableClass.table.name
+		sys.stderr.write("Getting recent %s db entries (date_created >%s) ... "%(tablename, latestDate))
+		entry_db_id_list = []
+		
+		query = db_vervet.metadata.bind.execute("select * from %s where date_created>'%s'"%\
+											(tablename, latestDate))
+		individualSequenceID2Library = {}
+		
+		for row in query:
+			if row.individual_sequence_id in excludeIndividualSequenceIDSet:
+				continue
+			if row.individual_sequence_id not in individualSequenceID2Library:
+				individualSequenceID2Library[row.individual_sequence_id] = row.library
+			entry_db_id_list.append(row.id)
+		sys.stderr.write("%s entries from %s individual_sequence entries \n."%(len(entry_db_id_list), len(individualSequenceID2Library)))
+		
+		sys.stderr.write("Fixing library names for %s entries ..."%(len(entry_db_id_list)))
+		real_counter = 0
+		counter = 0 
+		no_of_isqf_entry_modified = 0
+		for db_id in entry_db_id_list:
+			db_entry = TableClass.get(db_id)
+			libraryDesignated = individualSequenceID2Library[db_entry.individual_sequence_id]
+			counter += 1
+			if db_entry.library!=libraryDesignated:
+				db_entry.library = libraryDesignated
+				db_vervet.session.add(db_entry)
+				real_counter += 1
+				for isqf_entry in db_entry.individual_sequence_file_ls:
+					isqf_entry.library = libraryDesignated
+					db_vervet.session.add(isqf_entry)
+					no_of_isqf_entry_modified += 1
+		
+		sys.stderr.write("%s/%s %s modified. %s IndividualSequenceFile entries modified.\n."%(real_counter, counter, tablename, no_of_isqf_entry_modified))
+		if commit:
+			db_vervet.session.flush()
+			db_vervet.session.commit()
+		else:
+			db_vervet.session.rollback()
+		
+		
+		"""
+		2013.04.05
+		DBVervet.fixLibraryNameInRecentIndividualSequenceFileAndRawEntries(db_vervet=db_vervet, latestDate='2013-04-04 16:00:00',\
+																TableClass=VervetDB.IndividualSequenceFileRaw, commit=True)
+		sys.exit(0)
+		
+		"""
 	
 	@classmethod
 	def put2010SouthAfricanCollectionIntoDB(cls, db_vervet, inputFname, monkeyIDPrefix="VSA", \
@@ -6712,6 +6842,7 @@ class DBVervet(object):
 	def updateSequenceBatch(cls, db_vervet=None, inputFname=None):
 		"""
 		2012.7.5
+			the input file contains info about the batches in which each VRC monkey is sequenced
 		"""
 		sys.stderr.write("Updating sequence_batch info in the db ...")
 		counter = 0
@@ -7134,7 +7265,8 @@ class VervetGenome(object):
 		contig_id2size = {}
 		import csv
 		from pymodule import figureOutDelimiter
-		reader = csv.reader(open(contigAGPFname, 'r'), delimiter=figureOutDelimiter(contigAGPFname))
+		from pymodule import utils
+		reader = csv.reader(utils.openGzipFile(contigAGPFname, openMode='r'), delimiter=figureOutDelimiter(contigAGPFname))
 		for row in reader:
 			contig_id = row[0]
 			if contig_id not in contig_id2size:
@@ -7144,7 +7276,7 @@ class VervetGenome(object):
 				contig_id2size[contig_id] = contig_end_pos
 			
 		del reader
-		sys.stderr.write("%s contigs. Done.\n"%(len(contig_id2size)))
+		sys.stderr.write("%s contigs.\n"%(len(contig_id2size)))
 		return contig_id2size
 		
 	
@@ -7302,7 +7434,7 @@ class VervetGenome(object):
 	"""
 	
 	@classmethod
-	def outputTopBigContigs(cls, contigAGPFname, contigFastaFname, outputFname=None, topNumber=150):
+	def outputTopBigContigs(cls, contigAGPFname=None, contigFastaFname=None, outputFname=None, topNumber=150):
 		"""
 		2011-6-27
 			
@@ -7324,7 +7456,8 @@ class VervetGenome(object):
 		sys.stderr.write("Picking selected contigs and their sequences ...")
 		sequences = []
 		from Bio import SeqIO
-		handle = open(contigFastaFname, "rU")
+		from pymodule import utils
+		handle = utils.openGzipFile(contigFastaFname, openMode="r")	# open mode was 'rU' in open()
 		for record in SeqIO.parse(handle, "fasta"):
 			contig_id = record.id.split()[0]
 			if contig_id in selected_contig_id_set:
@@ -7336,18 +7469,18 @@ class VervetGenome(object):
 		handle.close()
 		sys.stderr.write("Done.\n")
 		
-		sys.stderr.write("Writing output to %s ..."%outputFname)
-		output_handle = open(outputFname, "w")
+		sys.stderr.write("Dumping %s sequences to %s ..."%(len(sequences), outputFname))
+		output_handle = utils.openGzipFile(outputFname, openMode="w")
 		SeqIO.write(sequences, output_handle, "fasta")
 		output_handle.close()
 		sys.stderr.write("Done.\n")
 		
 	"""
-		#2011-6-27
-		contigAGPFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs.agp")
-		contigFastaFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs.fasta")
+		#2013.3.14
+		contigAGPFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/wustl_gxfer1_78364318756303_ref6.0.3/supercontigs.agp.gz")
+		contigFastaFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/wustl_gxfer1_78364318756303_ref6.0.3/supercontigs.fasta.gz")
 		topNumber=150
-		outputFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/top%ssupercontigs.fasta"%topNumber)
+		outputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/wustl_gxfer1_78364318756303_ref6.0.3/top%ssupercontigs.fasta.gz"%topNumber)
 		VervetGenome.outputTopBigContigs(contigAGPFname=contigAGPFname, contigFastaFname=contigFastaFname, \
 				outputFname=outputFname, topNumber=topNumber)
 		sys.exit(3)
@@ -7486,6 +7619,15 @@ class VervetGenome(object):
 														fastaRecordFilterHandler=contigFastaRecordFilter)
 		
 	"""
+		#2013.3.14
+		contigAGPFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/wustl_gxfer1_78364318756303_ref6.0.3/supercontigs.agp.gz")
+		contigFastaFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/wustl_gxfer1_78364318756303_ref6.0.3/supercontigs.fasta.gz")
+		topNumber=300
+		outputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/wustl_gxfer1_78364318756303_ref6.0.3/top%ssupercontigs.fasta.gz"%topNumber)
+		VervetGenome.outputTopBigContigs(contigAGPFname=contigAGPFname, contigFastaFname=contigFastaFname, \
+				outputFname=outputFname, topNumber=topNumber)
+		sys.exit(3)
+		
 		#2011-7-7
 		contigFastaFname = os.path.expanduser("~/script/vervet/data/Draft_June_2011/supercontigs/supercontigs.fasta")
 		outputDir = os.path.expanduser("~/script/variation/bin/symap_3_3/data/pseudo/vervetScaffolds/sequence/pseudo/")
@@ -7608,7 +7750,7 @@ class VervetGenome(object):
 		sys.stderr.write("Adding contigs as chromosome records (no sequence) into genome db (minSize=%s) ...\n"%(minSize))
 		counter = 0
 		real_counter = 0
-		from pymodule import GenomeDB
+		from pymodule.db import GenomeDB
 		
 		db_genome.session.begin()
 		sequence_type = GenomeDB.SequenceType.query.filter_by(type=sequence_type_name).first()
@@ -8027,9 +8169,19 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2013.2.5
+		#2013.04.05
+		DBVervet.fixLibraryNameInRecentIndividualSequenceFileAndRawEntries(db_vervet=db_vervet, latestDate='2013-04-04 16:00:00',\
+																TableClass=VervetDB.IndividualSequenceFileRaw, commit=True)
+		sys.exit(0)
+		
+		#2013.03.24
 		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
-		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True)
+		DBVervet.indexBamAlignmentFilesInDB(db_vervet, data_dir=data_dir)
+		sys.exit(0)
+		
+		#2013.04.01
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+		DBVervet.findBrokenIndividualAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir)
 		sys.exit(0)
 		
 		
