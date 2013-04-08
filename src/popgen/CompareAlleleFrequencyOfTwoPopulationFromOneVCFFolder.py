@@ -145,7 +145,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		return returnData
 	
 	def mapEachInterval(self, workflow=None, \
-					VCFFile=None, passingData=None, transferOutput=False, **keywords):
+					VCFJobData=None, passingData=None, transferOutput=False, **keywords):
 		"""
 		2012.10.3
 			#. extract individuals from individual population into separate VCF, each VCF with re-calculated AC/AF.
@@ -179,7 +179,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		#selectVariants would re-generate AC, AF so that TrioCaller could read it.
 		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 		pop1VCFConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=self.SelectVariantsJava, \
-				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=VCFFile, outputF=outputVCF, \
+				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=VCFJobData.file, outputF=outputVCF, \
 				refFastaFList=self.refFastaFList, sampleIDKeepFile=extractPop1SampleIDJob.output,\
 				parentJobLs=[topOutputDirJob, splitVCFJob, extractPop1SampleIDJob]+jobData.jobLs, \
 				extraDependentInputLs=[], transferOutput=transferOutput, \
@@ -191,7 +191,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		#selectVariants would generate AC, AF so that TrioCaller could read it.
 		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 		pop2VCFConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=self.SelectVariantsJava, \
-				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=VCFFile, outputF=outputVCF, \
+				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=VCFJobData.file, outputF=outputVCF, \
 				refFastaFList=self.refFastaFList, sampleIDKeepFile=extractPop2SampleIDJob.output,\
 				parentJobLs=[topOutputDirJob, splitVCFJob, extractPop2SampleIDJob]+jobData.jobLs, \
 				extraDependentInputLs=[], transferOutput=transferOutput, \
