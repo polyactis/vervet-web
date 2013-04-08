@@ -69,7 +69,7 @@ class FilterShortReadPipeline(AbstractVervetWorkflow):
 		vervetSrcPath = self.vervetSrcPath
 		
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(vervetSrcPath, "db/input/AddFilteredSequences2DB.py"), \
-										name='AddFilteredSequences2DB', clusterSizeMultipler=0.1)
+										name='AddFilteredSequences2DB', clusterSizeMultipler=0.5)
 		
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, \
 										name='FilterReadJava', clusterSizeMultipler=0.6)
