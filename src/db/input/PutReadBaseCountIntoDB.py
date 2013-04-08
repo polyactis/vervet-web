@@ -111,7 +111,8 @@ class PutReadBaseCountIntoDB(AbstractVervetMapper):
 											read_count=read_count, base_count=base_count)
 				no_of_total_lines += 1
 			del reader
-		sys.stderr.write("%s isqf out of %s were put into db. %s lines in total.\n"%(no_of_isqf_in_db, no_of_isqf_lines, no_of_total_lines))
+		logMsg1="%s isqf out of %s were put into db. %s lines in total.\n"%(no_of_isqf_in_db, no_of_isqf_lines, no_of_total_lines)
+		sys.stderr.write(logMsg1)
 		
 		counter = 0
 		real_counter = 0
@@ -119,12 +120,13 @@ class PutReadBaseCountIntoDB(AbstractVervetMapper):
 			real_counter += self.updateIndividualSequenceReadBaseCount(self.db_vervet, isq_id=isq_id, \
 										read_count=data.read_count, base_count=data.base_count, genomeSize=self.genomeSize)
 			counter += 1
-		sys.stderr.write("%s isq out of %s were put into db.\n"%(real_counter, counter))
+		logMsg2="%s isq out of %s were put into db.\n"%(real_counter, counter)
+		sys.stderr.write(logMsg2)
 		
 		if self.logFilename:
 			logF = open(self.logFilename, 'w')
-			logF.write("%s isqf out of %s were put into db. %s lines in total.\n"%(no_of_isqf_in_db, no_of_isqf_lines, no_of_total_lines))
-			logF.write("%s isq out of %s were put into db.\n"%(real_counter, counter))
+			logF.write(logMsg1)
+			logF.write(logMsg2)
 			del logF
 			
 		
