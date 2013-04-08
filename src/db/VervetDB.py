@@ -480,6 +480,7 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 	
 	def getReadGroup(self):
 		"""
+		2013.04.08 revert it back to its old form (don't change it EVER) as alignment files has it embedded.
 		2013.04.01 adding alignment_method_id
 		2013.3.18 bugfix: sequencer is now a db entry.
 		2012.9.19
@@ -488,9 +489,18 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 			read group is this alignment's unique identifier in a sam/bam file.
 		"""
 		sequencer = self.individual_sequence.sequencer
-		read_group = '%s_%s_%s_%s_vs_%s_by_method%s_realigned%s'%(self.id, self.ind_seq_id, \
+		read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, \
 							self.individual_sequence.individual.code, \
-							sequencer.short_name, self.ref_ind_seq_id, \
+							sequencer.short_name, self.ref_ind_seq_id)
+		return read_group
+
+	def constructBaseNamePrefix(self):
+		"""
+		2013.04.08 for constructRelativePath()
+		"""
+		read_group = self.getReadGroup()
+		
+		read_group = '%s_by_method%s_realigned%s'%(read_group,
 							self.alignment_method_id, self.local_realigned)
 		if self.parent_individual_alignment_id:
 			read_group += '_p%s'%(self.parent_individual_alignment_id)
@@ -512,6 +522,7 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 	folderName = 'individual_alignment'
 	def constructRelativePath(self, subFolder='individual_alignment', **keywords):
 		"""
+		2013.04.08 call constructBaseNamePrefix
 		2013.04.01 call getReadGroup()
 		2012.9.19
 			add three more optional additions to the path
@@ -526,8 +537,8 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 			subFolder = self.folderName
 		#'/' must not be put in front of the relative path.
 		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
-		read_group = self.getReadGroup()
-		pathPrefix = '%s/%s'%(subFolder, read_group)
+		baseNamePrefix = self.constructBaseNamePrefix()
+		pathPrefix = '%s/%s'%(subFolder, baseNamePrefix)
 		dst_relative_path = '%s.%s'%(pathPrefix, self.format)
 		
 		return dst_relative_path
