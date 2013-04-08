@@ -30,8 +30,8 @@ Examples:
 	dirPrefix=./AlignmentToCallLowPass_top7559Contigs_no12eVarFilter_2011.11.23T1620/
 	%s -I $dirPrefix\gatk -i $dirPrefix\call/ -l condorpool -j condorpool
 		-o Keep_LowPass_top7559Contigs_no12eVarFilter_SNPs_PresentIn4HC_inter_minMAC4.xml
-		-z uclaOfficeTemp -u yh -q ./alnStatForFilter.2011.12.9T0207.tsv -G0 --maxSNPMismatchRate 1 -n 0 -L 1 -A 100000 -a 524 -C 50
-		-S ./4HighCovVRC_inter_minMAC4_vs_LowPass_top7559Contigs_no12eVarFilter_inter.2011.12.9T0107/overlapPos.tsv
+		-z uclaOfficeTemp -u yh -q ./alnStatForFilter.2011.12.9T0207.tsv -G0 --maxSNPMismatchRate 1 -n 0 -L 1 --depthFoldChange 100000 -a 524 -C 50
+		--keepSNPPosFname ./4HighCovVRC_inter_minMAC4_vs_LowPass_top7559Contigs_no12eVarFilter_inter.2011.12.9T0107/overlapPos.tsv
 	
 	#2011.12.19 run on hoffman2's condorpool
 	%s ....
@@ -39,25 +39,25 @@ Examples:
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 		
 	#2012.5.1 filter trioCaller output with total depth (no minGQ filter anymore), minMAC=10 (-n 10), maxSNPMismatchRate=1 (-L 1.0)
-	# minMAF=0.05 (-f 0.05), no depth-band filter (-A 0)
+	# minMAF=0.05 (-f 0.05), no depth-band filter (--depthFoldChange 0)
 	%s -I AlignmentToTrioCallPipeline_VRC_top7559Contigs.2011.12.15T0057/trioCaller/ -l condorpool -j condorpool
-		-z uclaOffice -u yh -q ./alnStatForFilter.2012.5.1T1430.tsv  -n 10 -L 1.0 -f 0.05 -A 0 -a 524 -C 50 -E -H
+		-z uclaOffice -u yh -q ./alnStatForFilter.2012.5.1T1430.tsv  -n 10 -L 1.0 -f 0.05 --depthFoldChange 0 -a 524 -C 50 -E -H
 		-o FilterVCF_trioCallerTop7559Contigs.xml
 	
-	#2012.8.1 FilterGenotypeMethod5_ByMethod7Sites (-S ...) NoDepthFilter (-A 0) MaxSNPMissing0.5 (-L 0.5)
+	#2012.8.1 FilterGenotypeMethod5_ByMethod7Sites (--keepSNPPosFname ...) NoDepthFilter (--depthFoldChange 0) MaxSNPMissing0.5 (-L 0.5)
 	%s -I ~/NetworkData/vervet/db/genotype_file/method_5/ -q ./aux/alnStatForFilter.2012.7.30T1542.tsv
-		-L 0.5 -a 524  -E -H -o workflow/FilterGenotypeMethod5_ByMethod7Sites_NoDepthFilter_MaxSNPMissing0.5.xml  -l hcondor -j hcondor
+		-L 0.5 -a 524  -E -H -o dags/FilterVariants/FilterGenotypeMethod5_ByMethod7Sites_NoDepthFilter_MaxSNPMissing0.5.xml  -l hcondor -j hcondor
 		-e /u/home/eeskin/polyacti/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -u yh -C 5 -S ./method7_sites.tsv -A 0
+		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/ -u yh -C 5 --keepSNPPosFname ./method7_sites.tsv --depthFoldChange 0
 	
-	#2012.8.1 FilterGenotypeMethod6_ByMaskingZeroDPSite (-m 1) 2FoldDepthFilter (-A 2) MaxSNPMissing1.0 (-L 1.0)
+	#2012.8.1 FilterGenotypeMethod6_ByMaskingZeroDPSite (--minDepth 1) 2FoldDepthFilter (--depthFoldChange 2) MaxSNPMissing1.0 (-L 1.0)
 	# "-V 90 -x 100" are used to restrict contig IDs between 90 and 100.
 	# "-g 5" to the minimum distance between neighboring SNPs, "-f 0.1", minMAF=0.1
 	%s -I ~/NetworkData/vervet/db/genotype_file/method_6/ -q ./aux/alnStatForFilter.2012.8.1T1805.tsv
-		-L 1.0 -a 524  -E -H -o workflow/FilterGenotypeMethod6_MinDP1_2FoldDepthFilter_MaxSNPMissing1.0MinNeighborDistance5MinMAF0.1.xml 
+		-L 1.0 -a 524  -E -H -o dags/FilterVariants/FilterGenotypeMethod6_MinDP1_2FoldDepthFilter_MaxSNPMissing1.0MinNeighborDistance5MinMAF0.1.xml 
 		-l hcondor -j hcondor
 		-e /u/home/eeskin/polyacti/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		-u yh -C 5 -m 1 -A 2 -g 5 -f 0.1
+		-u yh -C 5 --minDepth 1 --depthFoldChange 2 -g 5 -f 0.1
 		#-V 90 -x 100 
 	
 Description:
@@ -84,7 +84,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 	common_filter_option_dict = {
 						("onlyKeepBiAllelicSNP", 0, int): [0, 'K', 0, 'toggle this to remove all SNPs with >=3 alleles?'],\
 						('alnStatForFilterFname', 0, ): ['', 'q', 1, 'The alignment stat file for FilterVCFByDepthJava. tab-delimited: individual_alignment.id minCoverage maxCoverage minGQ'],\
-						('keepSNPPosFname', 0, ): ['', 'S', 1, 'a tab-delimited file with 1st two columns as chr and pos.\
+						('keepSNPPosFname', 0, ): ['', '', 1, 'a tab-delimited file with 1st two columns as chr and pos.\
 		should have a header.\
 		to filter out SNPs that are absent in this file.\
 		this step will be applied before all other filter jobs.\
@@ -94,7 +94,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 	option_default_dict.pop(('inputDir', 0, ))
 	option_default_dict.update({
 						('minGQ', 1, int): [50, 'G', 1, 'minimum GQ/GenotypeQuality for one genotype. 2012.5.1 no longer enforced in FilterVCFByDepth.java', ],\
-						('depthFoldChange', 0, float): [0, 'A', 1, 'a variant is retained if its depth within this fold change of meanDepth,\
+						('depthFoldChange', 0, float): [0, '', 1, 'a variant is retained if its depth within this fold change of meanDepth,\
 		set this to 0 or below to eliminate this step of filtering.', ],\
 						("maxSNPMismatchRate", 0, float): [0, '', 1, 'maximum SNP mismatch rate between two vcf calls'],\
 						("minMAC", 0, int): [None, 'n', 1, 'minimum MinorAlleleCount (by chromosome)'],\
@@ -163,8 +163,9 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 	
 	def addJobsToFilterTwoVCFDir(self, workflow=None, vcf1Dir=None, vcf2Dir=None, registerReferenceData=None, \
 							alnStatForFilterF=None, keepSNPPosF=None, onlyKeepBiAllelicSNP=True,\
-							minMAC=None, minMAF=None, maxSNPMissingRate=None):
+							minMAC=None, minMAF=None, maxSNPMissingRate=None, maxSNPMismatchRate=None):
 		"""
+		2013.04.08 added argument maxSNPMismatchRate
 		2012.5.10
 			add extraArguments="--recode-INFO-all" to addFilterJobByvcftools()
 		2012.1.14
@@ -179,17 +180,17 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			vcf2Name = "vcf2"
 		
 		vcf1DepthFilterDir = "%s_DepthFilter"%(vcf1Name)
-		vcf1DepthFilterDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=vcf1DepthFilterDir)
+		vcf1DepthFilterDirJob = self.addMkDirJob(outputDir=vcf1DepthFilterDir)
 		vcf2DepthFilterDir = "%s_DepthFilter"%(vcf2Name)
-		vcf2DepthFilterDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=vcf2DepthFilterDir)
+		vcf2DepthFilterDirJob = self.addMkDirJob(outputDir=vcf2DepthFilterDir)
 		
 		SNPMismatchStatDir = "SNPMismatchStat"
-		SNPMismatchStatDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=SNPMismatchStatDir)
+		SNPMismatchStatDirJob = self.addMkDirJob(outputDir=SNPMismatchStatDir)
 		
 		vcf1_vcftoolsFilterDir = "%s_vcftoolsFilter"%(vcf1Name)
-		vcf1_vcftoolsFilterDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=vcf1_vcftoolsFilterDir)
+		vcf1_vcftoolsFilterDirJob = self.addMkDirJob(outputDir=vcf1_vcftoolsFilterDir)
 		vcf2_vcftoolsFilterDir = "%s_vcftoolsFilter"%(vcf2Name)
-		vcf2_vcftoolsFilterDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=vcf2_vcftoolsFilterDir)
+		vcf2_vcftoolsFilterDirJob = self.addMkDirJob(outputDir=vcf2_vcftoolsFilterDir)
 		
 		#import re
 		#chr_pattern = re.compile(r'(\w+\d+).*')
@@ -348,16 +349,16 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 		no_of_jobs = 0
 
 		vcf1DepthFilterDir = "%s_DepthFilter"%(outputDirPrefix)
-		vcf1DepthFilterDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=vcf1DepthFilterDir)
+		vcf1DepthFilterDirJob = self.addMkDirJob(outputDir=vcf1DepthFilterDir)
 		
 		SNPMismatchStatDir = "%s_SNPMismatchStat"%(outputDirPrefix)
-		SNPMismatchStatDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=SNPMismatchStatDir)
+		SNPMismatchStatDirJob = self.addMkDirJob(outputDir=SNPMismatchStatDir)
 		
 		filterDir = "%s_vcftoolsFilter"%(outputDirPrefix)
-		filterDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=filterDir)
+		filterDirJob = self.addMkDirJob(outputDir=filterDir)
 		
 		topOutputDir = "%sFilterStat"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		no_of_jobs += 4
 		
 		if keepSNPPosF:
@@ -665,7 +666,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			
 			returnData.jobDataLs.append(PassingData(jobLs=lastRoundJobLs, vcfFile=lastBGZipTabixJobOutputFile, \
 									tbi_F=lastBGZipTabixJobTbiF, \
-									fileList=[lastBGZipTabixJobOutputFile, lastBGZipTabixJobTbiF]))
+									fileLs=[lastBGZipTabixJobOutputFile, lastBGZipTabixJobTbiF]))
 		
 		sys.stderr.write("%s%s VCFs. "%('\x08'*40, no_of_vcf_files))
 		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
@@ -759,7 +760,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			self.addJobsToFilterTwoVCFDir(workflow, self.vcf1Dir, self.vcf2Dir, registerReferenceData, \
 						alnStatForFilterF, keepSNPPosF, \
 						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, minMAC=self.minMAC, minMAF=self.minMAF, \
-						maxSNPMissingRate=self.maxSNPMissingRate)
+						maxSNPMissingRate=self.maxSNPMissingRate, maxSNPMismatchRate=self.maxSNPMismatchRate)
 		elif self.vcf1Dir:
 			# 2012.5.1 filter only on the 1st vcf folder
 			#a relative-path name for vcf1Dir

@@ -3,13 +3,13 @@
 Examples:
 	#2012.5.11 
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/ 
-		-o workflow/2DB/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
+		-o dags/2DB/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
 		-s ... -u yh -l hcondor -j hcondor  -z localhost 
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
 	# 2012.5.10 run on hoffman2 condor, turn on checkEmptyVCFByReading (-E), require db connection (--needSSHDBTunnel), no clustering (-C1)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/
-		-o workflow/2DB/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
+		-o dags/2DB/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
 		-s ... -E --needSSHDBTunnel -C1
 		-l hcondor -j hcondor  -u yh -z localhost 
 		-e /u/home/eeskin/polyacti/ 
@@ -17,7 +17,7 @@ Examples:
 	
 	# 2012.7.16 add a folder of VCF files to DB without checking zero-loci VCF
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719/trioCaller_vcftoolsFilter/ 
-		-o workflow/2DB/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
+		-o dags/2DB/AddVCF2DB_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
 		-s ... -l condorpool -j condorpool
 		-u yh -z uclaOffice -C1
 	
@@ -201,9 +201,9 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 			workflow.depends(parent=addVCFJob, child=updateGMNoOfLociJob)
 			no_of_jobs += 1
 		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
-		#include the tfam (outputList[1]) into the fileList
+		#include the tfam (outputList[1]) into the fileLs
 		returnData.jobDataLs.append(PassingData(jobLs=[updateGMNoOfLociJob], file=updateGMlogFile, \
-											fileList=[updateGMlogFile]))
+											fileLs=[updateGMlogFile]))
 		return returnData
 	
 	def run(self):

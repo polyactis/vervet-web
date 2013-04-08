@@ -122,7 +122,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 					sshDBTunnel=self.needSSHDBTunnel, \
 					key2ObjectForJob=None)
 		returnData.jobDataLs.append(PassingData(jobLs=[extractPopSampleIDJob], file=extractPopSampleIDJob.output, \
-											fileList=[extractPopSampleIDJob.output]))
+											fileLs=[extractPopSampleIDJob.output]))
 		if pop_sampleSize and pop_sampleSize>1:
 			sampleIDHeader='sampleID'	#determined by extractPopSampleIDJob
 			#. SelectRowsWithinCoverageRange
@@ -143,7 +143,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 						sshDBTunnel=self.needSSHDBTunnel, \
 						objectWithDBArguments=self,)
 			returnData.jobDataLs.append(PassingData(jobLs=[selectRowsWithinCoverageRangeJob], file=selectRowsWithinCoverageRangeJob.output, \
-											fileList=[selectRowsWithinCoverageRangeJob.output]))
+											fileLs=[selectRowsWithinCoverageRangeJob.output]))
 			#. optional, a ReplaceIndividualIDInMatrixFileWithReadGroup job (for VRC) on the IBD check result
 			translateIDInIBDResultJob = self.addTranslateIDInIBDCheckResultJob(workflow=workflow, plinkIBDCheckOutputFile=self.plinkIBDCheckOutputFile, \
 										pop_country_id_ls_str=pop_country_id_ls_str, \
@@ -157,7 +157,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 				extraArgumentList.extend(["--plinkIBDCheckOutputFname", translateIDInIBDResultJob.output])
 				extraDependentInputLs = [translateIDInIBDResultJob.output]
 				returnData.jobDataLs.append(PassingData(jobLs=[translateIDInIBDResultJob], file=translateIDInIBDResultJob.output, \
-											fileList=[translateIDInIBDResultJob.output]))
+											fileLs=[translateIDInIBDResultJob.output]))
 			else:
 				extraDependentInputLs = None
 			sampleRowsJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=self.SampleRows, \
@@ -171,7 +171,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 						extraArgumentList=extraArgumentList, transferOutput=transferOutput,  job_max_memory=1000)
 			
 			returnData.jobDataLs.append(PassingData(jobLs=[sampleRowsJob], file=sampleRowsJob.output, \
-											fileList=[sampleRowsJob.output]))
+											fileLs=[sampleRowsJob.output]))
 			#rename the extractPopSampleIDJob
 			extractPopSampleIDJob = sampleRowsJob
 		return extractPopSampleIDJob

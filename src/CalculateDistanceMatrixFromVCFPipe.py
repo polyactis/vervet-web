@@ -166,7 +166,7 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVervetWorkflow):
 					parentJobLs=[genotypeCallByCoverage_job, matrixDirJob], extraDependentInputLs=[], transferOutput=False, \
 					extraArguments=None, job_max_memory=2000)
 		returnData.jobDataLs.append(PassingData(jobLs=[calculaJob], file=calculaJob.output, \
-											fileList=[calculaJob.output]))
+											fileLs=[calculaJob.output]))
 		returnData.calculaJob = calculaJob
 		return returnData
 	
