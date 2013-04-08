@@ -91,7 +91,7 @@ class FindNewRefCoordinatesGivenGenotypeMethodWorkflow(FindNewRefCoordinatesGive
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 	
 	def mapEachInterval(self, workflow=None, \
-					VCFFile=None, passingData=None, transferOutput=False, **keywords):
+					VCFJobData=None, passingData=None, transferOutput=False, **keywords):
 		"""
 		2012.10.3
 			#. extract flanking sequences from the input VCF (ref sequence file => contig ref sequence)
