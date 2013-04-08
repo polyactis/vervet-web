@@ -306,7 +306,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		else:
 			oneFlagStatOutputF = File(os.path.join(flagStatMapFolderJob.output, '%s_flagstat.txt.gz'%(alignment.id)))
 			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(executable=self.samtoolsFlagStat, \
-				samtoolsFile=self.samtoolsFile, inputFile=bamF, outputFile=oneFlagStatOutputF, \
+				samtoolsExecutableFile=self.samtoolsExecutableFile, inputFile=bamF, outputFile=oneFlagStatOutputF, \
 				parentJobLs=[flagStatMapFolderJob]+ alignmentData.jobLs, extraDependentInputLs=[baiF], transferOutput=False, \
 				extraArguments=None, job_max_memory=1000, walltime=100)
 			self.addRefFastaJobDependency(job=samtoolsFlagStatJob, refFastaF=passingData.refFastaF, \
