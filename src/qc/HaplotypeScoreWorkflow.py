@@ -123,7 +123,7 @@ class HaplotypeScoreWorkflow(parentClass):
 		return returnData
 	
 	def mapEachInterval(self, workflow=None, alignmentData=None, intervalData=None,\
-			VCFFile=None, passingData=None, transferOutput=True, **keywords):
+			VCFJobData=None, passingData=None, transferOutput=True, **keywords):
 		"""
 		2012.9.17
 		"""
@@ -150,7 +150,7 @@ class HaplotypeScoreWorkflow(parentClass):
 		intervalFnameSignature = intervalData.intervalFnameSignature
 		overlapInterval = intervalData.overlapInterval
 		overlapFilenameSignature = intervalData.overlapIntervalFnameSignature
-		
+		VCFFile = VCFJobData.file
 		annotationName = passingData.annotationName
 		outputFile = File(os.path.join(topOutputDirJob.output, '%s_%s.%s.vcf'%(bamFnamePrefix, overlapFilenameSignature, annotationName)))
 		variantAnnotatorJob = self.addGATKVariantAnnotatorJob(workflow, executable=workflow.annotateVariantJava, \
