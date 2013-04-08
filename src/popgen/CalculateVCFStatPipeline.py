@@ -266,11 +266,11 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		passingData.extractPopSampleIDJob = extractPopSampleIDJob
 		
 		statOutputDir = "%sStat"%(outputDirPrefix)
-		statOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=statOutputDir)
+		statOutputDirJob = self.addMkDirJob(outputDir=statOutputDir)
 		passingData.statOutputDirJob = statOutputDirJob
 		
 		plotOutputDir = "%sPlot"%(outputDirPrefix)
-		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
+		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
 		passingData.plotOutputDirJob = plotOutputDirJob
 		
 		input_site_handler = self.input_site_handler
@@ -579,7 +579,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		
 		return returnData
 	
-	def mapEachInterval(self, workflow=None, VCFFile=None, passingData=None, transferOutput=False, **keywords):
+	def mapEachInterval(self, workflow=None, VCFJobData=None, passingData=None, transferOutput=False, **keywords):
 		"""
 		2012.10.3
 			#. extract individuals from individual population into separate VCF, each VCF with re-calculated AC/AF.
@@ -592,7 +592,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		"""
 		if workflow is None:
 			workflow = self
-		returnData = AbstractVervetWorkflow.mapEachInterval(self, workflow=workflow, VCFFile=VCFFile, \
+		returnData = AbstractVervetWorkflow.mapEachInterval(self, workflow=workflow, VCFJobData=VCFJobData, \
 												passingData=passingData, transferOutput=transferOutput, **keywords)
 		
 		topOutputDirJob = passingData.topOutputDirJob
@@ -619,7 +619,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		#selectVariants would re-generate AC, AF so that TrioCaller could read it.
 		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 		popVCFConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=self.SelectVariantsJava, \
-				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=VCFFile, outputF=outputVCF, \
+				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=VCFJobData.file, outputF=outputVCF, \
 				refFastaFList=self.refFastaFList, sampleIDKeepFile=extractPopSampleIDJob.output,\
 				parentJobLs=[topOutputDirJob, splitVCFJob, extractPopSampleIDJob]+jobData.jobLs, \
 				extraDependentInputLs=[], transferOutput=transferOutput, \
