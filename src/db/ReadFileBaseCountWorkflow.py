@@ -2,13 +2,14 @@
 """
 Examples:
 	# 2012.5.3 run on hoffman2's condorpool, need sshDBTunnel (-H1)
-	%s  -i 963-1346 -o workflow/read_count_isq_936_1346.xml -u yh -c -z localhost
-		-F readcount -H
+	%s  -i 963-1346 -o dags/ReadCount/read_count_isq_936_1346.xml -u yh --commit -z localhost
+		--pegasusFolderName readcount --needSSHDBTunnel
 		-l hcondor -j hcondor 
 		-t /u/home/eeskin/polyacti/NetworkData/vervet/db -D /u/home/eeskin/polyacti/NetworkData/vervet/db/
 	
 	# 2012.3.14 
-	%s -i 1-864 -o workflow/read_count_isq_1_864.xml -u yh -l condorpool -j condorpool -z uclaOffice -F readCount -c
+	%s -i 1-864 -o dags/ReadCount/read_count_isq_1_864.xml -u yh -l condorpool -j condorpool -z uclaOffice
+		--pegasusFolderName readCount --commit
 	
 Description:
 	2012.3.14
@@ -20,7 +21,7 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, yh_pegasus
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils, yh_pegasus, AbstractNGSWorkflow
 from Pegasus.DAX3 import *
 from vervet.src import VervetDB, AbstractVervetWorkflow
 
@@ -31,7 +32,6 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 	option_default_dict.update({
 						('ind_seq_id_ls', 1, ): ['', 'i', 1, 'a comma/dash-separated list of IndividualSequence.id. \
 									non-fastq entries will be discarded.', ],\
-						('commit', 0, int):[0, 'c', 0, 'commit db transaction (individual_alignment and/or individual_alignment.path'],\
 						})
 
 	def __init__(self,  **keywords):
@@ -43,16 +43,13 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		if self.ind_seq_id_ls:
 			self.ind_seq_id_ls = getListOutOfStr(self.ind_seq_id_ls, data_type=int)
 	
-	def registerCustomExecutables(self, workflow):
+	def registerCustomExecutables(self, workflow=None):
 		"""
 		2012.3.14
 		"""
-		namespace = workflow.namespace
-		version = workflow.version
-		operatingSystem = workflow.operatingSystem
-		architecture = workflow.architecture
-		clusters_size = workflow.clusters_size
-		site_handler = workflow.site_handler
+		if workflow is None:
+			workflow = self
+		AbstractVervetWorkflow.registerCustomExecutables(self, workflow=workflow)
 		
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'mapper/CountFastqReadBaseCount.py'), \
 										name='CountFastqReadBaseCount', clusterSizeMultipler=1)
@@ -71,16 +68,24 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		counter = 0
 		Table = VervetDB.IndividualSequence
 		query = Table.query.filter(Table.id.in_(ind_seq_id_ls))
+		individual_sequence_id_set = set()
+		missed_individual_sequence_id_set = set()
 		for individual_sequence in query:
 			if individual_sequence.individual_sequence_file_ls:	#not empty
 				for individual_sequence_file in individual_sequence.individual_sequence_file_ls:
 					absPath = os.path.join(local_data_dir, individual_sequence_file.path)
-					inputF = File(os.path.join(pegasusFolderName, individual_sequence_file.path))
-					inputF.addPFN(PFN("file://" + absPath, input_site_handler))
-					inputF.absPath = absPath
-					workflow.addFile(inputF)
-					returnData.jobDataLs.append(PassingData(output=inputF, jobLs=[], isq_id=individual_sequence.id,\
-														isqf_id=individual_sequence_file.id))
+					if os.path.isfile(absPath):
+						inputF = File(os.path.join(pegasusFolderName, individual_sequence_file.path))
+						inputF.addPFN(PFN("file://" + absPath, input_site_handler))
+						inputF.absPath = absPath
+						workflow.addFile(inputF)
+						returnData.jobDataLs.append(PassingData(output=inputF, jobLs=[], isq_id=individual_sequence.id,\
+															isqf_id=individual_sequence_file.id))
+						individual_sequence_id_set.add(individual_sequence.id)
+					else:
+						missed_individual_sequence_id_set.add(individual_sequence.id)
+						sys.stderr.write("Warning: IndividualSequenceFile.id=%s (isq-id=%s) doesn't have any affiliated IndividualSequenceFile entries while its path %s is not a file.\n"%\
+									(individual_sequence_file.id, individual_sequence.id, absPath))
 			elif individual_sequence.path:
 				absPath = os.path.join(local_data_dir, individual_sequence.path)
 				if os.path.isfile(absPath):
@@ -90,11 +95,14 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 					workflow.addFile(inputF)
 					returnData.jobDataLs.append(PassingData(output=inputF, jobLs=[], isq_id=individual_sequence.id,\
 														isqf_id=None))
+					individual_sequence_id_set.add(individual_sequence.id)
 				else:
 					sys.stderr.write("Warning: IndividualSequence.id=%s doesn't have any affiliated IndividualSequenceFile entries while its path %s is not a file.\n"%\
-									(individual_sequence.id, individual_sequence.path))
+									(individual_sequence.id, absPath))
+					missed_individual_sequence_id_set.add(individual_sequence.id)
 		
-		sys.stderr.write(" %s files registered.\n"%(len(returnData.jobDataLs)))
+		sys.stderr.write(" %s files registered for %s individual_sequence entries. missed %s individual-sequence entries.\n"%\
+						(len(returnData.jobDataLs), len(individual_sequence_id_set), len(missed_individual_sequence_id_set)))
 		return returnData
 	
 	def addPutReadBaseCountIntoDBJob(self, workflow, executable=None, inputFileLs=[], \
@@ -196,36 +204,36 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		sys.stderr.write("%s jobs.\n"%(no_of_jobs))
 		return putCountIntoDBJob
 	
-	def run(self):
+	def setup_run(self):
 		"""
-		2011-7-11
+		2013.04.07 wrap all standard pre-run() related functions into this function.
+			setting up for run(), called by run()
 		"""
-		
-		if self.debug:
-			import pdb
-			pdb.set_trace()
+		pdata = AbstractNGSWorkflow.setup_run(self)
+		workflow = pdata.workflow
 		
 		db_vervet = self.db_vervet
 		session = db_vervet.session
 		session.begin()
 		
-		if not self.data_dir:
-			self.data_dir = db_vervet.data_dir
-		if not self.local_data_dir:
-			self.local_data_dir = db_vervet.data_dir
-		
-		# Create a abstract dag
-		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = self.initiateWorkflow(workflowName)
-		
-		self.registerJars(workflow)
-		self.registerCustomJars(workflow)
-		self.registerExecutables(workflow)
-		self.registerCustomExecutables(workflow)
-		
 		inputData = self.registerISQFiles(workflow=workflow, db_vervet=db_vervet, ind_seq_id_ls=self.ind_seq_id_ls, \
 										local_data_dir=self.local_data_dir, pegasusFolderName=self.pegasusFolderName,\
 										input_site_handler=self.input_site_handler)
+		
+		registerReferenceData = self.getReferenceSequence()
+		
+		
+		return PassingData(workflow=workflow, inputData=inputData,\
+						registerReferenceData=registerReferenceData)
+	def run(self):
+		"""
+		2011-7-11
+		"""
+		pdata = self.setup_run()
+		workflow = pdata.workflow
+		
+		inputData=pdata.inputData
+		
 		self.addJobs(workflow, inputData=inputData, pegasusFolderName=self.pegasusFolderName,
 					needSSHDBTunnel=self.needSSHDBTunnel)
 		
