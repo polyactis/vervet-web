@@ -461,6 +461,7 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 	outdated_index = Field(Integer, default=0)	#2012.6.13 any non-zero means outdated. to allow multiple outdated alignments
 	md5sum = Field(Text, unique=True)
 	file_size = Field(BigInteger)	#2012.9.21
+	read_group = Field(Text)	#2013.04.08 record read_group here so that if getReadGroup() changes. it'll be fine.
 	#2012.7.26 the parent individual_alignment
 	parent_individual_alignment = ManyToOne('%s.IndividualAlignment'%__name__, colname='parent_individual_alignment_id', ondelete='CASCADE', onupdate='CASCADE')
 	#2012.7.26 mask loci of the alignment out for read-recalibration 
@@ -488,6 +489,9 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 		2011-11-02
 			read group is this alignment's unique identifier in a sam/bam file.
 		"""
+		if self.read_group:
+			return self.read_group
+		
 		sequencer = self.individual_sequence.sequencer
 		read_group = '%s_%s_%s_%s_vs_%s'%(self.id, self.ind_seq_id, \
 							self.individual_sequence.individual.code, \
@@ -1594,8 +1598,32 @@ class VervetDB(ElixirDB):
 					alignment_format='bam', subFolder='individual_alignment', \
 					createSymbolicLink=False, individual_sequence_filtered=0, read_group_added=None, data_dir=None, \
 					outdated_index=0, mask_genotype_method_id=None, parent_individual_alignment_id=None,\
-					individual_sequence_file_raw_id=None, md5sum=None, local_realigned=0):
+					individual_sequence_file_raw_id=None, md5sum=None, local_realigned=0, read_group=None):
 		"""
+		i.e.
+			individual_alignment = self.db_vervet.getAlignment(individual_sequence_id=self.individual_sequence_id,\
+										path_to_original_alignment=None, sequencer=individual_sequence.sequencer,\
+										sequence_type=individual_sequence.sequence_type, sequence_format=individual_sequence.format, \
+										ref_individual_sequence_id=self.ref_sequence_id, \
+										alignment_method_id=self.alignment_method_id, alignment_format=self.format,\
+										individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
+										data_dir=data_dir, \
+										mask_genotype_method_id=self.mask_genotype_method_id, \
+										parent_individual_alignment_id=self.parent_individual_alignment_id,\
+										individual_sequence_file_raw_id=self.individual_sequence_file_raw_id,\
+										local_realigned=self.local_realigned, read_group=self.read_group)
+										
+			oneLibraryAlignmentEntry = db_vervet.getAlignment(individual_code=individual_sequence.individual.code, \
+												individual_sequence_id=individual_sequence.id,\
+									path_to_original_alignment=None, sequencer_id=individual_sequence.sequencer_id, \
+									sequence_type_id=individual_sequence.sequence_type_id, sequence_format=individual_sequence.format, \
+									ref_individual_sequence_id=refSequence.id, \
+									alignment_method_name=alignment_method.short_name, alignment_format=alignment_format,\
+									individual_sequence_filtered=individual_sequence.filtered, read_group_added=1,
+									data_dir=data_dir, individual_sequence_file_raw_id=minIsqFileRawID,\
+									local_realigned=self.local_realigned)
+		
+		2013.04.09 added argument read_group and process it
 		2013.04.05 added argument local_realigned
 		2012.9.19 add argument individual_sequence_file_raw_id, individual_id, individual,
 			alignment_method_id, alignment_method, md5sum
@@ -1655,16 +1683,23 @@ class VervetDB(ElixirDB):
 					read_group_added=read_group_added, data_dir=data_dir, \
 					outdated_index=outdated_index, mask_genotype_method_id=mask_genotype_method_id, \
 					parent_individual_alignment_id=parent_individual_alignment_id,\
-					individual_sequence_file_raw_id=individual_sequence_file_raw_id, md5sum=md5sum, local_realigned=local_realigned)
+					individual_sequence_file_raw_id=individual_sequence_file_raw_id, md5sum=md5sum, \
+					local_realigned=local_realigned)
 		if not db_entry:
 			db_entry = IndividualAlignment(ind_seq_id=individual_sequence.id, ref_ind_seq_id=ref_individual_sequence_id,\
 								alignment_method_id=alignment_method.id, format=alignment_format, read_group_added=read_group_added,\
 								outdated_index=outdated_index, mask_genotype_method_id=mask_genotype_method_id,\
 								parent_individual_alignment_id=parent_individual_alignment_id,\
 								individual_sequence_file_raw_id=individual_sequence_file_raw_id, md5sum=md5sum,\
-								local_realigned=local_realigned)
+								local_realigned=local_realigned, read_group=read_group)
+			## 2013.04.09 adding the read_group
+			if db_entry.read_group is None:
+				if not read_group:
+					read_group = db_entry.getReadGroup()
+				db_entry.read_group = read_group
 			self.session.add(db_entry)
 			self.session.flush()
+			
 			#copy the file over
 			
 			if path_to_original_alignment and (os.path.isfile(path_to_original_alignment) or os.path.isdir(path_to_original_alignment)):
@@ -1699,6 +1734,13 @@ class VervetDB(ElixirDB):
 				#since the .path has been updated, so add & flush
 				self.session.add(db_entry)
 				self.session.flush()
+		## 2013.04.09 adding the read_group
+		if db_entry.read_group is None:	#2013.04.09
+			if not read_group:
+				read_group = db_entry.getReadGroup()
+			db_entry.read_group = read_group
+			self.session.add(db_entry)
+			self.session.flush()
 		return db_entry
 	
 	
@@ -1754,11 +1796,19 @@ class VervetDB(ElixirDB):
 			query = query.filter_by(alignment_method_id=alignment_method_id)
 		
 		if country_id_ls:	#2012.9.23 not sure whether it'll work
-			sys.stderr.write("Adding filter country_id_ls=%s ... \n"%(getattr(country_id_ls, '__len__', returnZeroFunc)()))
-			query = query.filter(TableClass.individual_sequence.individual.site.has(Site.country_id.in_(country_id_ls)))
+			sys.stderr.write("Adding filter %s countries: %s ... \n"%(getattr(country_id_ls, '__len__', returnZeroFunc)(), \
+																	repr(country_id_ls)))
+			#2013.04.09 five-hierarchy query, old way does not work
+			individual_id_ls_query = Individual.query.filter(Individual.site.has(Site.country_id.in_(country_id_ls)))
+			individual_id_ls = [row.id for row in individual_id_ls_query]
+			query = query.filter(TableClass.individual_sequence.has(IndividualSequence.individual_id.in_(individual_id_ls)))
 		if tax_id_ls:
-			sys.stderr.write("Adding filter tax_id_ls=%s ... \n"%(getattr(tax_id_ls, '__len__', returnZeroFunc)()))
-			query = query.filter(TableClass.individual_sequence.individual.has(Individual.tax_id.in_(tax_id_ls)))
+			sys.stderr.write("Adding filter %s taxonomies: %s ... \n"%(getattr(tax_id_ls, '__len__', returnZeroFunc)(),\
+													repr(tax_id_ls)))
+			#2013.04.09 4-hierarchy query, old way does not work
+			ind_seq_id_ls_query = IndividualSequence.query.filter(IndividualSequence.individual.has(Individual.tax_id.in_(tax_id_ls)))
+			ind_seq_id_ls = [row.id for row in ind_seq_id_ls_query]
+			query = query.filter(TableClass.ind_seq_id.in_(ind_seq_id_ls))
 		
 		if not ind_aln_id_ls and not ind_seq_id_ls and not ref_ind_seq_id:
 			sys.stderr.write("Both ind_seq_id_ls and ind_aln_id_ls are empty and ref_ind_seq_id is None. no alignment to be fetched.\n")
@@ -1772,6 +1822,9 @@ class VervetDB(ElixirDB):
 			#2012.9.22 do nothing = include both 
 			pass
 		
+		if local_realigned is not None:	#2013.04.09
+			query = query.filter_by(local_realigned=local_realigned)
+		
 		#order by TableClass.id is important because this is the order that gatk&samtools take input bams.
 		#Read group in each bam is beginned by alignment.id. GATK would arrange bams in the order of read groups.
 		# while samtools doesn't do that and vcf-isect could combine two vcfs with columns in different order.
@@ -1779,7 +1832,6 @@ class VervetDB(ElixirDB):
 		query = query.filter_by(outdated_index=outdated_index).\
 					filter_by(mask_genotype_method_id=mask_genotype_method_id).\
 					filter_by(parent_individual_alignment_id=parent_individual_alignment_id).\
-					filter_by(local_realigned=local_realigned).\
 					order_by(TableClass.id)
 		
 		for row in query:
@@ -2352,8 +2404,9 @@ class VervetDB(ElixirDB):
 	
 	def copyParentIndividualAlignment(self, parent_individual_alignment=None, \
 									parent_individual_alignment_id=None, mask_genotype_method=None, \
-									mask_genotype_method_id=None, data_dir=None, local_realigned=0):
+									mask_genotype_method_id=None, data_dir=None, local_realigned=0, read_group=None):
 		"""
+		2013.04.09 added argument read_group
 		2013.04.05 added argument local_realigned
 		2012.7.28
 		"""
@@ -2361,6 +2414,8 @@ class VervetDB(ElixirDB):
 			parent_individual_alignment = IndividualAlignment.get(parent_individual_alignment_id)
 		if mask_genotype_method is None and mask_genotype_method_id:
 			mask_genotype_method = GenotypeMethod.get(mask_genotype_method_id)
+		if read_group is None:
+			read_group = parent_individual_alignment.read_group
 		
 		individual_sequence = parent_individual_alignment.individual_sequence
 		ref_sequence = parent_individual_alignment.ref_sequence
@@ -2375,7 +2430,7 @@ class VervetDB(ElixirDB):
 					data_dir=data_dir, outdated_index=0, mask_genotype_method_id=mask_genotype_method.id,\
 					parent_individual_alignment_id=parent_individual_alignment.id,\
 					individual_sequence_file_raw_id=parent_individual_alignment.individual_sequence_file_raw_id,\
-					local_realigned=local_realigned)
+					local_realigned=local_realigned, read_group=read_group)
 					#read-group addition is part of pipeline
 		#if not individual_alignment.path:
 		#	individual_alignment.path = individual_alignment.constructRelativePath()
