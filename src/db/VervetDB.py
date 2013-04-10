@@ -1548,10 +1548,13 @@ class VervetDB(ElixirDB):
 	
 	def isThisAlignmentComplete(self, individual_alignment=None, data_dir=None):
 		"""
+		2013.04.10 bugfix. individual_alignment.path could be None.
 		2013.03.28
 		"""
 		if data_dir is None:
 			data_dir = self.data_dir
+		if not individual_alignment.path:
+			return False
 		alignmentAbsPath= os.path.join(data_dir, individual_alignment.path)
 		#2012.3.29	check if the alignment exists or not. if it already exists, no alignment jobs.
 		if os.path.isfile(alignmentAbsPath) and individual_alignment.file_size is not None:
@@ -1692,11 +1695,6 @@ class VervetDB(ElixirDB):
 								parent_individual_alignment_id=parent_individual_alignment_id,\
 								individual_sequence_file_raw_id=individual_sequence_file_raw_id, md5sum=md5sum,\
 								local_realigned=local_realigned, read_group=read_group)
-			## 2013.04.09 adding the read_group
-			if db_entry.read_group is None:
-				if not read_group:
-					read_group = db_entry.getReadGroup()
-				db_entry.read_group = read_group
 			self.session.add(db_entry)
 			self.session.flush()
 			
@@ -2414,8 +2412,6 @@ class VervetDB(ElixirDB):
 			parent_individual_alignment = IndividualAlignment.get(parent_individual_alignment_id)
 		if mask_genotype_method is None and mask_genotype_method_id:
 			mask_genotype_method = GenotypeMethod.get(mask_genotype_method_id)
-		if read_group is None:
-			read_group = parent_individual_alignment.read_group
 		
 		individual_sequence = parent_individual_alignment.individual_sequence
 		ref_sequence = parent_individual_alignment.ref_sequence
