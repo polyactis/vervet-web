@@ -240,6 +240,7 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		# Write the DAX to stdout
 		outf = open(self.outputFname, 'w')
 		workflow.writeXML(outf)
+		self.end_run()
 
 if __name__ == '__main__':
 	main_class = ReadFileBaseCountWorkflow
