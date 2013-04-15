@@ -132,7 +132,6 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 	option_default_dict = copy.deepcopy(ShortRead2AlignmentWorkflow.option_default_dict)
 	option_default_dict.pop(('refSequenceFname', 1, ))
 	option_default_dict.update({
-						('skipDoneAlignment', 0, int):[0, '', 0, 'skip alignment whose path is a valid file'],\
 						("alignmentPerLibrary", 0, int): [0, '', 0, 'toggle to run alignment for each library of one individual_sequence'],\
 						})
 	option_default_dict[('local_realigned', 0, int)][0] = 0
@@ -506,38 +505,17 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		2011-7-11
 		"""
 		
-		if self.debug:
-			import pdb
-			pdb.set_trace()
-		
-		db_vervet = VervetDB.VervetDB(drivername=self.drivername, db_user=self.db_user,
-					db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema=self.schema)
-		db_vervet.setup(create_tables=False)
-		self.db_vervet = db_vervet
-		session = db_vervet.session
-		session.begin()
-		
-		if not self.data_dir:
-			self.data_dir = db_vervet.data_dir
-		if not self.local_data_dir:
-			self.local_data_dir = db_vervet.data_dir
-		
-		# Create a abstract dag
-		workflow = self.initiateWorkflow()
-		
-		self.registerJars(workflow)
-		self.registerCustomJars(workflow)
-		self.registerExecutables(workflow)
-		self.registerCustomExecutables(workflow)
+		pdata = self.setup_run()
+		workflow = pdata.workflow
 		
 		chr2IntervalDataLs = self.getChr2IntervalDataLsBySplitChrSize(chr2size=self.chr2size, \
 													intervalSize=self.intervalSize, \
 													intervalOverlapSize=self.intervalOverlapSize)
 		
 		#individualSequenceID2FilePairLs = db_vervet.getIndividualSequenceID2FilePairLs(self.ind_seq_id_ls, data_dir=self.local_data_dir)
-		isqLs = db_vervet.getISQDBEntryLsForAlignment(self.ind_seq_id_ls, data_dir=self.data_dir, \
+		isqLs = self.db.getISQDBEntryLsForAlignment(self.ind_seq_id_ls, data_dir=self.data_dir, \
 												filtered=self.sequence_filtered, ignoreEmptyReadFile=self.ignoreEmptyReadFile)
-		isqLs = db_vervet.filterIndividualSequenceList(individual_sequence_list=isqLs, min_coverage=self.sequence_min_coverage,\
+		isqLs = self.db.filterIndividualSequenceList(individual_sequence_list=isqLs, min_coverage=self.sequence_min_coverage,\
 						max_coverage=self.sequence_max_coverage, \
 						individual_site_id_set=set(self.site_id_ls), individual_id_set=None, \
 						sequence_type_id_set=set(self.sequence_type_id_ls),\
@@ -556,7 +534,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, input_site_handler=self.input_site_handler,\
 						checkAffiliateFileExistence=True)
 		
-		self.addAllAlignmentJobs(db_vervet=db_vervet, individualSequenceID2FilePairLs=None, \
+		self.addAllAlignmentJobs(db_vervet=self.db, individualSequenceID2FilePairLs=None, \
 					isqLs = isqLs,\
 					data_dir=self.data_dir,\
 					refSequence=refSequence, registerReferenceData=registerReferenceData, \
@@ -582,10 +560,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 		outf = open(self.outputFname, 'w')
 		self.writeXML(outf)
 		
-		if self.commit:
-			session.commit()
-		else:
-			session.rollback()
+		self.end_run()
 	
 if __name__ == '__main__':
 	main_class = ShortRead2AlignmentPipeline
