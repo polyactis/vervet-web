@@ -27,12 +27,13 @@ from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOu
 from pymodule import yh_matplotlib, GenomeDB, utils
 from pymodule import MatrixFile
 from pymodule import SNP
+#used in getattr(individual_site_id_set, '__len__', returnZeroFunc)()
+from pymodule.utils import returnZeroFunc
+from pymodule import VCFFile
 from vervet.src import VervetDB
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
 
-#used in getattr(individual_site_id_set, '__len__', returnZeroFunc)()
-from pymodule.utils import returnZeroFunc
-from pymodule.VCFFile import VCFFile
+
 
 
 class ExtractSamplesFromVCF(AbstractVervetMapper):
