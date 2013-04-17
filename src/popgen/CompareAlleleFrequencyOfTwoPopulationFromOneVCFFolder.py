@@ -123,8 +123,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		returnData = AbstractVervetWorkflow.preReduce(self, workflow=workflow, outputDirPrefix=outputDirPrefix,\
 								passingData=passingData, transferOutput=transferOutput, **keywords)
 		
-		frequencyDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, \
-										outputDir="%sFrequency"%(outputDirPrefix))
+		frequencyDirJob = self.addMkDirJob(outputDir="%sFrequency"%(outputDirPrefix))
 		passingData.frequencyDirJob = frequencyDirJob
 		
 		#ExtractSamplesFromVCF for the 1st population
