@@ -49,6 +49,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 						('mask_genotype_method_id', 0, int):[None, '', 1, 'for alignments coming out of base quality recalibration'],\
 						('individual_sequence_file_raw_id', 0, int):[None, '', 1, 'for library specific alignment'],\
 						('local_realigned', 0, int):[0, '', 1, 'value for IndividualAlignment.local_realigned'],\
+						('read_group', 0, ):[None, '', 1, 'value for IndividualAlignment.read_group. if not given, it calls IndividualAlignment.getReadGroup()'],\
 						('format', 0, ):[None, 'f', 1, 'format for GenotypeFile entry'],\
 						})
 	def __init__(self, inputFnameLs=None, **keywords):
@@ -95,7 +96,7 @@ class AddAlignmentFile2DB(AbstractVervetMapper):
 										mask_genotype_method_id=self.mask_genotype_method_id, \
 										parent_individual_alignment_id=self.parent_individual_alignment_id,\
 										individual_sequence_file_raw_id=self.individual_sequence_file_raw_id,\
-										local_realigned=self.local_realigned)
+										local_realigned=self.local_realigned, read_group=self.read_group)
 			needSessionFlush = False
 			if not individual_alignment.path:
 				individual_alignment.path = individual_alignment.constructRelativePath()
