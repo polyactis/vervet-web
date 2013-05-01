@@ -87,7 +87,7 @@ class AddFilteredSequences2DB(RegisterAndMoveSplitSequenceFiles):
 										shellCommand='cp', srcFilenameLs=self.srcFilenameLs, dstFilenameLs=self.dstFilenameLs)
 			"""
 			if exitCode!=0:
-				sys.stderr.write("Error: moveNewISQFileIntoDBStorage() exits with %s code.\n"%(exitCode))
+				sys.stderr.write("Error: moveNewISQFileIntoDBStorage() exits with code=%s.\n"%(exitCode))
 				self.sessionRollback(session)
 				#delete all recorded target files
 				self.cleanUpAndExitOnFailure(exitCode=exitCode)
