@@ -43,7 +43,7 @@ from vervet.src import VervetDB
 
 class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 	__doc__ = __doc__
-	option_default_dict = AbstractVervetMapper.option_default_dict.copy()
+	option_default_dict = copy.deepcopy(AbstractVervetMapper.option_default_dict)
 	option_default_dict.pop(('outputFnamePrefix', 0, ))
 	option_default_dict.update({
 						('outputFname', 1, ):option_default_dict.get(('outputFname', 0, )),\
@@ -52,6 +52,7 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 						('sampleID2FamilyCountFname', 0, ): ['', '', 1, 'a tab-delimited file that records how many families in which each individual occurs'],\
 						("treatEveryOneIndependent", 0, int): [0, '', 0, 'toggle this to treat everyone in the pedigree independent (parents=0)'],\
 						('replicateIndividualTag', 1, ): ['copy', 'T', 1, 'the tag that separates the true ID and its replicate count'],\
+						('dummyIndividualNamePrefix', 1, ): ['dummy', '', 1, 'the prefix to name a dummy parent (TrioCaller format). The suffix is its order among all dummies.'],\
 						('polymuttDatFname', 0, ): ['', '', 1, 'if present, add "T\tGLF_Index" into the file. required for polymutt'],\
 						})
 	option_default_dict.pop(('outputFname', 0, ))	#pop after its value has been used above
@@ -164,7 +165,7 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 		if sex is None:
 			sex = sexByGuess
 		
-		data_row = [family_id, sample_id, father_id, mother_id, sex]
+		data_row = [family_id, sample_id, father_id, mother_id, sex, 1]	#the last column is supposed to be phenotype but TrioCaller ignores it
 		writer.writerow(data_row)
 	
 	def getSampleIDWithReplicateCount(self, alignment, replicateIndividualTag=None, sampleID2FamilyCount=None):
@@ -186,7 +187,7 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 		sampleID2FamilyCount[sample_id] += 1
 		
 	def outputPedigreeForTrioCaller(self, db_vervet=None, inputFname=None, pedigreeOutputFname=None, \
-								replicateIndividualTag='copy',\
+								replicateIndividualTag='copy', dummyIndividualNamePrefix='dummy',\
 								treatEveryOneIndependent=False, sampleID2FamilyCountFname=None):
 		"""
 		2013.1.2 moved from AlignmentToTrioCallPipeline.py. merlin format.
@@ -226,11 +227,12 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 		#[[node] for node in DG.nodes()]. this will be good only when removeFamilyFromGraph=True for all sentences above.
 		
 		familyLs = trioLs + duoLs + singletonLs
-		sys.stderr.write("Outputting %s families in units of trios (Merlin format)..."%(len(familyLs)))
+		sys.stderr.write("Outputting %s families in units of trios (Merlin format) to %s ..."%(len(familyLs), pedigreeOutputFname))
 		#time to output
 		sampleID2FamilyCount = {}	#2012.3.29
 		writer = csv.writer(open(pedigreeOutputFname, 'w'), delimiter=' ')
 		noOfFamilies = 0
+		noOfDummies = 0
 		for family in familyLs:
 			familySize = len(family)
 			for memberID in family:	#2012.3.29 make sure to record the occurrence of each member before writing them out
@@ -266,7 +268,9 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 							mother_id = 0
 						else:
 							#output a fake 2nd parent, with opposite sex
-							sndParentID = 'dummy'
+							
+							sndParentID = '%s%s'%(dummyIndividualNamePrefix, noOfDummies)
+							noOfDummies += 1
 							sndParentSex = 1-(parent1Alignment.individual_sequence.individual.codeSexInNumber()-1)+1
 							self.writeOneLineToPedigreeFile(writer, family_id, sndParentID, father_id=0, mother_id=0, sex=sndParentSex,\
 													replicateIndividualTag=replicateIndividualTag, \
@@ -555,9 +559,10 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 								treatEveryOneIndependent=self.treatEveryOneIndependent)
 		elif self.outputFileFormat==2:
 			self.outputPedigreeForTrioCaller(db_vervet=db_vervet, inputFname=self.inputFname, \
-												pedigreeOutputFname=self.outputFname, replicateIndividualTag=self.replicateIndividualTag,\
-												treatEveryOneIndependent=self.treatEveryOneIndependent,\
-												sampleID2FamilyCountFname=self.sampleID2FamilyCountFname)
+							pedigreeOutputFname=self.outputFname, replicateIndividualTag=self.replicateIndividualTag,\
+							dummyIndividualNamePrefix=self.dummyIndividualNamePrefix,\
+							treatEveryOneIndependent=self.treatEveryOneIndependent, \
+							sampleID2FamilyCountFname=self.sampleID2FamilyCountFname)
 		else:
 			sys.stderr.write("Error: un-supported output file format %s.\n"%(self.outputFileFormat))
 			sys.exit(3)
