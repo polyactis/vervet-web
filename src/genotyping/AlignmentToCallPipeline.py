@@ -79,7 +79,7 @@ Examples:
 		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
 		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 1 --clusters_size 1
 		-o dags/AlignmentToCall/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml
-		--addGATKJobs
+		--genotypeCallerType 1
 		--contigMaxRankBySize 1000 --maxContigID 731 --minContigID 731 --intervalSize 200000 --intervalOverlapSize 0
 		#--individual_sequence_file_raw_id_type 2 --country_id_ls 135,136,144,148,151 --tax_id_ls 60711 #sabaeus
 		#--heterozygosityForGATK 0.01
@@ -126,7 +126,7 @@ class AlignmentToCallPipeline(parentClass):
 									Increase it to above 1 only when your average genotyping job is short and the number of input bam files are short.'],\
 						("polymuttPath", 1, ): ["%s/bin/polymutt", '', 1, 'path to the polymutt binary'],\
 						("trioCallerPath", 1, ): ["%s/script/vervet/bin/trioCaller/TrioCaller", '', 1, 'path to TrioCaller binary'],\
-						("GATKGenotypeCallerType", 1, ): ['UnifiedGenotyper', '', 1, 'passed to -T of GATK. Can try HaplotypeCaller'],\
+						("GATKGenotypeCallerType", 1, ): ['UnifiedGenotyper', '', 1, 'passed to -T of GATK. alternative is HaplotypeCaller'],\
 						("heterozygosityForGATK", 1, float): [0.005, '', 1, 'heterozygosity prior for GATK. GATK default is 0.001 '],\
 						("minPruningForGATKHaplotypCaller", 1, int): [2, '', 1, 'The minimum allowed pruning factor in assembly graph.\n\
 	Paths with <= X supporting kmers are pruned from the graph.\n\
@@ -137,11 +137,11 @@ class AlignmentToCallPipeline(parentClass):
 	commonCallPipelineOptionDict.update(parentClass.commonAlignmentWorkflowOptionDict.copy())
 	option_default_dict.update(commonCallPipelineOptionDict.copy())
 	option_default_dict.update({
-						("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
 						("run_type", 1, int): [1, 'n', 1, '1: multi-sample calling, 2: single-sample one by one'],\
-						("addGATKJobs", 0, int): [0, 'T', 0, 'toggle if you want to have GATK genotyping jobs as well. default is SAMtools only.'],\
+						("genotypeCallerType", 0, int): [0, 'y', 1, '0: SAMtools, 1: GATK (--GATKGenotypeCallerType ...), 2: Platypus'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
+						#("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
 
 	def __init__(self,  **keywords):
 		"""
@@ -352,185 +352,6 @@ class AlignmentToCallPipeline(parentClass):
 		sys.stderr.write(".Done\n")
 		return PassingData(chr2jobDataLs=chr2jobDataLs, workflow=workflow)
 	
-	def addMergeAlignmentAndGenotypeCallJobs(self, workflow, chr2jobDataLs, chrLs, samtools, \
-				java, CreateSequenceDictionaryJar=None, GenotypeCallByCoverage=None, refFastaF=None, \
-				namespace='workflow', version="1.0", callOutputDir = "call", genotypeCallerType=1,\
-				MergeSamFilesJar=None, GenomeAnalysisTKJar=None, calcula=None, chr2splitFastaJobDataLs=None, \
-				seqCoverageF=None, needFastaIndexJob=False, \
-				needFastaDictJob=False, site_type=1):
-		"""
-		deprecated
-		2011-9-2
-			add argument seqCoverageF
-		2011-8-26
-			add argument needFastaDictJob, needFastaIndexJob, site_type
-		2011-7-26
-			add chr2splitFastaJobDataLs, for GATK
-		2011-7-14
-			1. merge alignments based on same reference from different genomes into one
-			2. run GenotypeCallByCoverage on each merged alignment
-		"""
-		sys.stderr.write("Adding alignment merge and genotype call jobs for %s references ..."%(len(chr2jobDataLs)))
-		if needFastaDictJob:	# the .dict file is required for GATK
-			refFastaDictFname = '%s.dict'%(os.path.splitext(refFastaF.name)[0])
-			refFastaDictF = File(refFastaDictFname)
-			#not os.path.isfile(refFastaDictFname) or 
-			fastaDictJob = Job(namespace=namespace, name=java.name, version=version)
-			fastaDictJob.addArguments('-jar', CreateSequenceDictionaryJar, \
-					'REFERENCE=', refFastaF, 'OUTPUT=', refFastaDictF)
-			self.addJobUse(fastaDictJob, file=CreateSequenceDictionaryJar, transfer=True, register=True, link=Link.INPUT)
-			fastaDictJob.uses(refFastaF, transfer=True, register=False, link=Link.INPUT)
-			fastaDictJob.uses(refFastaDictF, transfer=True, register=False, link=Link.OUTPUT)
-			self.no_of_jobs += 1
-			workflow.addJob(fastaDictJob)
-		else:
-			fastaDictJob = None
-			refFastaDictF = None
-		
-		if needFastaIndexJob:
-			refFastaIndexFname = '%s.fai'%(refFastaF.name)	# the .fai file is required for GATK
-			refFastaIndexF = File(refFastaIndexFname)
-			#not os.path.isfile(refFastaIndexFname)
-			fastaIndexJob = Job(namespace=namespace, name=samtools.name, version=version)
-			fastaIndexJob.addArguments("faidx", refFastaF)
-			fastaIndexJob.uses(refFastaF, register=False, link=Link.INPUT)
-			fastaIndexJob.uses(refFastaIndexFname, transfer=True, register=False, link=Link.OUTPUT)
-			self.no_of_jobs += 1
-			workflow.addJob(fastaIndexJob)
-		else:
-			fastaIndexJob = None
-			refFastaIndexF = None
-		#workflow.depends(parent=fastaDictJob, child=fastaIndexJob)	#no dependency between these two jobs
-		
-		# add merge jobs for every reference
-		chr2mergedBamCallJob = {}
-		for chr, jobDataLs in chr2jobDataLs.iteritems():
-			# add the index job
-			picard_job = Job(namespace=namespace, name=java.name, version=version)
-			outputFname = '%s.bam'%(chr)
-			picard_output = File(outputFname)
-			picard_job.addArguments('-jar', MergeSamFilesJar, \
-				'USE_THREADING=true', 'SORT_ORDER=coordinate', 'ASSUME_SORTED=false', 'OUTPUT=', picard_output)
-			#picard_job.uses(picard_output, transfer=False, register=False, link=Link.OUTPUT)	#registering here would result in their early deletion.
-			self.addJobUse(picard_job, file=MergeSamFilesJar, transfer=True, register=True, link=Link.INPUT)
-			workflow.addJob(picard_job)
-			
-			for jobData in jobDataLs:
-				bamFile, samtools_index_job, bamFileBai = jobData[:3]
-				picard_job.addArguments('INPUT=', bamFile)
-				picard_job.uses(bamFileBai, transfer=True, register=True, link=Link.INPUT)	#register them here to be deleted 
-				picard_job.uses(bamFile, transfer=True, register=True, link=Link.INPUT)
-				#this picard merge job depends on a bunch of prior samtools index jobs
-				workflow.depends(parent=samtools_index_job, child=picard_job)
-			self.no_of_jobs += 1
-		
-			# add the index job on the merged bam file
-			samtools_index_job = Job(namespace=namespace, name=samtools.name, version=version)
-			samtools_index_job.addArguments("index", picard_output)
-			samtools_index_job.uses(picard_output, transfer=True, register=True, link=Link.OUTPUT)	#write this as OUTPUT, otherwise it'll be deleted and next program won't know 
-			bai_output = File('%s.bai'%outputFname)
-			samtools_index_job.uses(bai_output, transfer=True, register=True, link=Link.OUTPUT)
-			workflow.addJob(samtools_index_job)
-			workflow.depends(parent=picard_job, child=samtools_index_job)
-			self.no_of_jobs += 1
-			
-			
-			if genotypeCallerType==2:
-				coverageFilterParentJob = samtools_index_job
-				coverageFilterParentOutput = picard_output
-				coverageFilterParentOutput_bai = bai_output
-			else:
-				splitFastaJobDataLs = chr2splitFastaJobDataLs.get(chr)
-				fai_index_job, fastaFAIIndexFile, createSeqDictJob, fastaFile, dictFile = splitFastaJobDataLs[:5]
-				
-				gatk_job = Job(namespace=namespace, name=java.name, version=version)
-				gatkOutputFname = os.path.join(callOutputDir, '%s.vcf'%(chr))
-				gatk_output = File(gatkOutputFname)
-				gatkVCFIndexOutputFname = os.path.join(callOutputDir, '%s.vcf.idx'%(chr))
-				gatkVCFIndexOutput = File(gatkVCFIndexOutputFname)
-				
-				gatk_job.addArguments('-jar', GenomeAnalysisTKJar, \
-					"-I", picard_output, "-R", fastaFile, "-T", "UnifiedGenotyper","--out", gatk_output,\
-					'-U', '-S SILENT', "-nt 4")
-				if site_type==1:
-					gatk_job.addArguments('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
-				self.addJobUse(gatk_job, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
-				gatk_job.uses(bai_output, transfer=False, register=True, link=Link.INPUT)	#make sure the bai file is still there upon start of this job 
-				gatk_job.uses(picard_output, transfer=False, register=True, link=Link.INPUT)
-				
-				gatk_job.uses(fastaFAIIndexFile, transfer=True, register=True, link=Link.INPUT)
-				gatk_job.uses(fastaFile, transfer=True, register=True, link=Link.INPUT)
-				gatk_job.uses(dictFile, transfer=False, register=True, link=Link.INPUT)
-				
-				gatk_job.uses(gatk_output, transfer=True, register=True, link=Link.OUTPUT)
-				gatk_job.uses(gatkVCFIndexOutput, transfer=True, register=True, link=Link.OUTPUT)
-				
-				
-				self.no_of_jobs += 1
-				gatk_job_max_memory = 1500	#in MB
-				yh_pegasus.setJobProperRequirement(gatk_job, job_max_memory=gatk_job_max_memory)
-				
-				workflow.addJob(gatk_job)
-				workflow.depends(parent=samtools_index_job, child=gatk_job)
-				workflow.depends(parent=fai_index_job, child=gatk_job)
-				workflow.depends(parent=createSeqDictJob, child=gatk_job)
-				if fastaIndexJob:	#2011-7-22 if job doesn't exist, don't add it. means this job isn't necessary to run.
-					workflow.depends(parent=fastaIndexJob, child=gatk_job)
-				if fastaDictJob:
-					workflow.depends(parent=fastaDictJob, child=gatk_job)
-				
-				coverageFilterParentJob = gatk_job
-				coverageFilterParentOutput = gatk_output
-				coverageFilterParentOutput_bai = None
-				
-			
-			#add the cover filter (or filter+call) job after index is done
-			GenotypeCallByCoverage_job = Job(namespace=namespace, name=GenotypeCallByCoverage.name, version=version)
-			genotypeCallOutputFname = os.path.join(callOutputDir, '%s.call'%(chr))	#GenotypeCallByCoverage_job would create directory "call".
-			genotypeCallOutput = File(genotypeCallOutputFname)
-			GenotypeCallByCoverage_job.addArguments("-i", coverageFilterParentOutput, "-n", str(len(jobDataLs)), \
-					"-o", genotypeCallOutput, '-e', refFastaF, '-y', str(genotypeCallerType), \
-					'-s', repr(self.site_type))
-			if seqCoverageF:
-				GenotypeCallByCoverage_job.addArguments("-q", seqCoverageF)
-				GenotypeCallByCoverage_job.uses(seqCoverageF, transfer=True, register=True, link=Link.INPUT)
-			if coverageFilterParentOutput_bai:
-				GenotypeCallByCoverage_job.uses(coverageFilterParentOutput_bai, transfer=False, register=True, link=Link.INPUT)	#make sure the bai file is still there upon start of this job 
-			GenotypeCallByCoverage_job.uses(coverageFilterParentOutput, transfer=True, register=True, link=Link.INPUT)
-			GenotypeCallByCoverage_job.uses(genotypeCallOutput, transfer=True, register=True, link=Link.OUTPUT)
-			if self.site_type==1:	#all sites require additional memory
-				job_max_memory = 5000	#in MB
-			else:	#variants only, less memory
-				job_max_memory=1000	#in MB. 
-			yh_pegasus.setJobProperRequirement(GenotypeCallByCoverage_job, job_max_memory=job_max_memory)
-			workflow.addJob(GenotypeCallByCoverage_job)
-			workflow.depends(parent=coverageFilterParentJob, child=GenotypeCallByCoverage_job)
-			self.no_of_jobs += 1
-			
-			
-			#add the pairwise distance matrix job after filter is done
-			calcula_job = Job(namespace=namespace, name=calcula.name, version=version)
-			
-			convertHetero2NA = True
-			max_NA_rate = 0.4
-			min_MAF = 0
-			calculaOutputFname ='%s.pairwiseDist.convertHetero2NA%s.minMAF%s.maxNA%s.tsv'%(os.path.splitext(genotypeCallOutputFname)[0], \
-								convertHetero2NA, min_MAF, max_NA_rate)
-			calculaOutput = File(calculaOutputFname)
-			calcula_job.addArguments("-i", genotypeCallOutput, "-n", str(min_MAF), \
-								"-o", calculaOutput, '-m', repr(max_NA_rate), '-c', str(1))
-			calcula_job.uses(genotypeCallOutput, transfer=True, register=False, link=Link.INPUT)
-			calcula_job.uses(calculaOutput, transfer=True, register=False, link=Link.OUTPUT)
-			
-			workflow.addJob(calcula_job)
-			workflow.depends(parent=GenotypeCallByCoverage_job, child=calcula_job)
-			
-			chr2mergedBamCallJob[chr] = [genotypeCallOutput, GenotypeCallByCoverage_job]
-			self.no_of_jobs += 1
-		sys.stderr.write(" %s jobs.\n"%(self.no_of_jobs))
-		return PassingData(chr2mergedBamCallJob=chr2mergedBamCallJob)
-	
-	
 	def addGenotypeCallJobs(self, workflow=None, alignmentDataLs=None, chr2IntervalDataLs=None, samtools=None, \
 				genotyperJava=None,  GenomeAnalysisTKJar=None, \
 				addOrReplaceReadGroupsJava=None, AddOrReplaceReadGroupsJar=None, \
@@ -545,8 +366,11 @@ class AlignmentToCallPipeline(parentClass):
 				seqCoverageF=None, \
 				needFastaIndexJob=False, needFastaDictJob=False, \
 				intervalSize=2000000, site_type=1, data_dir=None, no_of_gatk_threads = 1,\
-				outputDirPrefix="", addGATKJobs=False, cumulativeMedianDepth=5000, **keywords):
+				outputDirPrefix="", genotypeCallerType=0, cumulativeMedianDepth=5000, **keywords):
 		"""
+		2013.05.16
+			argument addGATKJobs renamed to genotypeCallerType
+				0: SAMtools, 1: GATK (--GATKGenotypeCallerType ...), 2: Platypus
 		2012.7.31
 			add argument addGATKJobs (default=False)
 		2011-9-22
@@ -597,6 +421,7 @@ class AlignmentToCallPipeline(parentClass):
 					mv=mv, namespace=namespace, version=version, data_dir=data_dir)
 		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
 		
+		
 		# add merge jobs for every reference
 		returnData = PassingData()
 		for chromosome, intervalDataLs in chr2IntervalDataLs.iteritems():
@@ -613,7 +438,7 @@ class AlignmentToCallPipeline(parentClass):
 			"""
 			#self.addRefFastaJobDependency(workflow, wholeRefUnionOfIntersectionJob, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
 			#							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
-			if addGATKJobs:
+			if genotypeCallerType>=1:
 				#2011-9-22 union of all GATK intervals for one contig
 				gatkUnionOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf'%chromosome)
 				gatkUnionOutputF = File(gatkUnionOutputFname)
@@ -654,21 +479,21 @@ class AlignmentToCallPipeline(parentClass):
 				bgzip_tabix_job = self.addBGZIP_tabix_Job(parentJob=selectSNPJob, \
 						inputF=selectSNPJob.output, outputF=File("%s.gz"%SNPOnlyOutputF.name), \
 						transferOutput=True)
+			elif genotypeCallerType==0:
+				#2011-9-22 union of all samtools intervals for one contig
+				samtoolsUnionOutputFname = os.path.join(samtoolsDirJob.folder, '%s.vcf.gz'%chromosome)
+				samtoolsUnionOutputF = File(samtoolsUnionOutputFname)
+				samtoolsUnionJob = self.addVCFConcatJob(workflow, concatExecutable=concatSamtools, parentDirJob=samtoolsDirJob, \
+								outputF=samtoolsUnionOutputF, namespace=namespace, version=version, transferOutput=True, \
+								vcf_job_max_memory=vcf_job_max_memory)
+				
 			
-			#2011-9-22 union of all samtools intervals for one contig
-			samtoolsUnionOutputFname = os.path.join(samtoolsDirJob.folder, '%s.vcf.gz'%chromosome)
-			samtoolsUnionOutputF = File(samtoolsUnionOutputFname)
-			samtoolsUnionJob = self.addVCFConcatJob(workflow, concatExecutable=concatSamtools, parentDirJob=samtoolsDirJob, \
-							outputF=samtoolsUnionOutputF, namespace=namespace, version=version, transferOutput=True, \
-							vcf_job_max_memory=vcf_job_max_memory)
-			
-			
-			#2011-9-22 union of all samtools intervals for one contig
-			samtoolsIndelUnionOutputFname = os.path.join(samtoolsIndelDirJob.folder, '%s.indel.vcf.gz'%chromosome)
-			samtoolsIndelUnionOutputF = File(samtoolsIndelUnionOutputFname)
-			samtoolsIndelUnionJob = self.addVCFConcatJob(workflow, concatExecutable=concatSamtools, parentDirJob=samtoolsIndelDirJob, \
-							outputF=samtoolsIndelUnionOutputF, namespace=namespace, version=version, transferOutput=True, \
-							vcf_job_max_memory=vcf_job_max_memory)
+				#2011-9-22 union of all samtools intervals for one contig
+				samtoolsIndelUnionOutputFname = os.path.join(samtoolsIndelDirJob.folder, '%s.indel.vcf.gz'%chromosome)
+				samtoolsIndelUnionOutputF = File(samtoolsIndelUnionOutputFname)
+				samtoolsIndelUnionJob = self.addVCFConcatJob(workflow, concatExecutable=concatSamtools, parentDirJob=samtoolsIndelDirJob, \
+								outputF=samtoolsIndelUnionOutputF, namespace=namespace, version=version, transferOutput=True, \
+								vcf_job_max_memory=vcf_job_max_memory)
 			for intervalData in intervalDataLs:
 				if intervalData.file:
 					mpileupInterval = intervalData.interval
@@ -678,82 +503,108 @@ class AlignmentToCallPipeline(parentClass):
 					bcftoolsInterval = intervalData.interval
 				vcfBaseFname = intervalData.intervalFnameSignature
 				
-				if addGATKJobs:
-					#GATK job
+				span = intervalData.span
+				readSpace = cumulativeMedianDepth * span
+				#base for platypus is 450X coverage in 4Mb region => 80 minutes
+				genotypingJobWalltime = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=readSpace, \
+									baseInputVolume=450*2000000, baseJobPropertyValue=80, \
+									minJobPropertyValue=60, maxJobPropertyValue=500).value
+				#base for platypus is 450X, => 5.2g
+				genotypingJobMaxMemory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=cumulativeMedianDepth, \
+									baseInputVolume=450, baseJobPropertyValue=5200, \
+									minJobPropertyValue=4000, maxJobPropertyValue=10000).value
+									
+									
+				if genotypeCallerType>=1:
+					#extra caller
 					gatkOutputFname = os.path.join(gatkDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
 					gatkOutputF = File(gatkOutputFname)
 					
-					gatk_job= self.addGATKCallJob(genotyperJava=genotyperJava, GenomeAnalysisTKJar=self.GenomeAnalysisTK2Jar, \
+					if genotypeCallerType==1:
+						#2013.05.09 add downsample setting for gatk job 
+						genotypingJob= self.addGATKCallJob(genotyperJava=genotyperJava, GenomeAnalysisTKJar=self.GenomeAnalysisTK2Jar, \
 							gatkOutputF=gatkOutputF, refFastaFList=refFastaFList, \
 							parentJobLs=[gatkDirJob]+intervalData.jobLs, \
-							extraDependentInputLs=None, transferOutput=False, extraArguments=None, \
-							job_max_memory=job_max_memory*max(1, len(alignmentDataLs)/100), no_of_gatk_threads=no_of_gatk_threads, \
+							extraDependentInputLs=None, transferOutput=False, \
+							extraArguments=" --downsample_to_coverage 40 --downsampling_type BY_SAMPLE", \
+							job_max_memory=genotypingJobMaxMemory, \
+							no_of_gatk_threads=no_of_gatk_threads, \
 							site_type=site_type, \
 							interval=bcftoolsInterval,\
 							heterozygosityForGATK=self.heterozygosityForGATK, \
 							minPruningForGATKHaplotypCaller=self.minPruningForGATKHaplotypCaller, \
 							GATKGenotypeCallerType = self.GATKGenotypeCallerType,\
-							walltime=480,\
+							walltime=genotypingJobWalltime,\
 							)
-					
+					elif genotypeCallerType==2:
+						#2013.05.16 platypus job
+						genotypingJob = self.addPlatypusCallJob(executable=self.platypus, outputFile=gatkOutputF, \
+							refFastaFList=refFastaFList, \
+							sourceVCFFile=None, interval=mpileupInterval, skipRegionsFile=None,\
+							site_type=site_type, \
+							extraArguments="--bufferSize=500000 --maxReads=10000000 --maxReadLength=4268", \
+							job_max_memory=genotypingJobMaxMemory, no_of_cpus=1, \
+							walltime=genotypingJobWalltime, \
+							parentJobLs=[gatkDirJob], extraDependentInputLs=None, transferOutput=False)
+						
 					#add this output to a GATK union job
-					self.addInputToStatMergeJob(statMergeJob=gatkUnionJob, parentJobLs=[gatk_job], \
+					self.addInputToStatMergeJob(statMergeJob=gatkUnionJob, parentJobLs=[genotypingJob], \
 											inputArgumentOption="--variant")
-				
-				#samtools part
-				samtoolsOutputFname = os.path.join(samtoolsDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
-				samtoolsOutputF = File(samtoolsOutputFname)
-				indelVCFOutputFname = "%s.indel.vcf"%(samtoolsOutputFname)
-				indelVCFOutputF = File(indelVCFOutputFname)
-				samtools_job= self.addSAMtoolsCallJob(workflow, CallVariantBySamtools=CallVariantBySamtools, \
-					samtoolsOutputF=samtoolsOutputF, indelVCFOutputF=indelVCFOutputF, \
-					refFastaFList=refFastaFList, parentJobLs=[samtoolsDirJob]+intervalData.jobLs, \
-					extraDependentInputLs=None, transferOutput=False, \
-					extraArguments=None, job_max_memory=job_max_memory*max(1, len(alignmentDataLs)/200), \
-					site_type=site_type, maxDP=cumulativeMedianDepth*5, mpileupInterval=mpileupInterval, \
-					bcftoolsInterval=bcftoolsInterval, walltime=120)
-				
-				#deal with samtools's indel VCF
-				"""
-				# convert to VCF4. vcf-convert requires "-r refFastaF" but still fails in sanity check.
-				# complaining ref sequence from this vcf mismatches from the reference sequence. so comment this out. 
-				samtoolsIndelVCF4Fname = os.path.join(samtoolsDirJob.folder, '%s.indel.vcf'%vcfBaseFname)
-				samtoolsIndelVCF4F = File(samtoolsIndelVCF4Fname)
-				samtoolsIndelVCF4F_job = self.addVCFFormatConvertJob(workflow, vcf_convert=vcf_convert, \
-							parentJob=samtools_job, inputF=indelVCFOutputF, outputF=samtoolsIndelVCF4F, \
+				else:
+					#samtools part
+					samtoolsOutputFname = os.path.join(samtoolsDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
+					samtoolsOutputF = File(samtoolsOutputFname)
+					indelVCFOutputFname = "%s.indel.vcf"%(samtoolsOutputFname)
+					indelVCFOutputF = File(indelVCFOutputFname)
+					genotypingJob= self.addSAMtoolsCallJob(workflow, CallVariantBySamtools=CallVariantBySamtools, \
+						samtoolsOutputF=samtoolsOutputF, indelVCFOutputF=indelVCFOutputF, \
+						refFastaFList=refFastaFList, parentJobLs=[samtoolsDirJob]+intervalData.jobLs, \
+						extraDependentInputLs=None, transferOutput=False, \
+						extraArguments=None, job_max_memory=job_max_memory*max(1, len(alignmentDataLs)/200), \
+						site_type=site_type, maxDP=cumulativeMedianDepth*5, mpileupInterval=mpileupInterval, \
+						bcftoolsInterval=bcftoolsInterval, walltime=120)
+					
+					#deal with samtools's indel VCF
+					"""
+					# convert to VCF4. vcf-convert requires "-r refFastaF" but still fails in sanity check.
+					# complaining ref sequence from this vcf mismatches from the reference sequence. so comment this out. 
+					samtoolsIndelVCF4Fname = os.path.join(samtoolsDirJob.folder, '%s.indel.vcf'%vcfBaseFname)
+					samtoolsIndelVCF4F = File(samtoolsIndelVCF4Fname)
+					samtoolsIndelVCF4F_job = self.addVCFFormatConvertJob(workflow, vcf_convert=vcf_convert, \
+								parentJob=genotypingJob, inputF=indelVCFOutputF, outputF=samtoolsIndelVCF4F, \
+								namespace=namespace, version=version, transferOutput=False)
+					"""
+					samtoolsIndelGzipOutputF = File("%s.gz"%indelVCFOutputFname)
+					samtoolsIndelGzipOutput_tbi_F = File("%s.gz.tbi"%indelVCFOutputFname)
+					samtoolsIndelGzipOutputF_job = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=bgzip_tabix, \
+							parentJob=genotypingJob, inputF=indelVCFOutputF, outputF=samtoolsIndelGzipOutputF, \
 							namespace=namespace, version=version, transferOutput=False)
-				"""
-				samtoolsIndelGzipOutputF = File("%s.gz"%indelVCFOutputFname)
-				samtoolsIndelGzipOutput_tbi_F = File("%s.gz.tbi"%indelVCFOutputFname)
-				samtoolsIndelGzipOutputF_job = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=bgzip_tabix, \
-						parentJob=samtools_job, inputF=indelVCFOutputF, outputF=samtoolsIndelGzipOutputF, \
-						namespace=namespace, version=version, transferOutput=False)
-				
-				
-				samtoolsIndelUnionJob.addArguments(samtoolsIndelGzipOutputF)
-				samtoolsIndelUnionJob.uses(samtoolsIndelGzipOutputF, transfer=False, register=True, link=Link.INPUT)
-				samtoolsIndelUnionJob.uses(samtoolsIndelGzipOutput_tbi_F, transfer=False, register=True, link=Link.INPUT)
-				workflow.depends(parent=samtoolsIndelGzipOutputF_job, child=samtoolsIndelUnionJob)
-				
-				#deal with samtools's snp VCF
-				vcf4_samtoolsOutputFname = os.path.join(samtoolsDirJob.folder, '%s.vcf'%vcfBaseFname)
-				vcf4_samtoolsOutputF = File(vcf4_samtoolsOutputFname)
-				vcf_convert_samtoolsOutputF_job = self.addVCFFormatConvertJob(workflow, vcf_convert=vcf_convert, \
-							parentJob=samtools_job, inputF=samtoolsOutputF, outputF=vcf4_samtoolsOutputF, \
+					
+					
+					samtoolsIndelUnionJob.addArguments(samtoolsIndelGzipOutputF)
+					samtoolsIndelUnionJob.uses(samtoolsIndelGzipOutputF, transfer=False, register=True, link=Link.INPUT)
+					samtoolsIndelUnionJob.uses(samtoolsIndelGzipOutput_tbi_F, transfer=False, register=True, link=Link.INPUT)
+					workflow.depends(parent=samtoolsIndelGzipOutputF_job, child=samtoolsIndelUnionJob)
+					
+					#deal with samtools's snp VCF
+					vcf4_samtoolsOutputFname = os.path.join(samtoolsDirJob.folder, '%s.vcf'%vcfBaseFname)
+					vcf4_samtoolsOutputF = File(vcf4_samtoolsOutputFname)
+					vcf_convert_samtoolsOutputF_job = self.addVCFFormatConvertJob(workflow, vcf_convert=vcf_convert, \
+								parentJob=genotypingJob, inputF=samtoolsOutputF, outputF=vcf4_samtoolsOutputF, \
+								namespace=namespace, version=version, transferOutput=False)
+					
+					samtoolsGzipOutputF = File("%s.gz"%vcf4_samtoolsOutputFname)
+					samtoolsGzipOutput_tbi_F = File("%s.gz.tbi"%vcf4_samtoolsOutputFname)
+					bgzip_tabix_samtoolsOutputF_job = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=bgzip_tabix, \
+							parentJob=vcf_convert_samtoolsOutputF_job, inputF=vcf4_samtoolsOutputF, outputF=samtoolsGzipOutputF, \
 							namespace=namespace, version=version, transferOutput=False)
-				
-				samtoolsGzipOutputF = File("%s.gz"%vcf4_samtoolsOutputFname)
-				samtoolsGzipOutput_tbi_F = File("%s.gz.tbi"%vcf4_samtoolsOutputFname)
-				bgzip_tabix_samtoolsOutputF_job = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=bgzip_tabix, \
-						parentJob=vcf_convert_samtoolsOutputF_job, inputF=vcf4_samtoolsOutputF, outputF=samtoolsGzipOutputF, \
-						namespace=namespace, version=version, transferOutput=False)
-				
-				#add this output to a samtools union job
-				samtoolsUnionJob.addArguments(samtoolsGzipOutputF)
-				samtoolsUnionJob.uses(samtoolsGzipOutputF, transfer=False, register=True, link=Link.INPUT)
-				samtoolsUnionJob.uses(samtoolsGzipOutput_tbi_F, transfer=False, register=True, link=Link.INPUT)
-				workflow.depends(parent=bgzip_tabix_samtoolsOutputF_job, child=samtoolsUnionJob)
-				
+					
+					#add this output to a samtools union job
+					samtoolsUnionJob.addArguments(samtoolsGzipOutputF)
+					samtoolsUnionJob.uses(samtoolsGzipOutputF, transfer=False, register=True, link=Link.INPUT)
+					samtoolsUnionJob.uses(samtoolsGzipOutput_tbi_F, transfer=False, register=True, link=Link.INPUT)
+					workflow.depends(parent=bgzip_tabix_samtoolsOutputF_job, child=samtoolsUnionJob)
+					
 				"""
 				#2012.7.21 no more intersection
 				# intersection of GATK and samtools
@@ -816,8 +667,8 @@ class AlignmentToCallPipeline(parentClass):
 				genotypeUnionJob.uses(unionOutputF, transfer=True, register=True, link=Link.OUTPUT)
 				workflow.addJob(genotypeUnionJob)
 				workflow.depends(parent=unionDirJob, child=genotypeUnionJob)
-				workflow.depends(parent=samtools_job, child=genotypeUnionJob)
-				workflow.depends(parent=gatk_job, child=genotypeUnionJob)
+				workflow.depends(parent=genotypingJob, child=genotypeUnionJob)
+				workflow.depends(parent=genotypingJob, child=genotypeUnionJob)
 				
 				genotypeIntersectionJob = Job(namespace=namespace, name=java.name, version=version)
 				intersectionOutputFname = os.path.join(intersectionDirJob.folder, '%s.vcf'%vcfBaseFname)
@@ -840,14 +691,19 @@ class AlignmentToCallPipeline(parentClass):
 				wholeRefUnionOfIntersectionJob.addArguments("-B:%s,VCF"%vcfBaseFname, intersectionOutputF)
 				workflow.depends(parent=genotypeIntersectionJob, child=wholeRefUnionOfIntersectionJob)
 				"""
-				jobAndInputOptionList = [(samtools_job, "")]
-				if addGATKJobs:
-					jobAndInputOptionList.append((gatk_job, "-I"))
-				for job, jobInputOption in jobAndInputOptionList:
-					self.addRefFastaJobDependency(workflow, job, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
+				if genotypeCallerType==1 or genotypeCallerType==0:
+					if genotypeCallerType==1:	#GATK
+						jobAndInputOptionList=[(genotypingJob, "-I")]
+					else:	#SAMtools
+						jobAndInputOptionList = [(genotypingJob, "")]
+					for job, jobInputOption in jobAndInputOptionList:
+						self.addRefFastaJobDependency(workflow, job, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
+								refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
+						self.addAlignmentAsInputToJobLs(workflow, alignmentDataLs, jobLs=[job], jobInputOption=jobInputOption)
+				elif genotypeCallerType==2:	#platypus
+					self.addRefFastaJobDependency(workflow, genotypingJob, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
 							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
-					self.addAlignmentAsInputToJobLs(workflow, alignmentDataLs, jobLs=[job], jobInputOption=jobInputOption)
-		
+					self.addAlignmentAsInputToPlatypusJobLs(alignmentDataLs=alignmentDataLs, jobLs=[genotypingJob], jobInputOption="--bamFiles")
 		
 		sys.stderr.write(" %s jobs.\n"%(self.no_of_jobs))
 		return returnData
@@ -891,6 +747,63 @@ class AlignmentToCallPipeline(parentClass):
 		workflow.addFile(bamListF)
 		sys.stderr.write("Done.\n")
 		return bamListF
+	
+	def addPlatypusCallJob(self, workflow=None, executable=None, outputFile=None, \
+					refFastaFList=None, \
+					sourceVCFFile=None, interval=None, skipRegionsFile=None,\
+					site_type=2, \
+					extraArguments=None, job_max_memory=4000, no_of_cpus=1, \
+					walltime=None, \
+					parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
+					**keywords):
+		"""
+		2013.05.16
+			
+			"--useCortex=..." is optional. the two results are of no difference.
+			~/bin/Platypus/Platypus.py callVariants
+				--bamFiles=individual_alignment/2311_639_1987079_GA_vs_3280_by_method2_realigned0.bam,..bam,...bam
+				--regions=Scaffold56:8000001-11975416 --output=GATK/Scaffold56_8000001_11975416.orig.2.vcf
+				--refFile=reference/3280_vervet_ref_6.0.3.fasta
+				--useCortex=1
+		
+		use this argument to focus on certain regions
+			--skipRegionsFile=SKIPREGIONSFILE
+				region as comma-separated list of chr:start-end, or
+				just list of chr, or nothing
+			--outputRefCalls=OUTPUTREFCALLS, If 1, output block reference calls.
+
+		"""
+		
+		if workflow is None:
+			workflow = self
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		
+		refFastaF = refFastaFList[0]
+		frontArgumentList = ["callVariants", "--regions", interval, "--refFile", refFastaF]
+		if sourceVCFFile:	#only calling variants that exist in this vcf file
+			#sourceVCFFile must be compressed by bgzip and tabix
+			frontArgumentList.extend(["--source", sourceVCFFile, "--minPosterior=0", "--getVariantsFromBAMs=0"])
+			extraDependentInputLs.append(sourceVCFFile)
+		if site_type==1:
+			frontArgumentList.append("--outputRefCalls=1")
+		
+		for refFastaFile in refFastaFList:
+			extraDependentInputLs.append(refFastaFile)
+		#job.uses(bamListF, transfer=True, register=True, link=Link.INPUT)
+
+		
+		job = self.addGenericJob(workflow=workflow, executable=executable, inputFile=None, \
+					outputFile=outputFile, outputArgumentOption='--output', inputFileList=None, \
+					parentJob=None, parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+					extraOutputLs=None, \
+					transferOutput=transferOutput, \
+					frontArgumentList=frontArgumentList, extraArguments=extraArguments, \
+					extraArgumentList=None, job_max_memory=job_max_memory,  sshDBTunnel=None, \
+					key2ObjectForJob=None, no_of_cpus=no_of_cpus, walltime=walltime, **keywords)
+		return job
+		
+		
 	
 	def addGATKCallJob(self, workflow=None, genotyperJava=None, GenomeAnalysisTKJar=None, gatkOutputF=None, \
 					refFastaFList=None, \
@@ -999,7 +912,8 @@ class AlignmentToCallPipeline(parentClass):
 		vervetSrcPath = self.vervetSrcPath
 		
 		executableList = []
-		genotypingExecutableSet = set([self.genotyperJava, self.samtools, self.CallVariantBySamtools, self.MergeVCFReplicateHaplotypesJava])
+		genotypingExecutableSet = set([self.genotyperJava, self.samtools, self.CallVariantBySamtools, \
+									self.MergeVCFReplicateHaplotypesJava, self.platypus])
 		
 		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
 		
@@ -1108,7 +1022,7 @@ class AlignmentToCallPipeline(parentClass):
 					needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 					intervalSize=self.intervalSize, site_type=self.site_type, data_dir=self.data_dir, \
 					outputDirPrefix="",\
-					addGATKJobs=self.addGATKJobs,\
+					genotypeCallerType=self.genotypeCallerType,\
 					cumulativeMedianDepth=cumulativeMedianDepth)
 		elif self.run_type==2:
 			#2011-11-4 for single-alignment-calling pipeline, adjust the folder name so that they are unique from each other
@@ -1132,54 +1046,7 @@ class AlignmentToCallPipeline(parentClass):
 						outputDirPrefix="%d"%(alignment.id))
 				
 		
-		"""
-		addSelectAndSplitBamReturnData = self.addSelectAndSplitBamJobs(db_vervet, workflow, alignmentLs, site_handler, \
-							self.maxContigID, chrLs, samtools=samtools, \
-							java=java, AddOrReplaceReadGroupsAndCleanSQHeaderJar=workflow.AddOrReplaceReadGroupsAndCleanSQHeaderJar, \
-							BuildBamIndexJar=workflow.BuildBamIndexJar,\
-							mkdir=workflow.mkdirWrap, namespace=workflow.namespace, \
-							version=workflow.version, mkCallDirJob=callOutputDirJob,\
-							addRGExecutable=workflow.addRGToBAM, data_dir=self.data_dir)
-		chr2jobDataLs = addSelectAndSplitBamReturnData.chr2jobDataLs
-		
-		returnData3 = self.addRefFastaFileSplitJobs(workflow, refFastaF, selectAndSplitFasta, chrLs, mkdir=workflow.mkdirWrap, samtools=workflow.samtools,
-								java=workflow.java, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar,\
-								site_handler=workflow.site_handler, namespace=workflow.namespace, version=workflow.version)
-		chr2splitFastaJobDataLs = returnData3.chr2jobDataLs
-		
-		returnData2 = self.addMergeAlignmentAndGenotypeCallJobs(workflow, chr2jobDataLs, chrLs, samtools, \
-							java, CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, GenotypeCallByCoverage=workflow.GenotypeCallByCoverage, \
-							refFastaF=refFastaF, \
-							namespace=workflow.namespace, version=workflow.version, callOutputDir = callOutputDir, \
-							genotypeCallerType=self.genotypeCallerType, \
-							MergeSamFilesJar=workflow.MergeSamFilesJar, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, calcula=workflow.calcula, \
-							chr2splitFastaJobDataLs=chr2splitFastaJobDataLs, seqCoverageF=seqCoverageF, \
-							needFastaIndexJob=self.needFastaIndexJob, \
-							needFastaDictJob=self.needFastaDictJob, site_type=self.site_type)
-		
-		chr2mergedBamCallJob =returnData2.chr2mergedBamCallJob
-		
-		#merge all genotype call files
-		mergeGenotypeMatrix_job = Job(namespace=workflow.namespace, name=workflow.mergeGenotypeMatrix.name, version=workflow.version)
-		finalCallOutputFname = '%s_genomes_vs_top%sReferences_call.tsv'%(len(alignmentLs), len(chrLs))
-		finalCallOutput = File(finalCallOutputFname)
-		mergeGenotypeMatrix_job.addArguments("-o", finalCallOutput)
-		mergeGenotypeMatrix_job.uses(finalCallOutput, transfer=True, link=Link.OUTPUT, register=True)
-		workflow.addJob(mergeGenotypeMatrix_job)
-		inputFnameLs = []
-		for chr, callJobData in chr2mergedBamCallJob.iteritems():
-			callJobOutput, callJob = callJobData[:2]
-			#callJobOutput = callJob.used_files[1]
-			
-			mergeGenotypeMatrix_job.uses(callJobOutput, transfer=False, register=True, link=Link.INPUT)
-			inputFnameLs.append(callJobOutput.name)
-			workflow.depends(parent=callJob, child=mergeGenotypeMatrix_job)
-		
-			mergeGenotypeMatrix_job.addArguments(callJobOutput)
-		"""
-		# Write the DAX to stdout
-		outf = open(self.outputFname, 'w')
-		workflow.writeXML(outf)
+		self.end_run()
 		
 
 
