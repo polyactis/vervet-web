@@ -24,6 +24,7 @@ create or replace view view_alignment as select i.id as individual_id, i.code, i
     ia.id as alignment_id, ia.ref_ind_seq_id, ia.alignment_method_id,
     ia.median_depth, ia.mean_depth, ia.mode_depth, ia.outdated_index, ia.individual_sequence_file_raw_id,
     ia.file_size, ia.total_no_of_reads, ia.parent_individual_alignment_id, ia.mask_genotype_method_id, ia.local_realigned,
+    ia.reduce_reads,
     ia.date_created as date_alignment_created, ia.date_updated as date_alignment_updated
     from view_individual i, individual_alignment ia, individual_sequence isq where isq.individual_id=i.id and isq.id=ind_seq_id
     order by individual_id, isq.sequencer_id, isq.sequence_type_id, ref_ind_seq_id, alignment_id;
