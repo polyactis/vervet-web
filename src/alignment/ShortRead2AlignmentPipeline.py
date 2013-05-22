@@ -241,7 +241,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 									data_dir=data_dir, local_realigned=self.local_realigned)
 				skipIndividualAlignment = False
 				if individual_alignment.path:
-					if skipDoneAlignment and db_vervet.isThisAlignmentComplete(individual_alignment=individual_alignment, data_dir=data_dir):
+					if skipDoneAlignment and self.isThisAlignmentComplete(individual_alignment=individual_alignment, data_dir=data_dir):
 						skipIndividualAlignment = True
 				#2012.3.29 this folder will store the alignment output by the alignment jbos
 				tmpOutputDir = os.path.basename(individual_sequence.path)
@@ -269,7 +269,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 									local_realigned=self.local_realigned)
 						skipLibraryAlignment = False
 						if oneLibraryAlignmentEntry.path:
-							if skipDoneAlignment and db_vervet.isThisAlignmentComplete(individual_alignment=individual_alignment, data_dir=data_dir):
+							if skipDoneAlignment and self.isThisAlignmentComplete(individual_alignment=individual_alignment, data_dir=data_dir):
 								# 2013.3.22
 								# file_size is updated in the last of AddAlignmentFile2DB.py.
 								# if it fails in the middle of copying, file_size would be None.
@@ -394,7 +394,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 											parentJobLs=[preDBAlignmentJob, preDBAlignmentIndexJob], \
 											extraDependentInputLs=[preDBAlignmentIndexJob.output,], \
 											extraArguments=None, transferOutput=transferOutput, \
-											job_max_memory=2000, walltime=180, \
+											job_max_memory=2000, walltime=max(180, markDuplicateWalltime/2), \
 											sshDBTunnel=self.needSSHDBTunnel, commit=True)
 						
 				if AlignmentJobAndOutputLs and not skipIndividualAlignment:
@@ -467,7 +467,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 										parentJobLs=[preDBAlignmentJob, preDBAlignmentIndexJob], \
 										extraDependentInputLs=[preDBAlignmentIndexJob.output], \
 										extraArguments=None, transferOutput=transferOutput, \
-										job_max_memory=2000, walltime=max(180, markDuplicateWalltime/4), \
+										job_max_memory=2000, walltime=max(180, markDuplicateWalltime/2), \
 										sshDBTunnel=self.needSSHDBTunnel, commit=True)
 					
 		sys.stderr.write("%s alignment jobs; %s merge alignment jobs; %s jobs in total.\n"%(no_of_alignment_jobs, no_of_merging_jobs,\
@@ -555,10 +555,6 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					LongSEAlignmentByBWA=workflow.LongSEAlignmentByBWA, no_of_aln_threads=self.no_of_aln_threads,\
 					stampy=workflow.stampy, skipDoneAlignment=self.skipDoneAlignment,\
 					alignmentPerLibrary=self.alignmentPerLibrary, outputDirPrefix="")
-		
-		# Write the DAX to stdout
-		outf = open(self.outputFname, 'w')
-		self.writeXML(outf)
 		
 		self.end_run()
 	
