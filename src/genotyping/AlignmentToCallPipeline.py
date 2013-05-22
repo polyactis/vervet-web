@@ -139,6 +139,7 @@ class AlignmentToCallPipeline(parentClass):
 	option_default_dict.update({
 						("run_type", 1, int): [1, 'n', 1, '1: multi-sample calling, 2: single-sample one by one'],\
 						("genotypeCallerType", 0, int): [0, 'y', 1, '0: SAMtools, 1: GATK (--GATKGenotypeCallerType ...), 2: Platypus'],\
+						("sourceVCFFolder", 0, ): [None, '', 1, 'a VCF folder which provides source vcf files for platypus to run in genotyping mode (no snp discovery)'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 						#("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
@@ -366,8 +367,10 @@ class AlignmentToCallPipeline(parentClass):
 				seqCoverageF=None, \
 				needFastaIndexJob=False, needFastaDictJob=False, \
 				intervalSize=2000000, site_type=1, data_dir=None, no_of_gatk_threads = 1,\
-				outputDirPrefix="", genotypeCallerType=0, cumulativeMedianDepth=5000, **keywords):
+				outputDirPrefix="", genotypeCallerType=0, cumulativeMedianDepth=5000, \
+				sourceVCFFolder=None, **keywords):
 		"""
+		2013.05.20 added argument sourceVCFFolder
 		2013.05.16
 			argument addGATKJobs renamed to genotypeCallerType
 				0: SAMtools, 1: GATK (--GATKGenotypeCallerType ...), 2: Platypus
@@ -421,10 +424,20 @@ class AlignmentToCallPipeline(parentClass):
 					mv=mv, namespace=namespace, version=version, data_dir=data_dir)
 		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
 		
+		if sourceVCFFolder:
+			sourceVCFDirJob = self.addMkDirJob(outputDir="%sSourceVCF"%(outputDirPrefix))
+			sourceVCFFileID2path = self.getVCFFileID2path(self.sourceVCFFolder)
+		else:
+			sourceVCFDirJob = None
+			sourceVCFFileID2path = None
 		
 		# add merge jobs for every reference
 		returnData = PassingData()
+		no_of_chromosomes = 0
+		no_of_intervals = 0
 		for chromosome, intervalDataLs in chr2IntervalDataLs.iteritems():
+			if sourceVCFFileID2path and chromosome not in sourceVCFFileID2path:	#2013.05.20 genotyping mode and this chromosome is not in the source folder
+				continue
 			#reduce the number of chunks 1 below needed. last trunk to reach the end of contig
 			#however set it to 1 for contigs smaller than intervalSize 	
 			callOutputFname = os.path.join(callOutputDirJob.folder, '%s.vcf.gz'%chromosome)
@@ -494,7 +507,9 @@ class AlignmentToCallPipeline(parentClass):
 				samtoolsIndelUnionJob = self.addVCFConcatJob(workflow, concatExecutable=concatSamtools, parentDirJob=samtoolsIndelDirJob, \
 								outputF=samtoolsIndelUnionOutputF, namespace=namespace, version=version, transferOutput=True, \
 								vcf_job_max_memory=vcf_job_max_memory)
+			no_of_chromosomes += 1
 			for intervalData in intervalDataLs:
+				no_of_intervals += 1
 				if intervalData.file:
 					mpileupInterval = intervalData.interval
 					bcftoolsInterval = intervalData.file
@@ -538,9 +553,15 @@ class AlignmentToCallPipeline(parentClass):
 							)
 					elif genotypeCallerType==2:
 						#2013.05.16 platypus job
+						sourceVCFFile = None
+						if sourceVCFFileID2path:
+							sourceVCFFilePath = sourceVCFFileID2path.get(chromosome)
+							if sourceVCFFilePath:
+								sourceVCFFile = self.registerOneInputFile(inputFname=sourceVCFFilePath, \
+															folderName=sourceVCFDirJob.output)
 						genotypingJob = self.addPlatypusCallJob(executable=self.platypus, outputFile=gatkOutputF, \
 							refFastaFList=refFastaFList, \
-							sourceVCFFile=None, interval=mpileupInterval, skipRegionsFile=None,\
+							sourceVCFFile=sourceVCFFile, interval=mpileupInterval, skipRegionsFile=None,\
 							site_type=site_type, \
 							extraArguments="--bufferSize=500000 --maxReads=10000000 --maxReadLength=4268", \
 							job_max_memory=genotypingJobMaxMemory, no_of_cpus=1, \
@@ -705,7 +726,8 @@ class AlignmentToCallPipeline(parentClass):
 							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
 					self.addAlignmentAsInputToPlatypusJobLs(alignmentDataLs=alignmentDataLs, jobLs=[genotypingJob], jobInputOption="--bamFiles")
 		
-		sys.stderr.write(" %s jobs.\n"%(self.no_of_jobs))
+		sys.stderr.write(" %s jobs covering %s chromosomes, %s intervals.\n"%\
+						(self.no_of_jobs, no_of_chromosomes, no_of_intervals))
 		return returnData
 	
 	def outputSeqCoverage(self, outputFname, ind_seq_id_ls=[]):
@@ -785,13 +807,15 @@ class AlignmentToCallPipeline(parentClass):
 			#sourceVCFFile must be compressed by bgzip and tabix
 			frontArgumentList.extend(["--source", sourceVCFFile, "--minPosterior=0", "--getVariantsFromBAMs=0"])
 			extraDependentInputLs.append(sourceVCFFile)
-		if site_type==1:
+		if skipRegionsFile:
+			frontArgumentList.extend(["--skipRegionsFile", skipRegionsFile])
+			extraDependentInputLs.append(skipRegionsFile)
+		if site_type==1:	#all sites, not just variant sites
 			frontArgumentList.append("--outputRefCalls=1")
 		
 		for refFastaFile in refFastaFList:
 			extraDependentInputLs.append(refFastaFile)
 		#job.uses(bamListF, transfer=True, register=True, link=Link.INPUT)
-
 		
 		job = self.addGenericJob(workflow=workflow, executable=executable, inputFile=None, \
 					outputFile=outputFile, outputArgumentOption='--output', inputFileList=None, \
@@ -1023,7 +1047,7 @@ class AlignmentToCallPipeline(parentClass):
 					intervalSize=self.intervalSize, site_type=self.site_type, data_dir=self.data_dir, \
 					outputDirPrefix="",\
 					genotypeCallerType=self.genotypeCallerType,\
-					cumulativeMedianDepth=cumulativeMedianDepth)
+					cumulativeMedianDepth=cumulativeMedianDepth, sourceVCFFolder=self.sourceVCFFolder)
 		elif self.run_type==2:
 			#2011-11-4 for single-alignment-calling pipeline, adjust the folder name so that they are unique from each other
 			for alignmentData in pdata.alignmentDataLs:
