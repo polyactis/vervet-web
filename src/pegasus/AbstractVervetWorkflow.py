@@ -285,9 +285,9 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		
 		OutputVRCPedigreeInTFAMGivenOrderFromFile = Executable(namespace=namespace, name="OutputVRCPedigreeInTFAMGivenOrderFromFile", \
 								version=version, os=operatingSystem, arch=architecture, installed=True)
-		OutputVRCPedigreeInTFAMGivenOrderFromFile.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/OutputVRCPedigreeInTFAMGivenOrderFromFile.py"), \
+		OutputVRCPedigreeInTFAMGivenOrderFromFile.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/output/OutputVRCPedigreeInTFAMGivenOrderFromFile.py"), \
 							site_handler))
-		executableClusterSizeMultiplierList.append((OutputVRCPedigreeInTFAMGivenOrderFromFile, 1))
+		executableClusterSizeMultiplierList.append((OutputVRCPedigreeInTFAMGivenOrderFromFile, 0.8))
 		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 
