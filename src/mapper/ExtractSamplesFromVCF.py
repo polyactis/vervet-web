@@ -43,6 +43,8 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 						("site_id_ls", 0, ): ["", 'S', 1, 'comma/dash-separated list of site IDs. individuals must come from these sites.'],\
 						("country_id_ls", 0, ): ["", '', 1, 'comma/dash-separated list of country IDs. individuals must come from these countries.'],\
 						("tax_id_ls", 0, ): ["", '', 1, 'comma/dash-separated list of country IDs. individuals must come from these countries.'],\
+						("min_coverage", 0, int): [None, '', 1, 'minimum coverage for a sample to be extracted'],\
+						("max_coverage", 0, int): [None, '', 1, 'maximum coverage for a sample to be extracted'],\
 						("outputFormat", 1, int): [1, '', 1, 'output format. 1: a subset VCF file, 2: a sample ID file with header. '],\
 					})
 	def __init__(self, inputFnameLs=None, **keywords):
@@ -56,9 +58,11 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 	
 	
 	def extractSamples(self, db_vervet=None, inputFname=None, outputFname=None, \
-					tax_id_set=None, site_id_set=None, country_id_set=None, outputFormat=1,\
+					tax_id_set=None, site_id_set=None, country_id_set=None, \
+					min_coverage=None, max_coverage=None, outputFormat=1,\
 					**keywords):
 		"""
+		2013.04.30 added argument min_coverage, max_coverage
 		2012.10.10
 			added argument outputFormat. 
 		2012.10.5
@@ -78,11 +82,12 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 		for col_index, individual_name in vcfFile.get_col_index_individual_name_ls():
 			individualAlignment = db_vervet.parseAlignmentReadGroup(individual_name).individualAlignment
 			if individualAlignment is not None:
-				filteredAlignmentList = db_vervet.filterAlignments([individualAlignment], max_coverage=None, individual_site_id=None, \
+				filteredAlignmentList = db_vervet.filterAlignments([individualAlignment], min_coverage=min_coverage, \
+						max_coverage=max_coverage, individual_site_id=None, \
 						sequence_filtered=None, individual_site_id_set=site_id_set, \
 						mask_genotype_method_id=None, parent_individual_alignment_id=None,\
 						country_id_set=country_id_set, tax_id_set=tax_id_set, excludeContaminant=False, excludeTissueIDSet=None,\
-						report=False)
+						local_realigned=None, reduce_reads=None, report=False)
 				if filteredAlignmentList:	#non-empty, passed the filter
 					newHeader.append(individual_name)
 					no_of_samples += 1
