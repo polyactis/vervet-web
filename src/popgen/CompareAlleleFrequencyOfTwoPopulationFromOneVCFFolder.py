@@ -169,7 +169,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		frequencyDirJob = passingData.frequencyDirJob
 		
 		splitVCFJob = passingData.mapEachVCFData.splitVCFJob
-		chr = passingData.chromosome
+		chromosome = passingData.chromosome
 		
 		
 		#1st population
@@ -232,9 +232,9 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		
 		topOutputDirJob = passingData.topOutputDirJob
 		reduceOutputDirJob = passingData.reduceOutputDirJob
-		chr = passingData.chromosome
+		chromosome = passingData.chromosome
 		
-		fnamePrefix = os.path.join(reduceOutputDirJob.output, '%s_frequency_juxtapose'%(chr))
+		fnamePrefix = os.path.join(reduceOutputDirJob.output, '%s_frequency_juxtapose'%(chromosome))
 		outputFile = File('%s.tsv'%(fnamePrefix))
 		reduceEachChromosomeJob = self.addStatMergeJob(workflow, \
 									statMergeProgram=self.mergeSameHeaderTablesIntoOne, \
