@@ -582,7 +582,9 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 		mergeSimulatePSMCOutputFile = File(os.path.join(simulateOutputDirJob.output, \
 									'%s.wholeGenome_%sSimulations.psmc'%(outputFilenamePrefix, self.noOfSimulations))) 
 		mergeSimulatePSMCOutputJob = self.addStatMergeJob(statMergeProgram=self.MergeSameHeaderTablesIntoOne, \
-				outputF=mergeSimulatePSMCOutputFile, transferOutput=True, extraArguments='--noHeader --exitNonZeroIfAnyInputFileInexistent', parentJobLs=[simulateOutputDirJob])
+				outputF=mergeSimulatePSMCOutputFile, transferOutput=True, \
+				extraArguments='--noHeader --exitNonZeroIfAnyInputFileInexistent', \
+				parentJobLs=[simulateOutputDirJob])
 		#first add the whole-genome psmc output
 		self.addInputToStatMergeJob(self, statMergeJob=mergeSimulatePSMCOutputJob, \
 								inputF=wholeGenomePSMCJob.output, parentJobLs=[wholeGenomePSMCJob])
@@ -610,8 +612,11 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 									'%s.sim%s_msOutput.fq.gz'%(outputFilenamePrefix, i)))
 			msOutput2FastQJob = self.addGenericJob(executable=self.ConvertMSOutput2FASTQ, inputFile=msJob.output, \
 					outputFile=msOutputFastQFile,\
-					parentJob=None, parentJobLs=[msJob], extraDependentInputLs=None, extraOutputLs=None, transferOutput=False, \
-					frontArgumentList=None, extraArguments="--inputFileFormat 2", extraArgumentList=None, job_max_memory=2000,  \
+					parentJob=None, parentJobLs=[msJob], \
+					extraDependentInputLs=None, extraOutputLs=None, transferOutput=False, \
+					frontArgumentList=None, \
+					extraArguments="--inputFileFormat 2 --noOfHaplotypesDefault 2 --chromosomeLengthToSimulate %s"%(self.chromosomeLengthToSimulate), \
+					extraArgumentList=None, job_max_memory=2000,  \
 					no_of_cpus=None, walltime=None)
 			
 			#added self.minBaseQ to this fq2psmcfa job 
@@ -731,6 +736,27 @@ class PSMCOnAlignmentWorkflow(AbstractVervetAlignmentWorkflow):
 						extraDependentInputLs=[], \
 						transferOutput=True, job_max_memory=2000, no_of_cpus=None, walltime=None)
 		return returnData
+	
+	def isThisInputAlignmentComplete(self, individual_alignment=None, data_dir=None, returnFalseIfInexitentFile=True, \
+									**keywords):
+		"""
+		2013.05.04 
+			 this checks whether
+			#. an alignment file exists
+			#. file_size not null in db,
+			#. median_depth is not null from db
+			
+		this is used to check whether an input (to be worked on by downstream programs) is completed or not.
+			watch returnFalseIfInexitentFile is True (because you need the file for input)
+			
+		"""
+		stockAnswer = self.db.isThisAlignmentComplete(individual_alignment=individual_alignment, data_dir=data_dir,\
+													returnFalseIfInexitentFile=returnFalseIfInexitentFile, **keywords)
+		if stockAnswer is True:
+			if individual_alignment.median_depth is None:
+				#change stockAnswer if median_depth is null
+				stockAnswer = False
+		return stockAnswer
 	
 if __name__ == '__main__':
 	main_class = PSMCOnAlignmentWorkflow
