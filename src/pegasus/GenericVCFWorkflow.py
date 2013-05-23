@@ -103,12 +103,14 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 						treatEveryOneIndependent=False,\
 						returnMode=3, ModifyTPEDRunType=1, chr_id2cumu_chr_start=None):
 		"""
-		2013.1.29
 			returnMode
-				1= only the final merged binary .bed , .fam file and its generation job(s)
-				2= only the individual contig/chromosome (whatever in inputDat.jobDataLs) binary .bed, .fam files and the associated jobs
-				3= 1 & 2 (all individual binary .bed jobs&files + the last merged file/job)
-				4= the individual contig/chr non-binary job data
+				1: only the final merged binary .bed , .fam file and its generation job(s)
+				2: only the individual contig/chromosome (whatever in inputDat.jobDataLs) binary .bed, .fam files and the associated jobs
+				3: 1 & 2 (all individual binary .bed jobs&files + the last merged file/job)
+				4: the individual contig/chr non-binary job data
+				5: 
+		2013.02
+		2013.1.29 added returnMode 4
 		2012.10.22
 			change transferOutput of outputPedigreeInTFAMJob to True
 		2012.9.13
@@ -120,9 +122,6 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			add argument
 				outputPedigreeAsTFAM
 				returnMode
-					1=only the final binary .bed , .fam file and its generation job(s)
-					2=only the individual contig/chromosome (whatever in inputDat.jobDataLs) binary .bed, .fam files and conversion jobs
-					3= 1 & 2 (all individual input binary .bed job&file + the last merging job/file)
 			add plink binary 
 		2012.7.19 
 			add a modifyTPEDJob that modify 2nd column (snp-id) of tped output from default 0 to chr_pos.
