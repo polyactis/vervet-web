@@ -15,16 +15,16 @@ Examples:
 	
 	# 2011-7-21 use GATK + coverage filter on hoffman2 and site_handler, top 5 contigs
 	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 --ind_seq_id_ls 1-8
-		-N 5 -y1 --site_handler hoffman2 -e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db  -s2
-		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
+		-N 5 -y1 --site_handler hoffman2 -e ~ --data_dir ~/NetworkData/vervet/db  -s2
+		-J ~/bin/jdk/bin/java
 	
 	#2011-8-31 work 10 VWP and one VRC ref monkeys, variants only
 	%s -a 9 --ind_aln_id_ls 495,498-507 -u yh  
 		--site_handler condorpool -y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC.xml -s2 -q /tmp/all_isq_coverage.tsv
 	
 	%s -a 120 --ind_aln_id_ls 34,38 -u yh --site_handler hoffman2
-		-y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC_hoffman2.xml  -s2 -e /u/home/eeskin/polyacti
-		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db -N 4 -q /tmp/all_isq_coverage.tsv
+		-y1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC_hoffman2.xml  -s2 -e ~
+		--data_dir ~/NetworkData/vervet/db -N 4 -q /tmp/all_isq_coverage.tsv
 	
 	#2011-9-14 top 25 contigs, variants only, run on uschpc cluster
 	%s --ind_aln_id_ls 559-656 --input_site_handler uschpc --site_handler uschpc -u yh -a 524 -s 2 -e /home/cmb-03/mn/yuhuang
@@ -41,33 +41,36 @@ Examples:
 	# no site ID filtering (-S ""), clustering size =5 for calling jobs (--noOfCallingJobsPerNode 5).
 	# with 2million bp interval (--intervalSize 2000000).
 	%s -a 524 --ind_seq_id_ls 633,1495,...,1524,1459,1505,1478,1486,1442,1472,1516,1453
-		-u yh --hostname localhost -N 7559 -S "" --sequence_filtered 1 -G 2 --site_handler hcondor --input_site_handler hcondor -e /u/home/eeskin/polyacti 
-		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db 
-		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 5 --intervalSize 2000000 --intervalOverlapSize 0
+		-u yh --hostname localhost -N 7559 -S "" --sequence_filtered 1 -G 2 --site_handler hcondor --input_site_handler hcondor -e ~ 
+		--data_dir ~/NetworkData/vervet/db --local_data_dir ~/NetworkData/vervet/db 
+		-J ~/bin/jdk/bin/java --noOfCallingJobsPerNode 5 --intervalSize 2000000 --intervalOverlapSize 0
 		-o dags/AlignmentToCall_130PoplationVervets_vs_524_top7559Contigs.xml
 	
-	# 2012.7.30 genotype-call 723 alignments on method 7 sites (-R ...). "-N ..." (top number of contigs) doesn't matter here.
-	# 2000 method 7 sites for each calling job (-K 2000)
+	# 2012.7.30 genotype-call 723 alignments on method 7 sites (--selectedRegionFname ...). "-N ..." (top number of contigs) doesn't matter here.
+	# 2000 method 7 sites for each calling job (--maxNoOfRegionsPerJob 2000)
 	%s -a 524 -S 447 -u yh --hostname localhost --sequence_filtered 1 --alignment_method_id  2
 		--site_handler hcondor --input_site_handler hcondor
-		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
-		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
-		--noOfCallingJobsPerNode 5  -o dags/AlignmentToCall_AllVRC_vs_524_top1000Contigs.xml -R method7_BED.tsv -K 2000
+		--data_dir ~/NetworkData/vervet/db --local_data_dir ~/NetworkData/vervet/db
+		-J ~/bin/jdk/bin/java
+		--noOfCallingJobsPerNode 5  -o dags/AlignmentToCall_AllVRC_vs_524_top1000Contigs.xml
+		--sourceVCFFolder ~/NetworkData/vervet/db/genotype/method_7/ --selectedRegionFname aux/method7_BED.tsv --maxNoOfRegionsPerJob 2000
 	
-	#2012.8.2 testing calling at known sites (-R method7_BED.n10k.tsv, Contig731 and partial Contig645) 
-	#			with 500 regions for each job (-K 500),
-	# run GATK along with samtools (-T), no clustering for any job (--noOfCallingJobsPerNode 1 --clusters_size1)
+	#2012.8.2 testing calling at known sites (--selectedRegionFname method7_BED.n10k.tsv, Contig731 and partial Contig645) 
+	#			with 500 regions for each job (--maxNoOfRegionsPerJob 500),
+	# run GATK (--genotypeCallerType 1), no clustering for any job (--noOfCallingJobsPerNode 1 --clusters_size1)
 	# only on four alignments of isq-id (--ind_seq_id_ls 643-646)
 	%s -a 524 --ind_seq_id_ls 643-646 -S 447 -u yh --hostname localhost  --sequence_filtered 1 --alignment_method_id  2 
 		--site_handler hcondor --input_site_handler hcondor
-		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
-		-J /u/home/eeskin/polyacti/bin/jdk/bin/java
+		--data_dir ~/NetworkData/vervet/db --local_data_dir ~/NetworkData/vervet/db
+		-J ~/bin/jdk/bin/java
 		--noOfCallingJobsPerNode 1 --clusters_size 1
-		-o dags/AlignmentToCall_ISQ643_646_vs_524_method7n10kSites.xml -R method7_BED.n10k.tsv -T -K 500
+		-o dags/AlignmentToCall_ISQ643_646_vs_524_method7n10kSites.xml
+		--genotypeCallerType 1
+		--sourceVCFFolder ~/NetworkData/vervet/db/genotype/method_7/ --selectedRegionFname aux/method7_BED.n10k.tsv --maxNoOfRegionsPerJob 5000
 	
 	# 2012.8.2 part of the test above, now run multi-sample on Contig731 on all sites
 	# use --maxContigID 731 (maxContigID) -V 731 (minContigID) to restrict the top 1000 contigs to only Contig731.
-	# run on intervals of 200kb (--intervalSize), with both GATK (-T) and SAMtools
+	# run on intervals of 200kb (--intervalSize), with GATK (--genotypeCallerType 1)
 	# add --individual_sequence_file_raw_id_type 2 (library-specific alignments, different libraries of one individual_sequence) 
 	# add --individual_sequence_file_raw_id_type 3 (both all-library-fused and library-specific alignments)
 	# add "--country_id_ls 135,136,144,148,151" to limit individuals from US,Barbados,StKitts,Nevis,Gambia (AND with -S, )
@@ -75,9 +78,9 @@ Examples:
 		#-S 447
 		-u yh --hostname localhost --sequence_filtered 1 --alignment_method_id  2
 		--site_handler hcondor --input_site_handler hcondor
-		-e /u/home/eeskin/polyacti --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
-		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db
-		-J /u/home/eeskin/polyacti/bin/jdk/bin/java --noOfCallingJobsPerNode 1 --clusters_size 1
+		-e ~ --data_dir ~/NetworkData/vervet/db
+		--local_data_dir ~/NetworkData/vervet/db
+		-J ~/bin/jdk/bin/java --noOfCallingJobsPerNode 1 --clusters_size 1
 		-o dags/AlignmentToCall/AlignmentToCall_ISQ643_646_vs_524_Contig731.xml
 		--genotypeCallerType 1
 		--contigMaxRankBySize 1000 --maxContigID 731 --minContigID 731 --intervalSize 200000 --intervalOverlapSize 0
@@ -139,7 +142,7 @@ class AlignmentToCallPipeline(parentClass):
 	option_default_dict.update({
 						("run_type", 1, int): [1, 'n', 1, '1: multi-sample calling, 2: single-sample one by one'],\
 						("genotypeCallerType", 0, int): [0, 'y', 1, '0: SAMtools, 1: GATK (--GATKGenotypeCallerType ...), 2: Platypus'],\
-						("sourceVCFFolder", 0, ): [None, '', 1, 'a VCF folder which provides source vcf files for platypus to run in genotyping mode (no snp discovery)'],\
+						("sourceVCFFolder", 0, ): [None, '', 1, 'a VCF folder which provides source vcf files for Platypus to run in genotyping mode (no snp discovery)'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 						#("genotypeCallerType", 1, int): [1, 'y', 1, '1: GATK + coverage filter; 2: ad-hoc coverage based caller; 3: samtools + coverage filter'],\
@@ -410,13 +413,14 @@ class AlignmentToCallPipeline(parentClass):
 		
 		# Add a mkdir job for the call directory.
 		callOutputDirJob = self.addMkDirJob(outputDir="%sCall"%(outputDirPrefix))
-		gatkDirJob = self.addMkDirJob(outputDir="%sGATK"%(outputDirPrefix))
-		gatkSNPDirJob = self.addMkDirJob(outputDir="%sGATKSNP"%(outputDirPrefix))
-		gatkIndelDirJob = self.addMkDirJob(outputDir="%sGATKIndel"%(outputDirPrefix))
+		callerName = 'NewCaller'
+		newCallerDirJob = self.addMkDirJob(outputDir="%s%s"%(outputDirPrefix, callerName))
+		newCallerSNPDirJob = self.addMkDirJob(outputDir="%s%sSNP"%(outputDirPrefix, callerName))
+		newCallerIndelDirJob = self.addMkDirJob(outputDir="%s%sIndel"%(outputDirPrefix, callerName))
 		samtoolsDirJob = self.addMkDirJob(outputDir="%sSAMtools"%(outputDirPrefix))
 		samtoolsIndelDirJob = self.addMkDirJob(outputDir="%sSAMtoolsIndel"%(outputDirPrefix))
-		unionDirJob = self.addMkDirJob(outputDir="%sGATK_SAMtools_union"%(outputDirPrefix))
-		intersectionDirJob = self.addMkDirJob(outputDir="%sGATK_SAMtools_intersection"%(outputDirPrefix))
+		unionDirJob = self.addMkDirJob(outputDir="%s%s_SAMtools_union"%(outputDirPrefix, callerName))
+		intersectionDirJob = self.addMkDirJob(outputDir="%s%s_SAMtools_intersection"%(outputDirPrefix, callerName))
 		
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
@@ -424,19 +428,19 @@ class AlignmentToCallPipeline(parentClass):
 					mv=mv, namespace=namespace, version=version, data_dir=data_dir)
 		#alignmentId2RGJobDataLs = returnData.alignmentId2RGJobDataLs
 		
-		if sourceVCFFolder:
+		if sourceVCFFolder and genotypeCallerType==2:	#2013.05.29 only for Platypus
 			sourceVCFDirJob = self.addMkDirJob(outputDir="%sSourceVCF"%(outputDirPrefix))
-			sourceVCFFileID2path = self.getVCFFileID2path(self.sourceVCFFolder)
+			sourceVCFFileID2object = self.getVCFFileID2object(self.sourceVCFFolder)
 		else:
 			sourceVCFDirJob = None
-			sourceVCFFileID2path = None
+			sourceVCFFileID2object = None
 		
 		# add merge jobs for every reference
 		returnData = PassingData()
 		no_of_chromosomes = 0
 		no_of_intervals = 0
 		for chromosome, intervalDataLs in chr2IntervalDataLs.iteritems():
-			if sourceVCFFileID2path and chromosome not in sourceVCFFileID2path:	#2013.05.20 genotyping mode and this chromosome is not in the source folder
+			if sourceVCFFileID2object and chromosome not in sourceVCFFileID2object:	#2013.05.20 genotyping mode and this chromosome is not in the source folder
 				continue
 			#reduce the number of chunks 1 below needed. last trunk to reach the end of contig
 			#however set it to 1 for contigs smaller than intervalSize 	
@@ -453,11 +457,11 @@ class AlignmentToCallPipeline(parentClass):
 			#							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
 			if genotypeCallerType>=1:
 				#2011-9-22 union of all GATK intervals for one contig
-				gatkUnionOutputFname = os.path.join(gatkDirJob.folder, '%s.vcf'%chromosome)
+				gatkUnionOutputFname = os.path.join(newCallerDirJob.folder, '%s.vcf'%chromosome)
 				gatkUnionOutputF = File(gatkUnionOutputFname)
 				gatkUnionJob = self.addGATKCombineVariantsJob(refFastaFList=refFastaFList, outputFile=gatkUnionOutputF, \
 															genotypeMergeOptions='UNSORTED', \
-					parentJobLs=[gatkDirJob], \
+					parentJobLs=[newCallerDirJob], \
 					extraArguments=None, extraArgumentList=None, extraDependentInputLs=None,\
 					transferOutput=False, job_max_memory=job_max_memory,walltime=180)
 				
@@ -466,12 +470,12 @@ class AlignmentToCallPipeline(parentClass):
 						parentJob=gatkUnionJob, inputF=gatkUnionJob.output, outputF=gatkGzipUnionOutputF, \
 						transferOutput=True)
 				
-				indelUnionOutputF = File(os.path.join(gatkIndelDirJob.folder, '%s.indel.vcf'%chromosome))
+				indelUnionOutputF = File(os.path.join(newCallerIndelDirJob.folder, '%s.indel.vcf'%chromosome))
 				selectIndelJob = self.addGATKJob(executable=self.SelectVariantsJava, GATKAnalysisType="SelectVariants",\
 					inputFile=gatkUnionJob.output, inputArgumentOption="--variant", refFastaFList=refFastaFList, inputFileList=None,\
 					argumentForEachFileInInputFileList=None,\
 					interval=None, outputFile=indelUnionOutputF, \
-					parentJobLs=[gatkIndelDirJob, gatkUnionJob], transferOutput=False, job_max_memory=job_max_memory,\
+					parentJobLs=[newCallerIndelDirJob, gatkUnionJob], transferOutput=False, job_max_memory=job_max_memory,\
 					frontArgumentList=None, extraArguments="-selectType INDEL", \
 					extraArgumentList=None, extraOutputLs=None, \
 					extraDependentInputLs=None, no_of_cpus=None, walltime=80)
@@ -480,12 +484,12 @@ class AlignmentToCallPipeline(parentClass):
 						inputF=selectIndelJob.output, outputF=File("%s.gz"%indelUnionOutputF.name), \
 						transferOutput=True)
 				
-				SNPOnlyOutputF = File(os.path.join(gatkSNPDirJob.folder, '%s.SNP.vcf'%chromosome))
+				SNPOnlyOutputF = File(os.path.join(newCallerSNPDirJob.folder, '%s.SNP.vcf'%chromosome))
 				selectSNPJob = self.addGATKJob(executable=self.SelectVariantsJava, GATKAnalysisType="SelectVariants",\
 					inputFile=gatkUnionJob.output, inputArgumentOption="--variant", refFastaFList=refFastaFList, inputFileList=None,\
 					argumentForEachFileInInputFileList=None,\
 					interval=None, outputFile=SNPOnlyOutputF, \
-					parentJobLs=[gatkSNPDirJob, gatkUnionJob], transferOutput=False, job_max_memory=job_max_memory,\
+					parentJobLs=[newCallerSNPDirJob, gatkUnionJob], transferOutput=False, job_max_memory=job_max_memory,\
 					frontArgumentList=None, extraArguments="-selectType SNP -selectType MNP", \
 					extraArgumentList=None, extraOutputLs=None, \
 					extraDependentInputLs=None, no_of_cpus=None, walltime=80)
@@ -520,11 +524,11 @@ class AlignmentToCallPipeline(parentClass):
 				
 				span = intervalData.span
 				readSpace = cumulativeMedianDepth * span
-				#base for platypus is 450X coverage in 4Mb region => 80 minutes
+				#base for Platypus is 450X coverage in 4Mb region => 80 minutes
 				genotypingJobWalltime = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=readSpace, \
 									baseInputVolume=450*2000000, baseJobPropertyValue=80, \
 									minJobPropertyValue=60, maxJobPropertyValue=500).value
-				#base for platypus is 450X, => 5.2g
+				#base for Platypus is 450X, => 5.2g
 				genotypingJobMaxMemory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=cumulativeMedianDepth, \
 									baseInputVolume=450, baseJobPropertyValue=5200, \
 									minJobPropertyValue=4000, maxJobPropertyValue=10000).value
@@ -532,14 +536,14 @@ class AlignmentToCallPipeline(parentClass):
 									
 				if genotypeCallerType>=1:
 					#extra caller
-					gatkOutputFname = os.path.join(gatkDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
+					gatkOutputFname = os.path.join(newCallerDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
 					gatkOutputF = File(gatkOutputFname)
 					
 					if genotypeCallerType==1:
 						#2013.05.09 add downsample setting for gatk job 
 						genotypingJob= self.addGATKCallJob(genotyperJava=genotyperJava, GenomeAnalysisTKJar=self.GenomeAnalysisTK2Jar, \
 							gatkOutputF=gatkOutputF, refFastaFList=refFastaFList, \
-							parentJobLs=[gatkDirJob]+intervalData.jobLs, \
+							parentJobLs=[newCallerDirJob]+intervalData.jobLs, \
 							extraDependentInputLs=None, transferOutput=False, \
 							extraArguments=" --downsample_to_coverage 40 --downsampling_type BY_SAMPLE", \
 							job_max_memory=genotypingJobMaxMemory, \
@@ -552,21 +556,36 @@ class AlignmentToCallPipeline(parentClass):
 							walltime=genotypingJobWalltime,\
 							)
 					elif genotypeCallerType==2:
-						#2013.05.16 platypus job
+						#2013.05.16 Platypus job
 						sourceVCFFile = None
-						if sourceVCFFileID2path:
-							sourceVCFFilePath = sourceVCFFileID2path.get(chromosome)
+						sourceVCFIndexFile = None
+						if sourceVCFFileID2object:
+							sourceVCFFileObject = sourceVCFFileID2object.get(chromosome)
+							sourceVCFFilePath = sourceVCFFileObject.vcfFilePath
+							vcfIndexFilePath = sourceVCFFileObject.vcfIndexFilePath
+							
 							if sourceVCFFilePath:
+								if sourceVCFFilePath[-3:]!='.gz':
+									sys.stderr.write("Error: source VCF file for Platypus genotyping mode must be bgzipped. This one %s is not.\n"%\
+													(sourceVCFFilePath))
+									sys.exit(3)
 								sourceVCFFile = self.registerOneInputFile(inputFname=sourceVCFFilePath, \
 															folderName=sourceVCFDirJob.output)
-						genotypingJob = self.addPlatypusCallJob(executable=self.platypus, outputFile=gatkOutputF, \
+								if vcfIndexFilePath:
+									sourceVCFIndexFile = self.registerOneInputFile(inputFname=vcfIndexFilePath, \
+															folderName=sourceVCFDirJob.output)
+								else:
+									sys.stderr.write("Error: index file (%s) for VCF file %s does not exist.\n"%\
+													(vcfIndexFilePath, sourceVCFFilePath))
+									sys.exit(3)
+						genotypingJob = self.addPlatypusCallJob(executable=self.Platypus, outputFile=gatkOutputF, \
 							refFastaFList=refFastaFList, \
 							sourceVCFFile=sourceVCFFile, interval=mpileupInterval, skipRegionsFile=None,\
 							site_type=site_type, \
 							extraArguments="--bufferSize=500000 --maxReads=10000000 --maxReadLength=4268", \
 							job_max_memory=genotypingJobMaxMemory, no_of_cpus=1, \
 							walltime=genotypingJobWalltime, \
-							parentJobLs=[gatkDirJob], extraDependentInputLs=None, transferOutput=False)
+							parentJobLs=[newCallerDirJob], extraDependentInputLs=[sourceVCFIndexFile], transferOutput=False)
 						
 					#add this output to a GATK union job
 					self.addInputToStatMergeJob(statMergeJob=gatkUnionJob, parentJobLs=[genotypingJob], \
@@ -721,7 +740,7 @@ class AlignmentToCallPipeline(parentClass):
 						self.addRefFastaJobDependency(workflow, job, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
 								refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
 						self.addAlignmentAsInputToJobLs(workflow, alignmentDataLs, jobLs=[job], jobInputOption=jobInputOption)
-				elif genotypeCallerType==2:	#platypus
+				elif genotypeCallerType==2:	#Platypus
 					self.addRefFastaJobDependency(workflow, genotypingJob, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
 							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
 					self.addAlignmentAsInputToPlatypusJobLs(alignmentDataLs=alignmentDataLs, jobLs=[genotypingJob], jobInputOption="--bamFiles")
@@ -779,6 +798,7 @@ class AlignmentToCallPipeline(parentClass):
 					parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 					**keywords):
 		"""
+		2013.05.23 added "--assemble=1" to Platypus
 		2013.05.16
 			
 			"--useCortex=..." is optional. the two results are of no difference.
@@ -802,7 +822,7 @@ class AlignmentToCallPipeline(parentClass):
 			extraDependentInputLs = []
 		
 		refFastaF = refFastaFList[0]
-		frontArgumentList = ["callVariants", "--regions", interval, "--refFile", refFastaF]
+		frontArgumentList = ["callVariants", "--regions", interval, "--refFile", refFastaF]	#, "--assemble=1"
 		if sourceVCFFile:	#only calling variants that exist in this vcf file
 			#sourceVCFFile must be compressed by bgzip and tabix
 			frontArgumentList.extend(["--source", sourceVCFFile, "--minPosterior=0", "--getVariantsFromBAMs=0"])
@@ -937,7 +957,7 @@ class AlignmentToCallPipeline(parentClass):
 		
 		executableList = []
 		genotypingExecutableSet = set([self.genotyperJava, self.samtools, self.CallVariantBySamtools, \
-									self.MergeVCFReplicateHaplotypesJava, self.platypus])
+									self.MergeVCFReplicateHaplotypesJava, self.Platypus])
 		
 		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
 		
@@ -1002,10 +1022,17 @@ class AlignmentToCallPipeline(parentClass):
 		pdata = self.setup_run()
 		workflow = pdata.workflow
 		
-		if self.selectedRegionFname:
-			chr2IntervalDataLs = self.getChr2IntervalDataLsBySplitBEDFile(intervalFname=self.selectedRegionFname, \
+		if self.selectedRegionFname and self.genotypeCallerType!=2:	#2013.05.29 not for Platypus
+			if self.sourceVCFFolder:
+				if os.path.isfile(self.selectedRegionFname):
+					sys.stderr.write("Warning: selectedRegionFname %s already exists, will be overwritten.\n"%(self.selectedRegionFname))
+					
+				self.extractVCFSitesIntoBEDFile(inputVCFFolder=self.sourceVCFFolder, outputFname=self.selectedRegionFname)
+			if os.path.isfile(self.selectedRegionFname):
+				chr2IntervalDataLs = self.getChr2IntervalDataLsBySplitBEDFile(intervalFname=self.selectedRegionFname, \
 														noOfLinesPerUnit=self.maxNoOfRegionsPerJob, \
 														folderName=self.pegasusFolderName, parentJobLs= None)
+			
 		else:
 			chr2size = self.chr2size
 			#self.getTopNumberOfContigs(contigMaxRankBySize=self.contigMaxRankBySize, contigMinRankBySize=self.contigMinRankBySize)
@@ -1029,7 +1056,7 @@ class AlignmentToCallPipeline(parentClass):
 										defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
 		
 		if self.run_type==1:	#multi-sample calling
-			self.addGenotypeCallJobs(workflow, alignmentDataLs=pdata.alignmentDataLs, chr2IntervalDataLs=chr2IntervalDataLs, \
+			self.addGenotypeCallJobs(workflow=workflow, alignmentDataLs=pdata.alignmentDataLs, chr2IntervalDataLs=chr2IntervalDataLs, \
 									samtools=workflow.samtools, \
 					genotyperJava=workflow.genotyperJava, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
