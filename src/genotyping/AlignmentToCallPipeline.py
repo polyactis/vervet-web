@@ -90,6 +90,9 @@ Examples:
 		#--minPruningForGATKHaplotypCaller 2 --GATKGenotypeCallerType HaplotypeCaller
 	
 Description:
+	2013.06.03 “--selectedRegionFname” is required for GATK & SAMtools genotyping mode, not for Platypus.
+		“--sourceVCFFolder” is used to fill “--selectedRegionFname”. If the latter file already exists, and you do not want to overwrite it, do not supply “--sourceVCFFolder”.
+	
 	2011-7-12
 		a program which generates a pegasus workflow dag (xml file) to call genotypes on all chosen alignments.
 		The workflow will stage in (or symlink if site_handler and input_site_handler are same.) every input file.
@@ -419,8 +422,8 @@ class AlignmentToCallPipeline(parentClass):
 		newCallerIndelDirJob = self.addMkDirJob(outputDir="%s%sIndel"%(outputDirPrefix, callerName))
 		samtoolsDirJob = self.addMkDirJob(outputDir="%sSAMtools"%(outputDirPrefix))
 		samtoolsIndelDirJob = self.addMkDirJob(outputDir="%sSAMtoolsIndel"%(outputDirPrefix))
-		unionDirJob = self.addMkDirJob(outputDir="%s%s_SAMtools_union"%(outputDirPrefix, callerName))
-		intersectionDirJob = self.addMkDirJob(outputDir="%s%s_SAMtools_intersection"%(outputDirPrefix, callerName))
+		#unionDirJob = self.addMkDirJob(outputDir="%s%s_SAMtools_union"%(outputDirPrefix, callerName))
+		#intersectionDirJob = self.addMkDirJob(outputDir="%s%s_SAMtools_intersection"%(outputDirPrefix, callerName))
 		
 		alignmentDataLs = self.addAddRG2BamJobsAsNeeded(workflow, alignmentDataLs, site_handler, input_site_handler=input_site_handler, \
 					addOrReplaceReadGroupsJava=addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar, \
@@ -529,10 +532,13 @@ class AlignmentToCallPipeline(parentClass):
 									baseInputVolume=450*2000000, baseJobPropertyValue=80, \
 									minJobPropertyValue=60, maxJobPropertyValue=500).value
 				#base for Platypus is 450X, => 5.2g
+				if genotypeCallerType==1:	#GATK
+					maxGenotypingJobMemory = 10000
+				else:
+					maxGenotypingJobMemory = 8000
 				genotypingJobMaxMemory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=cumulativeMedianDepth, \
 									baseInputVolume=450, baseJobPropertyValue=5200, \
-									minJobPropertyValue=4000, maxJobPropertyValue=10000).value
-									
+									minJobPropertyValue=4000, maxJobPropertyValue=maxGenotypingJobMemory).value
 									
 				if genotypeCallerType>=1:
 					#extra caller
@@ -544,8 +550,8 @@ class AlignmentToCallPipeline(parentClass):
 						genotypingJob= self.addGATKCallJob(genotyperJava=genotyperJava, GenomeAnalysisTKJar=self.GenomeAnalysisTK2Jar, \
 							gatkOutputF=gatkOutputF, refFastaFList=refFastaFList, \
 							parentJobLs=[newCallerDirJob]+intervalData.jobLs, \
+							extraArguments=None,\
 							extraDependentInputLs=None, transferOutput=False, \
-							extraArguments=" --downsample_to_coverage 40 --downsampling_type BY_SAMPLE", \
 							job_max_memory=genotypingJobMaxMemory, \
 							no_of_gatk_threads=no_of_gatk_threads, \
 							site_type=site_type, \
@@ -555,6 +561,7 @@ class AlignmentToCallPipeline(parentClass):
 							GATKGenotypeCallerType = self.GATKGenotypeCallerType,\
 							walltime=genotypingJobWalltime,\
 							)
+							#extraArguments=" --downsample_to_coverage 40 --downsampling_type BY_SAMPLE", \
 					elif genotypeCallerType==2:
 						#2013.05.16 Platypus job
 						sourceVCFFile = None
@@ -578,11 +585,16 @@ class AlignmentToCallPipeline(parentClass):
 									sys.stderr.write("Error: index file (%s) for VCF file %s does not exist.\n"%\
 													(vcfIndexFilePath, sourceVCFFilePath))
 									sys.exit(3)
+						#--bufferSize=BUFFERSIZE, Data will be buffered in regions of this size
+						#--maxReads=MAXREADS   Maximium coverage in window
+						bufferSize=1000	#used to be 15kb, too much for 725 monkeys
+						maxReads=bufferSize/100*cumulativeMedianDepth*4	#100 is read length. maxReads is 4X median number of reads in this buffer window
 						genotypingJob = self.addPlatypusCallJob(executable=self.Platypus, outputFile=gatkOutputF, \
 							refFastaFList=refFastaFList, \
 							sourceVCFFile=sourceVCFFile, interval=mpileupInterval, skipRegionsFile=None,\
 							site_type=site_type, \
-							extraArguments="--bufferSize=500000 --maxReads=10000000 --maxReadLength=4268", \
+							extraArguments="--bufferSize=%s --maxReads=%s --maxReadLength=4268"%(bufferSize, maxReads), \
+							
 							job_max_memory=genotypingJobMaxMemory, no_of_cpus=1, \
 							walltime=genotypingJobWalltime, \
 							parentJobLs=[newCallerDirJob], extraDependentInputLs=[sourceVCFIndexFile], transferOutput=False)
@@ -600,9 +612,9 @@ class AlignmentToCallPipeline(parentClass):
 						samtoolsOutputF=samtoolsOutputF, indelVCFOutputF=indelVCFOutputF, \
 						refFastaFList=refFastaFList, parentJobLs=[samtoolsDirJob]+intervalData.jobLs, \
 						extraDependentInputLs=None, transferOutput=False, \
-						extraArguments=None, job_max_memory=job_max_memory*max(1, len(alignmentDataLs)/200), \
+						extraArguments=None, job_max_memory=genotypingJobMaxMemory, \
 						site_type=site_type, maxDP=cumulativeMedianDepth*5, mpileupInterval=mpileupInterval, \
-						bcftoolsInterval=bcftoolsInterval, walltime=120)
+						bcftoolsInterval=bcftoolsInterval, walltime=genotypingJobWalltime)
 					
 					#deal with samtools's indel VCF
 					"""
