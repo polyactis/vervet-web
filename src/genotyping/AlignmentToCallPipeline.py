@@ -90,8 +90,9 @@ Examples:
 		#--minPruningForGATKHaplotypCaller 2 --GATKGenotypeCallerType HaplotypeCaller
 	
 Description:
-	2013.06.03 “--selectedRegionFname” is required for GATK & SAMtools genotyping mode, not for Platypus.
-		“--sourceVCFFolder” is used to fill “--selectedRegionFname”. If the latter file already exists, and you do not want to overwrite it, do not supply “--sourceVCFFolder”.
+	2013.06.03 "--selectedRegionFname" is required for GATK & SAMtools genotyping mode, not for Platypus.
+		"--sourceVCFFolder" is used to fill "--selectedRegionFname". If the latter file already exists,
+			and you do not want to overwrite it, do not supply "--sourceVCFFolder".
 	
 	2011-7-12
 		a program which generates a pegasus workflow dag (xml file) to call genotypes on all chosen alignments.
@@ -374,8 +375,9 @@ class AlignmentToCallPipeline(parentClass):
 				needFastaIndexJob=False, needFastaDictJob=False, \
 				intervalSize=2000000, site_type=1, data_dir=None, no_of_gatk_threads = 1,\
 				outputDirPrefix="", genotypeCallerType=0, cumulativeMedianDepth=5000, \
-				sourceVCFFolder=None, **keywords):
+				sourceVCFFolder=None, extraArgumentPlatypus="", **keywords):
 		"""
+		2013.06.03 added argument extraArgumentPlatypus
 		2013.05.20 added argument sourceVCFFolder
 		2013.05.16
 			argument addGATKJobs renamed to genotypeCallerType
@@ -392,7 +394,6 @@ class AlignmentToCallPipeline(parentClass):
 		if workflow is None:
 			workflow = self
 		sys.stderr.write("Adding genotype call jobs for %s chromosomes/contigs ..."%(len(chr2IntervalDataLs)))
-		
 		
 		job_max_memory = 5000	#in MB
 		vcf_job_max_memory = 1000
@@ -593,7 +594,8 @@ class AlignmentToCallPipeline(parentClass):
 							refFastaFList=refFastaFList, \
 							sourceVCFFile=sourceVCFFile, interval=mpileupInterval, skipRegionsFile=None,\
 							site_type=site_type, \
-							extraArguments="--bufferSize=%s --maxReads=%s --maxReadLength=4268"%(bufferSize, maxReads), \
+							extraArguments="--bufferSize=%s --maxReads=%s --maxReadLength=4268 %s"%\
+								(bufferSize, maxReads, extraArgumentPlatypus), \
 							
 							job_max_memory=genotypingJobMaxMemory, no_of_cpus=1, \
 							walltime=genotypingJobWalltime, \
@@ -1068,25 +1070,34 @@ class AlignmentToCallPipeline(parentClass):
 										defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
 		
 		if self.run_type==1:	#multi-sample calling
-			self.addGenotypeCallJobs(workflow=workflow, alignmentDataLs=pdata.alignmentDataLs, chr2IntervalDataLs=chr2IntervalDataLs, \
-									samtools=workflow.samtools, \
-					genotyperJava=workflow.genotyperJava, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
-					addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
-					CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, \
-					CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
-					MergeSamFilesJar=workflow.MergeSamFilesJar, \
-					BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
-					mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
-					bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
-					concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
-					GenotypeCallByCoverage=workflow.GenotypeCallByCoverage, registerReferenceData=pdata.registerReferenceData, bamListF=None, \
-					namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
-					seqCoverageF=None, \
-					needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
-					intervalSize=self.intervalSize, site_type=self.site_type, data_dir=self.data_dir, \
-					outputDirPrefix="",\
-					genotypeCallerType=self.genotypeCallerType,\
-					cumulativeMedianDepth=cumulativeMedianDepth, sourceVCFFolder=self.sourceVCFFolder)
+			"""
+			for extraArgumentPlatypus, outputDirPrefix in [("--maxHaplotypes=1500", "maxHaplotypes1500"), ("--maxGOF=100", "maxGOF100"),\
+														("--sbThreshold=0", "sbThreshold0") ,("--abThreshold=0", "abThreshold0"),\
+														("--rmsmqThreshold=0", "rmsmqThreshold0"), ("--qdThreshold=0", "qdThreshold0"),\
+														("--hapScoreThreshold=0", "hapScoreThreshold1000")]:
+			"""
+			outputDirPrefix = ""
+			extraArgumentPlatypus = ""
+			self.addGenotypeCallJobs(workflow=workflow, alignmentDataLs=pdata.alignmentDataLs, \
+						chr2IntervalDataLs=chr2IntervalDataLs,
+						samtools=workflow.samtools, genotyperJava=workflow.genotyperJava, GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
+						addOrReplaceReadGroupsJava=workflow.addOrReplaceReadGroupsJava, AddOrReplaceReadGroupsJar=workflow.AddOrReplaceReadGroupsJar, \
+						CreateSequenceDictionaryJava=workflow.CreateSequenceDictionaryJava, \
+						CreateSequenceDictionaryJar=workflow.CreateSequenceDictionaryJar, \
+						MergeSamFilesJar=workflow.MergeSamFilesJar, \
+						BuildBamIndexFilesJava=workflow.BuildBamIndexFilesJava, BuildBamIndexJar=workflow.BuildBamIndexJar, \
+						mv=workflow.mv, CallVariantBySamtools=workflow.CallVariantBySamtools,\
+						bgzip_tabix=workflow.bgzip_tabix, vcf_convert=workflow.vcf_convert, vcf_isec=workflow.vcf_isec, vcf_concat=workflow.vcf_concat, \
+						concatGATK=workflow.concatGATK, concatSamtools=workflow.concatSamtools,\
+						GenotypeCallByCoverage=workflow.GenotypeCallByCoverage, registerReferenceData=pdata.registerReferenceData, bamListF=None, \
+						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
+						seqCoverageF=None, \
+						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
+						intervalSize=self.intervalSize, site_type=self.site_type, data_dir=self.data_dir, \
+						outputDirPrefix=outputDirPrefix,\
+						genotypeCallerType=self.genotypeCallerType,\
+						cumulativeMedianDepth=cumulativeMedianDepth, sourceVCFFolder=self.sourceVCFFolder,\
+						extraArgumentPlatypus=extraArgumentPlatypus)
 		elif self.run_type==2:
 			#2011-11-4 for single-alignment-calling pipeline, adjust the folder name so that they are unique from each other
 			for alignmentData in pdata.alignmentDataLs:
