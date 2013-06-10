@@ -100,7 +100,7 @@ class UnpackAndAddIndividualSequence2DB(AbstractVervetWorkflow):
 	option_default_dict.update({
 						('input', 1, ): ['', 'i', 1, 'if it is a folder, take all .bam/.sam/.fastq files recursively. If it is a file, every line should be a path to the input file.', ],\
 						('bamFname2MonkeyIDMapFname', 0, ): ['', '', 1, 'a tsv version of WUSTL xls file detailing what monkey is in which bam file.', ],\
-						('minNoOfReads', 1, int): [4000000, '', 1, 'minimum number of reads in each split fastq file. This is actually the maxNoOfReads.\
+						('minNoOfReads', 1, int): [8000000, '', 1, 'minimum number of reads in each split fastq file. This is actually the maxNoOfReads.\
 								 The upper limit in each split file is 2*minNoOfReads.', ],\
 						("sequencer_name", 1, ): ["GA", '', 1, 'choices: 454, GA, Sanger, PopGenSimulation. column Sequencer.short_name'],\
 						("sequence_type_name", 1, ): ["100BPPairedEnd", '', 1, 'table column: SequenceType.short_name ...'],\
