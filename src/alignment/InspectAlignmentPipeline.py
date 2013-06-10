@@ -76,6 +76,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 						("skipAlignmentWithStats", 0, int): [0, 's', 0, 'If an alignment has depth stats filled, not DOC job will be run. similar for flagstat job.'],\
 						("fractionToSample", 0, float): [0.001, '', 1, 'fraction of loci to walk through for DepthOfCoverage walker.'],\
 						})
+	option_default_dict[('completedAlignment', 0, int)][0]=1	#2013.05.03
 
 	def __init__(self, **keywords):
 		"""
@@ -85,12 +86,19 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		self.no_of_alns_with_depth_jobs = 0
 		self.no_of_alns_with_flagstat_jobs = 0
 	
-	def addDepthOfCoverageJob(self, workflow, DOCWalkerJava=None, GenomeAnalysisTKJar=None,\
+	def addDepthOfCoverageJob(self, workflow=None, DOCWalkerJava=None, GenomeAnalysisTKJar=None,\
 							refFastaFList=None, bamF=None, baiF=None, DOCOutputFnamePrefix=None,\
-							fractionToSample=None,\
-							parentJobLs=[], job_max_memory = 1000, extraArguments="", \
-							transferOutput=False, minMappingQuality=30, minBaseQuality=20):
+							fractionToSample=None, minMappingQuality=30, minBaseQuality=20, \
+							parentJobLs=None, extraArguments="", \
+							transferOutput=False, \
+							job_max_memory = 1000, walltime=None, **keywords):
 		"""
+		2013.06.09
+			.sample_statistics is new GATK DOC output file (replacing the .sample_interval_summary file)
+			ignore argument fractionToSample, not available
+		2013.05.17
+			re-activate this because "samtools depth" seems to have trouble working with local-realigned and BQSR-ed bam files
+			use addGATKJob()
 		2012.5.7
 			no longer used, superceded by addSAMtoolsDepthJob()
 		2012.4.17
@@ -102,32 +110,31 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 			add argument fractionToSample
 		2011-11-25
 		"""
-		javaMemRequirement = "-Xms128m -Xmx%sm"%job_max_memory
-		refFastaF = refFastaFList[0]
-		DOCJob = Job(namespace=workflow.namespace, name=DOCWalkerJava.name, version=workflow.version)
-		DOCJob.addArguments(javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T", "DepthOfCoverage",\
-			'-R', refFastaF, '-o', DOCOutputFnamePrefix, "-pt sample", "--omitDepthOutputAtEachBase",\
-			"-mmq %s"%(minMappingQuality), "-mbq %s"%(minBaseQuality), "--read_filter BadCigar", \
-			'--omitLocusTable', '--omitIntervalStatistics')
-		self.addJobUse(DOCJob, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
-		DOCJob.addArguments("-I", bamF)
-		if fractionToSample and fractionToSample>0 and fractionToSample<=1:
-			DOCJob.addArguments("--fractionToSample %s"%(fractionToSample))
-		if extraArguments:
-			DOCJob.addArguments(extraArguments)
-		#it's either symlink or stage-in
-		DOCJob.uses(bamF, transfer=True, register=True, link=Link.INPUT)
-		DOCJob.uses(baiF, transfer=True, register=True, link=Link.INPUT)
-		self.registerFilesAsInputToJob(DOCJob, refFastaFList)
-		DOCJob.sample_summary_file = File('%s.sample_summary'%(DOCOutputFnamePrefix))
-		DOCJob.sample_interval_summary_file =File('%s.sample_interval_summary'%(DOCOutputFnamePrefix)) 
-		DOCJob.uses(DOCJob.sample_summary_file, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		DOCJob.uses(DOCJob.sample_interval_summary_file, transfer=transferOutput, register=True, link=Link.OUTPUT)
-		workflow.addJob(DOCJob)
-		yh_pegasus.setJobProperRequirement(DOCJob, job_max_memory=job_max_memory)
-		for parentJob in parentJobLs:
-			workflow.depends(parent=parentJob, child=DOCJob)
-		return DOCJob
+		sample_summary_file = File('%s.sample_summary'%(DOCOutputFnamePrefix))
+		sample_statistics_file = File('%s.sample_statistics'%(DOCOutputFnamePrefix))
+		extraOutputLs = [sample_summary_file, sample_statistics_file]
+		extraArgumentList = ["-o", DOCOutputFnamePrefix, \
+					"-pt sample", "--read_filter BadCigar", \
+					"--omitDepthOutputAtEachBase", '--omitLocusTable', '--omitIntervalStatistics']
+		if minMappingQuality is not None:
+			extraArgumentList.append("--minMappingQuality %s"%(minMappingQuality))
+		if minBaseQuality is not None:
+			extraArgumentList.append("--maxBaseQuality %s"%(minBaseQuality))
+		
+		#if fractionToSample and fractionToSample>0 and fractionToSample<=1:
+		#	extraArgumentList.append("--fractionToSample %s"%(fractionToSample))
+		extraDependentInputLs = [baiF]
+		job = self.addGATKJob(workflow=workflow, executable=DOCWalkerJava, GenomeAnalysisTKJar=GenomeAnalysisTKJar, \
+							GATKAnalysisType="DepthOfCoverage",\
+					inputFile=bamF, inputArgumentOption="-I", refFastaFList=refFastaFList, inputFileList=None,\
+					interval=None, outputFile=None, \
+					parentJobLs=parentJobLs, transferOutput=transferOutput, job_max_memory=job_max_memory,\
+					frontArgumentList=None, extraArguments=extraArguments, extraArgumentList=extraArgumentList, \
+					extraOutputLs=extraOutputLs, \
+					extraDependentInputLs=extraDependentInputLs, no_of_cpus=1, walltime=walltime, **keywords)
+		job.sample_summary_file = sample_summary_file
+		job.sample_statistics_file = sample_statistics_file
+		return job
 	
 	def addSAMtoolsDepthJob(self, workflow, samtoolsDepth=None, samtools_path=None,\
 							bamF=None, outputFile=None, baiF=None, \
@@ -272,7 +279,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		if self.skipAlignmentWithStats and alignment.median_depth is not None and alignment.mean_depth is not None and alignment.mode_depth is not None:
 			pass
 		else:
-			#DOCOutputFnamePrefix = '%s_DOC'%(alignment.id)
+			"""
 			depthOutputFile = File(os.path.join(topOutputDirJob.output, '%s_DOC.tsv.gz'%(alignment.id)))
 			samtoolsDepthJob = self.addSAMtoolsDepthJob(workflow, samtoolsDepth=self.samtoolsDepth, \
 						samtools_path=self.samtools_path,\
@@ -282,21 +289,32 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 			self.addRefFastaJobDependency(job=samtoolsDepthJob, refFastaF=passingData.refFastaF, \
 						fastaDictJob=passingData.fastaDictJob, refFastaDictF=passingData.refFastaDictF,\
 						fastaIndexJob = passingData.fastaIndexJob, refFastaIndexF=passingData.refFastaIndexF)
-			
 			meanMedianModeDepthFile = File(os.path.join(topOutputDirJob.output, "%s_meanMedianModeDepth.tsv"%(alignment.id)))
-			meanMedianModeDepthJob = self.addCalculateDepthMeanMedianModeJob(workflow, \
+			meanMedianModeDepthJob = self.addCalculateDepthMeanMedianModeJob(\
 						executable=workflow.CalculateMedianMeanOfInputColumn, \
 						inputFile=depthOutputFile, outputFile=meanMedianModeDepthFile, alignmentID=alignment.id, fractionToSample=self.fractionToSample, \
 						noOfLinesInHeader=0, whichColumn=2, maxNumberOfSamplings=1E6,\
 						parentJobLs=[topOutputDirJob, samtoolsDepthJob], job_max_memory = 500, extraArguments=None, \
 						transferOutput=False)
 			"""
-			DOCJob = self.addDepthOfCoverageJob(workflow, DOCWalkerJava=DOCWalkerJava, GenomeAnalysisTKJar=GenomeAnalysisTKJar,\
-						refFastaFList=refFastaFList, bamF=bamF, baiF=baiF, \
+			#2013.05.17 samtools depth + CalculateMedianMeanOfInputColumn is not working well for realigned and BQSRed alignments
+			# use GATK DOC walker
+			DOCOutputFnamePrefix = os.path.join(topOutputDirJob.output, '%s_DOC'%(alignment.id))
+			DOCJob = self.addDepthOfCoverageJob(DOCWalkerJava=self.DOCWalkerJava, \
+						refFastaFList=passingData.refFastaFList, bamF=bamF, baiF=baiF, \
 						DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
-						parentJobLs=alignmentData.jobLs, job_max_memory = perContigJobMaxMemory*8, transferOutput=True,\
-						fractionToSample=self.fractionToSample)
-			"""
+						parentJobLs=alignmentData.jobLs, \
+						transferOutput=False,\
+						job_max_memory = 4000, walltime=1200)	#1200 minutes is 20 hours
+						#fractionToSample=self.fractionToSample, \
+			depthOutputFile = DOCJob.sample_statistics_file
+			meanMedianModeDepthFile = File(os.path.join(topOutputDirJob.output, "%s_meanMedianModeDepth.tsv"%(alignment.id)))
+			meanMedianModeDepthJob = self.addCalculateDepthMeanMedianModeJob(\
+						executable=workflow.CalculateMedianMeanOfInputColumn, \
+						inputFile=depthOutputFile, outputFile=meanMedianModeDepthFile, alignmentID=alignment.id, \
+						parentJobLs=[topOutputDirJob, DOCJob], job_max_memory = 500, extraArguments="--inputFileFormat=2", \
+						transferOutput=False)
+			
 			self.addInputToStatMergeJob(workflow, statMergeJob=passingData.depthOfCoverageOutputMergeJob, inputF=meanMedianModeDepthFile,\
 						parentJobLs=[meanMedianModeDepthJob])
 			self.no_of_alns_with_depth_jobs += 1
@@ -304,6 +322,30 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		if self.skipAlignmentWithStats and alignment.perc_reads_mapped is not None:
 			pass
 		else:
+			#2013.05.17 GATK's flagstat, should be identical to samtools flagstat
+			"""
+		java -jar ~/script/gatk2/GenomeAnalysisTK.jar -T FlagStat
+			-I ~/NetworkData/vervet/db/individual_alignment/3152_640_1985088_GA_vs_3280_by_method2_realigned1_reduced0_p2312_m87.bam
+			-o ~/NetworkData/vervet/db/individual_alignment/3152_640_1985088_GA_vs_3280_by_method2_realigned1_reduced0_p2312_m87.flagstat.txt
+			--reference_sequence ~/NetworkData/vervet/db/individual_sequence/3280_vervet_ref_6.0.3.fasta
+			
+		output (<4 hours) looks like:
+			
+			1119300506 in total
+			0 QC failure
+			186159065 duplicates
+			1034122354 mapped (92.39%)
+			1119300506 paired in sequencing
+			559647234 read1
+			559653272 read2
+			859005395 properly paired (76.74%)
+			949042688 with itself and mate mapped
+			85079666 singletons (7.60%)
+			80245327 with mate mapped to a different chr
+			26716310 with mate mapped to a different chr (mapQ>=5)
+			
+			"""
+			
 			oneFlagStatOutputF = File(os.path.join(flagStatMapFolderJob.output, '%s_flagstat.txt.gz'%(alignment.id)))
 			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(executable=self.samtoolsFlagStat, \
 				samtoolsExecutableFile=self.samtoolsExecutableFile, inputFile=bamF, outputFile=oneFlagStatOutputF, \
@@ -381,8 +423,8 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 				transferOutput=False,\
 				fractionToSample=self.fractionToSample)
 		
-		reduceDepthOfCoverageJob.addArguments(DOCJob.sample_interval_summary_file)
-		reduceDepthOfCoverageJob.uses(DOCJob.sample_interval_summary_file, transfer=True, register=True, link=Link.INPUT)
+		reduceDepthOfCoverageJob.addArguments(DOCJob.sample_statistics_file)
+		reduceDepthOfCoverageJob.uses(DOCJob.sample_statistics_file, transfer=True, register=True, link=Link.INPUT)
 		workflow.depends(parent=DOCJob, child=reduceDepthOfCoverageJob)
 		"""
 		
