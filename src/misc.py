@@ -3568,6 +3568,7 @@ class DBVervet(object):
 	@classmethod
 	def removeOutdatedAndUnusedAlignmentFiles(cls, db_vervet=None, data_dir=None, ref_ind_seq_id=524, commit=False):
 		"""
+		2013.05 remove files by force ("rm -f ..")
 		2013.3.18
 		an alignment is outdated if any of the following conditions is true:
 			outdated_index=1
@@ -3604,27 +3605,42 @@ class DBVervet(object):
 				if absFilePath and os.path.isfile(absFilePath):
 					real_counter += 1
 					if commit:
-						commandline = 'rm %s'%(absFilePath)
+						commandline = 'rm -f %s'%(absFilePath)
 						return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 						no_of_files_deleted += 1
 				if absFilePath:
 					prefix, suffix= os.path.splitext(absFilePath)
 					metricFileAbsPath = '%s.metric'%(prefix)
 					if os.path.isfile(metricFileAbsPath) and commit:
-						commandline = 'rm %s'%(metricFileAbsPath)
+						commandline = 'rm -f %s'%(metricFileAbsPath)
 						return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 						no_of_files_deleted += 1
 					baiFileAbsPath = '%s.bam.bai'%(prefix)
 					if os.path.isfile(baiFileAbsPath) and commit:
-						commandline = 'rm %s'%(baiFileAbsPath)
+						commandline = 'rm -f %s'%(baiFileAbsPath)
 						return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 						no_of_files_deleted += 1
 				sys.stderr.write('.\n')
 		sys.stderr.write(" total_file_size=%s for %s files, %s/%s alignment files deleted. total files deleted %s.\n"%\
 						(total_file_size, counter-no_of_files_without_size,real_counter, counter, \
 						no_of_files_deleted))
+		if commit==True:
+			session.flush()
+			session.commit()
 	
 	"""
+		#2013.05.25 delete outdated alignments on icnn1 
+		data_dir = os.path.expanduser("/home/polyacti/NetworkData/vervet/db/")
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=524, commit=True)
+		sys.exit(0)
+		
+		#2013.04.16
+		data_dir = os.path.expanduser("/Network/Data/vervet/db/")
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=12, commit=True)
+		data_dir = os.path.expanduser("/Network/Data/vervet/db/")
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=524, commit=False)
+		sys.exit(0)
+		
 		#2013.3.19
 		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
 		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=12, commit=True)
@@ -3643,25 +3659,28 @@ class DBVervet(object):
 	"""
 	
 	@classmethod
-	def removeUnfilteredSequenceFiles(cls, db_vervet=None, data_dir=None, commit=False):
+	def removeIndividualSequenceFiles(cls, db_vervet=None, data_dir=None, commit=False, site_id=447, \
+									filtered=0):
 		"""
+		2013.04.18 expose site_id & filtered (default=0, unfiltered)
 		2013.3.18
 			only VRC (site_id=447), and fastq files
 		2013.2.5
 			sequence filtered=0
 		"""
-		sys.stderr.write("Removing sequence files (not db entries) that are raw (filtered=0) ... \n")
+		sys.stderr.write("Removing sequence files (but not db entries) whose site_id=%s & filtered=%s ... \n"%\
+						(site_id, filtered))
 		if data_dir is None:
 			data_dir = db_vervet.data_dir
 		session = db_vervet.session
 		session.begin()
-		query = VervetDB.IndividualSequenceFile.query.filter_by(filtered=0).filter_by(format='fastq')
+		query = VervetDB.IndividualSequenceFile.query.filter_by(filtered=filtered).filter_by(format='fastq')
 		counter = 0
 		real_counter = 0
 		individual_id_set = set()
 		site_id_set = set()
 		for row in query:
-			if row.path and row.individual_sequence.individual.site_id==447:	#only VRC
+			if row.path and row.individual_sequence.individual.site_id==site_id:	#only VRC
 				counter += 1
 				sys.stderr.write('%s: %s'%(counter, row.path))
 				
@@ -3678,9 +3697,16 @@ class DBVervet(object):
 						(real_counter, counter, len(individual_id_set), len(site_id_set)))
 	
 	"""
+		
+		#2013.04.18
+		data_dir = os.path.expanduser("/Network/Data/vervet/db/")
+		DBVervet.removeIndividualSequenceFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True, site_id=447,\
+											filtered=1)
+		sys.exit(0)
+		
 		#2013.3.19
 		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
-		DBVervet.removeUnfilteredSequenceFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True)
+		DBVervet.removeIndividualSequenceFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True)
 		sys.exit(0)
 		
 	"""
@@ -6091,7 +6117,7 @@ class DBVervet(object):
 		
 		
 		"""
-		2013.04.05
+		#2013.04.05
 		DBVervet.fixLibraryNameInRecentIndividualSequenceFileAndRawEntries(db_vervet=db_vervet, latestDate='2013-04-04 16:00:00',\
 																TableClass=VervetDB.IndividualSequenceFileRaw, commit=True)
 		sys.exit(0)
@@ -6892,6 +6918,49 @@ class DBVervet(object):
 		DBVervet.updateSequenceBatch(db_vervet=db_vervet, inputFname=inputFname)
 		sys.exit(0)
 	"""
+	
+	@classmethod
+	def updateIndividualAlignmentReadGroup(cls, db_vervet=None, latestDate='2013-04-05 16:00:00',\
+												TableClass=VervetDB.IndividualAlignment, commit=False,):
+		"""
+		excludeIndividualSequenceIDSet is three individuals that actually come from 2 different libraries
+			(>1, so do not modify it in this procedure. do it manually)
+		2013.04.05 some UNGC entries were added into db with two ends of PE reads having different libraries.
+			TableClass could be VervetDB.IndividualSequenceFile or VervetDB.IndividualSequenceFileRaw
+		
+		"""
+		db_vervet.session.begin()
+		tablename = TableClass.table.name
+		sys.stderr.write("Getting old %s db entries (date_created <%s) ... "%(tablename, latestDate))
+		entry_db_id_list = []
+		
+		query = db_vervet.metadata.bind.execute("select * from %s where date_created<'%s'"%\
+											(tablename, latestDate))
+		real_counter = 0
+		for row in query:
+			individual_alignment = VervetDB.IndividualAlignment.get(row.id)
+			if individual_alignment.read_group is None:
+				individual_alignment.read_group = individual_alignment.getReadGroup()
+				db_vervet.session.add(individual_alignment)
+				real_counter += 1
+			entry_db_id_list.append(row.id)
+		sys.stderr.write("%s has read_group updated out of %s entries. \n."%(real_counter, len(entry_db_id_list)))
+		
+		if commit:
+			db_vervet.session.flush()
+			db_vervet.session.commit()
+		else:
+			db_vervet.session.rollback()
+		
+		
+		"""
+		2013.04.09
+		DBVervet.updateIndividualAlignmentReadGroup(db_vervet=db_vervet, latestDate='2013-04-05 16:00:00',\
+											commit=True)
+		sys.exit(0)
+		
+		
+		"""
 	
 	@classmethod
 	def putDOCWalkerResultsIntoDB(cls, db_vervet, inputFname, commit=True):
@@ -8169,10 +8238,18 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2013.04.05
-		DBVervet.fixLibraryNameInRecentIndividualSequenceFileAndRawEntries(db_vervet=db_vervet, latestDate='2013-04-04 16:00:00',\
-																TableClass=VervetDB.IndividualSequenceFileRaw, commit=True)
+		#2013.05.25 delete outdated alignments on icnn1 
+		data_dir = os.path.expanduser("/home/polyacti/NetworkData/vervet/db/")
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=524, commit=True)
 		sys.exit(0)
+				
+		#2013.04.18
+		data_dir = os.path.expanduser("/Network/Data/vervet/db/")	#vervetNFS
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")	#hoffman2
+		DBVervet.removeIndividualSequenceFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True, site_id=447,\
+											filtered=1)
+		sys.exit(0)
+		
 		
 		#2013.03.24
 		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
@@ -8183,7 +8260,6 @@ class Main(object):
 		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
 		DBVervet.findBrokenIndividualAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir)
 		sys.exit(0)
-		
 		
 		
 		#2012.9.25 update the file_size for the existing db entries
