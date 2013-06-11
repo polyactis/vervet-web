@@ -82,7 +82,7 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 		for col_index, individual_name in vcfFile.get_col_index_individual_name_ls():
 			individualAlignment = db_vervet.parseAlignmentReadGroup(individual_name).individualAlignment
 			if individualAlignment is not None:
-				filteredAlignmentList = db_vervet.filterAlignments([individualAlignment], min_coverage=min_coverage, \
+				filteredAlignmentList = db_vervet.filterAlignments(alignmentLs=[individualAlignment], min_coverage=min_coverage, \
 						max_coverage=max_coverage, individual_site_id=None, \
 						sequence_filtered=None, individual_site_id_set=site_id_set, \
 						mask_genotype_method_id=None, parent_individual_alignment_id=None,\
