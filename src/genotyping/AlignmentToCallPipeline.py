@@ -551,7 +551,7 @@ class AlignmentToCallPipeline(parentClass):
 						genotypingJob= self.addGATKCallJob(genotyperJava=genotyperJava, GenomeAnalysisTKJar=self.GenomeAnalysisTK2Jar, \
 							gatkOutputF=gatkOutputF, refFastaFList=refFastaFList, \
 							parentJobLs=[newCallerDirJob]+intervalData.jobLs, \
-							extraArguments=None,\
+							extraArguments=" --downsample_to_coverage 250 --downsampling_type BY_SAMPLE", \
 							extraDependentInputLs=None, transferOutput=False, \
 							job_max_memory=genotypingJobMaxMemory, \
 							no_of_gatk_threads=no_of_gatk_threads, \
@@ -562,7 +562,6 @@ class AlignmentToCallPipeline(parentClass):
 							GATKGenotypeCallerType = self.GATKGenotypeCallerType,\
 							walltime=genotypingJobWalltime,\
 							)
-							#extraArguments=" --downsample_to_coverage 40 --downsampling_type BY_SAMPLE", \
 					elif genotypeCallerType==2:
 						#2013.05.16 Platypus job
 						sourceVCFFile = None
