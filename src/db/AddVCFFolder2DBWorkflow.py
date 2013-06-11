@@ -158,12 +158,10 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 		2012.5.9
 		"""
 		sys.stderr.write("Adding VCF2DB jobs for %s vcf files ... "%(len(inputData.jobDataLs)))
-		no_of_jobs= 0
 		
 		
 		topOutputDir = "%sVCF2DB"%(outputDirPrefix)
 		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
-		no_of_jobs += 1
 		
 		firstVCFFile = inputData.jobDataLs[0].vcfFile
 		logFile = File(os.path.join(topOutputDir, 'AddGenotypeMethod2DB.log'))
@@ -178,7 +176,6 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 								extraDependentInputLs=[], transferOutput=True, \
 								extraArguments=None, job_max_memory=20, sshDBTunnel=needSSHDBTunnel)
 		
-		no_of_jobs += 2
 		returnData = PassingData()
 		returnData.jobDataLs = []
 		for jobData in inputData.jobDataLs:
@@ -199,8 +196,7 @@ class AddVCFFolder2DBWorkflow(GenericVCFWorkflow):
 						parentJobLs=[addGM2DBJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=True, \
 						extraArguments=None, job_max_memory=1000, sshDBTunnel=needSSHDBTunnel)
 			workflow.depends(parent=addVCFJob, child=updateGMNoOfLociJob)
-			no_of_jobs += 1
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		#include the tfam (outputList[1]) into the fileLs
 		returnData.jobDataLs.append(PassingData(jobLs=[updateGMNoOfLociJob], file=updateGMlogFile, \
 											fileLs=[updateGMlogFile]))
