@@ -64,6 +64,8 @@ Examples:
 		-t ~/NetworkData/vervet/db/ -D ~/NetworkData/vervet/db/
 		-u yh -C 5 --minDepth 1 --depthFoldChange 2 --minNeighborDistance 5 --minMAF 0.1
 		#-V 90 -x 100 
+		--excludeFilteredSites 2
+		--siteTotalCoverateINFOFieldName DP
 	
 Description:
 	2012.9.12 pipeline that runs VCF2plink, plink Mendel, then filter VCF by max mendel error on top of filters by depth, GQ, MAC, 
@@ -109,6 +111,8 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 						('excludeFilteredSites', 0, int): [0, '', 1, '0: no such filter, 1: remove sites whose FILTER!=PASS, 2: remove sites whose FILTER!=PASS and is not a SNP (indels+MNP)', ],\
 						('vcf1Dir', 1, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						('vcf2Dir', 0, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files. If not provided, filter vcf1Dir without applying maxSNPMismatchRate filter.', ],\
+						('siteTotalCoverateINFOFieldName', 1, ): ['TC', '', 1, 'used in the depthFoldChange filter step,  by GATK SelectVariants to parse the depth of entire site.\n\
+		SAMtools, GATK output uses DP, Platypus output uses TC', ],\
 						})
 	#("minDepthPerGenotype", 0, int): [0, 'Z', 1, 'mask genotype with below this depth as ./. (other fields retained), \
 	#	esp. necessary for SAMtools, which output homozygous reference if no read for one sample.'],\
@@ -121,11 +125,12 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			self.vcf1Dir = os.path.abspath(self.vcf1Dir)
 		if getattr(self, 'vcf2Dir', None):
 			self.vcf2Dir = os.path.abspath(self.vcf2Dir)
+		"""
 		if getattr(self, 'depthFoldChange', None) and self.depthFoldChange>0 and not self.alnStatForFilterFname:
 			sys.stderr.write("Error: alnStatForFilterFname (%s) is nothing while depthFoldChange=%s.\n"%\
 							(self.alnStatForFilterFname, self.depthFoldChange))
 			sys.exit(3)
-		
+		"""
 		self.minDepthPerGenotype = self.minDepth
 	
 	def registerVCFAndItsTabixIndex(self, workflow, vcfF, input_site_handler='local'):
@@ -144,6 +149,9 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 		"""
 		2011-11-28
 		"""
+		if workflow is None:
+			workflow = self
+		
 		namespace = workflow.namespace
 		version = workflow.version
 		operatingSystem = workflow.operatingSystem
@@ -180,6 +188,8 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			add extraArguments="--recode-INFO-all" to addFilterJobByvcftools()
 		2012.1.14
 		"""
+		if workflow is None:
+			workflow = self
 		refFastaFList = registerReferenceData.refFastaFList
 		refFastaF = refFastaFList[0]
 		
@@ -341,12 +351,12 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 		sys.stderr.write("%s jobs.\n"%(counter+1))
 	
 	def addJobsToFilterOneVCFDir(self, workflow=None, inputData=None, registerReferenceData=None, \
-								alnStatForFilterF=None, keepSNPPosF=None, \
+								cumulativeMedianDepth=None, depthFoldChange=None, keepSNPPosF=None, \
 						onlyKeepBiAllelicSNP=True,\
 						minDepthPerGenotype=False, minMAC=None, minMAF=None, maxSNPMissingRate=None, outputDirPrefix="",\
-						minNeighborDistance=None, transferOutput=True, keepSNPPosParentJobLs=None, excludeFilteredSites=True):
+						minNeighborDistance=None, transferOutput=True, keepSNPPosParentJobLs=None, excludeFilteredSites=0):
 		"""
-		2013.05.20 add argument excludeFilteredSites
+		2013.05.20 add argument excludeFilteredSites, cumulativeMedianDepth, depthFoldChange
 		2012.9.11 add argument keepSNPPosParentJobLs
 		2012.9.6 add argument minNeighborDistance
 		2012.7.30 add stat collecting jobs
@@ -354,6 +364,8 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 			add extraArguments="--recode-INFO-all" to addFilterJobByvcftools()
 		2012.1.14
 		"""
+		if workflow is None:
+			workflow = self
 		sys.stderr.write("Adding filter-VCF jobs for %s vcf files ... \n"%(len(inputData.jobDataLs)))
 		refFastaFList = registerReferenceData.refFastaFList
 		refFastaF = refFastaFList[0]
@@ -392,7 +404,7 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 								outputF=filterByMinDP1MergeFile, transferOutput=transferOutput, parentJobLs=[topOutputDirJob],\
 								extraArguments="-k 1 -v 2-4")	#column 1 is the chromosome length, which are set to be all same.
 								#column 2-4 are #sitesInInput1, #sitesInInput2, #overlapping
-		if alnStatForFilterF:
+		if cumulativeMedianDepth and depthFoldChange:
 			filterByDepthStatMergeFile = File(os.path.join(topOutputDir, 'filterByDepthStat_s3.tsv'))
 			filterByDepthStatMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 								outputF=filterByDepthStatMergeFile, transferOutput=transferOutput, parentJobLs=[topOutputDirJob],\
@@ -497,8 +509,8 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 					refFastaFList=refFastaFList, sampleIDKeepFile=None, snpIDKeepFile=None, sampleIDExcludeFile=None, \
 					interval=None,\
 					parentJobLs=lastRoundJobLs, extraDependentInputLs=lastRoundExtraDependentInputLs, transferOutput=False, \
-					extraArguments="--select_expressions %s"%(selectExpression), job_max_memory=2000, walltime=None)
-				
+					extraArguments="""--select_expressions "%s" """%(selectExpression), job_max_memory=2000, walltime=None)
+				#note how to escape  (let " be part of the commandline) 
 				vcfGzipFile = File("%s.gz"%FILTER_PASS_Job.output.name)
 				vcfGzipJob = self.addBGZIP_tabix_Job(workflow, bgzip_tabix=workflow.bgzip_tabix, \
 					parentJob=FILTER_PASS_Job, inputF=FILTER_PASS_Job.output, \
@@ -549,15 +561,26 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 				lastRoundJobLs=[currentBGZipTabixJob]
 				lastRoundExtraDependentInputLs=[currentBGZipTabixJob.tbi_F]
 				
-			if alnStatForFilterF:
+			if cumulativeMedianDepth and depthFoldChange:
 				vcf1AfterDepthFilter = File(os.path.join(vcf1DepthFilterDir, '%s.filterByDepth.vcf'%(commonPrefix)))
+				#2013.05.20 TC stands for total coverage in platypus output
+				selectExpression = "%s>=%s && %s<=%s"%(self.siteTotalCoverateINFOFieldName, \
+											cumulativeMedianDepth/depthFoldChange, \
+											self.siteTotalCoverateINFOFieldName, cumulativeMedianDepth*depthFoldChange)
+				vcf1FilterByDepthJob = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
+										GenomeAnalysisTKJar=None, inputF=lastBGZipTabixJob.output, outputF=vcfAfterFILTERPASS, \
+					refFastaFList=refFastaFList, sampleIDKeepFile=None, snpIDKeepFile=None, sampleIDExcludeFile=None, \
+					interval=None,\
+					parentJobLs=lastRoundJobLs, extraDependentInputLs=lastRoundExtraDependentInputLs, transferOutput=False, \
+					extraArguments="""--select_expressions "%s" """%(selectExpression), job_max_memory=2000, walltime=None)
+				"""
 				vcf1FilterByDepthJob = self.addFilterVCFByDepthJob(workflow, FilterVCFByDepthJava=workflow.FilterVCFByDepthJava, \
 						GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
 						refFastaFList=refFastaFList, inputVCFF=lastBGZipTabixJob.output, outputVCFF=vcf1AfterDepthFilter, \
 						parentJobLs=lastRoundJobLs, \
 						alnStatForFilterF=alnStatForFilterF, \
 						extraDependentInputLs=lastRoundExtraDependentInputLs, onlyKeepBiAllelicSNP=onlyKeepBiAllelicSNP)
-			
+				"""
 			
 				vcf1AfterDepthFilterGzip = File("%s.gz"%vcf1AfterDepthFilter.name)
 				vcf1AfterDepthFilterGzip_tbi_F = File("%s.gz.tbi"%vcf1AfterDepthFilter.name)
@@ -749,20 +772,17 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 		return vcfFilterStatJob
 			
 	
-	def run(self):
+	def setup_run(self):
 		"""
+		wrap all standard pre-run() related functions into this function.
+		setting up for run(), called by run()
+		
+		2013.06.11 assign all returned data to self, rather than pdata (pdata has become self)
+		2013.05.20 parse cumulativeMedianDepth from a sample VCF file.
+		
 		"""
+		pdata = AbstractVervetWorkflow.setup_run(self)
 		
-		if self.debug:
-			import pdb
-			pdb.set_trace()
-		
-		db_vervet = self.db_vervet
-		if not self.data_dir:
-			self.data_dir = db_vervet.data_dir
-		
-		if not self.local_data_dir:
-			self.local_data_dir = db_vervet.data_dir
 		"""
 		#without commenting out db_vervet connection code. schema "genome" wont' be default path.
 		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
@@ -770,57 +790,70 @@ class FilterVCFPipeline(AbstractVervetWorkflow):
 		db_genome.setup(create_tables=False)
 		chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, sequence_type_id=9)
 		"""
-		
-		workflow = self.initiateWorkflow()
-		
-		self.registerJars(workflow)
-		self.registerCommonExecutables(workflow)
-		self.registerCustomExecutables(workflow)
-		
-		
-		refSequence = VervetDB.IndividualSequence.get(self.ref_ind_seq_id)
-		
-		refFastaFname = os.path.join(self.data_dir, refSequence.path)
-		registerReferenceData = yh_pegasus.registerRefFastaFile(workflow, refFastaFname, registerAffiliateFiles=True, \
-						input_site_handler=self.input_site_handler,\
-						checkAffiliateFileExistence=True)
-		if self.depthFoldChange and self.depthFoldChange>0:
+		firstVCFFile = None
+		inputData = None
+		cumulativeMedianDepth = None
+		if self.vcf1Dir and  not self.vcf2Dir:
+			#a relative-path name for vcf1Dir
+			vcf1Name = self.findProperVCFDirIdentifier(self.vcf1Dir, defaultName='vcf1')
+			inputData = self.registerAllInputFiles(workflow=pdata.workflow, inputDir=self.vcf1Dir, \
+										input_site_handler=self.input_site_handler, \
+										checkEmptyVCFByReading=self.checkEmptyVCFByReading,\
+										pegasusFolderName="%s_%s"%(self.pegasusFolderName, vcf1Name), \
+										maxContigID=self.maxContigID, \
+										minContigID=self.minContigID)
+			if inputData.jobDataLs:
+				firstVCFFile = inputData.jobDataLs[0].file
+		sys.stderr.write("One sample VCF file is %s (used to get alignments).\n"%(firstVCFFile))
+		if self.depthFoldChange and self.depthFoldChange>0 and firstVCFFile:
+			alignmentLs = self.db.getAlignmentsFromVCFFile(inputFname=yh_pegasus.getAbsPathOutOfFile(firstVCFFile))
+			cumulativeMedianDepth = self.db.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
+										defaultSampleAlignmentDepth=8)
+			"""
 			self.outputAlignmentDepthAndOthersForFilter(db_vervet=db_vervet, outputFname=self.alnStatForFilterFname, \
 												ref_ind_seq_id=self.ref_ind_seq_id, \
 												foldChange=self.depthFoldChange, minGQ=self.minGQ)
-			alnStatForFilterF = self.registerOneInputFile(inputFname=os.path.abspath(self.alnStatForFilterFname))
-		else:
-			alnStatForFilterF = None
+			#alnStatForFilterF = self.registerOneInputFile(inputFname=os.path.abspath(self.alnStatForFilterFname))
+		#else:
+			#alnStatForFilterF = None
+			"""
 		
 		if self.keepSNPPosFname:
 			keepSNPPosF = self.registerOneInputFile(inputFname=os.path.abspath(self.keepSNPPosFname),\
 														folderName=self.pegasusFolderName)
 		else:
 			keepSNPPosF = None
+		self.inputData = inputData
+		self.keepSNPPosF = keepSNPPosF
+		self.cumulativeMedianDepth = cumulativeMedianDepth
+		sys.stderr.write("cumulativeMedianDepth for all samples is %s.\n"%(cumulativeMedianDepth))
+		return self
+	
+	def run(self):
+		"""
+		"""
+		
+		pdata = self.setup_run()
+		
 		
 		if self.vcf1Dir and self.vcf2Dir:
-			self.addJobsToFilterTwoVCFDir(workflow, self.vcf1Dir, self.vcf2Dir, registerReferenceData, \
-						alnStatForFilterF, keepSNPPosF, \
-						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, minMAC=self.minMAC, minMAF=self.minMAF, \
-						maxSNPMissingRate=self.maxSNPMissingRate, maxSNPMismatchRate=self.maxSNPMismatchRate)
+			self.addJobsToFilterTwoVCFDir(vcf1Dir=self.vcf1Dir, vcf2Dir=self.vcf2Dir, \
+							registerReferenceData=pdata.registerReferenceData, \
+							keepSNPPosF=pdata.keepSNPPosF, \
+							onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, minMAC=self.minMAC, minMAF=self.minMAF, \
+							maxSNPMissingRate=self.maxSNPMissingRate, maxSNPMismatchRate=self.maxSNPMismatchRate)
 		elif self.vcf1Dir:
 			# 2012.5.1 filter only on the 1st vcf folder
-			#a relative-path name for vcf1Dir
-			vcf1Name = self.findProperVCFDirIdentifier(self.vcf1Dir, defaultName='vcf1')
-			inputData = self.registerAllInputFiles(workflow, self.vcf1Dir, input_site_handler=self.input_site_handler, \
-												checkEmptyVCFByReading=self.checkEmptyVCFByReading,\
-												pegasusFolderName="%s_%s"%(self.pegasusFolderName, vcf1Name), \
-												maxContigID=self.maxContigID, \
-												minContigID=self.minContigID)
-			self.addJobsToFilterOneVCFDir(workflow, inputData=inputData, registerReferenceData=registerReferenceData, \
-									alnStatForFilterF=alnStatForFilterF, keepSNPPosF=keepSNPPosF, \
+			
+			self.addJobsToFilterOneVCFDir(inputData=pdata.inputData, registerReferenceData=pdata.registerReferenceData, \
+									cumulativeMedianDepth=pdata.cumulativeMedianDepth, depthFoldChange=self.depthFoldChange, \
+									keepSNPPosF=pdata.keepSNPPosF, \
 									onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP,\
 									minMAC=self.minMAC, minMAF=self.minMAF, maxSNPMissingRate=self.maxSNPMissingRate,\
 									minDepthPerGenotype=self.minDepthPerGenotype, outputDirPrefix="",\
-									minNeighborDistance=self.minNeighborDistance)
-		# Write the DAX to stdout
-		outf = open(self.outputFname, 'w')
-		workflow.writeXML(outf)
+									minNeighborDistance=self.minNeighborDistance, keepSNPPosParentJobLs=None,\
+									excludeFilteredSites=self.excludeFilteredSites)
+		self.end_run()
 		
 
 
