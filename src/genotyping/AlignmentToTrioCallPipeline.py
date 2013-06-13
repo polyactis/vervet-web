@@ -76,10 +76,11 @@ from Pegasus.DAX3 import *
 from vervet.src import VervetDB, AbstractVervetWorkflow
 from vervet.src.genotyping.AlignmentToCallPipeline import AlignmentToCallPipeline
 
-class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
+parentClass=AlignmentToCallPipeline
+class AlignmentToTrioCallPipeline(parentClass):
 	__doc__ = __doc__
 	option_default_dict = copy.deepcopy(AbstractVervetWorkflow.option_default_dict)
-	option_default_dict.update(AlignmentToCallPipeline.commonCallPipelineOptionDict)
+	option_default_dict.update(parentClass.commonCallPipelineOptionDict)
 	#option_default_dict.pop(('ind_aln_id_ls', 0, ))
 	#option_default_dict.pop(('ind_seq_id_ls', 0, ))
 	#option_default_dict.pop(('inputDir', 0, ))
@@ -102,7 +103,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		"""
 		2011-7-11
 		"""
-		AlignmentToCallPipeline.__init__(self, **keywords)
+		parentClass.__init__(self, **keywords)
 		#self.trioCallerPath = self.trioCallerPath%self.home_path
 		#self.trioCallerPath =  self.insertHomePath(self.trioCallerPath, self.home_path)
 	
@@ -710,7 +711,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 		"""
 		2011-11-28
 		"""
-		AlignmentToCallPipeline.registerCustomExecutables(self, workflow)
+		parentClass.registerCustomExecutables(self, workflow)
 		
 		namespace = workflow.namespace
 		version = workflow.version
@@ -823,9 +824,7 @@ class AlignmentToTrioCallPipeline(AlignmentToCallPipeline):
 						alnStatForFilterF=None, cumulativeMedianDepth=cumulativeMedianDepth,\
 						run_type=self.run_type, transferOutput=True)
 		
-		# Write the DAX to stdout
-		outf = open(self.outputFname, 'w')
-		self.writeXML(outf)
+		self.end_run()
 
 if __name__ == '__main__':
 	main_class = AlignmentToTrioCallPipeline
