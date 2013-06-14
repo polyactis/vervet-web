@@ -88,11 +88,14 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 	
 	def addDepthOfCoverageJob(self, workflow=None, DOCWalkerJava=None, GenomeAnalysisTKJar=None,\
 							refFastaFList=None, bamF=None, baiF=None, DOCOutputFnamePrefix=None,\
-							fractionToSample=None, minMappingQuality=30, minBaseQuality=20, \
+							fractionToSample=None, minMappingQuality=20, minBaseQuality=20, \
 							parentJobLs=None, extraArguments="", \
 							transferOutput=False, \
 							job_max_memory = 1000, walltime=None, **keywords):
 		"""
+		2013.06.12
+			bugfix, instead of --minBaseQuality, it was --maxBaseQuality passed to GATK.
+			set minMappingQuality (was 30) to 20.
 		2013.06.09
 			.sample_statistics is new GATK DOC output file (replacing the .sample_interval_summary file)
 			ignore argument fractionToSample, not available
@@ -119,7 +122,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		if minMappingQuality is not None:
 			extraArgumentList.append("--minMappingQuality %s"%(minMappingQuality))
 		if minBaseQuality is not None:
-			extraArgumentList.append("--maxBaseQuality %s"%(minBaseQuality))
+			extraArgumentList.append("--minBaseQuality %s"%(minBaseQuality))
 		
 		#if fractionToSample and fractionToSample>0 and fractionToSample<=1:
 		#	extraArgumentList.append("--fractionToSample %s"%(fractionToSample))
@@ -269,7 +272,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		refFastaF = passingData.refFastaFList[0]
 		
 		alignment = alignmentData.alignment
-		parentJobLs = alignmentData.jobLs
+		parentJobLs = alignmentData.jobLs + [passingData.fastaDictJob, passingData.fastaIndexJob]
 		bamF = alignmentData.bamF
 		baiF = alignmentData.baiF
 		
@@ -303,7 +306,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 			DOCJob = self.addDepthOfCoverageJob(DOCWalkerJava=self.DOCWalkerJava, \
 						refFastaFList=passingData.refFastaFList, bamF=bamF, baiF=baiF, \
 						DOCOutputFnamePrefix=DOCOutputFnamePrefix,\
-						parentJobLs=alignmentData.jobLs, \
+						parentJobLs=parentJobLs + [topOutputDirJob], \
 						transferOutput=False,\
 						job_max_memory = 4000, walltime=1200)	#1200 minutes is 20 hours
 						#fractionToSample=self.fractionToSample, \
@@ -349,7 +352,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 			oneFlagStatOutputF = File(os.path.join(flagStatMapFolderJob.output, '%s_flagstat.txt.gz'%(alignment.id)))
 			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(executable=self.samtoolsFlagStat, \
 				samtoolsExecutableFile=self.samtoolsExecutableFile, inputFile=bamF, outputFile=oneFlagStatOutputF, \
-				parentJobLs=[flagStatMapFolderJob]+ alignmentData.jobLs, extraDependentInputLs=[baiF], transferOutput=False, \
+				parentJobLs=parentJobLs + [flagStatMapFolderJob], extraDependentInputLs=[baiF], transferOutput=False, \
 				extraArguments=None, job_max_memory=1000, walltime=100)
 			self.addRefFastaJobDependency(job=samtoolsFlagStatJob, refFastaF=passingData.refFastaF, \
 						fastaDictJob=passingData.fastaDictJob, refFastaDictF=passingData.refFastaDictF,\
