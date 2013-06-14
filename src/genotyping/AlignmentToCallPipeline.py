@@ -1005,7 +1005,7 @@ class AlignmentToCallPipeline(parentClass):
 												name="polymutt", clusterSizeMultipler=0)
 			genotypingExecutableSet.add(polymutt)
 		
-		if hasattr(self, 'noOfCallingJobsPerNode') and self.noOfCallingJobsPerNode>1:
+		if hasattr(self, 'noOfCallingJobsPerNode') and self.noOfCallingJobsPerNode>=0:
 			for executable in genotypingExecutableSet:
 				#2013.2.26 use setOrChangeExecutableClusterSize to modify clusters size
 				self.setOrChangeExecutableClusterSize(executable=executable, clusterSizeMultipler=self.noOfCallingJobsPerNode/float(self.clusters_size), \
