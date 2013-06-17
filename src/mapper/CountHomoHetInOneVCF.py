@@ -23,7 +23,7 @@ else:   #32bit
 
 import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
-from pymodule.VCFFile import VCFFile
+from pymodule import VCFFile
 from AbstractVCFMapper import AbstractVCFMapper
 
 class CountHomoHetInOneVCF(AbstractVCFMapper):
@@ -43,7 +43,6 @@ class CountHomoHetInOneVCF(AbstractVCFMapper):
 			
 		"""
 		sys.stderr.write("Count the number of homozygous-ref/alt & het from %s .\n"%(inputFname))
-		from pymodule.VCFFile import VCFFile
 		vcfFile = VCFFile(inputFname=inputFname, minDepth=minDepth)
 		
 		sampleID2data = {}	#key is sampleID, value is a list of 3 numbers. 'NoOfHomoRef', 'NoOfHomoAlt', 'NoOfHet'
