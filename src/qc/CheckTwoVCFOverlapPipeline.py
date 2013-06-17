@@ -46,7 +46,7 @@ class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 	option_default_dict.update({
 						('vcf1Dir', 1, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						('vcf2Dir', 1, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
-						('perSampleMatchFraction', 0, ): [0, 'S', 0, 'whether calculating per-sample mismatch fraction or not.', ],\
+						('perSampleMatchFraction', 0, ): [0, '', 0, 'whether calculating per-sample mismatch fraction or not.', ],\
 						})
 
 	def __init__(self,  **keywords):
@@ -145,14 +145,14 @@ class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 							parentJobLs=[overlapStatMergeJob])
 		counter += 1
 		
-		vcfFileID2path_1 = self.getVCFFileID2path(self.vcf1Dir)
-		vcfFileID2path_2 = self.getVCFFileID2path(self.vcf2Dir)
-		sharedVCFFileIDSet = set(vcfFileID2path_1.keys())&set(vcfFileID2path_2.keys())
+		vcfFileID2object_1 = self.getVCFFileID2object(self.vcf1Dir)
+		vcfFileID2object_2 = self.getVCFFileID2object(self.vcf2Dir)
+		sharedVCFFileIDSet = set(vcfFileID2object_1.keys())&set(vcfFileID2object_2.keys())
 		sys.stderr.write("%s shared vcf files.\n"%(len(sharedVCFFileIDSet)))
 		
 		for vcfFileID in sharedVCFFileIDSet:
-			gatkVCFAbsPath = vcfFileID2path_1.get(vcfFileID)
-			samtoolsVCFAbsPath = vcfFileID2path_2.get(vcfFileID)
+			gatkVCFAbsPath = vcfFileID2object_1.get(vcfFileID).vcfFilePath
+			samtoolsVCFAbsPath = vcfFileID2object_2.get(vcfFileID).vcfFilePath
 			if not NextGenSeq.isVCFFileEmpty(gatkVCFAbsPath) and not NextGenSeq.isVCFFileEmpty(samtoolsVCFAbsPath, \
 									checkContent=self.checkEmptyVCFByReading):	#make sure the samtools vcf is not empty
 				gatkVCFFileBaseName = os.path.basename(gatkVCFAbsPath)
