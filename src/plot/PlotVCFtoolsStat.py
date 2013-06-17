@@ -27,11 +27,11 @@ else:   #32bit
 
 import matplotlib; matplotlib.use("Agg")	#to disable pop-up requirement
 import csv
+import numpy, random, pylab
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2IndexFromHeader, figureOutDelimiter
 from pymodule import yh_matplotlib, GenomeDB, utils
+from pymodule import AbstractMatrixFileWalker
 from PlotTrioInconsistencyOverFrequency import PlotTrioInconsistencyOverFrequency
-import numpy, random, pylab
-from pymodule.AbstractMatrixFileWalker import AbstractMatrixFileWalker
 
 class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWalker):
 	__doc__ = __doc__
