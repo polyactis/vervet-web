@@ -98,7 +98,7 @@ class HaplotypeScoreWorkflow(parentClass):
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnHeader=passingData.annotationName, whichColumnPlotLabel=passingData.annotationName, \
 							need_svg=False, \
-							logY=False, valueForNonPositiveYValue=-1, \
+							logY=0, valueForNonPositiveYValue=-1, \
 							xColumnPlotLabel="position", chrLengthColumnHeader=None, chrColumnHeader="CHROM", \
 							minChrLength=None, xColumnHeader="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=0.01,\
@@ -147,12 +147,12 @@ class HaplotypeScoreWorkflow(parentClass):
 		else:
 			mpileupInterval = intervalData.interval
 			bcftoolsInterval = intervalData.interval
-		intervalFnameSignature = intervalData.intervalFnameSignature
+		intervalFileBasenameSignature = intervalData.intervalFileBasenameSignature
 		overlapInterval = intervalData.overlapInterval
-		overlapFilenameSignature = intervalData.overlapIntervalFnameSignature
+		overlapFileBasenameSignature = intervalData.overlapIntervalFnameSignature
 		VCFFile = VCFJobData.file
 		annotationName = passingData.annotationName
-		outputFile = File(os.path.join(topOutputDirJob.output, '%s_%s.%s.vcf'%(bamFnamePrefix, overlapFilenameSignature, annotationName)))
+		outputFile = File(os.path.join(topOutputDirJob.output, '%s_%s.%s.vcf'%(bamFnamePrefix, overlapFileBasenameSignature, annotationName)))
 		variantAnnotatorJob = self.addGATKVariantAnnotatorJob(workflow, executable=workflow.annotateVariantJava, \
 								GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, bamFile=bamF, \
 								VCFFile=VCFFile, annotationName=annotationName, interval=bcftoolsInterval, outputFile=outputFile, \
@@ -161,7 +161,7 @@ class HaplotypeScoreWorkflow(parentClass):
 								transferOutput=False, \
 								extraArguments=None, job_max_memory=4000)
 		
-		outputFile = File(os.path.join(topOutputDirJob.output, '%s_%s.%s.tsv'%(bamFnamePrefix, overlapFilenameSignature, annotationName)))
+		outputFile = File(os.path.join(topOutputDirJob.output, '%s_%s.%s.tsv'%(bamFnamePrefix, overlapFileBasenameSignature, annotationName)))
 		extractInfoJob = self.addGenericJob(workflow=workflow, executable=workflow.ExtractInfoFromVCF, inputFile=variantAnnotatorJob.output, \
 						inputArgumentOption="-i", \
 						outputFile=outputFile, outputArgumentOption="-o", \
