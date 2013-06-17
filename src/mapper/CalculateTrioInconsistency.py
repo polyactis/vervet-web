@@ -3,15 +3,18 @@
 Examples:
 	# all sites
 	%s -i AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/gatk/Contig119.vcf.gz
-		-o /tmp/Contig119.trio.75_17_86.het.homo.inconsistency -t 552_75,554_17,555_86
+		--outputFnamePrefix /tmp/Contig119.trio.75_17_86.het.homo.inconsistency -t 552_75,554_17,555_86
 	
 	# homo ony
 	%s -i AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/gatk/Contig119.vcf.gz
-		-o /tmp/Contig119.trio.75_17_86.homo.only.inconsistency -t 552_75,554,555_86 -m
+		--outputFnamePrefix /tmp/Contig119.trio.75_17_86.homo.only.inconsistency -t 552_75,554,555_86 -m
 	
 
 Description:
 	2011-9-27
+	two output files based on outputFnamePrefix:
+		1. $outputFnamePrefix.window.$windowSize.tsv is window-based inconsistency rate. \
+		2. $outputFnamePrefix.summary.tsv is inconsistency rate over whole input file.
 """
 
 import sys, os, math
@@ -21,27 +24,24 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0])
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import subprocess, cStringIO
-import csv, re
+import csv, re, copy
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, NextGenSeq
-from pymodule.VCFFile import VCFFile
+from pymodule import VCFFile
+from pymodule import AbstractVCFMapper
 
-
-class CalculateTrioInconsistency(object):
+class CalculateTrioInconsistency(AbstractVCFMapper):
 	__doc__ = __doc__
-	option_default_dict = {('inputFname', 1, ): ['', 'i', 1, 'VCF input file. either plain vcf or gzipped is ok. could be unsorted.', ],\
+	option_default_dict = copy.deepcopy(AbstractVCFMapper.option_default_dict)
+	option_default_dict.update({
 						('trio_id', 1, ): ['', 't', 1, 'a comma-separated list of fa_id,mo_id,child_id. Each id is in the format of check IndividualAlignment.getCompositeID().\
 							Only the first digit, alignment.id, is required. \
 							Use 0 for missing parent.', ],\
 						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
 						("refSize", 0, int): [0, '', 1, 'size of the reference used for the input VCF file. NOT used now.'],\
 						("windowSize", 1, int): [200000, 'w', 1, 'calculate inconsistency within each window'],\
-						('outputFnamePrefix', 1, ): [None, 'o', 1, '%s.window.%s.tsv is window-based inconsistency rate. \
-							%s.summary.tsv is inconsistency rate over whole input file.'],\
 						('homoOnly', 0, int):[0, 'm', 0, 'toggle to look at homozygous-only sites'],\
 						('minDepth', 1, float): [1, '', 1, 'minimum depth for a call to regarded as non-missing', ],\
-						('debug', 0, int):[0, 'b', 0, 'toggle debug mode'],\
-						('report', 0, int):[0, 'r', 0, 'toggle report, more verbose stdout/stderr.']}
+						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
 	def __init__(self,  **keywords):
