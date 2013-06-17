@@ -88,25 +88,65 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		
 		return job
 	
-	def addExtractSampleIDJob(self, workflow=None, outputDirPrefix="", passingData=None, transferOutput=False, \
+	def addExtractSampleIDJob(self, workflow=None, passingData=None, inputFile=None, \
+							outputFile=None,\
+							min_coverage=None, max_coverage=None,\
 							pop_tax_id_ls_str=None, pop_site_id_ls_str=None, pop_country_id_ls_str=None, popHeader=None,\
-							pop_sampleSize=None, returnData=None, **keywords):
+							pop_sampleSize=None, returnData=None,\
+							transferOutput=False, extraArguments=None, extraArgumentList=None, job_max_memory=1000, \
+							parentJobLs=None,\
+							**keywords):
 		"""
+		
+		argument popHeader and pop_sampleSize are required if you want to uniformly sample a few from extracted ones.
+		pass a PassingData object to returnData if you want extractPopSampleIDJob to be included in final transfer-out:
+				returnData.jobDataLs.append(PassingData(jobLs=[extractPopSampleIDJob], file=extractPopSampleIDJob.output, \
+											fileLs=[extractPopSampleIDJob.output]))
+		argument inputFile is a vcf file.
+			if inputFile is None, this function will try to derive it from passingData
+		if outputFile or parentJobLs is not given, this function will try to derive it from passingData.
+		
+		2013.06.11
+			added argument inputFile and outputFile (previously these are derived from passingData)
+			added argument min_coverage, max_coverage
+			removed argument outputDirPrefix
 		2012.10.24
 			moved from popgen/CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder.py
 		2012.10.15
 		"""
 		if workflow is None:
 			workflow = self
-		#use a random VCF file as input
-		jobData = passingData.chr2jobDataLs.values()[0][0]
-		VCFFile = jobData.vcfFile
-		inputFBaseName = os.path.basename(VCFFile.name)
+		if extraArgumentList is None:
+			extraArgumentList = []
+		if parentJobLs is None:
+			parentJobLs = []
+		
+		#2013.06.11 handle inputFile
+		if inputFile is None and passingData is not None:
+			#use a random VCF file as input
+			jobData = passingData.chr2jobDataLs.values()[0][0]
+			inputFile = jobData.vcfFile
+			parentJobLs.extend(jobData.jobLs)
+			
+			reduceOutputDirJob = passingData.reduceOutputDirJob
+			parentJobLs.append(reduceOutputDirJob)
+		
+		inputFBaseName = os.path.basename(inputFile.name)
 		commonPrefix = inputFBaseName.split('.')[0]
-		reduceOutputDirJob = passingData.reduceOutputDirJob
 		#ExtractSamplesFromVCF for the 1st population
-		outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_pop%s_sampleID.tsv'%(commonPrefix, popHeader)))
-		extraArgumentList = ['--outputFormat 2']
+		if popHeader is not None:	#2013.06.11
+			commonPrefix = '%s_pop%s'%(commonPrefix, popHeader)
+		
+		#2013.06.11 handle outputFile
+		if outputFile is None and passingData is not None:
+			reduceOutputDirJob = passingData.reduceOutputDirJob
+			outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_sampleID.tsv'%(commonPrefix)))
+		
+		extraArgumentList.append('--outputFormat 2')	#output a list of sample IDs
+		if min_coverage is not None:
+			extraArgumentList.append("--min_coverage %s"%(min_coverage))
+		if max_coverage is not None:
+			extraArgumentList.append("--max_coverage %s"%(max_coverage))
 		if pop_tax_id_ls_str:
 			extraArgumentList.append("--tax_id_ls %s"%(pop_tax_id_ls_str))
 		if pop_site_id_ls_str:
@@ -114,23 +154,24 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		if pop_country_id_ls_str:
 			extraArgumentList.append("--country_id_ls %s"%(pop_country_id_ls_str))
 		
-		extractPopSampleIDJob = self.addGenericDBJob(workflow=workflow, executable=self.ExtractSamplesFromVCF, inputFile=VCFFile, \
+		extractPopSampleIDJob = self.addGenericDBJob(workflow=workflow, executable=self.ExtractSamplesFromVCF, inputFile=inputFile, \
 					outputFile=outputFile, inputFileList=None, \
-					parentJobLs=[reduceOutputDirJob]+jobData.jobLs, extraDependentInputLs=None, \
+					parentJobLs=parentJobLs, extraDependentInputLs=None, \
 					extraOutputLs=None, transferOutput=transferOutput, \
-					extraArguments=None, extraArgumentList=extraArgumentList, job_max_memory=2000, \
+					extraArguments=extraArguments, extraArgumentList=extraArgumentList, job_max_memory=job_max_memory, \
 					sshDBTunnel=self.needSSHDBTunnel, \
 					key2ObjectForJob=None)
-		returnData.jobDataLs.append(PassingData(jobLs=[extractPopSampleIDJob], file=extractPopSampleIDJob.output, \
+		if returnData:
+			returnData.jobDataLs.append(PassingData(jobLs=[extractPopSampleIDJob], file=extractPopSampleIDJob.output, \
 											fileLs=[extractPopSampleIDJob.output]))
-		if pop_sampleSize and pop_sampleSize>1:
+		if pop_sampleSize and pop_sampleSize>1:	#uniform random sampling + some other filtering
 			sampleIDHeader='sampleID'	#determined by extractPopSampleIDJob
 			#. SelectRowsWithinCoverageRange
 			minMedianDepth = 2
 			maxMedianDepth = 15
 			extraArguments = " --minMedianDepth %s --maxMedianDepth %s "%(minMedianDepth, maxMedianDepth)
-			outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_pop%s_sampleID_depth%s_%s.tsv'%(commonPrefix, popHeader,\
-																			minMedianDepth, maxMedianDepth)))
+			outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_sampleID_depth%s_%s.tsv'%(commonPrefix,\
+														minMedianDepth, maxMedianDepth)))
 			selectRowsWithinCoverageRangeJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=self.SelectRowsWithinCoverageRange, \
 						inputFileList=None, inputFile=extractPopSampleIDJob.output, outputFile=outputFile, \
 						outputFnamePrefix=None, whichColumn=None, whichColumnHeader=sampleIDHeader, \
@@ -142,7 +183,8 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 						extraArguments=extraArguments, transferOutput=transferOutput, job_max_memory=100,\
 						sshDBTunnel=self.needSSHDBTunnel, \
 						objectWithDBArguments=self,)
-			returnData.jobDataLs.append(PassingData(jobLs=[selectRowsWithinCoverageRangeJob], file=selectRowsWithinCoverageRangeJob.output, \
+			if returnData:
+				returnData.jobDataLs.append(PassingData(jobLs=[selectRowsWithinCoverageRangeJob], file=selectRowsWithinCoverageRangeJob.output, \
 											fileLs=[selectRowsWithinCoverageRangeJob.output]))
 			#. optional, a ReplaceIndividualIDInMatrixFileWithReadGroup job (for VRC) on the IBD check result
 			translateIDInIBDResultJob = self.addTranslateIDInIBDCheckResultJob(workflow=workflow, plinkIBDCheckOutputFile=self.plinkIBDCheckOutputFile, \
@@ -151,12 +193,13 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 										readGroupFile=selectRowsWithinCoverageRangeJob.output, parentJobLs=[selectRowsWithinCoverageRangeJob], \
 										sampleIDHeader=sampleIDHeader, transferOutput=transferOutput)
 			#. SampleRows job
-			outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_pop%s_sampleSize%s.tsv'%(commonPrefix, popHeader, pop_sampleSize)))
+			outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_sampleSize%s.tsv'%(commonPrefix, pop_sampleSize)))
 			extraArgumentList = [" --sampleSize %s "%(pop_sampleSize), "--maxIBDSharing %s"%(self.maxIBDSharing)]
 			if translateIDInIBDResultJob:
 				extraArgumentList.extend(["--plinkIBDCheckOutputFname", translateIDInIBDResultJob.output])
 				extraDependentInputLs = [translateIDInIBDResultJob.output]
-				returnData.jobDataLs.append(PassingData(jobLs=[translateIDInIBDResultJob], file=translateIDInIBDResultJob.output, \
+				if returnData:
+					returnData.jobDataLs.append(PassingData(jobLs=[translateIDInIBDResultJob], file=translateIDInIBDResultJob.output, \
 											fileLs=[translateIDInIBDResultJob.output]))
 			else:
 				extraDependentInputLs = None
@@ -170,7 +213,8 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 						extraDependentInputLs=extraDependentInputLs, \
 						extraArgumentList=extraArgumentList, transferOutput=transferOutput,  job_max_memory=1000)
 			
-			returnData.jobDataLs.append(PassingData(jobLs=[sampleRowsJob], file=sampleRowsJob.output, \
+			if returnData:
+				returnData.jobDataLs.append(PassingData(jobLs=[sampleRowsJob], file=sampleRowsJob.output, \
 											fileLs=[sampleRowsJob.output]))
 			#rename the extractPopSampleIDJob
 			extractPopSampleIDJob = sampleRowsJob
@@ -212,6 +256,35 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 						job_max_memory=job_max_memory, sshDBTunnel=sshDBTunnel, objectWithDBArguments=self, **keywords)
 		job.sampleID2FamilyCountF = sampleID2FamilyCountF
 		job.polymuttDatFile = polymuttDatFile
+		return job
+	
+	def addOutputVCFAlignmentDepthRangeJob(self, executable=None, inputFile=None, \
+						ref_ind_seq_id=None, depthFoldChange=None, minGQ=None,\
+						outputFile=None, outputFileFormat=None,\
+						extraArgumentList=None,\
+						parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
+						job_max_memory=2000, sshDBTunnel=False, **keywords):
+		"""
+		2013.06.13
+		"""
+		extraOutputLs = []
+		if extraDependentInputLs is None:
+			extraArgumentList = []
+		
+		if outputFileFormat is not None:
+			extraArgumentList.append("--outputFileFormat %s"%(outputFileFormat))
+		if ref_ind_seq_id is not None:
+			extraArgumentList.append("--ref_ind_seq_id %s"%(ref_ind_seq_id))
+		if depthFoldChange is not None:
+			extraArgumentList.append("--depthFoldChange %s"%(depthFoldChange))
+		if minGQ is not None:
+			extraArgumentList.append("--minGQ %s"%(minGQ))
+		job= self.addGenericDBJob(executable=executable, inputFile=inputFile, outputFile=outputFile, \
+						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+						extraOutputLs=extraOutputLs,\
+						transferOutput=transferOutput, \
+						extraArguments=None, extraArgumentList=extraArgumentList, \
+						job_max_memory=job_max_memory, sshDBTunnel=sshDBTunnel, objectWithDBArguments=self, **keywords)
 		return job
 	
 	def connectDB(self):
@@ -283,13 +356,15 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		SelectRowsWithinCoverageRange.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/SelectRowsWithinCoverageRange.py"), site_handler))
 		executableClusterSizeMultiplierList.append((SelectRowsWithinCoverageRange, 0.5))
 		
-		OutputVRCPedigreeInTFAMGivenOrderFromFile = Executable(namespace=namespace, name="OutputVRCPedigreeInTFAMGivenOrderFromFile", \
-								version=version, os=operatingSystem, arch=architecture, installed=True)
-		OutputVRCPedigreeInTFAMGivenOrderFromFile.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "db/output/OutputVRCPedigreeInTFAMGivenOrderFromFile.py"), \
-							site_handler))
-		executableClusterSizeMultiplierList.append((OutputVRCPedigreeInTFAMGivenOrderFromFile, 0.8))
-		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
+		
+		#2013.06.13
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(vervetSrcPath, "db/output/OutputVCFAlignmentDepthRange.py"), \
+											name='OutputVCFAlignmentDepthRange', \
+											clusterSizeMultipler=1)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(vervetSrcPath, "db/output/OutputVRCPedigreeInTFAMGivenOrderFromFile.py"), \
+											name='OutputVRCPedigreeInTFAMGivenOrderFromFile', \
+											clusterSizeMultipler=0.8)
 
 if __name__ == '__main__':
 	main_class = AbstractVervetWorkflow
