@@ -10,7 +10,7 @@ Examples:
 	
 	# 2013.06.19
 	%s -I /Network/Data/vervet/db/genotype_file/method_36 -u yh -a 524  -z localhost
-		--plinkIBDCheckOutputFname 
+		--pedigreeKinshipFilePath ...
 		-o  dags/RefineCall/BeagleTrioCallerOnMethod36Contig96_100.xml -j hcondor -l hcondor
 		--noOfCallingJobsPerNode 1 --clusters_size 1
 		--data_dir /Network/Data/vervet/db/ --local_data_dir /Network/Data/vervet/db/
@@ -30,14 +30,14 @@ Examples:
 		--minContigID 96 --maxContigID 100 --sequence_filtered 1 --alignment_method_id 2  --onlyKeepBiAllelicSNP --needSSHDBTunnel
 		# -Y -Z 3000 -U 500 --treatEveryOneIndependent
 	
-	#2013.1.4 run polymutt on method 36, no overlapping between intervals, --intervalOverlapSize 0
-	#(because polymutt runs on loci one by one, no dependency)
-	%s --run_type 3 -I ~/NetworkData/vervet/db/genotype_file/method_36/ -u yh -a 524
-		-z localhost -o dags/AlignmentToCall/PolymuttOnMethod36Contig96_100.xml
-		-j hcondor -l hcondor --noOfCallingJobsPerNode 1 --clusters_size 1 -e /u/home/eeskin/polyacti/
-		--data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		--minContigID 96 --maxContigID 100 --sequence_filtered 1 --alignment_method_id 2  --onlyKeepBiAllelicSNP --needSSHDBTunnel
-		--intervalOverlapSize 500 --intervalSize 4000
+	#2013.6.25 test on ycondor
+	%s --ref_ind_seq_id 3280 -I /Network/Data/vervet/db/genotype_file/method_101
+		-u yh -z uclaOffice
+		--pedigreeKinshipFilePath /Network/Data/vervet/Kinx2Aug2012.txt.gz 
+		-o dags/RefineCall/BeagleTrioCallerOnMethod101Scaffold96_100.xml
+		-j ycondor -l ycondor --noOfCallingJobsPerNode 1 --clusters_size 1
+		--data_dir /Network/Data/vervet/db/ --local_data_dir /Network/Data/vervet/db/
+		--minContigID 96 --maxContigID 100 --intervalOverlapSize 200 --intervalSize 2000
 	
 Description:
 	2013.06.14
@@ -46,7 +46,7 @@ Description:
 			#. Beagle phasing/imputing on all members with step 1's output as reference panel
 			#. TrioCaller on step 2's output.
 		
-		Sample IDs in --plinkIBDCheckOutputFname are in original VCF form (alignment.read_group, no replicate tag).
+		Sample IDs in --pedigreeKinshipFilePath are individual.ucla_id
 """
 import sys, os
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
@@ -77,12 +77,11 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 						("minCoverageForRefPanel", 0, int): [8, '', 1, 'minimum coverage for a pedigree member to be in reference panel'],\
 						("treatEveryOneIndependent", 0, int): [0, '', 0, 'toggle this to treat everyone in the pedigree independent (thus no replicates)'],\
 						("run_type", 1, int): [1, '', 1, '1: not used right now'],\
-						("pedigreeFileFormat", 1, int): [2, '', 1, 'passed to OutputVRCPedigreeInTFAMGivenOrderFromFile.py. 1: plink; 2: TrioCaller/Merlin/GATK; \n\
-	3: for polymutt, replicate certain individuals to make pedigree loop-free'],\
-						("minProbForValidCall", 1, float): [0.6, '', 1, 'minimum probability for a call to be regarded as valid'],\
-						('plinkIBDCheckOutputFname', 1, ): [None, '', 1, 'file that contains IBD check result, PI_HAT=relatedness.\n\
-	at least 3-columns with header: IID1, IID2, PI_HAT. IID1 and IID2 should match the whichColumn (whichColumnHeader) of inputFname.\n\
-	The sampling will try to avoid sampling close pairs, PI_HAT(i,j)<=maxIBDSharing'],\
+						('pedigreeKinshipFilePath', 1, ): [None, '', 1, 'file that contains pairwise kinship between individuals (ID: ucla_id/code).\n\
+	no header. coma-delimited 3-column file: individual1, individual2, kinsihp\n\
+	The sampling will try to avoid sampling close pairs, kinship(i,j)<=maxPairwiseKinship'],\
+						('maxPairwiseKinship', 0, float): [0.25, '', 1, 'maximum pairwise kinship allowed among the reference panel'],\
+						("minProbForValidCall", 1, float): [0.6, '', 1, 'minimum probability for a call to be regarded as valid. DEPRECATED'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 	#2012.8.26 run_type 2 lower the default. In the addTrioCallerJobsONVCFFiles(), these two numbers refer to the number of sites, not base pairs. 
@@ -113,87 +112,138 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 													passingData=passingData, transferOutput=transferOutput, **keywords)
 		
 		self.statDirJob = self.addMkDirJob(outputDir="%sStat"%(outputDirPrefix))
-		self.phaseByGATKDirJob = self.addMkDirJob(outputDir="%sPhaseByGATK"%(outputDirPrefix))
 		self.highCoveragePanelDirJob = self.addMkDirJob(outputDir="%sHighCoveragePanel"%(outputDirPrefix))
 		self.auxDirJob = self.addMkDirJob(outputDir="%sAuxilliary"%(outputDirPrefix))
 		
+		self.beagleReduceDirJob = self.addMkDirJob(outputDir="%sReduceBeagle"%(outputDirPrefix))
 		# self.reduceOutputDirJob would contain non-replicate VCF files
 		#this folder would store all the reduced VCF files with replicates among samles. 
 		self.replicateVCFDirJob = self.addMkDirJob(outputDir="%sReplicateVCF"%(outputDirPrefix))
 		
-		self.plinkIBDCheckOutputFile = self.registerOneInputFile(inputFname=self.plinkIBDCheckOutputFname, \
+		self.pedigreeKinshipFile = self.registerOneInputFile(inputFname=self.pedigreeKinshipFilePath, \
 										folderName='aux')
 		
-		# output pedigree to get pedigree file (for GATK, TrioCaller, own programs) and sampleID2FamilyCountF 
-		#		(for ReplicateVCFGenotypeColumns job)
-		# find a way to cache this job (used for same set of samples, but different chromosome intervals)
-		pedFile = File(os.path.join(self.auxDirJob.output, 'pedigree_outputFileFormat%s.txt'%(self.pedigreeFileFormat)))
-		sampleID2FamilyCountF = File(os.path.join(self.auxDirJob.output, 'sampleID2FamilyCount_outputFileFormat%s.txt'%(self.pedigreeFileFormat)))
-		if self.pedigreeFileFormat==3:	#for polymutt
-			polymuttDatFile = File(os.path.join(self.auxDirJob.output, 'datFile_outputFileFormat%s.txt'%(self.pedigreeFileFormat)))
-		else:
-			polymuttDatFile = None
-		outputPedigreeJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
-				inputFile=self.firstVCFJobData.file, outputFile=pedFile, sampleID2FamilyCountF=sampleID2FamilyCountF,\
-				polymuttDatFile = polymuttDatFile,\
-				outputFileFormat=self.pedigreeFileFormat, replicateIndividualTag=self.replicateIndividualTag,\
+		inputFileBasenamePrefix = utils.getFileBasenamePrefixFromPath(self.firstVCFJobData.file.name)
+		# output pedigree to get pedigree file (for TrioCaller etc. that requires pedigree to be split into trios/duos) and sampleID2FamilyCountF 
+		#		(for ReplicateVCFGenotypeColumns job, setting TrioCaller up)
+		pedigreeFileFormat = 2
+		pedFile = File(os.path.join(self.auxDirJob.output, 'pedigree.replicates.%s.format%s.txt'%\
+								(inputFileBasenamePrefix, pedigreeFileFormat)))
+		sampleID2FamilyCountF = File(os.path.join(self.auxDirJob.output, 'pedigree.replicates.sampleID2FamilyCount.%s.format%s.txt'%\
+												(inputFileBasenamePrefix, pedigreeFileFormat)))
+		self.outputReplicatePedigreeJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
+				inputFile=self.firstVCFJobData.file, outputFile=pedFile, \
+				sampleID2FamilyCountF=sampleID2FamilyCountF,\
+				polymuttDatFile = None,\
+				outputFileFormat=pedigreeFileFormat, \
+				replicateIndividualTag=self.replicateIndividualTag,\
 				treatEveryOneIndependent=self.treatEveryOneIndependent,\
 				parentJobLs=self.firstVCFJobData.jobLs + [self.auxDirJob], \
 				extraDependentInputLs=[], transferOutput=True, \
 				extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
-		self.outputPedigreeJob = outputPedigreeJob
 		
-		"""
-		#ExtractSamplesFromVCF non-replicated samples with coverage >=min_coverage
-		# this is for outputPedigreeOfHghCoverageSamplesJob. the output of sample IDs do not have replicate tags.
-		outputFile = File(os.path.join(self.auxDirJob.output, '%s_minCoverage%s.tsv'%(self.pedigreeFileFormat, self.minCoverageForRefPanel)))
-		extractHighCoverageSampleIDJob = self.addExtractSampleIDJob(workflow=workflow, \
-							inputFile=self.firstVCFJobData.file, \
+		#output pedigree, with no replicating certain individuals, no trio/duo splitting
+		pedigreeFileFormat = 4
+		pedFile = File(os.path.join(self.auxDirJob.output, 'pedigree.%s.format%s.txt'%\
+								(inputFileBasenamePrefix, pedigreeFileFormat)))
+		#sampleID2FamilyCountF = File(os.path.join(self.auxDirJob.output, 'pedigree.sampleID2FamilyCount.%s.format%s.txt'%\
+		#						(inputFileBasenamePrefix, pedigreeFileFormat)))
+		self.outputPedigreeJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
+				inputFile=self.firstVCFJobData.file, outputFile=pedFile, \
+				sampleID2FamilyCountF=None,\
+				polymuttDatFile = None,\
+				outputFileFormat=pedigreeFileFormat, \
+				replicateIndividualTag=self.replicateIndividualTag,\
+				treatEveryOneIndependent=self.treatEveryOneIndependent,\
+				parentJobLs=self.firstVCFJobData.jobLs + [self.auxDirJob], \
+				extraDependentInputLs=[], transferOutput=True, \
+				extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
+		
+		#ExtractSamplesFromVCF samples with coverage >=min_coverage
+		# the input VCF does not contain replicates.
+		outputFile = File(os.path.join(self.auxDirJob.output, '%s.minCoverage%s.sampleIDList.tsv'%\
+									(inputFileBasenamePrefix, self.minCoverageForRefPanel)))
+		extractRefPanelSampleIDJob = self.addExtractSampleIDJob(inputFile=self.firstVCFJobData.file, \
 							outputFile=outputFile,\
-							min_coverage=self.minCoverageForRefPanel, returnData=returnData,\
+							min_coverage=self.minCoverageForRefPanel, outputFormat=3,\
+							returnData=returnData,\
 							transferOutput=True, \
-							parentJobLs=self.firstVCFJobData.jobLs + [self.auxDirJob])
+							parentJobLs=[self.firstVCFJobData.jobLs, self.auxDirJob])
+		self.extractRefPanelSampleIDJob = extractRefPanelSampleIDJob
 		
 		
 		# GATK SelectVariants: select High-coverage individuals out into a new VCF
 		#	selectVariants would re-generate AC, AF so that TrioCaller could read it.
 		#	samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 		#		?can it deal with Platypus output, which does not have AC/AF/DP?
-		# selectHighCoverageSampleJob is needed here because a VCF file of high-coverage members is need 
+		# selectHighCoverageSampleJob is needed here because a VCF file of high-coverage members is needed
 		# 	for outputPedigreeOfHghCoverageSamplesJob
 		#
-		inputFBasenamePrefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(os.path.basename(self.firstVCFJobData.file.name))
-		highCoverageSampleVCF = File(self.auxDirJob.output, '%s_highCoverageSample.vcf'%(inputFBasenamePrefix))
+		highCoverageSampleVCF = File(os.path.join(self.auxDirJob.output, '%s.minCoverage%s.vcf'%\
+												(inputFileBasenamePrefix, self.minCoverageForRefPanel)))
 		selectHighCoverageSampleJob = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
 				inputF=self.firstVCFJobData.file, \
 				outputF=highCoverageSampleVCF, \
-				refFastaFList=self.registerReferenceData.refFastaFList, sampleIDKeepFile=extractHighCoverageSampleIDJob.output,\
-				parentJobLs=[self.auxDirJob, extractHighCoverageSampleIDJob]+self.firstVCFJobData.jobLs, \
+				refFastaFList=self.registerReferenceData.refFastaFList, \
+				sampleIDKeepFile=self.extractRefPanelSampleIDJob.output,\
+				parentJobLs=[self.auxDirJob, self.extractRefPanelSampleIDJob]+self.firstVCFJobData.jobLs, \
 				extraDependentInputLs=[], transferOutput=transferOutput, \
 				extraArguments=None, job_max_memory=2000)
 		
 		# output a plink pedigree that contains these HC members only
 		# output pedigree to get pedigree file (for GATK, TrioCaller, own programs) and sampleID2FamilyCountF (for ReplicateVCFGenotypeColumns job)
 		# find a way to cache this job (used for same set of samples, but different chromosome intervals)
-		pedFile = File(os.path.join(self.auxDirJob.output, 'highCoveragePedigree_outputFileFormat%s.txt'%(self.pedigreeFileFormat)))
-		sampleID2FamilyCountF = File(os.path.join(self.auxDirJob.output, 'highCoveragePedigree_sampleID2FamilyCount_outputFileFormat%s.txt'%(self.pedigreeFileFormat)))
-		if self.pedigreeFileFormat==3:	#for polymutt
-			polymuttDatFile = File(os.path.join(self.auxDirJob.output, 'highCoverage_datFile_outputFileFormat%s.txt'%(self.pedigreeFileFormat)))
-		else:
-			polymuttDatFile = None
+		pedigreeFileFormat = 4
+		pedFile = File(os.path.join(self.auxDirJob.output, 'pedigree.minCoverage%s.%s.format%s.txt'%\
+								(self.minCoverageForRefPanel, inputFileBasenamePrefix, pedigreeFileFormat)))
+		#sampleID2FamilyCountF = File(os.path.join(self.auxDirJob.output, 'pedigree.minCoverage%s.sampleID2FamilyCount.%s.format%s.txt'%\
+		#									(self.minCoverageForRefPanel, inputFileBasenamePrefix, pedigreeFileFormat)))
 		self.outputPedigreeOfHghCoverageSamplesJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
-				inputFile=selectHighCoverageSampleJob.output, outputFile=pedFile, sampleID2FamilyCountF=sampleID2FamilyCountF,\
+				inputFile=selectHighCoverageSampleJob.output, outputFile=pedFile, \
+				sampleID2FamilyCountF=None,\
 				polymuttDatFile = None,\
-				outputFileFormat=self.pedigreeFileFormat, replicateIndividualTag=self.replicateIndividualTag,\
+				outputFileFormat=pedigreeFileFormat, replicateIndividualTag=self.replicateIndividualTag,\
 				treatEveryOneIndependent=self.treatEveryOneIndependent,\
 				parentJobLs=[self.auxDirJob, selectHighCoverageSampleJob], \
 				extraDependentInputLs=[], transferOutput=True, \
 				extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
+		
+		#a job that outputs alignment coverage (alignment.read_group, median_depth)
+		alignmentDepthFile = File(os.path.join(self.auxDirJob.folder, '%s.alignmentDepth.tsv'%(inputFileBasenamePrefix)))
+		self.outputAlignmentDepthJob = self.addOutputVCFAlignmentDepthRangeJob(executable=self.OutputVCFAlignmentDepthRange, \
+						inputFile=self.firstVCFJobData.file, \
+						ref_ind_seq_id=self.ref_ind_seq_id, depthFoldChange=None, minGQ=None,\
+						outputFile=alignmentDepthFile, outputFileFormat=1,\
+						extraArgumentList=None,\
+						parentJobLs=[self.auxDirJob]+self.firstVCFJobData.jobLs, \
+						extraDependentInputLs=None, transferOutput=True, \
+						job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
+		
+		
+		#a SelectDistantMembersFromGenotypeFile.py job to generate a ref panel for 2nd-round beagle
+		# need the pedigree file
+		# produces a list of samples
+		phasedRefPanelSampleListFile = File(os.path.join(self.auxDirJob.folder, '%s.RefPanel.sampleList.maxPairwiseKinship%s.tsv'%\
+														(inputFileBasenamePrefix, self.maxPairwiseKinship)))
+		self.selectDistantMembersFromGenotypeFileJob = self.addGenericJob(executable=self.SelectDistantMembersFromGenotypeFile, \
+						inputFile=selectHighCoverageSampleJob.output,
+						outputFile=phasedRefPanelSampleListFile, outputArgumentOption="-o", \
+						extraDependentInputLs=[self.pedigreeKinshipFile], \
+						extraOutputLs=None, transferOutput=False, frontArgumentList=None, \
+						extraArguments=None, \
+						extraArgumentList=["--maxPairwiseKinship %s"%(self.maxPairwiseKinship), "--sampleSize 90", \
+							"--pedigreeKinshipFile", self.pedigreeKinshipFile, \
+							"--replicateIndividualTag", self.replicateIndividualTag,\
+							"--individualAlignmentCoverageFname", self.outputAlignmentDepthJob.output, \
+							"--pedigreeFname", self.outputPedigreeJob.output], \
+						parentJobLs=[selectHighCoverageSampleJob, self.outputAlignmentDepthJob,  self.outputPedigreeJob,\
+									self.auxDirJob],\
+						no_of_cpus=None, job_max_memory = 4000, walltime= 120)
+		
 		"""
 		
 		#analyze the pedigree graph to figure out singletons, trios, duos
 		self.alignmentLs = self.db.getAlignmentsFromVCFFile(inputFname=yh_pegasus.getAbsPathOutOfFile(self.firstVCFJobData.file))
-		"""
 		#2013.06.14 approach below does not work because pedigree of extracting-high-coverage + replication is different from that of replication + extracting-high-coverage (=reality).
 		# some replicates might end up as singletons in the latter, while not so in the former.
 		#
@@ -204,35 +254,8 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 			country_id_set=None, tax_id_set=None, excludeContaminant=False, excludeTissueIDSet=None,\
 			local_realigned=None, reduce_reads=None, report=False)
 		
-		self.highCoveragePedigreeGraph = self.db.constructPedgreeGraphOutOfAlignments(self.highCoverageAlignmentLs).DG
-		self.highCoverageMemberPedigreeSplitStructure = self.db.getPedigreeSplitStructure(pedigreeGraph=self.highCoveragePedigreeGraph, \
-															removeFamilyFromGraph=False)
 		"""
-		pedigreeDataStructure = self.db.constructPedgreeGraphOutOfAlignments(alignmentLs=self.alignmentLs)
-		self.pedigreeGraph = pedigreeDataStructure.DG
-		individual_id2alignmentLs = pedigreeDataStructure.individual_id2alignmentLs
 		
-		# work on the pedigree graph to figure out if singleton, trio, duo file will exist.
-		#figure out the singletons, duos, trios, using the function in AlignmentToTrioCall
-		self.allMemberPedigreeSplitStructure = self.db.getPedigreeSplitStructure(pedigreeGraph=self.pedigreeGraph, \
-															removeFamilyFromGraph=False)
-		sys.stderr.write("Constructing pedigree split structure for hihg-coverage members ...")
-		self.highCoverageMemberPedigreeSplitStructure = PassingData(familySize2familyLs={})
-		no_of_families = 0
-		for familySize, familyLs in self.allMemberPedigreeSplitStructure.familySize2familyLs.iteritems():
-			newFamilyLs = []
-			for family in familyLs:
-				newFamily = []
-				for member in family:
-					alignment = individual_id2alignmentLs.get(member)[0]
-					if alignment.median_depth>=self.minCoverageForRefPanel:
-						newFamily.append(member)
-				if len(newFamily)>0:
-					newFamilyLs.append(newFamily)
-					no_of_families += 1
-			self.highCoverageMemberPedigreeSplitStructure.familySize2familyLs[familySize] = newFamilyLs
-		sys.stderr.write(" %s families with %s different sizes.\n"%(no_of_families, \
-												len(self.highCoverageMemberPedigreeSplitStructure.familySize2familyLs)))
 		#a stat merge job (keeping track of how many mendel error sites were filtered)
 		filterByRemoveMendelErrorSiteStatMergeFile = File(os.path.join(self.statDirJob.folder, 'filterByRemoveMendelErrorSiteStatMerge.tsv'))
 		self.filterByRemoveMendelErrorSiteStatMergeJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
@@ -241,21 +264,10 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 								extraArguments="-k 1 -v 2-4")	#column 1 is the chromosome length, which are set to be all same.
 								#column 2-4 are #sitesInInput1, #sitesInInput2, #overlapping
 		
-		#a job that outputs alignment coverage (alignment.id, median_depth)
-		inputFBasenamePrefix = utils.getFileBasenamePrefixFromPath(self.firstVCFJobData.file.name)
-		alignmentDepthFile = File(os.path.join(self.auxDirJob.folder, '%s_alignmentDepth.tsv'%(inputFBasenamePrefix)))
-		self.outputAlignmentDepthJob = self.addOutputVCFAlignmentDepthRangeJob(executable=self.OutputVCFAlignmentDepthRange, \
-						inputFile=self.firstVCFJobData.file, \
-						ref_ind_seq_id=self.ref_ind_seq_id, depthFoldChange=None, minGQ=None,\
-						outputFile=alignmentDepthFile, outputFileFormat=1,\
-						extraArgumentList=None,\
-						parentJobLs=[self.auxDirJob]+self.firstVCFJobData.jobLs, \
-						extraDependentInputLs=None, transferOutput=True, \
-						job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
-		
 		#concordance stat reduce jobs
 		#reduce the replicate concordance results from before TrioCaller (after beagle phasing)
 		#
+		"""
 		outputFile = File(os.path.join(self.statDirJob.folder, 'beaglePhaseReplicateConcordance.allSites.tsv'))
 		reduceBeaglePhaseReplicateConcordanceJob_AllSites = self.addStatMergeJob(statMergeProgram=self.ReduceMatrixBySumSameKeyColsAndThenDivide, \
 							outputF=outputFile, \
@@ -277,6 +289,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		#pass to self, as they will be used in reduceEachVCF()
 		self.reduceBeaglePhaseReplicateConcordanceJob_AllSites = reduceBeaglePhaseReplicateConcordanceJob_AllSites
 		self.reduceBeaglePhaseReplicateConcordanceJob_HomoOnly = reduceBeaglePhaseReplicateConcordanceJob_HomoOnly
+		"""
 		
 		#reduce replicate concordance results from after-TrioCaller VCFs 
 		outputFile = File(os.path.join(self.statDirJob.folder, 'trioCallerReplicateConcordance.allSites.tsv'))
@@ -453,13 +466,147 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		
 		return job
 	
+	def addBeagle4Job(self, workflow=None, executable=None, BeagleJar=None, \
+					inputFile=None, refPanelFile=None, pedFile=None,\
+					outputFnamePrefix=None, \
+					burninIterations=None, phaseIterations=None, \
+					noOfSamplingHaplotypesPerSample=None, singlescale=None, duoscale=None, trioscale=None,\
+					frontArgumentList=None, extraArguments=None, extraArgumentList=None, extraOutputLs=None, \
+					extraDependentInputLs=None, parentJobLs=None, transferOutput=True, job_max_memory=2000,\
+					no_of_cpus=None, walltime=120, **keywords):
+		"""
+		i.e.
+			
+		2013.06.22 a generic function to add Beagle version 4 job
+		
+		java commandline example:
+			...
+		
+		Beagle help http://faculty.washington.edu/browning/beagle/beagle.html
+		
+		gt=[file] specifies a VCF file containing a GT (genotype) format field for each marker.
+		gl=[file] specifies a VCF file containing a GL or PL (genotype likelihood) format field for
+			each marker. If both GL and PL format fields are present for a sample, the GL format will
+			be used. See also the maxlr parameter.
+		ref=[file] specifies a reference VCF file containing additional samples and phased
+			genotypes for each marker. Use of an appropriate reference panel can increase accuracy.
+		ped=[file] specifies a Linkage-format pedigree file for specifying family relationships.
+			The pedigree file has one line per individual. The first 4 white-space delimited fields of
+			each line are 1) pedigree ID, 2) individual ID, 3) father's ID, and 4) mother's ID. A "0" is
+			used in column 3 or 4 if the father or mother is unknown. Beagle uses the data in columns
+			2-4 to identify parent-offspring duos and trios. Any or all columns of the pedigree file
+			after column 4 may be omitted. See also the duoscale and trioscale parameters.
+		out=[prefix] specifies the output filename prefix. The prefix may be an absolute or
+			relative filename, but it cannot be a directory name.
+		excludesamples=[file] specifies a file containing non-reference samples (one sample per
+			line) to be excluded from the analysis and output files.
+		excluderefsamples=[file] specifies a file containing reference samples (one sample per
+			line) to be excluded from the analysis.
+		excludemarkers=[file] specifies a file containing markers (one marker per line) to be
+			excluded from the analysis and the output files. An excluded marker identifier can either
+			be an identifier from the VCF record's ID field or genomic coordinates in the format:
+			CHROM:POS.
+		chrom=[chrom:start-end] specifies a chromosome or chromosome interval using a
+			chromosome identifier in the VCF file and the starting and ending positions of the
+			interval. The entire chromosome, the beginning of the chromosome, and the end of a
+			chromosome can be specified by chrom=[chrom], chrom=[chrom:-end], and chrom=[chrom:start-] respectively.
+		
+		window=[positive integer] (default: window=24000).
+		overlap=[positive integer] (default: overlap=3000)
+		gprobs=[true/false] (default: gprobs=true).
+		usephase=[true/false] (default: usephase=false).
+		singlescale=[positive number] (default: singlescale=1.0), change the scale to x, program samples x*x faster
+		duoscale=[positive number]
+		trioscale=[positive number] 
+		burnin-its=[non-negative integer] (default: burnin=5).
+		phase-its=[non-negative integer] (default: phase-its=5)
+		
+		
+		Advanced options not recommended for general use:
+		
+		dump=[file] specifies a file containing sample identifiers (one identifier per line). For
+			each marker window, all the sampled haplotypes for these individuals which are sampled
+			after the burn-in iterations are printed to an output VCF files (dump.[window #].gz).
+		nsamples=[positive integer] specifies the number of haplotype pairs to sample for each
+			individual during each iteration of the algorithm (default: nsamples=4).
+		buildwindow=[positive integer] specifies the number of markers used to build the
+			haplotype frequency model at each locus (default: buildwindow=500).
+		
+		
+		Three output files are created whose names begin with the output file prefix specified on
+			the command line argument and whose names end with the suffixes: .log, .vcf.gz, and .ibd.
+
+		"""
+		if workflow is None:
+			workflow = self
+		if executable is None:
+			executable = self.java
+		if BeagleJar is None:
+			BeagleJar = self.Beagle4Jar
+		if frontArgumentList is None:
+			frontArgumentList = []
+		if extraArgumentList is None:
+			extraArgumentList = []
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		if extraOutputLs is None:
+			extraOutputLs = []
+		
+		key2ObjectForJob = {}
+		
+		extraArgumentList.extend(["out=%s"%(outputFnamePrefix)])
+		if inputFile:
+			extraArgumentList.append("gl=%s"%(inputFile.name))
+			extraDependentInputLs.append(inputFile)
+		if refPanelFile:
+			extraArgumentList.append("ref=%s"%(refPanelFile.name))
+			extraDependentInputLs.append(refPanelFile)
+		if pedFile:
+			extraArgumentList.append("ped=%s"%(pedFile.name))
+			extraDependentInputLs.append(pedFile)
+		if burninIterations is not None:
+			extraArgumentList.append("burnin-its=%s"%(burninIterations))
+		if phaseIterations is not None:
+			extraArgumentList.append("phase-its=%s"%(phaseIterations))
+		if noOfSamplingHaplotypesPerSample is not None:
+			extraArgumentList.append("nsamples=%s"%(noOfSamplingHaplotypesPerSample))
+		if singlescale is not None:
+			extraArgumentList.append("singlescale=%s"%(singlescale))
+		if duoscale is not None:
+			extraArgumentList.append("duoscale=%s"%(duoscale))
+		if trioscale is not None:
+			extraArgumentList.append("trioscale=%s"%(trioscale))
+		
+		outputVCFFile = File("%s.vcf.gz"%(outputFnamePrefix))
+		extraOutputLs.append(outputVCFFile)	#this would be accessible through job.output and job.vcfOutputFile 
+		key2ObjectForJob['vcfOutputFile'] = outputVCFFile
+		
+		logFile=File('%s.log'%(outputFnamePrefix))
+		extraOutputLs.append(logFile)
+		key2ObjectForJob['logFile'] = logFile	#this would be accessible as job.logFile
+		
+		job = self.addGenericJavaJob(executable=executable, jarFile=BeagleJar, \
+					inputFile=None, inputArgumentOption=None, \
+					inputFileList=None, argumentForEachFileInInputFileList=None,\
+					outputFile=None, outputArgumentOption=None,\
+					frontArgumentList=frontArgumentList, \
+					extraArguments=extraArguments, extraArgumentList=extraArgumentList, \
+					extraOutputLs=extraOutputLs, \
+					extraDependentInputLs=extraDependentInputLs, \
+					parentJobLs=parentJobLs, transferOutput=transferOutput, job_max_memory=job_max_memory,\
+					key2ObjectForJob=key2ObjectForJob, \
+					no_of_cpus=no_of_cpus, walltime=walltime, **keywords)
+		return job
+	
 	def convertVCF2Beagle(self, workflow=None, VCFJobData=None, outputDirJob=None, \
 						outputFileBasenamePrefix=None,\
 						outputPedigreeJob=None, pedigreeSplitStructure=None,\
 						transferOutput=False, \
 						job_max_memory=None, walltime=None):
 		"""
+		2013.06.23 deprecated as Beagle v4 is used and it accepts VCF files
 		2013.05.01
+			convert VCF file into Beagle input format
 		"""
 		
 		#replicate the individuals involved in more than one trio/duo
@@ -564,128 +711,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
 							minJobPropertyValue=4000, maxJobPropertyValue=10000).value
 		
-		splitVCFJob = passingData.mapEachVCFData.splitVCFJob
-		
-		##### stage 0, replicate individuals, simple phase by GATK, remove mendel error sites
-		# 2013.06.11 replicate individuals who appear in more than 1 families
-		round1_IndividualsReplicatedVCF = File( os.path.join(self.phaseByGATKDirJob.folder, \
-											'%s.replicate.vcf'%(intervalFileBasenamePrefix)))
-		replicateVCFGenotypeColumnsJob = self.addReplicateVCFGenotypeColumnsJob(workflow, \
-					executable=workflow.ReplicateVCFGenotypeColumns, inputF=VCFJobData.file, \
-					sampleID2FamilyCountF=self.outputPedigreeJob.sampleID2FamilyCountF, \
-					outputF=round1_IndividualsReplicatedVCF, \
-					replicateIndividualTag=self.replicateIndividualTag,\
-					parentJobLs=[self.outputPedigreeJob, self.phaseByGATKDirJob]+VCFJobData.jobLs, \
-					extraDependentInputLs=[], \
-					transferOutput=False, \
-					extraArguments=None, \
-					job_max_memory=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=10000).value, \
-					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
-							minJobPropertyValue=60, maxJobPropertyValue=1200).value,\
-					)
-		
-		if self.extractRefPanelSampleIDJob is None:
-			#ExtractSamplesFromVCF samples with coverage >=min_coverage
-			# the input VCF contains replicates.
-			outputFile = File(os.path.join(self.auxDirJob.output, 'pedigree.format%s.minCoverage%s.tsv'%(self.pedigreeFileFormat, self.minCoverageForRefPanel)))
-			extractRefPanelSampleIDJob = self.addExtractSampleIDJob(workflow=workflow, inputFile=replicateVCFGenotypeColumnsJob.output, \
-								outputFile=outputFile,\
-								min_coverage=self.minCoverageForRefPanel, returnData=returnData,\
-								transferOutput=True, \
-								parentJobLs=[replicateVCFGenotypeColumnsJob, self.auxDirJob])
-			self.extractRefPanelSampleIDJob = extractRefPanelSampleIDJob
-		
-		
-		#  phase by GATK, need a pedigree file (plink format)
-		"""
-		java -Xmx4g -jar ~/script/gatk2/GenomeAnalysisTK.jar
-			-R /Network/Data/vervet/db/individual_sequence/524_superContigsMinSize2000.fasta
-			-T PhaseByTransmission -V method_36_Contig791_replicated.vcf
-			-ped trioCaller_VRC.merlin -o method_36_Contig791_replicated_phasedByGATK.vcf
-			--MendelianViolationsFile method36_Contig791_replicated_MendelViolation.txt
-		"""
-		phasedByGATKVCFFile = File(os.path.join(self.phaseByGATKDirJob.folder, '%s.phasedByGATK.vcf'%(intervalFileBasenamePrefix)))
-		mendelianViolationsTextFile = File(os.path.join(self.phaseByGATKDirJob.folder, '%s.mendelViolation.txt'%(intervalFileBasenamePrefix))) 
-		phaseByGATKJob = self.addGATKJob(executable=self.PhaseByGATK, GATKAnalysisType='PhaseByTransmission', \
-					inputFile=replicateVCFGenotypeColumnsJob.output, \
-					inputArgumentOption="--variant:VCF", \
-					refFastaFList=self.registerReferenceData.refFastaFList,\
-					outputFile=phasedByGATKVCFFile, \
-					parentJobLs=[self.phaseByGATKDirJob, self.outputPedigreeJob, replicateVCFGenotypeColumnsJob], \
-					transferOutput=False, \
-					extraArguments=None, \
-					extraArgumentList=["-ped", self.outputPedigreeJob.output, "--MendelianViolationsFile", mendelianViolationsTextFile], \
-					extraOutputLs=[mendelianViolationsTextFile], \
-					extraDependentInputLs=[self.outputPedigreeJob.output], no_of_cpus=None, \
-					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value,\
-					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
-							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
-		
-		#find mendel error sites:
-		"""
-		# input is phased by GATK
-		java -Xmx4g -jar ~/script/gatk2/GenomeAnalysisTK.jar
-			-R /Network/Data/vervet/db/individual_sequence/524_superContigsMinSize2000.fasta
-			-T SelectVariants --variant:VCF method_36_Contig791_replicated_phasedByGATK.vcf
-			-ped trioCaller_VRC.merlin -mvq 0 --mendelianViolation
-			-o method_36_Contig791_replicated_phasedByGATK_mendelViolations.vcf
-		"""
-		mendelViolationVCFFile = File(os.path.join(self.phaseByGATKDirJob.folder, '%s.mendelViolation.vcf'%(intervalFileBasenamePrefix)))
-		findMendelErrorJob = self.addGATKJob(executable=self.FindMendelErrorByGATK, GATKAnalysisType="SelectVariants",\
-				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputFile=phaseByGATKJob.output, \
-				inputArgumentOption="--variant:VCF",\
-				outputFile=mendelViolationVCFFile, \
-				refFastaFList=self.registerReferenceData.refFastaFList, \
-				parentJobLs=[self.phaseByGATKDirJob, phaseByGATKJob, self.outputPedigreeJob], \
-				extraDependentInputLs=[self.outputPedigreeJob.output], transferOutput=False, \
-				extraArguments=None, \
-				extraArgumentList=["-mvq 0", "--mendelianViolation", "-ped", self.outputPedigreeJob.output], \
-				job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value,\
-				walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
-							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
-		
-		# remove mendel error sites
-		"""
-		java -Xmx4g -jar ~/script/gatk2/GenomeAnalysisTK.jar
-			-R /Network/Data/vervet/db/individual_sequence/524_superContigsMinSize2000.fasta
-			-T SelectVariants --variant method_36_Contig791_replicated_phasedByGATK.vcf
-			--discordance method_36_Contig791_replicated_phasedByGATK_mendelViolations.vcf
-			-o method_36_Contig791_replicated_phasedByGATK_noMendelError.vcf
-		"""
-		noMendelErrorVCFFile = File(os.path.join(self.phaseByGATKDirJob.folder, '%s_noMendelError.vcf'%(intervalFileBasenamePrefix)))
-		removeMendelErrorSiteByGATKJob = self.addGATKJob(executable=self.RemoveMendelErrorSiteByGATK, \
-					GATKAnalysisType="SelectVariants", \
-					inputFile=phaseByGATKJob.output, inputArgumentOption="--variant:VCF", \
-					refFastaFList = self.registerReferenceData.refFastaFList, \
-					outputFile=noMendelErrorVCFFile, \
-					extraArguments=None, extraArgumentList=["--discordance", findMendelErrorJob.output], \
-					extraDependentInputLs=[findMendelErrorJob.output],
-					parentJobLs=[phaseByGATKJob, findMendelErrorJob, self.phaseByGATKDirJob], \
-					transferOutput=False, \
-					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value,\
-					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
-							minJobPropertyValue=60, maxJobPropertyValue=1200).value,\
-					no_of_cpus=None)
-		
-		#count how many sites before and after removal
-		outputF = File(os.path.join(self.statDirJob.output, '%s_BeforeAfterRemovingMendelErrorSiteStat.tsv'%(intervalFileBasenamePrefix)))
-		self.addVCFBeforeAfterFilterStatJob(chromosome=chromosome, outputF=outputF, \
-							lastVCFJob=phaseByGATKJob, \
-							currentVCFJob=removeMendelErrorSiteByGATKJob,\
-							statMergeJob=self.filterByRemoveMendelErrorSiteStatMergeJob, \
-							parentJobLs=[phaseByGATKJob, removeMendelErrorSiteByGATKJob, self.statDirJob])
+		#splitVCFJob = passingData.mapEachVCFData.splitVCFJob
 		
 		#### Part 1 generate high-quality reference panel through Beagle on high-coverage individuals
 		# extractRefPanelSampleIDJob outputs sample IDs with replicate tags
@@ -695,9 +721,9 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		#selectVariants would re-generate AC, AF so that TrioCaller could read it.
 		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 		selectHighCoverageSampleJob = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
-				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=removeMendelErrorSiteByGATKJob.output, outputF=outputVCF, \
+				inputF=VCFJobData.file, outputF=outputVCF, \
 				refFastaFList=self.registerReferenceData.refFastaFList, sampleIDKeepFile=self.extractRefPanelSampleIDJob.output,\
-				parentJobLs=[self.highCoveragePanelDirJob, splitVCFJob, self.extractRefPanelSampleIDJob, removeMendelErrorSiteByGATKJob], \
+				parentJobLs=[self.highCoveragePanelDirJob, self.extractRefPanelSampleIDJob] + VCFJobData.jobLs, \
 				extraDependentInputLs=[], transferOutput=False, \
 				extraArguments=None, \
 				job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
@@ -707,178 +733,164 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
 							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
 		
-		#convert VCF to Beagle input
-		outputFileBasenamePrefix = "%s.unphased"%(intervalFileBasenamePrefix)
-		highCoverageVCF2BeagleInputJob = self.convertVCF2Beagle(VCFJobData=PassingData(file=selectHighCoverageSampleJob.output, \
-																			jobLs=[selectHighCoverageSampleJob]), \
-									outputDirJob=self.highCoveragePanelDirJob, \
-									outputFileBasenamePrefix=outputFileBasenamePrefix,
-									outputPedigreeJob=self.outputPedigreeJob, \
-									pedigreeSplitStructure=self.highCoverageMemberPedigreeSplitStructure,\
-									transferOutput=False,\
-					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value,\
-					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
-							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
-		
 		# run Beagle 
-		outputFnamePrefix = os.path.join(self.highCoveragePanelDirJob.folder, "%s.highCoverageBeagled"%(intervalFileBasenamePrefix))
-		beagleOnHighCoverageJob = self.addBeagle3Job(executable=self.BeagleJava, \
-								likelihoodBeagleInputFile=highCoverageVCF2BeagleInputJob.size1File, \
-								triosBeagleInputFile=highCoverageVCF2BeagleInputJob.size3File, \
-								pairsBeagleInputFile=highCoverageVCF2BeagleInputJob.size2File, \
-								markersBeagleInputFile=highCoverageVCF2BeagleInputJob.markerFile, \
-								outputFnamePrefix=outputFnamePrefix, noOfIterations=30,\
+		outputFnamePrefix = os.path.join(self.highCoveragePanelDirJob.folder, "%s.minCoverage%s.beagled"%\
+								(intervalFileBasenamePrefix, self.minCoverageForRefPanel))
+		beagleOnHighCoverageJob = self.addBeagle4Job(executable=self.BeagleOnHCMOnkeys, \
+								inputFile=selectHighCoverageSampleJob.output, refPanelFile=None,\
+								pedFile = self.outputPedigreeOfHghCoverageSamplesJob.output,\
+								outputFnamePrefix=outputFnamePrefix, \
+								burninIterations=7, phaseIterations=10, \
 								noOfSamplingHaplotypesPerSample=4,\
-								parentJobLs=[self.highCoveragePanelDirJob, highCoverageVCF2BeagleInputJob], \
+								parentJobLs=[self.highCoveragePanelDirJob, selectHighCoverageSampleJob, self.outputPedigreeOfHghCoverageSamplesJob], \
 								transferOutput=False, \
-								extraArguments=None, extraArgumentList=["lowmem=true"],\
+								extraArguments=None, extraArgumentList=None,\
 								extraOutputLs=None, extraDependentInputLs=None, \
 								no_of_cpus=None, \
 					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=9000, maxJobPropertyValue=18000).value,\
+							minJobPropertyValue=4000, maxJobPropertyValue=13000).value,\
 					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
 							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
-		#a SelectDistantMembersFromGenotypeFile.py job to generate a ref panel for 2nd-round beagle
-		# need the pedigree file
-		phasedRefPanelGenotypeFile = File(os.path.join(self.highCoveragePanelDirJob.folder, '%s_PhasedRefPanel.bgl'%(intervalFileBasenamePrefix)))
-		selectDistantMembersFromGenotypeFileJob = self.addGenericJob(executable=self.SelectDistantMembersFromGenotypeFile, \
-						outputFile=phasedRefPanelGenotypeFile, outputArgumentOption="-o", \
-						inputFileList=[beagleOnHighCoverageJob.likelihoodPhasedOutputFile, beagleOnHighCoverageJob.singletonPhasedOutputFile, \
-									beagleOnHighCoverageJob.pairsPhasedOutputFile, beagleOnHighCoverageJob.triosPhasedOutputFile], \
-						argumentForEachFileInInputFileList="", \
-						parentJobLs=[self.highCoveragePanelDirJob, beagleOnHighCoverageJob, self.outputPedigreeJob], \
-						extraDependentInputLs=[self.plinkIBDCheckOutputFile], \
-						extraOutputLs=None, transferOutput=False, frontArgumentList=None, \
+		
+		#index .vcf.gz, output of beagle, without index, GATK can't work on gzipped vcf
+		tabixIndexFile = File('%s.tbi'%(beagleOnHighCoverageJob.output.name))
+		tabixOnHighCoverageVCFJob = self.addGenericJob(executable=self.tabix, \
+						inputFile=beagleOnHighCoverageJob.output, inputArgumentOption="",\
+						outputFile=None, outputArgumentOption="-o", \
+						extraDependentInputLs=None, \
+						extraOutputLs=[tabixIndexFile], transferOutput=False, frontArgumentList=["-p vcf"], \
 						extraArguments=None, \
-						extraArgumentList=["--maxPairwiseKinship 0.2", "--sampleSize 40", \
-							"--plinkIBDCheckOutputFname", self.plinkIBDCheckOutputFile, \
-							"--replicateIndividualTag", self.replicateIndividualTag,\
-							"--individualAlignmentCoverageFname", self.outputAlignmentDepthJob.output, \
-							"--pedigreeFname", self.outputPedigreeJob.output], \
+						extraArgumentList=[], \
+						parentJobLs=[beagleOnHighCoverageJob, self.highCoveragePanelDirJob],\
 						no_of_cpus=None, \
 					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value,\
+							minJobPropertyValue=2000, maxJobPropertyValue=5000).value,\
 					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
+							minJobPropertyValue=60, maxJobPropertyValue=600).value)
+		
+		# select the high-coverage members
+		outputVCF = File(os.path.join(self.highCoveragePanelDirJob.output, \
+									'%s.minCoverage%s.maxPairwiseKinship%s.refPanel.beagled.vcf'%\
+									(intervalFileBasenamePrefix, self.minCoverageForRefPanel, self.maxPairwiseKinship)))
+		#selectVariants would re-generate AC, AF so that TrioCaller could read it.
+		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
+		selectDistantMembersVariantsJob = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
+				inputF=beagleOnHighCoverageJob.output, outputF=outputVCF, \
+				refFastaFList=self.registerReferenceData.refFastaFList, \
+				sampleIDKeepFile=self.selectDistantMembersFromGenotypeFileJob.output,\
+				parentJobLs=[self.highCoveragePanelDirJob, beagleOnHighCoverageJob, self.selectDistantMembersFromGenotypeFileJob,\
+							tabixOnHighCoverageVCFJob], \
+				extraDependentInputLs=[tabixOnHighCoverageVCFJob.output], transferOutput=False, \
+				extraArguments=None, \
+				job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
+							minJobPropertyValue=4000, maxJobPropertyValue=7000).value,\
+				walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
 							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
 		
 		
 		##### Part 2 run Beagle on everyone with reference panel
-		
-		# convert VCF to Beagle input
-		AllMemberVCFJobData = PassingData(file=removeMendelErrorSiteByGATKJob.output, jobLs=[removeMendelErrorSiteByGATKJob])
-		outputFileBasenamePrefix = "%s.everyone.unphased"%(intervalFileBasenamePrefix)
-		vcf2BeagleInputJob = self.convertVCF2Beagle(VCFJobData=AllMemberVCFJobData, \
-							outputDirJob=self.mapDirJob, outputFileBasenamePrefix=outputFileBasenamePrefix, \
-							outputPedigreeJob=self.outputPedigreeJob, \
-							pedigreeSplitStructure=self.allMemberPedigreeSplitStructure, \
-							transferOutput=False, \
-					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value,\
-					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
-							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
 		# run Beagle
 		outputFnamePrefix = os.path.join(self.mapDirJob.folder, '%s.beagled'%(intervalFileBasenamePrefix))
-		beagleJob = self.addBeagle3Job(executable=self.BeagleJava, \
-						phasedBeagleInputFile=selectDistantMembersFromGenotypeFileJob.output,\
-						likelihoodBeagleInputFile=vcf2BeagleInputJob.size1File, \
-						triosBeagleInputFile=vcf2BeagleInputJob.size3File, \
-						pairsBeagleInputFile=vcf2BeagleInputJob.size2File, \
-						markersBeagleInputFile=vcf2BeagleInputJob.markerFile, \
-						outputFnamePrefix=outputFnamePrefix, noOfIterations=30,\
-						noOfSamplingHaplotypesPerSample=4,\
-						extraArguments=None, extraArgumentList=["lowmem=true"],\
-						parentJobLs=[self.mapDirJob, selectDistantMembersFromGenotypeFileJob, vcf2BeagleInputJob], \
+		beagleJob = self.addBeagle4Job(executable=self.BeagleJava, \
+						inputFile=VCFJobData.file, refPanelFile=selectDistantMembersVariantsJob.output,\
+						pedFile=self.outputPedigreeJob.output,\
+						outputFnamePrefix=outputFnamePrefix, \
+						burninIterations=7, phaseIterations=10, \
+						noOfSamplingHaplotypesPerSample=4, duoscale=2, trioscale=2, \
+						extraArguments=None, extraArgumentList=None,\
+						parentJobLs=[self.mapDirJob, selectDistantMembersVariantsJob, \
+									self.outputPedigreeJob] + VCFJobData.jobLs, \
 						transferOutput=False, no_of_cpus=None, \
 						job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=10000, maxJobPropertyValue=25000).value,\
+							minJobPropertyValue=4000, maxJobPropertyValue=13000).value,\
 						walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
 							minJobPropertyValue=60, maxJobPropertyValue=1200).value,\
 						)
+		returnData.beagleJob = beagleJob
 		
-		#a CombinePhasedBeagleOutputsIntoVCF job
-		phasedVCFFile = File(os.path.join(self.mapDirJob.folder, "%s.phased.vcf"%(intervalFileBasenamePrefix)))
-		combinePhasedBeagleOutputsIntoVCFJob = self.addGenericJob(executable=self.CombinePhasedBeagleOutputsIntoVCF, \
-						inputFile=removeMendelErrorSiteByGATKJob.output, inputArgumentOption="--originalVCFFname", \
-						outputFile=phasedVCFFile, outputArgumentOption="-o", \
-						inputFileList=[beagleJob.likelihoodPhasedOutputFile, beagleJob.singletonPhasedOutputFile, \
-									beagleJob.pairsPhasedOutputFile, beagleJob.triosPhasedOutputFile], \
-						argumentForEachFileInInputFileList="", \
-						parentJobLs=[beagleJob, removeMendelErrorSiteByGATKJob, self.mapDirJob], \
+		#index .vcf.gz, output of beagle, without index, GATK can't work on gzipped vcf
+		tabixIndexFile = File('%s.tbi'%(beagleJob.output.name))
+		tabixJob = self.addGenericJob(executable=self.tabix, \
+						inputFile=beagleJob.output, inputArgumentOption="",\
+						outputFile=None, outputArgumentOption="-o", \
 						extraDependentInputLs=None, \
-						extraOutputLs=None, transferOutput=False, \
-						extraArgumentList=["--replicateIndividualTag", self.replicateIndividualTag], \
-						no_of_cpus=None, \
-						job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value,\
-						walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
-							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
-		"""
-		#### 2013.06.19 non-overlap interval is not clear, so skip it
-		# select interval job to remove the overlapping region
-		#select non-overlap interval job to remove the overlapping region
-		#select the variants to get rid of overlap, so that trioCallerReplicateConcordanceJob could be properly reduced
-		nonOverlapBeaglePhaseOutputF = File(os.path.join(self.mapDirJob.folder, '%s.beaglePhased.nonoverlap.vcf'%intervalFileBasenameSignature))
-		selectBeaglePhaseOutputJob = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
-						inputF=combinePhasedBeagleOutputsIntoVCFJob.output, \
-						outputF=nonOverlapBeaglePhaseOutputF, \
-						refFastaFList=self.registerReferenceData.refFastaFList, \
-						interval=mpileupInterval,\
-						parentJobLs=[combinePhasedBeagleOutputsIntoVCFJob, self.mapDirJob], \
-						extraDependentInputLs=[], transferOutput=False, \
+						extraOutputLs=[tabixIndexFile], transferOutput=False, frontArgumentList=["-p vcf"], \
 						extraArguments=None, \
-					job_max_memory=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+						extraArgumentList=[], \
+						parentJobLs=[beagleJob, self.mapDirJob],\
+						no_of_cpus=None, \
+					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value, \
-					walltime=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							minJobPropertyValue=2000, maxJobPropertyValue=4000).value,\
+					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
-							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
-		"""
-		# a CheckGenotypeConcordanceAmongReplicates.py job
-		beaglePhasedReplicateConcordanceFile = File(os.path.join(self.statDirJob.folder, \
-								'%s.phased.concordance.tsv'%(intervalFileBasenamePrefix)))
-		#specify GenomeAnalysisTKJar due to gatk1.6 (not gatk2), 
-		returnData.beaglePhasedReplicateConcordanceJob = self.addGATKJob(executable=self.CalculateConcordanceJava, \
+							minJobPropertyValue=60, maxJobPropertyValue=600).value)
+		
+		#borrow PL to from pre-Beagle VCF to genotype 
+		outputFile = File(os.path.join(self.mapDirJob.folder, '%s.beagled.withPL.vcf'%(intervalFileBasenamePrefix)))
+		combineBeagleAndPreBeagleVariantsJob = self.addGATKJob(executable=self.CombineVariantsJava, \
 					GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, \
-					GATKAnalysisType="CalculateConcordanceAmongReplicates",\
-					inputFile=combinePhasedBeagleOutputsIntoVCFJob.output, inputArgumentOption="--variant", \
+					GATKAnalysisType="CombineBeagleAndPreBeagleVariants",\
+					inputFile=None, inputArgumentOption=None, \
 					refFastaFList=self.registerReferenceData.refFastaFList, \
-					interval=None, \
-					outputFile=beaglePhasedReplicateConcordanceFile, outputArgumentOption="--concordanceStatFname",\
-					frontArgumentList=None, extraArguments="--replicateIndividualTag %s"%(self.replicateIndividualTag), \
-					extraArgumentList=None, extraOutputLs=None, \
-					parentJobLs=[self.statDirJob, combinePhasedBeagleOutputsIntoVCFJob], \
-					transferOutput=False, \
+					inputFileList=None, argumentForEachFileInInputFileList="--variant",\
+					interval=None, outputFile=outputFile, outputArgumentOption="--out", \
+					frontArgumentList=None, extraArguments=None, \
+					extraArgumentList=["--variant:beagle", beagleJob.output, "--variant:foo", VCFJobData.file, \
+								"-genotypeMergeOptions PRIORITIZE", "-priority beagle,foo"], \
+					extraOutputLs=None, \
+					extraDependentInputLs=[beagleJob.output, VCFJobData.file] + tabixJob.outputLs, \
+					parentJobLs=[beagleJob, tabixJob]+ VCFJobData.jobLs, transferOutput=False, \
 					no_of_cpus=None, \
-					job_max_memory=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+					key2ObjectForJob=None,\
+					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value, \
-					walltime=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							minJobPropertyValue=2000, maxJobPropertyValue=4000).value,\
+					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
-							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
+							minJobPropertyValue=60, maxJobPropertyValue=600).value)
+		
 		
 		#TrioCaller
+		# 2013.06.11 replicate individuals who appear in more than 1 families
+		round1_IndividualsReplicatedVCF = File( os.path.join(self.mapDirJob.folder, \
+											'%s.replicate.vcf'%(intervalFileBasenamePrefix)))
+		replicateVCFGenotypeColumnsJob = self.addReplicateVCFGenotypeColumnsJob(\
+					executable=self.ReplicateVCFGenotypeColumns, \
+					inputF=combineBeagleAndPreBeagleVariantsJob.output, \
+					sampleID2FamilyCountF=self.outputReplicatePedigreeJob.sampleID2FamilyCountF, \
+					outputF=round1_IndividualsReplicatedVCF, \
+					replicateIndividualTag=self.replicateIndividualTag,\
+					parentJobLs=[self.outputReplicatePedigreeJob, self.mapDirJob, combineBeagleAndPreBeagleVariantsJob], \
+					extraDependentInputLs=None, \
+					transferOutput=False, \
+					extraArguments=None, \
+					job_max_memory=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
+							minJobPropertyValue=4000, maxJobPropertyValue=9000).value, \
+					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
+							minJobPropertyValue=60, maxJobPropertyValue=1200).value,\
+					)
+		
 		refineGenotypeOutputF = File(os.path.join(self.mapDirJob.folder, \
 												'%s.trioCaller.vcf'%(intervalFileBasenamePrefix)))
 		refineGenotypeJob = self.addTrioCallerJob(trioCallerWrapper=self.trioCallerWrapper, \
 				trioCallerPath=self.trioCallerPath, \
-				inputVCF=combinePhasedBeagleOutputsIntoVCFJob.output,\
-				pedFile=self.outputPedigreeJob.output, outputVCF=refineGenotypeOutputF, \
-				parentJobLs=[self.mapDirJob, combinePhasedBeagleOutputsIntoVCFJob, self.outputPedigreeJob], \
+				inputVCF=replicateVCFGenotypeColumnsJob.output,\
+				pedFile=self.outputReplicatePedigreeJob.output, outputVCF=refineGenotypeOutputF, \
+				inputPhased=True,\
+				parentJobLs=[self.mapDirJob, replicateVCFGenotypeColumnsJob, self.outputReplicatePedigreeJob], \
 				extraDependentInputLs=[], transferOutput=False, \
-				extraArguments="--inputPhased", \
+				extraArguments=None, \
 				job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
 							minJobPropertyValue=4000, maxJobPropertyValue=9000).value,\
@@ -888,24 +900,6 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		
 		returnData.refineGenotypeJob = refineGenotypeJob
 		
-		"""
-		#### 2013.06.19 non-overlap interval is not clear, so skip it
-		#select non-overlap interval job to remove the overlapping region
-		#select the variants to get rid of overlap, so that trioCallerReplicateConcordanceJob could be properly reduced
-		nonOverlapTrioCallerOutputF = File(os.path.join(self.mapDirJob.folder, '%s.trioCaller.nonoverlap.vcf'%intervalFileBasenameSignature))
-		selectTrioCallerOutputJob = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
-						inputF=refineGenotypeJob.output, outputF=nonOverlapTrioCallerOutputF, \
-						interval=mpileupInterval,\
-						refFastaFList=self.registerReferenceData.refFastaFList, parentJobLs=[refineGenotypeJob, self.mapDirJob], \
-						extraDependentInputLs=[], transferOutput=False, \
-						extraArguments=None, \
-					job_max_memory=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value, \
-					walltime=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
-							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
-		"""
 		# a CheckGenotypeConcordanceAmongReplicates.py job
 		trioCallerReplicateConcordanceFile = File(os.path.join(self.statDirJob.folder, \
 								'%s.trioCaller.concordance.tsv'%(intervalFileBasenamePrefix)))
@@ -939,7 +933,8 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 							GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, \
 							inputF=refineGenotypeJob.output, outputF=mergeReplicateOutputF, \
 							replicateIndividualTag=self.replicateIndividualTag, \
-							refFastaFList=self.registerReferenceData.refFastaFList, parentJobLs=[self.mapDirJob, refineGenotypeJob], \
+							refFastaFList=self.registerReferenceData.refFastaFList, \
+							parentJobLs=[self.mapDirJob, refineGenotypeJob], \
 							extraDependentInputLs=[], transferOutput=False, \
 							extraArguments=None, \
 							analysis_type='MergeVCFReplicateGenotypeColumns',\
@@ -978,20 +973,28 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=2000, \
 							minJobPropertyValue=2000, maxJobPropertyValue=8000).value
 		self.concatenateOverlapIntervalsIntoVCF(chromosome=chromosome, passingData=passingData, \
-						intervalJobLs=refineGenotypeJobLs, outputDirJob=self.replicateVCFDirJob, \
-						transferOutput=True, job_max_memory=job_max_memory, walltime=walltime, \
+						intervalJobLs=[pdata.beagleJob for pdata in mapEachIntervalDataLs],\
+						outputDirJob=self.beagleReduceDirJob, \
+						transferOutput=True, job_max_memory=job_max_memory, walltime=walltime,\
 						**keywords)
+		
 		self.concatenateOverlapIntervalsIntoVCF(chromosome=chromosome, passingData=passingData, \
 						intervalJobLs=mergeVCFReplicateColumnsJobLs, outputDirJob=self.reduceOutputDirJob, \
 						transferOutput=True, job_max_memory=job_max_memory, walltime=walltime,\
 						**keywords)
+		self.concatenateOverlapIntervalsIntoVCF(chromosome=chromosome, passingData=passingData, \
+						intervalJobLs=refineGenotypeJobLs, outputDirJob=self.replicateVCFDirJob, \
+						transferOutput=True, job_max_memory=job_max_memory, walltime=walltime, \
+						**keywords)
 		
 		for pdata in mapEachIntervalDataLs:
 			#add this output to the union job
+			"""
 			self.addInputToStatMergeJob(statMergeJob=self.reduceBeaglePhaseReplicateConcordanceJob_AllSites, \
 							parentJobLs=[pdata.beaglePhasedReplicateConcordanceJob])
 			self.addInputToStatMergeJob(statMergeJob=self.reduceBeaglePhaseReplicateConcordanceJob_HomoOnly, \
 							parentJobLs=[pdata.beaglePhasedReplicateConcordanceJob])
+			"""
 			self.addInputToStatMergeJob(statMergeJob=self.reduceTrioCallerReplicateConcordanceJob_AllSites, \
 							parentJobLs=[pdata.trioCallerReplicateConcordanceJob])
 			self.addInputToStatMergeJob(statMergeJob=self.reduceTrioCallerReplicateConcordanceJob_HomoOnly, \
@@ -1012,7 +1015,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		concatTrioCallerOutputFname = os.path.join(outputDirJob.folder, '%s.vcf'%(passingData.fileBasenamePrefix))
 		concatTrioCallerOutputF = File(concatTrioCallerOutputFname)
 		concatJob = self.addLigateVcfJob(executable=self.ligateVcf, \
-									ligateVcfPerlPath=self.ligateVcfPerlPath, \
+									ligateVcfExecutableFile=self.ligateVcfExecutableFile, \
 									outputFile=concatTrioCallerOutputF, \
 									parentJobLs=[outputDirJob], \
 									extraDependentInputLs=None, transferOutput=False, \
@@ -1058,6 +1061,9 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='RemoveMendelErrorSiteByGATK', \
 															clusterSizeMultipler=0.5)
 		
+		#BeagleOnHCMOnkeys and BeagleJava are separate now because the former takes much less time than latter
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath,\
+										name='BeagleOnHCMOnkeys', clusterSizeMultipler=0.1)
 		
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.pymodulePath, "pegasus/mapper/extractor/SelectDistantMembersFromGenotypeFile.py"), \
 										name='SelectDistantMembersFromGenotypeFile', clusterSizeMultipler=0.2)
@@ -1067,6 +1073,12 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.pymodulePath, "pegasus/mapper/converter/CombinePhasedBeagleOutputsIntoVCF.py"), \
 										name='CombinePhasedBeagleOutputsIntoVCF', clusterSizeMultipler=1)		#2013.05.02 no clustering for OutputVRCPedigreeInTFAMGivenOrderFromFile
 		self.setOrChangeExecutableClusterSize(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, clusterSizeMultipler=0)
+		if hasattr(self, 'noOfCallingJobsPerNode') and self.noOfCallingJobsPerNode>=0:
+			for executable in [self.BeagleJava]:
+				#2013.2.26 use setOrChangeExecutableClusterSize to modify clusters size
+				self.setOrChangeExecutableClusterSize(executable=executable, clusterSizeMultipler=self.noOfCallingJobsPerNode/float(self.clusters_size), \
+													defaultClustersSize=self.clusters_size)
+	
 	
 if __name__ == '__main__':
 	main_class = BeagleAndTrioCallerOnVCFWorkflow
