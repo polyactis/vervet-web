@@ -261,7 +261,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		self.filterByRemoveMendelErrorSiteStatMergeJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 								outputF=filterByRemoveMendelErrorSiteStatMergeFile, \
 								transferOutput=True, parentJobLs=[self.statDirJob],\
-								extraArguments="-k 1 -v 2-4")	#column 1 is the chromosome length, which are set to be all same.
+								extraArguments="--keyColumnLs 1 --valueColumnLs 2-4")	#column 1 is the chromosome length, which are set to be all same.
 								#column 2-4 are #sitesInInput1, #sitesInInput2, #overlapping
 		
 		#concordance stat reduce jobs
@@ -271,15 +271,15 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		outputFile = File(os.path.join(self.statDirJob.folder, 'beaglePhaseReplicateConcordance.allSites.tsv'))
 		reduceBeaglePhaseReplicateConcordanceJob_AllSites = self.addStatMergeJob(statMergeProgram=self.ReduceMatrixBySumSameKeyColsAndThenDivide, \
 							outputF=outputFile, \
-							extraArguments='-k 0,1 -v 2,3', transferOutput=False)
+							extraArguments='--keyColumnLs 0,1 --valueColumnLs 2,3', transferOutput=False)
 		outputFile = File(os.path.join(self.statDirJob.folder, 'beaglePhaseReplicateConcordance.homo.tsv'))
 		reduceBeaglePhaseReplicateConcordanceJob_HomoOnly = self.addStatMergeJob(statMergeProgram=self.ReduceMatrixBySumSameKeyColsAndThenDivide, \
 							outputF=outputFile, \
-							extraArguments='-k 0,1 -v 5,6', transferOutput=False)
+							extraArguments='--keyColumnLs 0,1 --valueColumnLs 5,6', transferOutput=False)
 		outputFile = File(os.path.join(self.statDirJob.folder, 'beaglePhaseReplicateConcordance.tsv'))
 		concatenateTwoBeaglePhaseConcordanceResultJob = self.addStatMergeJob(statMergeProgram=self.ReduceMatrixByMergeColumnsWithSameKey, \
 							outputF=outputFile, \
-							extraArguments='-k 0,1 -v 2,3,4', transferOutput=False)
+							extraArguments='--keyColumnLs 0,1 --valueColumnLs 2,3,4', transferOutput=False)
 		self.addInputToStatMergeJob(statMergeJob=concatenateTwoBeaglePhaseConcordanceResultJob, \
 							parentJobLs=[reduceBeaglePhaseReplicateConcordanceJob_AllSites])
 		self.addInputToStatMergeJob(statMergeJob=concatenateTwoBeaglePhaseConcordanceResultJob, \
@@ -295,15 +295,15 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		outputFile = File(os.path.join(self.statDirJob.folder, 'trioCallerReplicateConcordance.allSites.tsv'))
 		reduceTrioCallerReplicateConcordanceJob_AllSites = self.addStatMergeJob(statMergeProgram=self.ReduceMatrixBySumSameKeyColsAndThenDivide, \
 							outputF=outputFile, \
-							extraArguments='-k 0,1 -v 2,3', transferOutput=False)
+							extraArguments='--keyColumnLs 0,1 --valueColumnLs 2,3', transferOutput=False)
 		outputFile = File(os.path.join(self.statDirJob.folder, 'trioCallerReplicateConcordance.homo.tsv'))
 		reduceTrioCallerReplicateConcordanceJob_HomoOnly = self.addStatMergeJob(statMergeProgram=self.ReduceMatrixBySumSameKeyColsAndThenDivide, \
 							outputF=outputFile, \
-							extraArguments='-k 0,1 -v 5,6', transferOutput=False)
+							extraArguments='--keyColumnLs 0,1 --valueColumnLs 5,6', transferOutput=False)
 		outputFile = File(os.path.join(self.statDirJob.folder, 'trioCallerReplicateConcordance.tsv'))
 		concatenateTwoTrioCallerConcordanceResultJob = self.addStatMergeJob(statMergeProgram=self.ReduceMatrixByMergeColumnsWithSameKey, \
 							outputF=outputFile, \
-							extraArguments='-k 0,1 -v 2,3,4', transferOutput=False)
+							extraArguments='--keyColumnLs 0,1 --valueColumnLs 2,3,4', transferOutput=False)
 		self.addInputToStatMergeJob(statMergeJob=concatenateTwoTrioCallerConcordanceResultJob, \
 							parentJobLs=[reduceTrioCallerReplicateConcordanceJob_AllSites])
 		self.addInputToStatMergeJob(statMergeJob=concatenateTwoTrioCallerConcordanceResultJob, \
@@ -844,8 +844,8 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 					inputFileList=None, argumentForEachFileInInputFileList="--variant",\
 					interval=None, outputFile=outputFile, outputArgumentOption="--out", \
 					frontArgumentList=None, extraArguments=None, \
-					extraArgumentList=["--variant:beagle", beagleJob.output, "--variant:foo", VCFJobData.file, \
-								"-genotypeMergeOptions PRIORITIZE", "-priority beagle,foo"], \
+					extraArgumentList=["--variant:first", beagleJob.output, "--variant:second", VCFJobData.file, \
+								"-genotypeMergeOptions PRIORITIZE", "-priority first,second"], \
 					extraOutputLs=None, \
 					extraDependentInputLs=[beagleJob.output, VCFJobData.file] + tabixJob.outputLs, \
 					parentJobLs=[beagleJob, tabixJob]+ VCFJobData.jobLs, transferOutput=False, \
@@ -857,7 +857,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
 							minJobPropertyValue=60, maxJobPropertyValue=600).value)
-		
+		#do not use "--variant:beagle" to name your vcf file as GATK would think it's in Beagle format
 		
 		#TrioCaller
 		# 2013.06.11 replicate individuals who appear in more than 1 families
