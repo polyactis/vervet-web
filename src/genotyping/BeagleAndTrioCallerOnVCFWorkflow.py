@@ -260,10 +260,11 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		filterByRemoveMendelErrorSiteStatMergeFile = File(os.path.join(self.statDirJob.folder, 'filterByRemoveMendelErrorSiteStatMerge.tsv'))
 		self.filterByRemoveMendelErrorSiteStatMergeJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 								outputF=filterByRemoveMendelErrorSiteStatMergeFile, \
-								transferOutput=True, parentJobLs=[self.statDirJob],\
+								transferOutput=False, parentJobLs=[self.statDirJob],\
 								extraArguments="--keyColumnLs 1 --valueColumnLs 2-4")	#column 1 is the chromosome length, which are set to be all same.
 								#column 2-4 are #sitesInInput1, #sitesInInput2, #overlapping
-		
+		returnData.jobDataLs.append(PassingData(jobLs=[self.filterByRemoveMendelErrorSiteStatMergeJob], \
+											fileLs=[self.filterByRemoveMendelErrorSiteStatMergeJob.output]))
 		#concordance stat reduce jobs
 		#reduce the replicate concordance results from before TrioCaller (after beagle phasing)
 		#
@@ -300,10 +301,12 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		reduceTrioCallerReplicateConcordanceJob_HomoOnly = self.addStatMergeJob(statMergeProgram=self.ReduceMatrixBySumSameKeyColsAndThenDivide, \
 							outputF=outputFile, \
 							extraArguments='--keyColumnLs 0,1 --valueColumnLs 5,6', transferOutput=False)
+		
 		outputFile = File(os.path.join(self.statDirJob.folder, 'trioCallerReplicateConcordance.tsv'))
 		concatenateTwoTrioCallerConcordanceResultJob = self.addStatMergeJob(statMergeProgram=self.ReduceMatrixByMergeColumnsWithSameKey, \
 							outputF=outputFile, \
 							extraArguments='--keyColumnLs 0,1 --valueColumnLs 2,3,4', transferOutput=False)
+		
 		self.addInputToStatMergeJob(statMergeJob=concatenateTwoTrioCallerConcordanceResultJob, \
 							parentJobLs=[reduceTrioCallerReplicateConcordanceJob_AllSites])
 		self.addInputToStatMergeJob(statMergeJob=concatenateTwoTrioCallerConcordanceResultJob, \
@@ -917,7 +920,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 					no_of_cpus=None, \
 					job_max_memory=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value, \
+							minJobPropertyValue=7000, maxJobPropertyValue=9000).value, \
 					walltime=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
 							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
@@ -940,7 +943,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 							analysis_type='MergeVCFReplicateGenotypeColumns',\
 					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value,\
+							minJobPropertyValue=5000, maxJobPropertyValue=9000).value,\
 					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
 							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
@@ -1031,14 +1034,15 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		#convert to vcf4 so that other vcftools software could be used.
 		vcf4Filename = os.path.join(outputDirJob.folder, '%s.v4.vcf'%passingData.fileBasenamePrefix)
 		vcf4File = File(vcf4Filename)
-		vcf_convert_TrioCallerOutputJob = self.addVCFFormatConvertJob(vcf_convert=self.vcf_convert, \
+		vcf_convert_TrioCallerOutputJob = self.addVCFFormatConvertJob(vcf_convert=self.vcf_convert_in_reduce, \
 					parentJob=concatJob, inputF=concatJob.output, \
 					outputF=vcf4File, transferOutput=False, job_max_memory=job_max_memory, walltime=walltime/2)
 		
 		
 		#bgzip and tabix the trio caller output
 		trioGzipOutputF = File("%s.gz"%vcf4Filename)
-		bgzip_tabix_job = self.addBGZIP_tabix_Job(parentJob=vcf_convert_TrioCallerOutputJob, \
+		bgzip_tabix_job = self.addBGZIP_tabix_Job(bgzip_tabix=self.bgzip_tabix_in_reduce, \
+								parentJob=vcf_convert_TrioCallerOutputJob, \
 								inputF=vcf4File, outputF=trioGzipOutputF, transferOutput=True,\
 								job_max_memory=job_max_memory/4, walltime=walltime/4)
 		
