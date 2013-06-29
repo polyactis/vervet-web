@@ -27,14 +27,11 @@ from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOu
 from pymodule import yh_matplotlib, GenomeDB, utils
 from pymodule import MatrixFile
 from pymodule import SNP
-#used in getattr(individual_site_id_set, '__len__', returnZeroFunc)()
-from pymodule.utils import returnZeroFunc
 from pymodule import VCFFile
+from pymodule.utils import returnZeroFunc
+#used in getattr(individual_site_id_set, '__len__', returnZeroFunc)()
 from vervet.src import VervetDB
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
-
-
-
 
 class ExtractSamplesFromVCF(AbstractVervetMapper):
 	__doc__ = __doc__
@@ -45,7 +42,9 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 						("tax_id_ls", 0, ): ["", '', 1, 'comma/dash-separated list of country IDs. individuals must come from these countries.'],\
 						("min_coverage", 0, int): [None, '', 1, 'minimum coverage for a sample to be extracted'],\
 						("max_coverage", 0, int): [None, '', 1, 'maximum coverage for a sample to be extracted'],\
-						("outputFormat", 1, int): [1, '', 1, 'output format. 1: a subset VCF file, 2: a sample ID file with header. '],\
+						("outputFormat", 1, int): [1, '', 1, 'output format. 1: a subset VCF file; \n\
+	2: file with a list of sample IDs (one per line), with header; \n\
+	3: file with a list of sample IDs (one per line), without header'],\
 					})
 	def __init__(self, inputFnameLs=None, **keywords):
 		"""
@@ -68,10 +67,11 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 		2012.10.5
 			
 		"""
-		sys.stderr.write("Extracting samples from %s, %s sites & %s countries & %s taxonomies ...\n"%(inputFname,\
+		sys.stderr.write("Extracting samples from %s, %s sites & %s countries & %s taxonomies, min_coverage=%s, max_coverage=%s, outputFormat=%s ...\n"%(inputFname,\
 							getattr(site_id_set, '__len__', returnZeroFunc)(),\
 							getattr(country_id_set, '__len__', returnZeroFunc)(),\
-							getattr(tax_id_set, '__len__', returnZeroFunc)(), ))
+							getattr(tax_id_set, '__len__', returnZeroFunc)(), min_coverage, max_coverage,\
+							outputFormat ))
 		vcfFile = VCFFile(inputFname=inputFname)
 		
 		oldHeader = vcfFile.header
@@ -96,6 +96,7 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 				sys.stderr.write("Warning: no individualAlignment for sample %s.\n"%(individual_name))
 				sys.exit(3)
 		
+		no_of_snps = 0
 		if outputFormat==1:
 			outVCFFile = VCFFile(outputFname=outputFname)
 			outVCFFile.metaInfoLs = vcfFile.metaInfoLs
@@ -103,7 +104,6 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 			outVCFFile.writeMetaAndHeader()
 			
 			newHeaderLength = len(newHeader)
-			no_of_snps = 0
 			for vcfRecord in vcfFile:
 				data_row =vcfRecord.row[:vcfFile.sampleStartingColumn]
 				for i in xrange(vcfFile.sampleStartingColumn, oldHeaderLength):
@@ -112,13 +112,13 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 				outVCFFile.writer.writerow(data_row)
 				no_of_snps += 1
 			outVCFFile.close()
-		elif outputFormat==2:
+		elif outputFormat in [2,3]:
 			outf = open(outputFname, 'w')
-			outf.write("sampleID\n")
+			if outputFormat==2:
+				outf.write("sampleID\n")
 			for col_index, sampleID in col_index2sampleID.iteritems():
 				outf.write("%s\n"%(sampleID))
 			outf.close()
-			no_of_snps = 0
 		vcfFile.close()
 		sys.stderr.write("%s samples X %s SNPs.\n"%(no_of_samples, no_of_snps))
 		
@@ -134,7 +134,7 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 		
 		self.extractSamples(db_vervet=self.db_vervet, inputFname=self.inputFname, outputFname=self.outputFname, \
 					tax_id_set=set(self.tax_id_ls), site_id_set=set(self.site_id_ls), country_id_set=set(self.country_id_ls),\
-					outputFormat=self.outputFormat)
+					min_coverage=self.min_coverage, max_coverage=self.max_coverage, outputFormat=self.outputFormat)
 		
 
 if __name__ == '__main__':
