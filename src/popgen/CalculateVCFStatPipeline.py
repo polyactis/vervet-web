@@ -263,7 +263,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 							passingData=passingData, transferOutput=transferOutput, \
 							pop_tax_id_ls_str=self.pop_tax_id_ls, pop_site_id_ls_str=self.pop_site_id_ls, \
 							pop_country_id_ls_str=self.pop_country_id_ls, popHeader=self.popHeader,\
-							pop_sampleSize=self.pop_sampleSize, returnData=returnData)
+							pop_sampleSize=self.pop_sampleSize, outputFormat=3, returnData=returnData)
 		passingData.extractPopSampleIDJob = extractPopSampleIDJob
 		
 		statOutputDir = "%sStat"%(outputDirPrefix)
@@ -624,7 +624,8 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 				refFastaFList=passingData.refFastaFList, sampleIDKeepFile=extractPopSampleIDJob.output,\
 				parentJobLs=[topOutputDirJob, splitVCFJob, extractPopSampleIDJob]+jobData.jobLs, \
 				extraDependentInputLs=[], transferOutput=transferOutput, \
-				extraArguments=None, job_max_memory=2000)
+				extraArguments="--ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES", job_max_memory=2000)
+		## --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES is added because extractPopSampleIDJob could have more samples than VCFJobData.file
 		
 		outputF = File(os.path.join(topOutputDirJob.output, "%s.homoHetCountPerSample.tsv"%(commonPrefix)))
 		countHomoHetInOneVCFJob = self.addCountHomoHetInOneVCFJob(executable=workflow.CountHomoHetInOneVCF, inputF=popVCFConvertJob.output, \
