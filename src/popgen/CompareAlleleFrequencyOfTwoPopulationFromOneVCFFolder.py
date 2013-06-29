@@ -163,7 +163,7 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		topOutputDirJob = passingData.topOutputDirJob
 		topOutputDir = topOutputDirJob.output
 		
-		intervalFnamePrefix = passingData.intervalFnamePrefix
+		intervalFileBasenamePrefix = passingData.intervalFileBasenamePrefix
 		jobData = passingData.jobData
 		
 		frequencyDirJob = passingData.frequencyDirJob
@@ -174,11 +174,11 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		
 		#1st population
 		extractPop1SampleIDJob = passingData.extractPop1SampleIDJob
-		outputVCF = File(os.path.join(topOutputDirJob.output, '%s_pop%s.vcf'%(intervalFnamePrefix, self.pop1Header)))
+		outputVCF = File(os.path.join(topOutputDirJob.output, '%s_pop%s.vcf'%(intervalFileBasenamePrefix, self.pop1Header)))
 		#selectVariants would re-generate AC, AF so that TrioCaller could read it.
 		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
-		pop1VCFConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=self.SelectVariantsJava, \
-				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=VCFJobData.file, outputF=outputVCF, \
+		pop1VCFConvertJob = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
+				inputF=VCFJobData.file, outputF=outputVCF, \
 				refFastaFList=self.refFastaFList, sampleIDKeepFile=extractPop1SampleIDJob.output,\
 				parentJobLs=[topOutputDirJob, splitVCFJob, extractPop1SampleIDJob]+jobData.jobLs, \
 				extraDependentInputLs=[], transferOutput=transferOutput, \
@@ -186,20 +186,19 @@ class CompareAlleleFrequencyOfTwoPopulationFromOneVCFFolder(AbstractVervetWorkfl
 		
 		#2nd population
 		extractPop2SampleIDJob = passingData.extractPop2SampleIDJob
-		outputVCF = File(os.path.join(topOutputDirJob.output, '%s_pop%s.vcf'%(intervalFnamePrefix, self.pop2Header)))
+		outputVCF = File(os.path.join(topOutputDirJob.output, '%s_pop%s.vcf'%(intervalFileBasenamePrefix, self.pop2Header)))
 		#selectVariants would generate AC, AF so that TrioCaller could read it.
 		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
-		pop2VCFConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=self.SelectVariantsJava, \
-				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=VCFJobData.file, outputF=outputVCF, \
+		pop2VCFConvertJob = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
+				inputF=VCFJobData.file, outputF=outputVCF, \
 				refFastaFList=self.refFastaFList, sampleIDKeepFile=extractPop2SampleIDJob.output,\
 				parentJobLs=[topOutputDirJob, splitVCFJob, extractPop2SampleIDJob]+jobData.jobLs, \
 				extraDependentInputLs=[], transferOutput=transferOutput, \
 				extraArguments=None, job_max_memory=2000)
 		
 		
-		
 		#add the JuxtaposeAlleleFrequencyFromMultiVCFInput job
-		outputFile = File(os.path.join(frequencyDirJob.output, '%s_AF_pop%s_vs_pop%s.tsv'%(intervalFnamePrefix, \
+		outputFile = File(os.path.join(frequencyDirJob.output, '%s_AF_pop%s_vs_pop%s.tsv'%(intervalFileBasenamePrefix, \
 															self.pop1Header, self.pop2Header)))
 		extraArguments = "--inputHeaderLs %s,%s"%(self.pop1Header, self.pop2Header)
 		juxtaposeAFJob = self.addGenericJob(workflow=workflow, executable=self.JuxtaposeAlleleFrequencyFromMultiVCFInput, \

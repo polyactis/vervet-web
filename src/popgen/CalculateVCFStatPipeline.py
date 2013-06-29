@@ -3,36 +3,37 @@
 Examples:
 	# 2011-9-29
 	%s  -a 524 -I ./AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_condor_20111106T1554/gatk/
-		-o workflow/VCFStat/VCFStat_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_gatk.xml
+		-o dags/VCFStat/VCFStat_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_gatk.xml
 		-l condorpool -j condorpool  -u yh -z uclaOffice
 	
 	#different window size for pi and TiTv
 	%s  -a 524 -I ./AlignmentToCallPipeline_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_condor_20111106T1554/gatk/
-		-o workflow/VCFStat/VCFStat_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_gatk_window20Mb.xml
+		-o dags/VCFStat/VCFStat_4HighCovVRC_isq_15_18_vs_524_top804Contigs_multi_sample_gatk_window20Mb.xml
 		-l condorpool -j condorpool  -u yh -z uclaOffice
-		-w 20000000
+		--windowSize 20000000
 	
 	#2012.5.11 run on hoffman2 condor, need ssh tunnel for the PlotVCFtoolsStat (-H)
 	%s ...
 		-j hcondor -l hcondor -u yh -z localhost  -D ~/NetworkData/vervet/db/ -t ~/NetworkData/vervet/db/
 		-H 
 	
-	# 2012.8.1 on hoffman2 condor, LD window size=800Kb (-L), minChrLengthForPlot=4million (-P), minChrSiz for computing =1mil (-n)
+	# 2012.8.1 on hoffman2 condor, LD window size=800Kb (--LDWindowSize), minChrLengthForPlot=4million (--minChrLengthForPlot), 
+	# minChrSiz for computing =1mil (--minChrSize)
 	# need ssh tunnel for the PlotVCFtoolsStat (-H)
-	# try "-n 0" to get rid of Ti/Tv, pi, snpDensity jobs
-	# try "-L 0" to get rid of LD jobs (which take long time)
+	# try "--minChrSize 0" to get rid of Ti/Tv, pi, snpDensity jobs
+	# try "--LDWindowSize 0" to get rid of LD jobs (which take long time)
 	# "-V 90 -x 100" are used to restrict contig IDs between 90 and 100.
-	# try "-s 0.01" to increase data sampling rate.
+	# try "--samplingRate 0.01" to increase data sampling rate.
 	# --intervalSize refers to the number of SNP loci, not chromosome distance. 
 	m=64; country=135; pop=VRC; maxCID=100; popSS=50; n=10;
 	m=64; country=144,148; pop=StKittsNevis; maxCID=100; popSS=0; n=10;	#popSS=0 means take all samples from that population
 	maxIBDSharing=0.15;
 	%s -a 524 -I ~/NetworkData/vervet/db/genotype_file/method_$m/
-		-o workflow/VCFStat/VCFStat_Method$m\_L800000P4000000n1000000_sample$popSS\_$pop\_maxContigID$maxCID\_maxIBDSharing$maxIBDSharing.xml
+		-o dags/VCFStat/VCFStat_Method$m\_L800000P4000000n1000000_sample$popSS\_$pop\_maxContigID$maxCID\_maxIBDSharing$maxIBDSharing.xml
 		-j hcondor -l hcondor -u yh -z localhost
 		-D ~/NetworkData/vervet/db/ -t ~/NetworkData/vervet/db/
-		-L 800000 -P 4000000 -n 1000000 -H --intervalSize 2000
-		--intervalOverlapSize 500   -x $maxCID -C 3 -s 0.01  --pop_sampleSize $popSS --pop_country_id_ls $country
+		--LDWindowSize 800000 --minChrLengthForPlot 4000000 --minChrSize 1000000 -H --intervalSize 2000
+		--intervalOverlapSize 500   -x $maxCID -C 3 --samplingRate 0.01  --pop_sampleSize $popSS --pop_country_id_ls $country
 		--popHeader=$pop
 		--plinkIBDCheckOutputFname PlinkIBDCheck/PlinkIBDCheck_Method38_W50Z20R0.5.2012.9.13T102232/ibdCheckIBDCheck/LDPrunedMerged_ibdCheck.tsv
 		--maxIBDSharing=0.15
@@ -57,7 +58,7 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 import subprocess, cStringIO
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, GenomeDB, NextGenSeq
 from Pegasus.DAX3 import *
-from vervet.src.AbstractVervetWorkflow import AbstractVervetWorkflow
+from vervet.src.pegasus.AbstractVervetWorkflow import AbstractVervetWorkflow
 
 class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 	__doc__ = __doc__
@@ -299,7 +300,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[homoHetCountReduceOutputF], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="NoOfHet_by_NoOfTotal", whichColumnPlotLabel="HetFraction", \
-					logY=False, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
+					logY=0, positiveLog=True, logCount=True, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=10,\
 					figureDPI=100, samplingRate=1,\
 					parentJobLs=[plotOutputDirJob, homoHetCountReduceJob], \
@@ -364,7 +365,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 			self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[TiTvFinalOutputF], \
 								outputFnamePrefix=outputFnamePrefix, \
 								whichColumn=None, whichColumnHeader="Ts/Tv", whichColumnPlotLabel="Ts/Tv", need_svg=False, \
-								logY=False, valueForNonPositiveYValue=-1, \
+								logY=0, valueForNonPositiveYValue=-1, \
 								xColumnPlotLabel="position", chrLengthColumnHeader="chrLength", chrColumnHeader="CHROM", \
 								minChrLength=self.minChrLengthForPlot, xColumnHeader="BinStart", minNoOfTotal=50,\
 								figureDPI=100, ylim_type=2, samplingRate=1,\
@@ -400,7 +401,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 			self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[snpDensityOutputF], \
 								outputFnamePrefix=outputFnamePrefix, \
 								whichColumn=None, whichColumnHeader="SNPS/KB", whichColumnPlotLabel="SNPS/KB", need_svg=False, \
-								logY=False, valueForNonPositiveYValue=-1, \
+								logY=0, valueForNonPositiveYValue=-1, \
 								xColumnPlotLabel="position", chrLengthColumnHeader="chrLength", chrColumnHeader="CHROM", \
 								minChrLength=self.minChrLengthForPlot, xColumnHeader="BIN_START", minNoOfTotal=50,\
 								figureDPI=100, ylim_type=2, samplingRate=1,\
@@ -431,7 +432,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[hweMergeFile], \
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnHeader="hetFraction", whichColumnPlotLabel="hetFraction", need_svg=False, \
-							logY=False, valueForNonPositiveYValue=-1, \
+							logY=0, valueForNonPositiveYValue=-1, \
 							xColumnPlotLabel="position", chrLengthColumnHeader="chrLength", chrColumnHeader="CHR", \
 							minChrLength=self.minChrLengthForPlot, xColumnHeader="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=self.samplingRate, logCount=True,\
@@ -450,7 +451,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[siteMeanDepthMergeFile], \
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnHeader="MEAN_DEPTH", whichColumnPlotLabel="meanDepth", need_svg=False, \
-							logY=False, valueForNonPositiveYValue=-1, \
+							logY=0, valueForNonPositiveYValue=-1, \
 							xColumnPlotLabel="position", chrLengthColumnHeader="chrLength", chrColumnHeader="CHROM", \
 							minChrLength=self.minChrLengthForPlot, xColumnHeader="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=self.samplingRate, logCount=True,\
@@ -461,7 +462,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[siteMeanDepthMergeFile], \
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnHeader="VAR_DEPTH", whichColumnPlotLabel="depthVariation", need_svg=False, \
-							logY=False, valueForNonPositiveYValue=-1, \
+							logY=0, valueForNonPositiveYValue=-1, \
 							xColumnPlotLabel="position", chrLengthColumnHeader="chrLength", chrColumnHeader="CHROM", \
 							minChrLength=self.minChrLengthForPlot, xColumnHeader="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=self.samplingRate, logCount=True,\
@@ -490,7 +491,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[lmissingMergeFile], \
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnHeader="F_MISS", whichColumnPlotLabel="missingFrequency", need_svg=False, \
-							logY=False, valueForNonPositiveYValue=-1,\
+							logY=0, valueForNonPositiveYValue=-1,\
 							xColumnPlotLabel="position", chrLengthColumnHeader="chrLength", chrColumnHeader="CHR", \
 							minChrLength=self.minChrLengthForPlot, xColumnHeader="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=self.samplingRate, logCount=True,\
@@ -525,7 +526,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 																								movingAverageType, LDSamplingRate)))
 					passingData.LDPlotJob = self.addPlotLDJob(executable=workflow.PlotLD, inputFileList=[LDMergeJob.output], outputFile=outputFile, \
 								whichColumn=None, whichColumnHeader="R^2", whichColumnPlotLabel=whichColumnPlotLabel, \
-								logY=False,\
+								logY=0,\
 								xColumnPlotLabel="distance", chrLengthColumnHeader=None, chrColumnHeader="CHR", \
 								minChrLength=self.minChrLengthForPlot, xColumnHeader="POS1", pos2ColumnHeader="POS2", minNoOfTotal=50,\
 								figureDPI=100, ylim_type=2, samplingRate=LDSamplingRate,\
@@ -548,7 +549,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[siteQualityMergeFile], \
 							outputFnamePrefix=outputFnamePrefix, \
 							whichColumn=None, whichColumnHeader="QUAL", whichColumnPlotLabel="siteQuality", need_svg=False, \
-							logY=False,\
+							logY=0,\
 							xColumnPlotLabel="position", chrLengthColumnHeader="chrLength", chrColumnHeader="CHROM", \
 							minChrLength=self.minChrLengthForPlot, xColumnHeader="POS", minNoOfTotal=50,\
 							figureDPI=100, ylim_type=2, samplingRate=self.samplingRate, logCount=True,\
@@ -569,7 +570,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		self.addAbstractPlotJob(workflow=workflow, executable=workflow.PlotYAsBar, inputFileList=[AACTallyReduceOutputF], \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="NumberOfLoci", whichColumnPlotLabel="NoOfLoci", \
-					logY=False, positiveLog=True, valueForNonPositiveYValue=50,\
+					logY=0, positiveLog=True, valueForNonPositiveYValue=50,\
 					xColumnHeader="AAC", xColumnPlotLabel="AlternativeAlleleCount", \
 					minNoOfTotal=2,\
 					figureDPI=100, samplingRate=1,\
@@ -598,7 +599,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		topOutputDirJob = passingData.topOutputDirJob
 		topOutputDir = topOutputDirJob.output
 		
-		intervalFnamePrefix = passingData.intervalFnamePrefix
+		intervalFileBasenamePrefix = passingData.intervalFileBasenamePrefix
 		jobData = passingData.jobData
 		
 		
@@ -611,16 +612,16 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 			chr_size = 1000
 		if chr_size<self.minChrSize:
 			return returnData
-		commonPrefix = intervalFnamePrefix
+		commonPrefix = intervalFileBasenamePrefix
 		
 		#1st population
 		extractPopSampleIDJob = passingData.extractPopSampleIDJob
-		outputVCF = File(os.path.join(topOutputDirJob.output, '%s_pop%s.vcf'%(intervalFnamePrefix, self.popHeader)))
+		outputVCF = File(os.path.join(topOutputDirJob.output, '%s_pop%s.vcf'%(intervalFileBasenamePrefix, self.popHeader)))
 		#selectVariants would re-generate AC, AF so that TrioCaller could read it.
 		#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 		popVCFConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=self.SelectVariantsJava, \
-				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, inputF=VCFJobData.file, outputF=outputVCF, \
-				refFastaFList=self.refFastaFList, sampleIDKeepFile=extractPopSampleIDJob.output,\
+				inputF=VCFJobData.file, outputF=outputVCF, \
+				refFastaFList=passingData.refFastaFList, sampleIDKeepFile=extractPopSampleIDJob.output,\
 				parentJobLs=[topOutputDirJob, splitVCFJob, extractPopSampleIDJob]+jobData.jobLs, \
 				extraDependentInputLs=[], transferOutput=transferOutput, \
 				extraArguments=None, job_max_memory=2000)
@@ -652,7 +653,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 							inputFileList=outputVCFSiteGapJob.outputLs, \
 							outputFile=outputFile, \
 					whichColumn=None, whichColumnHeader="distanceToNextSite", \
-					logY=False, valueForNonPositiveYValue=-1,\
+					logY=0, valueForNonPositiveYValue=-1,\
 					minNoOfTotal=10,\
 					samplingRate=1,\
 					parentJobLs=[topOutputDirJob, outputVCFSiteGapJob], \
@@ -793,7 +794,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		outputF = File(os.path.join(topOutputDirJob.output, "%s_AAC_tally.tsv"%(commonPrefix)))
 		TallyAACFromVCFJob = self.addTallyAACFromVCFJob(workflow, TallyAACFromVCF=workflow.TallyAACFromVCF, \
 					GenomeAnalysisTKJar=workflow.GenomeAnalysisTKJar, \
-					refFastaFList=self.refFastaFList, inputVCFF=popVCFConvertJob.output, outputF=outputF, \
+					refFastaFList=passingData.refFastaFList, inputVCFF=popVCFConvertJob.output, outputF=outputF, \
 					parentJobLs=[topOutputDirJob]+[popVCFConvertJob], \
 					job_max_memory=5000, extraDependentInputLs=[],\
 					transferOutput=False)
