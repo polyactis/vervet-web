@@ -5,14 +5,14 @@ Examples:
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/ 
 		-o dags/SampleIDInUCLAID_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml 
 		--db_user yh -y4 --site_handler hcondor --input_site_handler hcondor  --hostname localhost
-		--home_path /u/home/eeskin/polyacti/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
-		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
+		--home_path ~/ --data_dir ~/NetworkData/vervet/db/
+		--local_data_dir ~/NetworkData/vervet/db/ 
 	
 	# 2012.8.10 IBD check
 	# add --kinshipFname kinshipFile if you want comparison (table&figures) between IBD pi-hat and kinship 
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkIBDCheck/PlinkIBDCheck_Method14.xml --clusters_size 1 
 		--needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor  --db_user yh --hostname localhost
-		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir ~/NetworkData/vervet/db/ --data_dir ~/NetworkData/vervet/db/
 		--hostname localhost  -y3 --mergeListFname ./aux/Method14_LDPrune_merge_list.2012.8.10T0441.txt
 		#--kinshipFname ~/NetworkData/vervet/Kinx2Apr2012.txt
 	
@@ -22,7 +22,7 @@ Examples:
 	# LDPruneWindowShiftSize=100 (--LDPruneWindowShiftSize)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719/trioCaller_vcftoolsFilter/ 
 		-o dags/ToPlinkFilterVCF/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
-		-y 2  --checkEmptyVCFByReading
+		-y 2 --checkEmptyVCFByReading
 		--site_handler condorpool --input_site_handler condorpool
 		--db_user yh --hostname uclaOffice  --clusters_size 4 --needSSHDBTunnel --LDPruneMinR2 0.3 --LDPruneWindowSize 500
 		--LDPruneWindowShiftSize 100
@@ -32,7 +32,7 @@ Examples:
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkMendelError/PlinkMendelError_Method14.xml
 		--checkEmptyVCFByReading --clusters_size 4  --needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor
 		--db_user yh --hostname localhost
-		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
+		--local_data_dir ~/NetworkData/vervet/db/ --data_dir ~/NetworkData/vervet/db/ 
 		-y1
 	
 	# 2012.8.13 sex check using the top 195 contigs (--maxContigID 195) (Contig 83, 149,193 are sex chromosomes)
@@ -41,7 +41,7 @@ Examples:
 		-o dags/PlinkSexCheck/PlinkSexCheck_Method14_W100Z10R0.4_maxContigID195.xml
 		--LDPruneWindowSize 100 --LDPruneWindowShiftSize 10 --LDPruneMinR2 0.4 --clusters_size 1  --needSSHDBTunnel
 		--site_handler hcondor --input_site_handler hcondor  --db_user yh --hostname localhost
-		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir ~/NetworkData/vervet/db/ --data_dir ~/NetworkData/vervet/db/
 		--hostname localhost  -y4 --mergeListFname ./aux/Method14_LDPrune_merge_list.2012.8.13T1702.txt --maxContigID 195
 	
 	#2013.2.1 mark mendel error-calls missing (-y5)
@@ -49,7 +49,7 @@ Examples:
 		-o dags/MarkMendelErrorCallMissing/MarkMendelErrorCallMissing_method38.xml
 		-y5 --clusters_size 1  --needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor
 		--db_user yh --hostname localhost
-		--local_data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/ --data_dir /u/home/eeskin/polyacti/NetworkData/vervet/db/
+		--local_data_dir ~/NetworkData/vervet/db/ --data_dir ~/NetworkData/vervet/db/
 		--mergeListFname ./aux/Method38_MarkMendelErrorCallMissing_merge_list.20130201.txt --minContigID 90 --maxContigID 100
 	
 Description:
@@ -78,8 +78,8 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 	option_default_dict = copy.deepcopy(AbstractVCFWorkflow.option_default_dict)
 	plinkWorkflowOptionDict= {
 						('LDPruneMinR2', 0, float): [0.4, 'R', 1, 'minimum r2 for LD pruning', ],\
-						('locusSamplingRate', 0, float): [0.0001, 'c', 1, 'how many loci to sample (unused)', ],\
-						('mergeListFname', 0, ): [None, 'g', 1, 'the file to contain the merge-list for plink, required for run_type>1', ],\
+						('locusSamplingRate', 0, float): [0.0001, '', 1, 'how many loci to sample (unused)', ],\
+						('mergeListFname', 0, ): [None, '', 1, 'the file to contain the merge-list for plink, required for run_type>1', ],\
 						('run_type', 1, int): [1, 'y', 1, 'which run_type to run. \n\
 	1: mendel errors,\n\
 	2: LD pruning, \n\
@@ -88,12 +88,13 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 	5: mark genotype calls associated with mendel inconsistency as missing', ],\
 						('LDPruneWindowSize', 1, int): [50, 'W', 1, ' window size (in the number of SNPs, not bp) for plink LD pruning'],\
 						('LDPruneWindowShiftSize', 1, int): [20, '', 1, 'adjacent window shift (in the number of SNPs), not bp '],\
-						('kinshipFname', 0, ): ["", 's', 1, 'the kinship file from Sue (in turn from Solar, based on pedigree )\
+						('kinshipFname', 0, ): ["", '', 1, 'the kinship file from Sue (in turn from Solar, based on pedigree )\
 		if given, y3 (IBD check) workflow will compare IBD result with kinship'],\
 							}
 	option_default_dict.update(plinkWorkflowOptionDict)
 	option_default_dict.update({
 						('inputDir', 0, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
+						('font_path', 1, ):['~/FreeSerif.ttf', '', 1, 'font file used to draw matrix in Plink IBD Check'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
@@ -115,13 +116,13 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		returnData.jobDataLs = []
 		
 		topOutputDir = "%sMendelError"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		
 		mergedOutputDir = "%sMerged"%(outputDirPrefix)
-		mergedOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergedOutputDir)
+		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
 		
 		plotOutputDir = "%splot"%(outputDirPrefix)
-		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
+		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
 		
 		mendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_mendel.tsv'))
 		#each input has no header
@@ -247,13 +248,18 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 	
 	def writePlinkMergeListFile(self, outputFname=None, extractedFilenameTupleList=[]):
 		"""
+		2013.07.02 ask user whether to overwrite outputFname if it's already there
 		2012.9.12
 			exit if outputFname exists already
 		"""
 		if os.path.isfile(outputFname):
-			sys.stderr.write("Error: plink merge file %s already exists. Rename it to something else or delete it (if its workflow has finished.)\n"%\
+			userAnswer = raw_input("\n \t Error: plink merge file %s already exists. Overwrite it? (if its associated workflows do not use it anymore.) [Y/n]:"%\
 							(outputFname))
-			sys.exit(2)
+			if userAnswer=='Y' or userAnswer=='y' or userAnswer=='' or userAnswer=='yes' or userAnswer=='Yes':
+				pass
+			else:
+				sys.stderr.write("user answered %s, interpreted as no.\n"%(userAnswer))
+				sys.exit(2)
 		outf = open(outputFname, 'w')
 		for data_tuple in extractedFilenameTupleList:
 			outf.write('%s %s %s\n'%(data_tuple[0], data_tuple[1], data_tuple[2]))
@@ -269,7 +275,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		sys.stderr.write("Adding jobs that mark mendel-error loci missing for %s  files ... "%(len(inputData.jobDataLs)))
 		
 		topOutputDir = "%sMarkMendelLocusMissing"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		
 		
 		returnData = PassingData()
@@ -337,10 +343,10 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		sys.stderr.write("Adding plink binary converting jobs for %s  files ... "%(len(inputData.jobDataLs)))
 		
 		topOutputDir = "%sPlinkBinary"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		
 		mergedOutputDir = "%sPlinkMerged"%(outputDirPrefix)
-		mergedOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergedOutputDir)
+		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
 		
 		returnData = PassingData()
 		returnData.jobDataLs = []
@@ -427,13 +433,13 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		sys.stderr.write("Adding plink LD pruning jobs for %s  files ... "%(len(inputData.jobDataLs)))
 		
 		topOutputDir = "%sLDPrune"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		
 		mergedOutputDir = "%sMerged"%(outputDirPrefix)
-		mergedOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergedOutputDir)
+		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
 		
 		plotOutputDir = "%splot"%(outputDirPrefix)
-		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
+		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
 		
 		
 		returnData = PassingData()
@@ -636,13 +642,13 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		
 		
 		topOutputDir = "%sIBDCheck"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		
 		mergedOutputDir = "%sMerged"%(outputDirPrefix)
-		mergedOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergedOutputDir)
+		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
 		
 		plotOutputDir = "%splot"%(outputDirPrefix)
-		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
+		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
 		
 		
 		returnData = PassingData()
@@ -665,7 +671,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						outputFnamePrefix=freqFnamePrefix, outputOption='--out',\
 						estimateAlleFrequency=True, \
 						extraDependentInputLs=None, transferOutput=transferOutput, \
-						extraArguments="--nonfounders", job_max_memory=2000,\
+						extraArguments="--nonfounders --allow-no-sex", job_max_memory=2000,\
 						parentJobLs =[topOutputDirJob]+ jobData.jobLs)
 				frqFile = plinkFrqJob.frqFile
 				plinkIBDCheckParentJobLs = [plinkFrqJob] + jobData.jobLs
@@ -679,7 +685,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 					outputFnamePrefix=IBDCheckFnamePrefix, outputOption='--out',\
 					estimatePairwiseGenomeWideIBD=True, estimatePairwiseGenomeWideIBDFreqFile=frqFile, \
 					extraDependentInputLs=None, transferOutput=transferOutput, \
-					extraArguments=None, job_max_memory=2000,\
+					extraArguments="--allow-no-sex", job_max_memory=2000,\
 					parentJobLs =[topOutputDirJob]+ plinkIBDCheckParentJobLs)
 			#2012.8.15 transform it to tab-delimited matrix
 			outputFile = File(os.path.join(topOutputDir, "%s_ibdCheck.tsv"%(commonPrefix)))
@@ -708,15 +714,17 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			returnData.jobDataLs.append(PassingData(jobLs=[toTsvMatrixJob], file=toTsvMatrixJob.output, \
 											fileLs=toTsvMatrixJob.outputLs))
 			if kinshipFile:
+				minAbsDeltaForOutlier=0.25
 				wrongLabelOutputFnamePrefix = 'wrongLabelChiSq_greedy'
 				outputFile = File(os.path.join(topOutputDir, '%s.tsv'%(wrongLabelOutputFnamePrefix)))
 				detectWrongLabelJob = self.addDetectWrongLabelByCompKinshipVsIBDJob(executable=self.DetectWrongLabelByCompKinshipVsIBD, \
-																	inputFile=kinshipFile, \
-							plinkIBDCheckOutputFile=toTsvMatrixJob.output, outputFile=outputFile, outputFnamePrefix=None, \
-							iterativeAlgorithm=True, minAbsDeltaForOutlier=0.2, \
+							inputFile=kinshipFile, plinkIBDCheckOutputFile=toTsvMatrixJob.output, \
+							outputFile=outputFile, outputFnamePrefix=None, \
+							iterativeAlgorithm=True, minAbsDeltaForOutlier=minAbsDeltaForOutlier, \
 							parentJobLs=[toTsvMatrixJob, topOutputDirJob], \
 							extraDependentInputLs=None, \
-							extraArguments=None, transferOutput=transferOutput, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
+							extraArguments=None, transferOutput=transferOutput, \
+							job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
 				
 				if fontFile:
 					#maxBlockSize is the max number of individuals to be put in one block of image. \
@@ -880,12 +888,12 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		
 		
 		topOutputDir = "%sSexCheck"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		no_of_jobs += 1
 		
 		
 		plotOutputDir = "%splot"%(outputDirPrefix)
-		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
+		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
 		no_of_jobs += 1
 		
 		
@@ -1058,20 +1066,22 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			#for LD pruning, need to get rid files with too few loci
 			needToKnowNoOfLoci = True
 			#files with too few loci (like 1) cause problem by becoming empty after LD-prune (why? at least one SNP).
-			minNoOfLoci = 2
+			minNoOfLociInVCF = 2
 			
 			#only plink mendel job needs full VRC pedigree
-			treatEveryOneIndependent = True
-		else:
+			#treatEveryOneIndependent = True
+		else:	#mendel error-related types
 			#only plink mendel-error (-y1) and mark mendel-error-call missing (-y5) job needs full VRC pedigree
-			treatEveryOneIndependent = False
+			#treatEveryOneIndependent = False
 			
 			chr_id2cumu_chr_start = None
 			ModifyTPEDRunType = 1	#plink mendel doesn't skip non-human chromosomes
 			
 			needToKnowNoOfLoci = False
-			minNoOfLoci = None	#2012.10.19 bugfix
+			minNoOfLociInVCF = None	#2012.10.19 bugfix
 		
+		#2013.07.01 output the pedigree relationship for all
+		treatEveryOneIndependent = False
 		db_vervet = self.db_vervet
 		
 		if not self.data_dir:
@@ -1094,7 +1104,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 											minContigID=self.minContigID,\
 											db_vervet=db_vervet, \
 											needToKnowNoOfLoci=needToKnowNoOfLoci,\
-											minNoOfLoci=minNoOfLoci)	#files with too few loci cause problem by becoming empty after LD-prune
+											minNoOfLociInVCF=minNoOfLociInVCF)	#files with too few loci cause problem by becoming empty after LD-prune
 		if len(inputData.jobDataLs)<=0:
 			sys.stderr.write("No VCF files in this folder , %s.\n"%self.inputDir)
 			sys.exit(0)
@@ -1115,7 +1125,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						maxContigID=self.maxContigID, outputDirPrefix="mendel", \
 						returnMode=2)
 		elif self.run_type==2:	#LD-prune
-			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName)
+			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName, checkFileExistence=False)
 			LDPruneJobData = self.addPlinkLDPruneJobs(inputData=vcf2PlinkJobData, transferOutput=True,\
 						maxContigID=self.maxContigID, LDPruneMinR2=self.LDPruneMinR2, \
 						LDPruneWindowSize=self.LDPruneWindowSize, LDPruneWindowShiftSize=self.LDPruneWindowShiftSize, \
@@ -1123,7 +1133,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						mergeListFile=mergeListFile)
 		elif self.run_type==3:	#IBD check
 			no_of_individuals = inputData.jobDataLs[0].file.no_of_individuals
-			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName)
+			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName, checkFileExistence=False)
 			LDPruneJobData = self.addPlinkLDPruneJobs(inputData=vcf2PlinkJobData, transferOutput=True,\
 						maxContigID=self.maxContigID, LDPruneMinR2=self.LDPruneMinR2, \
 						LDPruneWindowSize=self.LDPruneWindowSize, LDPruneWindowShiftSize=self.LDPruneWindowShiftSize, \
@@ -1133,14 +1143,15 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 				kinshipFile = self.registerOneInputFile(inputFname=self.kinshipFname, folderName=self.pegasusFolderName)
 			else:
 				kinshipFile = None
-			fontFile = self.registerOneInputFile(inputFname=os.path.expanduser("~/FreeSerif.ttf"), folderName=self.pegasusFolderName)
+			fontFile = self.registerOneInputFile(inputFname=os.path.expanduser(self.font_path), \
+												folderName=self.pegasusFolderName)
 			self.addPlinkIBDCheckJobs(workflow=None, inputData=LDPruneJobData, kinshipFile=kinshipFile, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="ibdCheck", fontFile=fontFile, no_of_individuals=no_of_individuals)
 			self.addPlinkIBDCheckJobs(workflow=None, inputData=LDPruneJobData, kinshipFile=kinshipFile, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="ibdCheckWithNonFounderFreq", useAlleleFrequencyFromNonFounders=True,\
 						fontFile=fontFile, no_of_individuals=no_of_individuals)
 		elif self.run_type==4:	#sex check
-			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName)
+			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName, checkFileExistence=False)
 			LDPruneJobData = self.addPlinkLDPruneJobs(inputData=vcf2PlinkJobData, transferOutput=True,\
 						maxContigID=self.maxContigID, LDPruneMinR2=self.LDPruneMinR2, \
 						LDPruneWindowSize=self.LDPruneWindowSize, LDPruneWindowShiftSize=self.LDPruneWindowShiftSize, \
@@ -1153,16 +1164,15 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 													transferOutput=False, \
 													maxContigID=self.maxContigID, tfamJob=vcf2PlinkJobData.tfamJob, \
 													outputDirPrefix='markMendelErrorLociMissing')
-			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName)
+			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName, checkFileExistence=False)
 			self.addPlinkBinaryConversionJobs(inputData=missingJobData, transferOutput=True, maxContigID=self.maxContigID, \
 											tfamJob=vcf2PlinkJobData.tfamJob, \
 											outputDirPrefix='plinkBinary', returnMode=1, mergeListFile=mergeListFile)
 		else:
 			sys.stderr.write("run_type %s not supported.\n"%(self.run_type))
 			sys.exit(0)
-		# Write the DAX to stdout
-		outf = open(self.outputFname, 'w')
-		workflow.writeXML(outf)
+		
+		self.end_run()
 		
 
 
