@@ -19,9 +19,10 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
-from pymodule.VCFFile import VCFFile
-from AbstractVCFMapper import AbstractVCFMapper
+from pymodule import VCFFile
+from pymodule.pegasus.mapper.AbstractVCFMapper import AbstractVCFMapper
 from vervet.src import VervetDB
+
 class ConvertAlignmentReadGroup2UCLAIDInVCF(AbstractVCFMapper):
 	__doc__ = __doc__
 	option_default_dict = AbstractVCFMapper.option_default_dict.copy()
@@ -45,7 +46,6 @@ class ConvertAlignmentReadGroup2UCLAIDInVCF(AbstractVCFMapper):
 		2012.5.10
 		"""
 		sys.stderr.write("Converting %s from VCF to EigenStrat ...\n"%(inputFname))
-		from pymodule.VCFFile import VCFFile
 		
 		vcfFile = VCFFile(inputFname=inputFname, minDepth=minDepth)
 		#replace Variant/PooledTissues/2002053/genome.algn.split.part17/5tissues.pooled.rmdup.bam with just monkey ID
