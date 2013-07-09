@@ -22,6 +22,8 @@ Examples:
 		-u yh -z uclaOffice -C1
 	
 Description:
+	2013.07.09 --ref_ind_seq_id is not required to specify as it infers reference sequence ID from sample IDs in VCF
+		(alignment read-group -> reference sequence).
 	#2012.5.9
 		the usual -c (commit) is not here. All DB jobs are run with commit=True.
 	2012.8.3 if such a workflow with clustering on (several AddVCFFolder2DB jobs crammed into one) fails halfway,
