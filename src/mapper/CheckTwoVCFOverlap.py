@@ -25,6 +25,7 @@ import csv
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
 from pymodule import VCFFile
 from pymodule import SNP
+from pymodule.yhio.SNP import nt2number
 from AbstractVCFMapper import AbstractVCFMapper
 
 class CheckTwoVCFOverlap(AbstractVCFMapper):
@@ -158,7 +159,7 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 				call2 = vcfFile2.genotype_call_matrix[row_index2][col_index2]
 				if call1 not in NA_call_encoding_set and call2 not in NA_call_encoding_set:
 					no_of_non_NA_pairs_per_sample_ls[j] += 1
-					if call1==call2:
+					if nt2number[call1]==nt2number[call2]:	#2013.07.03 bugfix, 'AT' and 'TA' should be same. no phase
 						no_of_matches_per_sample_ls[j] += 1
 					else:
 						#do nothing
