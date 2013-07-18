@@ -97,7 +97,12 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						('font_path', 1, ):['~/FreeSerif.ttf', '', 1, 'font file used to draw matrix in Plink IBD Check'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
-
+	
+	#2013.7.17 no overlap and make the interval a lot smaller, (for VCF file)
+	option_default_dict[('intervalOverlapSize', 1, int)][0] = 0
+	option_default_dict[('intervalSize', 1, int)][0] = 10000
+	option_default_dict[('max_walltime', 1, int)][0] = 1320	#under 23 hours
+	
 	def __init__(self,  **keywords):
 		"""
 		"""
@@ -243,6 +248,9 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		##2012.7.21 gzip the final output
 		returnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
 					outputDirPrefix=outputDirPrefix)
+		returnData.lmendelMergeJob = lmendelMergeJob	#2013.07.17
+		returnData.imendelMergeJob = imendelMergeJob
+		returnData.meanMedianModePerLocusMendelErrorJob = meanMedianModePerLocusMendelErrorJob
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
@@ -253,13 +261,9 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			exit if outputFname exists already
 		"""
 		if os.path.isfile(outputFname):
-			userAnswer = raw_input("\n \t Error: plink merge file %s already exists. Overwrite it? (if its associated workflows do not use it anymore.) [Y/n]:"%\
-							(outputFname))
-			if userAnswer=='Y' or userAnswer=='y' or userAnswer=='' or userAnswer=='yes' or userAnswer=='Yes':
-				pass
-			else:
-				sys.stderr.write("user answered %s, interpreted as no.\n"%(userAnswer))
-				sys.exit(2)
+			message = "Error: plink merge file %s already exists. Overwrite it? (if its associated workflows do not use it anymore.) [Y/n]:"%\
+							(outputFname)
+			utils.pauseForUserInput(message=message, continueAnswerSet=set(['Y', 'y', '', 'yes', 'Yes']), exitType=1)
 		outf = open(outputFname, 'w')
 		for data_tuple in extractedFilenameTupleList:
 			outf.write('%s %s %s\n'%(data_tuple[0], data_tuple[1], data_tuple[2]))
@@ -438,7 +442,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		mergedOutputDir = "%sMerged"%(outputDirPrefix)
 		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
 		
-		plotOutputDir = "%splot"%(outputDirPrefix)
+		plotOutputDir = "%sPlot"%(outputDirPrefix)
 		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
 		
 		
@@ -647,7 +651,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		mergedOutputDir = "%sMerged"%(outputDirPrefix)
 		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
 		
-		plotOutputDir = "%splot"%(outputDirPrefix)
+		plotOutputDir = "%sPlot"%(outputDirPrefix)
 		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
 		
 		
