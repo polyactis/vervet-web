@@ -473,6 +473,7 @@ class FilterVCFPipeline(parentClass):
 					**keywords):
 		"""
 		2013.06.30
+		
 			argument VCFJobData looks like PassingData(file=splitVCFFile, vcfFile=splitVCFFile, fileLs=[splitVCFFile], \
 																		job=splitVCFJob, jobLs=[splitVCFJob], tbi_F=None)
 		"""
@@ -497,8 +498,9 @@ class FilterVCFPipeline(parentClass):
 			lastVCFJob = lastRoundJobLs[0]
 			if not hasattr(lastVCFJob, 'tbi_F'):
 				lastVCFJob.tbi_F = None
+			lastVCFJob.output = VCFJobData.file	#2013.07.18 otherwise it's always unit1
 		else:
-			lastVCFJob = PassingData(output=passingData.splitVCFFile, tbi_F=None)	#2012.8.3 fake, not a job. only useful when all filtering jobs are skipped.
+			lastVCFJob = PassingData(output=VCFJobData.file, tbi_F=None)	#2012.8.3 fake, not a job. only useful when all filtering jobs are skipped.
 		lastRoundExtraDependentInputLs =[]
 		
 		noTransferFlagJobSet = set()
