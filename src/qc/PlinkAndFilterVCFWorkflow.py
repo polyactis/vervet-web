@@ -128,7 +128,7 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 		#chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, \
 		#									sequence_type_id=9)
 		"""
-		if self.run_type!=1:	#all run_types that involve LD-pruning
+		if self.run_type==2 or self.run_type==3:	#run_type that involve LD-pruning at one step or another
 			#chrOrder=2 means chromosomes are not ordered alphabetically but by their sizes (descendingly)
 			oneGenomeData = db_genome.getOneGenomeData(tax_id=self.ref_genome_tax_id, chr_gap=0, chrOrder=2, \
 													sequence_type_id=self.ref_genome_sequence_type_id,\
@@ -144,7 +144,6 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 				#2012.9.12 contigs beyond 193 is a waste of time.
 				self.maxContigID=195
 				sys.stderr.write("Warning: maxContigID is manually set to 195 since contigs with ID bigger than 193 are useless.\n")
-			ModifyTPEDRunType = 3	#plink LD-prune will skip non-recognizable chromosomes (1-24, human), so fake the chromosome
 			if not self.mergeListFname:
 				sys.stderr.write("Error: mergeListFname %s is nothing. required for this run_type %s.\n"%(self.mergeListFname,\
 																										self.run_type))
@@ -153,15 +152,22 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 			#for LD pruning, need to get rid files with too few loci, used in self.setup_run()
 			#files with too few loci (like 1) cause problem by becoming empty after LD-prune (why? at least one SNP).
 			self.minNoOfLociInVCF = 2
-			#only plink mendel job needs full VRC pedigree
+		else:
+			chr_id2cumu_chr_start = None
+			self.minNoOfLociInVCF = 0
+		
+		#below is for the 1st round of vcf2plink 
+		if self.run_type==2:	#all run_type that involve LD-pruning
+			ModifyTPEDRunType = 3	#plink LD-prune will skip non-recognizable chromosomes (1-24, human), so fake the chromosome
+				#using chr_id2cumu_chr_start
+			#plink mendel job needs full VRC pedigree, but LD pruning does not
 			treatEveryOneIndependent = True
 		else:
-			#only plink mendel job needs full VRC pedigree
-			treatEveryOneIndependent = False
-			chr_id2cumu_chr_start = None
 			ModifyTPEDRunType = 1	#plink mendel doesn't skip non-human chromosomes
-			self.minNoOfLociInVCF = 0
-			
+			#plink mendel job needs full VRC pedigree
+			treatEveryOneIndependent = False
+		
+		
 		self.needToKnowNoOfLoci = True
 		self.setup_run()
 		
@@ -191,13 +197,14 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 		# 2012.5.1 filter only on the 1st vcf folder
 		vcf2PlinkJobData = self.addVCF2PlinkJobs(inputData=self.inputData, db_vervet=self.db_vervet, minMAC=None, minMAF=None,\
 						maxSNPMissingRate=None, transferOutput=False,\
-						maxContigID=self.maxContigID, outputDirPrefix="vcf2plink", outputPedigreeAsTFAM=True,\
+						maxContigID=self.maxContigID, outputDirPrefix="vcf2plinkRuntype%s_s1"%(self.run_type), outputPedigreeAsTFAM=True,\
 						treatEveryOneIndependent=treatEveryOneIndependent,\
 						returnMode=2, ModifyTPEDRunType=ModifyTPEDRunType, chr_id2cumu_chr_start=chr_id2cumu_chr_start)
 		
 		if self.run_type ==1 or self.run_type==3:
 			mendelWorkflowData = self.addPlinkMendelErrorJobs(inputData=vcf2PlinkJobData, transferOutput=True,\
-						maxContigID=self.maxContigID, outputDirPrefix="mendel", locusSamplingRate=self.locusSamplingRate, 
+						maxContigID=self.maxContigID, outputDirPrefix="mendelRuntype%s_s1"%(self.run_type), \
+						locusSamplingRate=self.locusSamplingRate, 
 						returnMode=2)
 		
 			lmendelMergeJob = mendelWorkflowData.lmendelMergeJob	#last job from PlinkMendelWorkflow is the locus-mendel merge job.
@@ -216,15 +223,16 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 			LDPruneWorkflowData = self.addPlinkLDPruneJobs(inputData=vcf2PlinkJobData, transferOutput=True,\
 					maxContigID=self.maxContigID, LDPruneMinR2=self.LDPruneMinR2, \
 					LDPruneWindowSize=self.LDPruneWindowSize, LDPruneWindowShiftSize=self.LDPruneWindowShiftSize, \
-					outputDirPrefix="ldPrune", returnMode=1, \
+					outputDirPrefix="ldPruneRuntype%s_s1"%(self.run_type), returnMode=1, \
 					mergeListFile=mergeListFile)
-			plinkMergeJobData = LDPruneWorkflowData.jobDataLs[-1]	#last job from LD-prune workflow is the plink merge job.
-			plinkMergeJob = plinkMergeJobData.jobLs[0]
-			keepSNPPosF = File('LDPrunedSitesW%sZ%sR%s.tsv'%(self.LDPruneWindowSize, self.LDPruneWindowShiftSize, self.LDPruneMinR2))
+			#plinkMergeJobData = LDPruneWorkflowData.jobDataLs[-1]	#last job from LD-prune workflow is the plink merge job.
+			#plinkMergeJob = plinkMergeJobData.jobLs[0]
+			plinkMergeJob = LDPruneWorkflowData.plinkMergeJob
+			keepSNPPosF = File('LDPrunedSitesW%sZ%sR%s.s1.tsv'%(self.LDPruneWindowSize, self.LDPruneWindowShiftSize, self.LDPruneMinR2))
 			convertJob = self.addGenericJob(executable=self.ConvertPlinkBIM, inputFile=plinkMergeJob.bimFile, \
 				inputArgumentOption="-i", \
 				outputFile=keepSNPPosF, outputArgumentOption="-o", \
-				parentJobLs=plinkMergeJobData.jobLs, extraDependentInputLs=None, extraOutputLs=None, transferOutput=True, \
+				parentJobLs=[plinkMergeJob], extraDependentInputLs=None, extraOutputLs=None, transferOutput=True, \
 				extraArguments=None, extraArgumentList=None, job_max_memory=2000,  sshDBTunnel=None, \
 				key2ObjectForJob=None)
 			keepSNPPosParentJobLs = [convertJob]
@@ -235,16 +243,19 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 								alnStatForFilterF=alnStatForFilterF, keepSNPPosF=keepSNPPosF, \
 								onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP,\
 								minMAC=self.minMAC, minMAF=self.minMAF, maxSNPMissingRate=self.maxSNPMissingRate,\
-								minDepthPerGenotype=self.minDepthPerGenotype, outputDirPrefix="filter",\
+								minDepthPerGenotype=self.minDepthPerGenotype, outputDirPrefix="filterRunType%s_s1"%(self.run_type),\
 								minNeighborDistance=self.minNeighborDistance, transferOutput=True,\
 								keepSNPPosParentJobLs=keepSNPPosParentJobLs)
-		if self.run_type==3:
-			#VCF 2 plink for just filtered VCFs, need filterReturnData to look like 
+		if self.run_type==3:	#add LD pruning
+			#VCF 2 plink for filtered VCFs
+			# convert vcf to plink in the purpose of LD pruning, so  treatEveryOneIndependent=True
+			# ModifyTPEDRunType=3
 			vcf2PlinkJobData = self.addVCF2PlinkJobs(inputData=filterReturnData, db_vervet=self.db_vervet, minMAC=None, minMAF=None,\
 							maxSNPMissingRate=None, transferOutput=False,\
-							maxContigID=self.maxContigID, outputDirPrefix="vcf2plink_2", outputPedigreeAsTFAM=True,\
-							treatEveryOneIndependent=treatEveryOneIndependent,\
-							returnMode=2, ModifyTPEDRunType=ModifyTPEDRunType, chr_id2cumu_chr_start=chr_id2cumu_chr_start)
+							maxContigID=self.maxContigID, outputDirPrefix="vcf2plinkRuntype%s_s2"%(self.run_type),\
+							outputPedigreeAsTFAM=True,\
+							treatEveryOneIndependent=True,\
+							returnMode=2, ModifyTPEDRunType=3, chr_id2cumu_chr_start=chr_id2cumu_chr_start)
 			
 			#LD pruning
 			mergeListFile = self.registerOneInputFile(inputFname="%s.merge2"%self.mergeListFname, \
@@ -253,15 +264,15 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 			LDPruneWorkflowData = self.addPlinkLDPruneJobs(inputData=vcf2PlinkJobData, transferOutput=True,\
 					maxContigID=self.maxContigID, LDPruneMinR2=self.LDPruneMinR2, \
 					LDPruneWindowSize=self.LDPruneWindowSize, LDPruneWindowShiftSize=self.LDPruneWindowShiftSize, \
-					outputDirPrefix="ldPrune2", returnMode=1, \
+					outputDirPrefix="ldPruneRunType%s_s2"%(self.run_type), returnMode=1, \
 					mergeListFile=mergeListFile)
-			plinkMergeJobData = LDPruneWorkflowData.jobDataLs[-1]	#last job from LD-prune workflow is the plink merge job.
-			plinkMergeJob = plinkMergeJobData.jobLs[0]
-			keepSNPPosF = File('LDPrunedSitesW%sZ%sR%s.2.tsv'%(self.LDPruneWindowSize, self.LDPruneWindowShiftSize, self.LDPruneMinR2))
+			#plinkMergeJobData = LDPruneWorkflowData.jobDataLs[-1]	#last job from LD-prune workflow is the plink merge job.
+			plinkMergeJob = LDPruneWorkflowData.plinkMergeJob
+			keepSNPPosF = File('LDPrunedSitesW%sZ%sR%s.s2.tsv'%(self.LDPruneWindowSize, self.LDPruneWindowShiftSize, self.LDPruneMinR2))
 			convertJob = self.addGenericJob(executable=self.ConvertPlinkBIM, inputFile=plinkMergeJob.bimFile, \
 				inputArgumentOption="-i", \
 				outputFile=keepSNPPosF, outputArgumentOption="-o", \
-				parentJobLs=plinkMergeJobData.jobLs, extraDependentInputLs=None, extraOutputLs=None, transferOutput=True, \
+				parentJobLs=[plinkMergeJob], extraDependentInputLs=None, extraOutputLs=None, transferOutput=True, \
 				extraArguments=None, extraArgumentList=None, job_max_memory=2000,  sshDBTunnel=None, \
 				key2ObjectForJob=None)
 			keepSNPPosParentJobLs = [convertJob]
@@ -271,7 +282,7 @@ class PlinkAndFilterVCFWorkflow(FilterVCFPipeline, PlinkOnVCFWorkflow, Calculate
 									keepSNPPosF=keepSNPPosF, \
 									onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP,\
 									minMAC=self.minMAC, minMAF=self.minMAF, maxSNPMissingRate=self.maxSNPMissingRate,\
-									minDepthPerGenotype=self.minDepthPerGenotype, outputDirPrefix="filter2",\
+									minDepthPerGenotype=self.minDepthPerGenotype, outputDirPrefix="filterRunType%s_s2"%(self.run_type),\
 									minNeighborDistance=self.minNeighborDistance, transferOutput=True,\
 									keepSNPPosParentJobLs=keepSNPPosParentJobLs)
 		
