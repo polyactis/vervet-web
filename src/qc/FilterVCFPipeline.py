@@ -141,6 +141,10 @@ class FilterVCFPipeline(parentClass):
 			sys.exit(3)
 		"""
 		self.minDepthPerGenotype = self.minDepth
+		
+		#2013.07.18 offer child classes option to turn it off
+		self.needGzipPreReduceReturnData = False	#all stat data in preReduce() are marked with transferOutput=True
+		self.needGzipReduceReturnData = False	#no need to gzip reduce return data as they are already marked as transferOutput=True and bgzipped in reduceEachVCF() 
 	
 	def registerVCFAndItsTabixIndex(self, workflow, vcfF, input_site_handler='local'):
 		"""
