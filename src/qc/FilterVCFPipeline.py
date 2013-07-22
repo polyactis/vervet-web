@@ -24,7 +24,8 @@ Examples:
 	%s  -I $dirPrefix\gatk -i $dirPrefix\call/ -l condorpool -j condorpool
 		-o FilterVCF_LowPass_top7559Contigs_no12eVarFilter_minGQ1_maxSNPMisMatch0.1_minMAC5_maxSNPMissing0.25.xml
 		-z uclaOffice -u yh
-		--minGQ 1 --onlyKeepBiAllelicSNP --maxSNPMismatchRate 0.1 --minMAC 5 --maxSNPMissingRate 0.25 -a 524 -C 50 --checkEmptyVCFByReading
+		--minGQ 1 --onlyKeepBiAllelicSNP --maxSNPMismatchRate 0.1
+		--minMAC 5 --maxSNPMissingRate 0.25 -a 524 -C 50 --checkEmptyVCFByReading
 	
 	#2011.12.9 to remove SNPs that are not in a file. no other filters.
 	dirPrefix=./AlignmentToCallLowPass_top7559Contigs_no12eVarFilter_2011.11.23T1620/
@@ -41,7 +42,7 @@ Examples:
 		-l hcondor -j hcondor
 		-t ~/NetworkData/vervet/db/ -D ~/NetworkData/vervet/db/
 		--intervalOverlapSize 0 --intervalSize 10000
-		-u yh -C 10 --contigMaxRankBySize 2000 --siteTotalCoverateINFOFieldName DP --is_contaminated 0
+		-u yh -C 10 --contigMaxRankBySize 2000 --siteTotalCoverageINFOFieldName DP --is_contaminated 0
 		
 	#2012.5.1 filter trioCaller output with total depth (no minGQ filter anymore), minMAC=10 (--minMAC 10),
 	# maxSNPMismatchRate=1 (--maxSNPMissingRate 1.0)
@@ -69,7 +70,7 @@ Examples:
 		-u yh -C 5 --minDepth 1 --depthFoldChange 2 --minNeighborDistance 5 --minMAF 0.1
 		#-V 90 -x 100 
 		--excludeFilteredSites 2
-		--siteTotalCoverateINFOFieldName DP
+		--siteTotalCoverageINFOFieldName DP
 	
 Description:
 	2012.9.12 pipeline that runs VCF2plink, plink Mendel, then filter VCF by max mendel error on top of filters by depth, GQ, MAC, 
@@ -83,7 +84,6 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import subprocess, cStringIO
 from pymodule import ProcessOptions, PassingData, yh_pegasus, utils, NextGenSeq
 from Pegasus.DAX3 import *
 from vervet.src import VervetDB, AbstractVervetWorkflow
@@ -116,11 +116,12 @@ class FilterVCFPipeline(parentClass):
 	choose samples whose individual_sequence.is_contaminated is equal as this argument value (0=non-contaminant, 1=contaminant)'],\
 						('vcf1Dir', 1, ): ['', 'I', 1, 'input folder that contains vcf or vcf.gz files', ],\
 						('vcf2Dir', 0, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files. If not provided, filter vcf1Dir without applying maxSNPMismatchRate filter.', ],\
-						('siteTotalCoverateINFOFieldName', 1, ): ['TC', '', 1, 'used in the depthFoldChange filter step,  by GATK SelectVariants to parse the depth of entire site.\n\
+						('siteTotalCoverageINFOFieldName', 1, ): ['DP', '', 1, 'used in the depthFoldChange filter step,  by GATK SelectVariants to parse the depth of entire site.\n\
 		SAMtools, GATK output uses DP, Platypus output uses TC', ],\
 						})
 	#set no overlap between adjacent intervals 
 	option_default_dict[('intervalOverlapSize', 1, int)][0] = 0
+	option_default_dict[('intervalSize', 1, int)][0] = 10000
 	#('alnStatForFilterFname', 0, ): ['', 'q', 1, 'The alignment stat file for FilterVCFByDepthJava. tab-delimited: individual_alignment.id minCoverage maxCoverage minGQ'],\
 	#	2013.06.13 alnStatForFilterFname is no longer used. 
 	#("minDepthPerGenotype", 0, int): [0, 'Z', 1, 'mask genotype with below this depth as ./. (other fields retained), \
@@ -624,11 +625,11 @@ class FilterVCFPipeline(parentClass):
 		if self.cumulativeMedianDepth and self.depthFoldChange:
 			vcf1AfterDepthFilter = File(os.path.join(self.vcf1DepthFilterDirJob.output, '%s.filterByDepth.vcf'%(commonPrefix)))
 			#2013.05.20 TC stands for total coverage in platypus output
-			selectExpression = "%s>=%s && %s<=%s"%(self.siteTotalCoverateINFOFieldName, \
+			selectExpression = "%s>=%s && %s<=%s"%(self.siteTotalCoverageINFOFieldName, \
 										self.cumulativeMedianDepth/self.depthFoldChange, \
-										self.siteTotalCoverateINFOFieldName, self.cumulativeMedianDepth*self.depthFoldChange)
+										self.siteTotalCoverageINFOFieldName, self.cumulativeMedianDepth*self.depthFoldChange)
 			vcf1FilterByDepthJob = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
-				inputF=lastVCFJob.output, outputF=vcfAfterFILTERPASS, \
+				inputF=lastVCFJob.output, outputF=vcf1AfterDepthFilter, \
 				refFastaFList=self.registerReferenceData.refFastaFList, \
 				sampleIDKeepFile=None, snpIDKeepFile=None, sampleIDExcludeFile=None, \
 				interval=None,\
