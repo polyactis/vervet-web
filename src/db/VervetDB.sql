@@ -21,7 +21,7 @@ create or replace view view_alignment as select i.id as individual_id, i.code, i
     i.site_id, i.collection_date, i.latitude, i.longitude, isq.id as isq_id, 
     isq.filtered, isq.sequencer_id, isq.sequence_type_id, isq.tissue_id, isq.base_count, 
     isq.coverage as raw_coverage, isq.is_contaminated, isq.outdated_index as isq_outdated_index,
-    ia.id as alignment_id, ia.ref_ind_seq_id, ia.alignment_method_id,
+    ia.id as alignment_id, ia.read_group, ia.ref_ind_seq_id, ia.alignment_method_id,
     ia.median_depth, ia.mean_depth, ia.mode_depth, ia.outdated_index, ia.individual_sequence_file_raw_id,
     ia.file_size, ia.total_no_of_reads, ia.parent_individual_alignment_id, ia.mask_genotype_method_id, ia.local_realigned,
     ia.reduce_reads,
@@ -52,10 +52,11 @@ drop view view_individual_sequence cascade;
 create or replace view view_individual_sequence as select ntt.*, t2.batch_id_list, t2.coverage_list
     from (select newt.*, t.short_name as tissue  from ( select isq.id as individual_sequence_id, isq.sequencer_id, 
     isq.sequence_type_id, isq.format, i.target_coverage, isq.coverage, isq.path, isq.filtered, isq.quality_score_format, isq.tissue_id,
-    isq.read_count, 
+    isq.read_count, isq.version, isq.is_contaminated, isq.outdated_index, 
     i.id as individual_id, i.code, i.name, i.ucla_id, i.tax_id, i.sex, i.age, i.age_cas, 
     i.approx_age_group_at_collection, i.collection_date, s.latitude, 
-    s.longitude, s.id as site_id, s.short_name as site_name, s.city, s.country_id, c.name as country, isq.date_created, isq.date_updated
+    s.longitude, s.id as site_id, s.short_name as site_name, s.city, 
+    s.country_id, c.name as country, isq.date_created, isq.date_updated
     from individual i, individual_sequence isq, site s, country c 
     where i.site_id=s.id and i.id=isq.individual_id and s.country_id=c.id) 
     as newt left join tissue t on t.id=newt.tissue_id) as ntt, 
