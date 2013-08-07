@@ -276,17 +276,20 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		bamF = alignmentData.bamF
 		baiF = alignmentData.baiF
 		
-		bamFnamePrefix = alignment.getReadGroup()
+		bamFileBasenamePrefix = alignment.getReadGroup()
 		
 		#4X coverage alignment => 120 minutes
-		realInputVolume = getattr(alignment.individual_sequence, 'coverage', 8)
+		realInputVolume = alignment.individual_sequence.coverage
+		if realInputVolume is None:	#default is 8X
+			realInputVolume = 8
 		jobWalltime = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=4, baseJobPropertyValue=120, \
 							minJobPropertyValue=60, maxJobPropertyValue=1200).value
 		#base is 4X, => 5000M
+		#2013.07.26 memory usage of DOC walker java job does not depend on coverage so much, more on ref genome size.
 		jobMaxMemory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=4, baseJobPropertyValue=5000, \
-							minJobPropertyValue=4000, maxJobPropertyValue=9000).value
+							baseInputVolume=4, baseJobPropertyValue=14000, \
+							minJobPropertyValue=16000, maxJobPropertyValue=17000).value
 		
 		if self.skipAlignmentWithStats and alignment.median_depth is not None and alignment.mean_depth is not None and alignment.mode_depth is not None:
 			pass
@@ -362,7 +365,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 			samtoolsFlagStatJob = self.addSamtoolsFlagstatJob(executable=self.samtoolsFlagStat, \
 				samtoolsExecutableFile=self.samtoolsExecutableFile, inputFile=bamF, outputFile=oneFlagStatOutputF, \
 				parentJobLs=parentJobLs + [flagStatMapFolderJob], extraDependentInputLs=[baiF], transferOutput=False, \
-				extraArguments=None, job_max_memory=jobMaxMemory/2, walltime=jobWalltime/2)
+				extraArguments=None, job_max_memory=jobMaxMemory/3, walltime=jobWalltime/2)
 			self.addRefFastaJobDependency(job=samtoolsFlagStatJob, refFastaF=passingData.refFastaF, \
 						fastaDictJob=passingData.fastaDictJob, refFastaDictF=passingData.refFastaDictF,\
 						fastaIndexJob = passingData.fastaIndexJob, refFastaIndexF=passingData.refFastaIndexF)
