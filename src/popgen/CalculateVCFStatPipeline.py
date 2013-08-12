@@ -149,8 +149,8 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		workflow.addFile(vcfTabixF)
 		TallyAACFromVCFJob.uses(vcfTabixF, transfer=True, register=True, link=Link.INPUT)
 		"""
-		for input in extraDependentInputLs:
-			TallyAACFromVCFJob.uses(input, transfer=True, register=True, link=Link.INPUT)
+		for inputFile in extraDependentInputLs:
+			TallyAACFromVCFJob.uses(inputFile, transfer=True, register=True, link=Link.INPUT)
 		TallyAACFromVCFJob.uses(outputF, transfer=transferOutput, register=True, link=Link.OUTPUT)
 		TallyAACFromVCFJob.output = outputF
 		workflow.addJob(TallyAACFromVCFJob)
@@ -242,7 +242,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 	
-		if self.plinkIBDCheckOutputFname:
+		if hasattr(self, 'plinkIBDCheckOutputFname') and self.plinkIBDCheckOutputFname:
 			self.plinkIBDCheckOutputFile = self.registerOneInputFile(workflow=workflow, inputFname=self.plinkIBDCheckOutputFname, input_site_handler=None, \
 									folderName=self.pegasusFolderName)
 		else:
@@ -387,6 +387,19 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 			returnData.jobDataLs.append(PassingData(jobLs=[windowedPiMergeJob, ], \
 												fileLs=[windowedPiFinalOutputF]))
 			passingData.windowedPiMergeJob = windowedPiMergeJob
+			
+			outputFnamePrefix = os.path.join(plotOutputDir, 'PiWindowSize%s_Plot'%(self.windowSize))
+			self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[windowedPiMergeJob.output], \
+								outputFnamePrefix=outputFnamePrefix, \
+								whichColumn=None, whichColumnHeader="PI", whichColumnPlotLabel="PI", need_svg=False, \
+								logY=0, valueForNonPositiveYValue=-1, \
+								xColumnPlotLabel="position", xColumnHeader="BIN_START", \
+								chrLengthColumnHeader="chrLength", chrColumnHeader="CHROM", \
+								minChrLength=self.minChrLengthForPlot, minNoOfTotal=50,\
+								figureDPI=100, ylim_type=2, samplingRate=1,\
+								parentJobLs=[windowedPiMergeJob, plotOutputDirJob], \
+								extraDependentInputLs=None, \
+								extraArguments=None, transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
 		
 		
 		if self.windowSize>0:
@@ -604,11 +617,11 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		
 		
 		splitVCFJob = passingData.mapEachVCFData.splitVCFJob
-		chr = passingData.chromosome
+		chromosome = passingData.chromosome
 		
-		chr_size = self.chr2size.get(chr)
+		chr_size = self.chr2size.get(chromosome)
 		if chr_size is None:
-			sys.stderr.write("size for chr %s is unknown. set it to 1000.\n"%(chr))
+			sys.stderr.write("size for chromosome %s is unknown. set it to 1000.\n"%(chromosome))
 			chr_size = 1000
 		if chr_size<self.minChrSize:
 			return returnData
@@ -630,7 +643,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		outputF = File(os.path.join(topOutputDirJob.output, "%s.homoHetCountPerSample.tsv"%(commonPrefix)))
 		countHomoHetInOneVCFJob = self.addCountHomoHetInOneVCFJob(executable=workflow.CountHomoHetInOneVCF, inputF=popVCFConvertJob.output, \
 									outputF=outputF, \
-						chrLength=chr_size, chromosome=chr, \
+						chrLength=chr_size, chromosome=chromosome, \
 						parentJobLs=[topOutputDirJob, popVCFConvertJob], extraDependentInputLs=None, \
 						extraArguments=None, transferOutput=False, job_max_memory=2000)
 		self.addInputToStatMergeJob(workflow, statMergeJob=passingData.homoHetCountMergeJob, inputF=outputF, \
@@ -642,13 +655,13 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		outputF = File(os.path.join(topOutputDirJob.output, "%s.siteGap.tsv"%(commonPrefix)))
 		outputVCFSiteGapJob = self.addCountHomoHetInOneVCFJob(executable=workflow.OutputVCFSiteGap, inputF=popVCFConvertJob.output, \
 							outputF=outputF, \
-							chrLength=chr_size, chromosome=chr, \
+							chrLength=chr_size, chromosome=chromosome, \
 							parentJobLs=[popVCFConvertJob], extraDependentInputLs=None, \
 							extraArguments=None, transferOutput=False, job_max_memory=2000)
 		self.addInputToStatMergeJob(workflow, statMergeJob=passingData.siteGapMergeJob, inputF=outputF, \
 					parentJobLs=[outputVCFSiteGapJob])
 		
-		outputFile = File(os.path.join(topOutputDirJob.output, "%s.laregSiteGapMin%s.tsv"%(commonPrefix, self.minSiteGap)))
+		outputFile = File(os.path.join(topOutputDirJob.output, "%s.largeSiteGapMin%s.tsv"%(commonPrefix, self.minSiteGap)))
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
 		selectSiteGapJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=workflow.SelectRowsFromMatrix, \
 							inputFileList=outputVCFSiteGapJob.outputLs, \
@@ -732,35 +745,35 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 							AddChromosomeLengthToTSVFile=workflow.AddChromosomeLengthToTSVFile, \
 							inputF=TsTvJob.TsTvFile, outputF=File('%s.divByLength'%(TsTvJob.TsTvFile.name)), divideByLength=False, \
 							chrLength=chr_size, divideStartingColumn=2, parentJobLs=[TsTvJob], \
-							chromosome=chr, addChrName=True)
+							chromosome=chromosome, addChrName=True)
 			windowPIFile = windowPIJob.windowPIFile
 			addChrLengthToPiFileJob = self.addChrLengthAppendingJob(workflow, \
 							AddChromosomeLengthToTSVFile=workflow.AddChromosomeLengthToTSVFile, \
 							inputF=windowPIFile, outputF=File('%s.divByLength'%(windowPIFile.name)), divideByLength=False, \
 							chrLength=chr_size, divideStartingColumn=2, parentJobLs=[windowPIJob], \
-							chromosome=chr, addChrName=False)
+							chromosome=chromosome, addChrName=False)
 			addChrLengthToSNPDensityFileJob = self.addChrLengthAppendingJob(workflow, \
 							AddChromosomeLengthToTSVFile=workflow.AddChromosomeLengthToTSVFile, \
 							inputF=snpDensityJob.snpDensityFile, outputF=File('%s.divByLength'%(snpDensityJob.snpDensityFile.name)), 
 							divideByLength=False, \
 							chrLength=chr_size, divideStartingColumn=2, parentJobLs=[snpDensityJob], \
-							chromosome=chr, addChrName=False)
+							chromosome=chromosome, addChrName=False)
 		addChrLengthToHWEJob = self.addChrLengthAppendingJob(workflow, AddChromosomeLengthToTSVFile=workflow.AddHetFractionToVCFtoolsHWE, \
 						inputF=perSiteHWEJob.hweFile, outputF=File('%s.withChrLength'%(perSiteHWEJob.hweFile.name)), divideByLength=False, \
 						chrLength=chr_size, divideStartingColumn=2, parentJobLs=[perSiteHWEJob], \
-						chromosome=chr, addChrName=False)
+						chromosome=chromosome, addChrName=False)
 		addChrLengthToLMissingJob = self.addChrLengthAppendingJob(workflow, AddChromosomeLengthToTSVFile=workflow.AddChromosomeLengthToTSVFile, \
 						inputF=missingNessJob.lmissFile, outputF=File('%s.withChrLength'%(missingNessJob.lmissFile.name)), divideByLength=False, \
 						chrLength=chr_size, parentJobLs=[missingNessJob], \
-						chromosome=chr, addChrName=False)
+						chromosome=chromosome, addChrName=False)
 		addChrLengthToMeanDepthJob = self.addChrLengthAppendingJob(workflow, AddChromosomeLengthToTSVFile=workflow.AddChromosomeLengthToTSVFile, \
 						inputF=meanDepthJob.ldpethMeanFile, outputF=File('%s.withChrLength'%(meanDepthJob.ldpethMeanFile.name)), divideByLength=False, \
 						chrLength=chr_size, parentJobLs=[meanDepthJob], \
-						chromosome=chr, addChrName=False)
+						chromosome=chromosome, addChrName=False)
 		addChrLengthToSiteQualityJob = self.addChrLengthAppendingJob(workflow, AddChromosomeLengthToTSVFile=workflow.AddChromosomeLengthToTSVFile, \
 						inputF=siteQualityJob.lqualFile, outputF=File('%s.withChrLength'%(siteQualityJob.lqualFile.name)), divideByLength=False, \
 						chrLength=chr_size, parentJobLs=[siteQualityJob], \
-						chromosome=chr, addChrName=False)
+						chromosome=chromosome, addChrName=False)
 		
 		self.addInputToStatMergeJob(workflow, statMergeJob=passingData.perIndividualHetReduceJob, inputF=perIndividualHetJob.output, \
 					parentJobLs=[perIndividualHetJob])
@@ -852,8 +865,9 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
 						db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema="genome")
 		db_genome.setup(create_tables=False)
-		self.chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, \
-											sequence_type_id=9)
+		#2013.07.26 self.chr2size is fetched by parental class
+		#self.chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=self.ref_genome_tax_id, \
+		#									sequence_type_id=self.ref_genome_sequence_type_id)
 		
 		AbstractVervetWorkflow.connectDB(self)
 	
