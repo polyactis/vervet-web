@@ -45,7 +45,7 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 	def outputOverlapSites(self, overlapping_sites_set, outputFname):
 		"""
 		2011-12.9
-			overlapping_sites_set is a set of (chr, pos) tuples.
+			overlapping_sites_set is a set of (chromosome, pos) tuples.
 			output is tab-delimited, 3-column. Last column is always 0 to mimic output of CalculateSNPMismatchRateOfTwoVCF.py
 				chromosome	position	0
 		"""
@@ -55,23 +55,30 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
 		writer.writerow(header)
 		overlapping_sites_list.sort()
-		for chr, pos in overlapping_sites_list:
-			writer.writerow([chr, pos, 0])
+		for chromosome, pos in overlapping_sites_list:
+			writer.writerow([chromosome, pos, 0])
 		sys.stderr.write("%s sites.\n"%(len(overlapping_sites_list)))
 	
 	def calculateOverlappingSites(self, vcfFile1=None, vcfFile2=None, outputFname=None, outputFnamePrefix=None,\
 						chromosome=None, chrLength=None):
 		"""
+		2013.07.17 vcf files are no longer pre-loaded. read in locus ids first. 
 		2012.8.16
 		"""
 		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
 		header = ['#chromosome', 'length', '#sitesInInput1', '#sitesInInput2', '#overlapping', 'overlappingOverTotal', \
 				'overlappingOverInput1', 'overlappingOverInput2', '#segregatingSitesNormalized', ]
 		
+		vcf1_locus_id_list = []
+		for row in vcfFile1.reader:
+			vcf1_locus_id_list.append((row[0], row[1]))
+		vcf2_locus_id_list = []
+		for row in vcfFile2.reader:
+			vcf2_locus_id_list.append((row[0], row[1]))
 		
-		no_of_sites_of_input1 = len(vcfFile1.locus_id_ls)
-		no_of_sites_of_input2 = len(vcfFile2.locus_id_ls)
-		overlapping_sites_set = set(vcfFile1.locus_id_ls)&set(vcfFile2.locus_id_ls)
+		no_of_sites_of_input1 = len(vcf1_locus_id_list)
+		no_of_sites_of_input2 = len(vcf2_locus_id_list)
+		overlapping_sites_set = set(vcf1_locus_id_list)&set(vcf2_locus_id_list)
 		if outputFnamePrefix:
 			outputFname = "%s_overlapSitePos.tsv"%(outputFnamePrefix)
 			self.outputOverlapSites(overlapping_sites_set, outputFname)
@@ -122,14 +129,24 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 	
 	
 	def calculatePerSampleMismatchFraction(self, vcfFile1=None, vcfFile2=None, outputFname=None, overlapping_sample_id_set=None,\
-										overlapping_sites_set=None, NA_call_encoding_set = set(['.', 'NA'])):
+										NA_call_encoding_set = set(['.', 'NA'])):
 		"""
+		2013.08.13 bugfix, derive overlapping_sites_set by itself, rather than use calculateOverlappingSites()
+		2013.07.17 vcf files are no longer pre-loaded.
 		2012.8.16
 		"""
 		sys.stderr.write("Finding matches for each sample at overlapping sites ...")
 		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
 		header = ['sample_id', 'no_of_matches', 'no_of_non_NA_pairs', 'matchFraction']
 		no_of_samples_to_compare = len(overlapping_sample_id_set)
+		
+		vcfFile1._resetInput()
+		vcfFile1.parseFile()
+		vcfFile2._resetInput()
+		vcfFile2.parseFile()
+		
+		overlapping_sites_set = set(vcfFile1.locus_id_ls) & set(vcfFile2.locus_id_ls)
+		sys.stderr.write(" %s overlapping loci, "%(len(overlapping_sites_set)))
 		
 		header_ls_for_no_of_matches = []
 		header_ls_for_no_of_non_NA_pairs = []
@@ -186,9 +203,7 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 			pdb.set_trace()
 		
 		vcfFile1 = VCFFile(inputFname=self.inputFname, minDepth=self.minDepth)
-		vcfFile1.parseFile()
 		vcfFile2 = VCFFile(inputFname=self.jnputFname, minDepth=self.minDepth)
-		vcfFile2.parseFile()
 		
 		if self.outputFnamePrefix:
 			outputFnamePrefix = self.outputFnamePrefix
@@ -206,8 +221,7 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 		if self.perSampleMatchFraction:
 			self.calculatePerSampleMismatchFraction(vcfFile1=vcfFile1, vcfFile2=vcfFile2, \
 												outputFname=perSampleMismatchOutputFname,\
-												overlapping_sample_id_set=pdata.overlapping_sample_id_set,
-												overlapping_sites_set=pdata.overlapping_sites_set)
+												overlapping_sample_id_set=pdata.overlapping_sample_id_set)
 		
 		
 
