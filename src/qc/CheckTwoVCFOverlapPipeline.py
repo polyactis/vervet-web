@@ -23,8 +23,6 @@ Description:
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0])
 
-from sqlalchemy.types import LargeBinary
-
 bit_number = math.log(sys.maxint)/math.log(2)
 if bit_number>40:	   #64bit
 	sys.path.insert(0, os.path.expanduser('~/lib64/python'))
@@ -34,7 +32,7 @@ else:   #32bit
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-from Pegasus.DAX3 import *
+from Pegasus.DAX3 import File, Executable, PFN
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, GenomeDB, NextGenSeq
 from pymodule.pegasus import yh_pegasus
 from vervet.src import VervetDB, AbstractVervetWorkflow
@@ -101,24 +99,23 @@ class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 		counter = 1
 		
 		
-		plotOutputDir = "%splot"%(self.pegasusFolderName)
+		plotOutputDir = "%sPlot"%(self.pegasusFolderName)
 		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
 		counter += 1
 		
-		overlapStatF = File('overlapStat.tsv')
-		overlapStatMergeJob=self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-					outputF=overlapStatF, parentJobLs=[], \
-					extraDependentInputLs=[], transferOutput=True, extraArguments=None)
+		overlapStatF = File('overlapSites.perChromosome.stat.tsv')
+		overlapSitesByChromosomeMergeJob=self.addStatMergeJob(statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+					outputF=overlapStatF, parentJobLs=None, \
+					extraDependentInputLs=None, transferOutput=True, extraArguments=None)
 		counter += 1
 		
-		overlapPosFile = File("overlapPos.tsv")
-		overlapPosMergeJob=self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-					outputF=overlapPosFile, parentJobLs=[], \
-					extraDependentInputLs=[], transferOutput=True, extraArguments=None)
+		overlapSitesMergeJob=self.addStatMergeJob(statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+					outputF=File("overlapSites.tsv"), parentJobLs=None, \
+					extraDependentInputLs=None, transferOutput=True, extraArguments=None)
 		counter += 1
 		
 		perSampleMatchFractionFile = File('perSampleMatchFraction.tsv')
-		perSampleMatchFractionReduceJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixBySumSameKeyColsAndThenDivide, \
+		perSampleMatchFractionReduceJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixBySumSameKeyColsAndThenDivide, \
 					outputF=perSampleMatchFractionFile, extraDependentInputLs=[], transferOutput=True, \
 					extraArguments='-k 0 -v 1-2')
 		outputFile = File( os.path.join(plotOutputDir, 'perSampleMatchFraction_Hist.png'))
@@ -134,15 +131,15 @@ class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 					extraArguments=None, transferOutput=True,  job_max_memory=2000)
 		counter += 2
 		
-		overlapStatSumF = File('overlapStat.sum.tsv')
-		overlapStatSumJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
+		overlapStatSumF = File('overlapSites.wholeGenome.stat.tsv')
+		overlapStatSumJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
 						outputF=overlapStatSumF, extraDependentInputLs=[], transferOutput=True, \
 						extraArguments='-k 1000000 -v 1-25000')	#The key column (-k 1000000) doesn't exist.
 						# essentially merging every rows into one 
 						##25000 is a random big upper limit. 100 monkeys => 101*3 + 9 => 312 columns
 						#2012.8.17 the number of columns no longer expand as the number of samples because it's split into perSampleMatchFractionFile.
-		self.addInputToStatMergeJob(workflow, statMergeJob=overlapStatSumJob, inputF=overlapStatF, \
-							parentJobLs=[overlapStatMergeJob])
+		self.addInputToStatMergeJob(statMergeJob=overlapStatSumJob, inputF=overlapStatF, \
+							parentJobLs=[overlapSitesByChromosomeMergeJob])
 		counter += 1
 		
 		vcfFileID2object_1 = self.getVCFFileID2object(self.vcf1Dir)
@@ -179,11 +176,14 @@ class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 						perSampleMatchFraction=self.perSampleMatchFraction,\
 						job_max_memory=1000)
 				
-				self.addInputToStatMergeJob(workflow, statMergeJob=overlapStatMergeJob, inputF=checkTwoVCFOverlapJob.output, \
+				self.addInputToStatMergeJob(statMergeJob=overlapSitesByChromosomeMergeJob, \
+							inputF=checkTwoVCFOverlapJob.output, \
 							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
-				self.addInputToStatMergeJob(workflow, statMergeJob=overlapPosMergeJob, inputF=checkTwoVCFOverlapJob.overlapSitePosFile, \
+				self.addInputToStatMergeJob(statMergeJob=overlapSitesMergeJob, \
+							inputF=checkTwoVCFOverlapJob.overlapSitePosFile, \
 							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
-				self.addInputToStatMergeJob(workflow, statMergeJob=perSampleMatchFractionReduceJob, inputF=checkTwoVCFOverlapJob.perSampleFile, \
+				self.addInputToStatMergeJob(statMergeJob=perSampleMatchFractionReduceJob, \
+							inputF=checkTwoVCFOverlapJob.perSampleFile, \
 							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
 				counter += 1
 		sys.stderr.write("%s jobs.\n"%(counter+1))
