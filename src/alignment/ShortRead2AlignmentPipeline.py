@@ -302,11 +302,11 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 							no_of_aln_threads=no_of_aln_threads, stampy=stampy)
 						no_of_alignment_jobs += 1
 						
-						fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
+						fileBasenamePrefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
 														os.path.basename(alignmentOutput.name))[0]
 						if not skipIndividualAlignment:
 							#2012.9.19 add a AddReadGroup job
-							outputRGBAM = File(os.path.join(tmpOutputDir, "%s.isq_RG.bam"%(fname_prefix)))
+							outputRGBAM = File(os.path.join(tmpOutputDir, "%s.isq_RG.bam"%(fileBasenamePrefix)))
 							addRGJob = self.addReadGroupInsertionJob(workflow=workflow, individual_alignment=individual_alignment, \
 												inputBamFile=alignmentJob.output, \
 												outputBamFile=outputRGBAM,\
@@ -317,7 +317,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 							AlignmentJobAndOutputLs.append(PassingData(parentJobLs=[addRGJob], file=addRGJob.output))
 						if not skipLibraryAlignment:
 							#2012.9.19 add a AddReadGroup job for the library bam file
-							outputRGBAM = File(os.path.join(tmpOutputDir, "%s.isq_library_%s_RG.bam"%(fname_prefix, library)))
+							outputRGBAM = File(os.path.join(tmpOutputDir, "%s.isq_library_%s_RG.bam"%(fileBasenamePrefix, library)))
 							addRGJob = self.addReadGroupInsertionJob(workflow=workflow, individual_alignment=oneLibraryAlignmentEntry, \
 												inputBamFile=alignmentJob.output, \
 												outputBamFile=outputRGBAM,\
@@ -329,9 +329,9 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					if alignmentPerLibrary and not skipLibraryAlignment and oneLibraryAlignmentJobAndOutputLs:	#2012.9.19
 						baseCoverage = 4*3000000000	#baseline
 						minMergeAlignmentWalltime = 240	#in minutes, 4 hours, when coverage is defaultCoverage
-						maxMergeAlignmentWalltime = 2880	#in minutes, 2 days
-						minMergeAlignmentMaxMemory = 5000	#in MB, when coverage is defaultCoverage
-						maxMergeAlignmentMaxMemory = 12000	#in MB
+						maxMergeAlignmentWalltime = 2980	#in minutes, 2 days
+						minMergeAlignmentMaxMemory = 8000	#in MB, when coverage is defaultCoverage
+						maxMergeAlignmentMaxMemory = 21000	#in MB
 						
 						mergeAlignmentWalltime = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=oneLibraryCumulativeBaseCount, \
 												baseInputVolume=baseCoverage, baseJobPropertyValue=minMergeAlignmentWalltime, \
@@ -341,9 +341,9 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 												minJobPropertyValue=minMergeAlignmentMaxMemory, maxJobPropertyValue=maxMergeAlignmentMaxMemory).value
 						markDuplicateWalltime= mergeAlignmentWalltime
 						markDuplicateMaxMemory = mergeAlignmentMaxMemory
-						fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
+						fileBasenamePrefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
 														os.path.basename(oneLibraryAlignmentEntry.constructRelativePath()))[0]
-						mergedBamFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_merged.bam'%(fname_prefix, library)))
+						mergedBamFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_merged.bam'%(fileBasenamePrefix, library)))
 						alignmentMergeJob, bamIndexJob = self.addAlignmentMergeJob(workflow, \
 											AlignmentJobAndOutputLs=oneLibraryAlignmentJobAndOutputLs, \
 											outputBamFile=mergedBamFile, \
@@ -356,7 +356,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 											job_max_memory=mergeAlignmentMaxMemory, walltime=mergeAlignmentWalltime, \
 											parentJobLs=[oneLibraryAlignmentFolderJob])
 						
-						finalBamFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_dupMarked.bam'%(fname_prefix, library)))
+						finalBamFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_dupMarked.bam'%(fileBasenamePrefix, library)))
 						markDupJob, markDupBamIndexJob = self.addMarkDupJob(workflow, parentJobLs=[alignmentMergeJob, bamIndexJob], \
 								inputBamF=alignmentMergeJob.output, \
 								inputBaiF=bamIndexJob.output, outputBamFile=finalBamFile,\
@@ -377,13 +377,13 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 								inputBamF=markDupJob.output, \
 								outputBamF=None, \
 								parentJobLs=[markDupJob, markDupBamIndexJob], \
-								outputDirPrefix='%s_%s_localRealignment'%(fname_prefix, library), transferOutput=False)
+								outputDirPrefix='%s_%s_localRealignment'%(fileBasenamePrefix, library), transferOutput=False)
 						else:
 							preDBAlignmentJob = markDupJob
 							preDBAlignmentIndexJob = markDupBamIndexJob
 						#2012.9.19 add/copy the alignment file to db-affliated storage
 						#add the metric file to AddAlignmentFile2DB.py as well (to be moved into db-affiliated storage)
-						logFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_2db.log'%(fname_prefix, library)))
+						logFile = File(os.path.join(oneLibraryAlignmentFolder, '%s_%s_2db.log'%(fileBasenamePrefix, library)))
 						alignment2DBJob = self.addAddAlignmentFile2DBJob(workflow=workflow, executable=self.AddAlignmentFile2DB, \
 											inputFile=preDBAlignmentJob.output, \
 											otherInputFileList=[], \
@@ -415,9 +415,9 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 					markDuplicateMaxMemory = mergeAlignmentMaxMemory
 					
 					#2012.3.29	merge alignment output only when there is something to merge!
-					fname_prefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
+					fileBasenamePrefix = utils.getRealPrefixSuffixOfFilenameWithVariableSuffix(\
 													os.path.basename(individual_alignment.constructRelativePath()))[0]
-					mergedBamFile = File(os.path.join(alignmentFolder, '%s_merged.bam'%(fname_prefix)))
+					mergedBamFile = File(os.path.join(alignmentFolder, '%s_merged.bam'%(fileBasenamePrefix)))
 					alignmentMergeJob, bamIndexJob = self.addAlignmentMergeJob(workflow, AlignmentJobAndOutputLs=AlignmentJobAndOutputLs, \
 										outputBamFile=mergedBamFile, \
 										samtools=samtools, java=java, \
@@ -428,7 +428,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 										transferOutput=False, job_max_memory=mergeAlignmentMaxMemory, \
 										walltime=mergeAlignmentWalltime)
 					#relative path in the scratch
-					finalBamFile = File(os.path.join(alignmentFolder, '%s_dupMarked.bam'%(fname_prefix)))
+					finalBamFile = File(os.path.join(alignmentFolder, '%s_dupMarked.bam'%(fileBasenamePrefix)))
 					
 					markDupJob, markDupBamIndexJob = self.addMarkDupJob(workflow, parentJobLs=[alignmentMergeJob, bamIndexJob],
 							inputBamF=alignmentMergeJob.output, \
@@ -451,13 +451,13 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 							inputBamF=markDupJob.output, \
 							outputBamF=None, \
 							parentJobLs=[markDupJob, markDupBamIndexJob], \
-							outputDirPrefix='%s_localRealignment'%(fname_prefix), transferOutput=False)
+							outputDirPrefix='%s_localRealignment'%(fileBasenamePrefix), transferOutput=False)
 					else:
 						preDBAlignmentJob = markDupJob
 						preDBAlignmentIndexJob = markDupBamIndexJob
 					#2012.9.19 add/copy the alignment file to db-affliated storage
 					#add the metric file to AddAlignmentFile2DB.py as well (to be moved into db-affiliated storage)
-					logFile = File(os.path.join(alignmentFolder, '%s_2db.log'%(fname_prefix)))
+					logFile = File(os.path.join(alignmentFolder, '%s_2db.log'%(fileBasenamePrefix)))
 					alignment2DBJob = self.addAddAlignmentFile2DBJob(workflow=workflow, executable=self.AddAlignmentFile2DB, \
 										inputFile=preDBAlignmentJob.output, \
 										otherInputFileList=[],\

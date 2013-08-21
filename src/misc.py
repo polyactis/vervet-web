@@ -15,7 +15,7 @@ Description:
 #2007-03-05 common codes to initiate database connection
 import sys, os, math, numpy
 #bit_number = math.log(sys.maxint)/math.log(2)
-#if bit_number>40:       #64bit
+#if bit_number>40:	#64bit
 #	#sys.path.insert(0, os.path.expanduser('~/lib64/python'))
 #	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/annot/bin')))
 #	#sys.path.insert(0, os.path.join(os.path.expanduser('~/script64/test/python')))
@@ -1351,34 +1351,6 @@ class VariantDiscovery(object):
 						(len(param_obj.qname2count), param_obj.real_counter, max_redundant_read_count))
 		del samfile
 	"""
-		
-	"""
-	@classmethod
-	def turn194SNPOriginalDataIntoYuFormat(cls, inputFname=None, outputFname=None, distanceOutputFname=None):
-		"""
-		2012.8.24
-			inputFname is AllSNPData.txt from Sue.
-			
-		"""
-		from pymodule import SNP
-		import numpy
-		snpData = SNP.readAdjacencyListDataIntoMatrix(inputFname=inputFname, rowIDHeader='Sample', colIDHeader='SNP', \
-								rowIDIndex=None, colIDIndex=None, \
-								dataHeader='Geno', dataIndex=None, hasHeader=True, defaultValue=0, \
-								dataConvertDictionary=SNP.nt2number, matrixDefaultDataType=numpy.int, asymmetric=True)
-		snpData.tofile(outputFname)
-		
-		snpData.calRowPairwiseDist(ref_row_id=None, assumeBiAllelic=False,
-						outputFname=distanceOutputFname, hetHalfMatchDistance=0.5)
-	"""
-	
-		inputFname = os.path.expanduser('~/script/vervet/data/194SNPData/AllSNPData.txt')
-		outputFname = os.path.expanduser('~/script/vervet/data/194SNPData/AllSNPData_yuFormat.tsv')
-		distanceOutputFname = os.path.expanduser("~/script/vervet/data/194SNPData/AllSNPData_yuFormat_rowPairwiseDistance.tsv")
-		VariantDiscovery.turn194SNPOriginalDataIntoYuFormat(inputFname=inputFname, outputFname=outputFname,\
-										distanceOutputFname=distanceOutputFname)
-		sys.exit(0)
-		
 		
 	"""
 	
@@ -3566,8 +3538,14 @@ class DBVervet(object):
 	"""
 	
 	@classmethod
-	def removeOutdatedAndUnusedAlignmentFiles(cls, db_vervet=None, data_dir=None, ref_ind_seq_id=524, commit=False):
+	def removeOutdatedAndUnusedAlignmentFiles(cls, db_vervet=None, data_dir=None, ref_ind_seq_id=524, site_id_list=[],\
+											commit=False):
 		"""
+		2013.07.16 added argument site_id_list
+			criteria to choose alignments to remove:
+				local_realigned=0
+				ref_ind_seq_id
+				site_id_list (if given)
 		2013.05 remove files by force ("rm -f ..")
 		2013.3.18
 		an alignment is outdated if any of the following conditions is true:
@@ -3585,13 +3563,20 @@ class DBVervet(object):
 		session.begin()
 		
 		TableClass = VervetDB.IndividualAlignment
-		query = TableClass.query.filter(or_(TableClass.outdated_index==1, TableClass.alignment_method_id==4, \
-							TableClass.individual_sequence.has(filtered=0), TableClass.ref_ind_seq_id==ref_ind_seq_id))
+		#query = TableClass.query.filter(or_(TableClass.outdated_index==1, TableClass.alignment_method_id==4, \
+		#					TableClass.individual_sequence.has(filtered=0), TableClass.ref_ind_seq_id==ref_ind_seq_id))
+		
+		query = TableClass.query.filter_by(local_realigned=0).filter_by(ref_ind_seq_id=ref_ind_seq_id)
+		
+		if site_id_list:
+			query = query.filter(TableClass.individual_sequence.has(VervetDB.IndividualSequence.individual.has(VervetDB.Individual.site_id.in_(site_id_list))))
+		
 		counter = 0
 		real_counter = 0
 		total_file_size = 0
 		no_of_files_without_size= 0 
 		no_of_files_deleted = 0
+		storage_freed= 0
 		for row in query:
 			if row.path:
 				counter += 1
@@ -3608,6 +3593,8 @@ class DBVervet(object):
 						commandline = 'rm -f %s'%(absFilePath)
 						return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 						no_of_files_deleted += 1
+						if row.file_size:
+							storage_freed += row.file_size
 				if absFilePath:
 					prefix, suffix= os.path.splitext(absFilePath)
 					metricFileAbsPath = '%s.metric'%(prefix)
@@ -3621,14 +3608,33 @@ class DBVervet(object):
 						return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 						no_of_files_deleted += 1
 				sys.stderr.write('.\n')
-		sys.stderr.write(" total_file_size=%s for %s files, %s/%s alignment files deleted. total files deleted %s.\n"%\
-						(total_file_size, counter-no_of_files_without_size,real_counter, counter, \
-						no_of_files_deleted))
+		sys.stderr.write("total file size (might including already-deleted alignments)=%s for %s (%s with no proper file_size attribute) files.\n\
+	%s/%s alignment files planned for deletion. %s files (.bam, .bai, .metric) really deleted (commit=%s). storage freed: %s.\n"%\
+						(total_file_size, counter, no_of_files_without_size, real_counter, counter, \
+						no_of_files_deleted, commit, storage_freed))
 		if commit==True:
 			session.flush()
 			session.commit()
 	
 	"""
+		#2013.07.16 delete alignments that are not local-realigned, not BQSR-ed, from site 447 (VRC), ref=3280
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")	#hoffman2
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=3280, \
+													site_id_list=[447], commit=True)
+		sys.exit(0)
+		
+		#2013.05.25 delete outdated alignments on icnn1 
+		data_dir = os.path.expanduser("/home/polyacti/NetworkData/vervet/db/")
+		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=524, commit=True)
+		sys.exit(0)
+				
+		#2013.04.18
+		data_dir = os.path.expanduser("/Network/Data/vervet/db/")	#vervetNFS
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")	#hoffman2
+		DBVervet.removeIndividualSequenceFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True, site_id=447,\
+											filtered=1)
+		sys.exit(0)
+		
 		#2013.05.25 delete outdated alignments on icnn1 
 		data_dir = os.path.expanduser("/home/polyacti/NetworkData/vervet/db/")
 		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=524, commit=True)
@@ -3674,7 +3680,9 @@ class DBVervet(object):
 			data_dir = db_vervet.data_dir
 		session = db_vervet.session
 		session.begin()
-		query = VervetDB.IndividualSequenceFile.query.filter_by(filtered=filtered).filter_by(format='fastq')
+		TableClass = VervetDB.IndividualSequenceFile
+		query = TableClass.query.filter_by(filtered=filtered).filter_by(format='fastq').\
+			filter(TableClass.individual_sequence.has(VervetDB.IndividualSequence.individual.has(VervetDB.Individual.site_id.in_([site_id]))))
 		counter = 0
 		real_counter = 0
 		individual_id_set = set()
@@ -3708,6 +3716,80 @@ class DBVervet(object):
 		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
 		DBVervet.removeIndividualSequenceFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True)
 		sys.exit(0)
+		
+	"""
+	
+	@classmethod
+	def copySelectedIndividualSequenceFilesToCluster(cls, db_vervet=None, data_dir=None, commit=False, site_id=447, \
+									filtered=0, globusURLCopyPath="/usr/local/globus//bin/globus-url-copy", \
+									destinationDataDir="gsiftp://grid4.hoffman2.idre.ucla.edu/~/NetworkData/vervet/db/",\
+									report=False):
+		"""
+		2013.06.10 copy (globus-url-copy) selected sequences to clsuter
+			
+		"""
+		sys.stderr.write("Copying sequence files (but not db entries) whose site_id=%s & filtered=%s ... \n"%\
+						(site_id, filtered))
+		if data_dir is None:
+			data_dir = db_vervet.data_dir
+		session = db_vervet.session
+		session.begin()
+		TableClass = VervetDB.IndividualSequenceFile
+		query = TableClass.query.filter_by(filtered=filtered).filter_by(format='fastq').\
+			filter(TableClass.individual_sequence.has(VervetDB.IndividualSequence.individual.has(VervetDB.Individual.site_id.in_([site_id]))))
+		counter = 0
+		real_counter = 0
+		individual_id_set = set()
+		site_id_set = set()
+		absFilePathTupleList = []
+		
+		for row in query:
+			counter += 1
+			sys.stderr.write('%s: %s'%(counter, row.path))
+			
+			absFilePath = row.getFileAbsPath(oldDataDir=None, newDataDir=data_dir)
+			individual_id_set.add(row.individual_sequence.individual_id)
+			site_id_set.add(row.individual_sequence.individual.site_id)
+			absFilePathTupleList.append((absFilePath, row.path))
+			sys.stderr.write('.\n')
+		noOfFiles = len(absFilePathTupleList)
+		sys.stderr.write("%s/%s files (from %s individuals, %s sites) copied.\n"%\
+						(real_counter, counter, len(individual_id_set), len(site_id_set)))
+		
+		sys.stderr.write("Start copying %s files to hoffman2 though globus ... \n"%(noOfFiles))
+		for i in xrange(noOfFiles):
+			absFilePath, relativePath = absFilePathTupleList[i]
+			sys.stderr.write('%s/%s %s  \n '%(i+1, noOfFiles, relativePath))
+			if os.path.isfile(absFilePath):
+				real_counter += 1
+				commandline = '%s -sync-level 2 -sync -p 40 -vb file://%s %s/%s'%(globusURLCopyPath, absFilePath, \
+																			destinationDataDir, relativePath)
+				if report:
+					sys.stderr.write("\t %s \n"%(commandline))
+				if commit:
+					return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+			sys.stderr.write('.\n')
+		sys.stderr.write("%s/%s files (from %s individuals, %s sites) copied.\n"%\
+						(real_counter, counter, len(individual_id_set), len(site_id_set)))
+	
+	"""
+		
+		#2013.06.10
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")	#hoffman2 or icnn1
+		DBVervet.copySelectedIndividualSequenceFilesToCluster(db_vervet=db_vervet, data_dir=data_dir, commit=True, site_id=447, \
+									filtered=1, globusURLCopyPath="/usr/local/globus//bin/globus-url-copy", \
+									destinationDataDir="gsiftp://grid4.hoffman2.idre.ucla.edu/~/NetworkData/vervet/db/",\
+									report=False)
+		sys.exit(0)
+		
+		#2013.06.10
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")	#hoffman2 or icnn1
+		DBVervet.copySelectedIndividualSequenceFilesToCluster(db_vervet=db_vervet, data_dir=data_dir, commit=True, site_id=447, \
+									filtered=1, globusURLCopyPath="/usr/local/globus//bin/globus-url-copy", \
+									destinationDataDir="gsiftp://grid4.hoffman2.idre.ucla.edu/~/NetworkData/vervet/db/",\
+									report=False)
+		sys.exit(0)
+		
 		
 	"""
 	
@@ -3924,6 +4006,7 @@ class DBVervet(object):
 		monkey_id2sex = {}
 		monkey_id2mother_father = {}
 		no_of_new_relationship = 0
+		no_of_changed_relationship = 0
 		for row in reader:
 			monkey_id = row[monkey_id_index].strip()
 			if not monkey_id:	#skip if row doesn't have monkey_id
@@ -3965,7 +4048,10 @@ class DBVervet(object):
 				relationDBEntry = db_vervet.checkSpecificRelationOfIndividual2(individual2=individual, relationship_type_name=relationship_type_name)
 				if relationDBEntry:
 					if relationDBEntry.individual1_id!=father.id:
-						sys.stderr.write("Error: relationship %s has (%s, %s) in db. The new entry (%s %s, %s %s) differs.\n"%(relationship_type_name, \
+						relationDBEntry.individual1_id=father.id
+						db_vervet.session.add(relationDBEntry)
+						no_of_changed_relationship += 1
+						sys.stderr.write("Relationship %s has (%s, %s) in db. The new entry is (%s %s, %s %s).\n"%(relationship_type_name, \
 								relationDBEntry.individual1_id, relationDBEntry.individual2_id, father.id, father_id, individual.id, individual.ucla_id))
 				else:
 					db_vervet.getInd2Ind(individual1=father, individual2=individual, relationship_type_name=relationship_type_name)
@@ -3979,7 +4065,10 @@ class DBVervet(object):
 				relationDBEntry = db_vervet.checkSpecificRelationOfIndividual2(individual2=individual, relationship_type_name=relationship_type_name)
 				if relationDBEntry:
 					if relationDBEntry.individual1_id!=mother.id:
-						sys.stderr.write("Error: relationship %s has (%s, %s) in db. The new entry (%s %s, %s %s) differs.\n"%(relationship_type_name, \
+						relationDBEntry.individual1_id=mother.id
+						db_vervet.session.add(relationDBEntry)
+						no_of_changed_relationship += 1
+						sys.stderr.write("Relationship %s has (%s, %s) in db. The new entry is (%s %s, %s %s).\n"%(relationship_type_name, \
 								relationDBEntry.individual1_id, relationDBEntry.individual2_id, mother.id, mother.ucla_id, individual.id, individual.ucla_id))
 				else:
 					db_vervet.getInd2Ind(individual1=mother, individual2=individual, relationship_type_name=relationship_type_name)
@@ -3987,9 +4076,15 @@ class DBVervet(object):
 		del reader
 		db_vervet.session.flush()
 		db_vervet.session.commit()
-		sys.stderr.write("%s new relationships. Done.\n"%(no_of_new_relationship))
+		sys.stderr.write("%s new relationships. %s changed relationships.\n"%(no_of_new_relationship, \
+																	no_of_changed_relationship))
 	
 	"""
+		#2013.07.03
+		inputFname = os.path.expanduser("~/NetworkData/vervet/SolarPedJune2013.csv.gz")	#supposedly similar
+		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
+		sys.exit(3)
+		
 		#2012.9.10
 		inputFname = os.path.expanduser("~/NetworkData/vervet/SolarPedSept2012.csv")	#supposedly similar to 
 		DBVervet.putPedigreeIntoDB(db_vervet, inputFname=inputFname)
@@ -4895,7 +4990,7 @@ class DBVervet(object):
 		no_of_monkeys = len(monkey_id2index)
 		sys.stderr.write("%s monkeys to be included for PCA.\n"%(no_of_monkeys))
 		
-		sys.stderr.write("Putting kinship into matrix form ...   ")
+		sys.stderr.write("Putting kinship into matrix form ...")
 		monkey_key_id_ls = monkey_id2index.keys()
 		monkey_id_ls = ['']*no_of_monkeys
 		kinshipMatrix = []
@@ -4963,10 +5058,10 @@ class DBVervet(object):
 		"""
 		2012.3.1
 			smartpcaCorrelationFname is output from  PCAOnVCFWorkflow.py (with modified smartpca). tab-delimited.
-				553_2_VRC_ref_GA_vs_524	555_15_1987079_GA_vs_524        Case    Case    0.025
-				553_2_VRC_ref_GA_vs_524	556_16_1985088_GA_vs_524        Case    Case    -0.020
-				553_2_VRC_ref_GA_vs_524	557_17_1986014_GA_vs_524        Case    Case    -0.106
-				553_2_VRC_ref_GA_vs_524	558_18_1988009_GA_vs_524        Case    Case    -0.059
+				553_2_VRC_ref_GA_vs_524	555_15_1987079_GA_vs_524	Case	Case	0.025
+				553_2_VRC_ref_GA_vs_524	556_16_1985088_GA_vs_524	Case	Case	-0.020
+				553_2_VRC_ref_GA_vs_524	557_17_1986014_GA_vs_524	Case	Case	-0.106
+				553_2_VRC_ref_GA_vs_524	558_18_1988009_GA_vs_524	Case	Case	-0.059
 		
 		"""
 		sys.stderr.write("Reading correlation from %s ... "%(smartpcaCorrelationFname))
@@ -6040,6 +6135,12 @@ class DBVervet(object):
 				real_counter += 1
 				sys.stderr.write("%s: file %s \n"%(real_counter, file))
 	"""
+		
+		#2013.04.01
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+		DBVervet.findBrokenIndividualAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir)
+		sys.exit(0)
+		
 		
 		#2013.3.22
 		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
@@ -7291,6 +7392,166 @@ class OphoffMethylation(object):
 		sys.exit(0)
 	"""
 
+class QC(object):
+	@classmethod
+	def turn194SNPOriginalDataIntoYuFormat(cls, inputFname=None, outputFname=None, distanceOutputFname=None):
+		"""
+		2012.8.24
+			inputFname is AllSNPData.txt from Sue.
+			
+		"""
+		from pymodule import SNP
+		import numpy
+		snpData = SNP.readAdjacencyListDataIntoMatrix(inputFname=inputFname, rowIDHeader='Sample', colIDHeader='SNP', \
+								rowIDIndex=None, colIDIndex=None, \
+								dataHeader='Geno', dataIndex=None, hasHeader=True, defaultValue=0, \
+								dataConvertDictionary=SNP.nt2number, matrixDefaultDataType=numpy.int, asymmetric=True)
+		snpData.tofile(outputFname)
+		
+		snpData.calRowPairwiseDist(ref_row_id=None, assumeBiAllelic=False,
+						outputFname=distanceOutputFname, hetHalfMatchDistance=0.5)
+	"""
+		#2013.07.03
+		prefix = "~/script/vervet/data/194SNPData/isq3280CoordinateSNPData_max5Mismatch"
+		inputFname = os.path.expanduser("%s.tsv"%(prefix))
+		individualDiffCountFname = os.path.expanduser("~/script/vervet/data/194SNPData/194_flipped_VsMethod104.errorCountByIndividual.tsv")
+		outputFname = os.path.expanduser("%s.individualDiscordance.tsv"%(prefix))
+		QC.output194SNPDataDiscordanceRate(inputFname=inputFname, individualDiffCountFname=individualDiffCountFname, \
+									outputFname=outputFname)
+		sys.exit(0)
+	"""
+	
+	@classmethod
+	def output194SNPDataDiscordanceRate(cls, inputFname=None, individualDiffCountFname=None, outputFname=None):
+		"""
+		2013.07.03
+		"""
+		from pymodule import SNPData, MatrixFile
+		snpData = SNPData(input_fname=inputFname, turn_into_array=1, ignore_2nd_column=1)
+		
+		remove_rows_data = snpData._remove_rows_with_too_many_NAs(data_matrix=snpData.data_matrix, row_cutoff=0)
+		
+		row_id2noOfValidCalls = {}
+		
+		for row_index, missing_fraction in remove_rows_data.row_index2missing_fraction.iteritems():
+			row_id = snpData.row_id_ls[row_index]
+			noOfTotalCalls = len(snpData.col_id_ls)
+			noOfValidCalls = int(noOfTotalCalls*(1-missing_fraction))
+			row_id2noOfValidCalls[row_id] = noOfValidCalls
+			
+		
+		
+		reader = MatrixFile(inputFname=individualDiffCountFname, openMode='r')
+		reader.constructColName2IndexFromHeader()
+		individualIDTuple2DiffCountListList = reader.constructDictionary(keyColumnIndexList=[0], valueColumnIndexList=[1])
+		
+		sys.stderr.write("Outputting discordance per individual to %s ..."%(outputFname))
+		writer = MatrixFile(inputFname=outputFname, openMode='w', delimiter='\t')
+		counter = 0
+		writer.writeHeader(["individualID", "diffCount", "noOfValidCalls", "discordance"])
+		for individualIDTuple, diffCountListList in individualIDTuple2DiffCountListList.iteritems():
+			row_id = individualIDTuple[0]
+			diffCount = int(diffCountListList[0][0])
+			noOfValidCalls = row_id2noOfValidCalls[row_id]
+			discordance = diffCount/float(noOfValidCalls)
+			
+			data_row = [row_id, diffCount, noOfValidCalls, discordance]
+			writer.writerow(data_row)
+			counter += 1
+		writer.close()
+		sys.stderr.write(" %s individuals.\n"%(counter))
+			
+	"""
+		#2013.07.03
+		prefix = "~/script/vervet/data/194SNPData/isq3280CoordinateSNPData_max5Mismatch"
+		inputFname = os.path.expanduser("%s.tsv"%(prefix))
+		individualDiffCountFname = os.path.expanduser("~/script/vervet/data/194SNPData/194_flipped_VsMethod104.errorCountByIndividual.tsv")
+		outputFname = os.path.expanduser("%s.individualDiscordance.tsv"%(prefix))
+		QC.output194SNPDataDiscordanceRate(inputFname=inputFname, individualDiffCountFname=individualDiffCountFname, \
+									outputFname=outputFname)
+		sys.exit(0)
+	"""
+	
+	@classmethod
+	def plotNoOfLociAndGenomeSpanByMaxSwitchFrequency(cls, inputFname=None, outputFnamePrefix=None):
+		"""
+		2013.07.12
+			In liftover, switch point is where two adjacent loci were mapped to two different new chromosomes.
+		"""
+		sys.stderr.write("Reading stats from %s ..."%(inputFname))
+		
+		from pymodule import MatrixFile
+		data_matrix = []
+		
+		reader = MatrixFile(inputFname)
+		reader.constructColName2IndexFromHeader()
+		switchFrequencyIndex = reader.getColIndexGivenColHeader("noOfSwitchPoints_by_noOfLociWithUniqueHit")
+		regionSpanIndex = reader.getColIndexGivenColHeader("regionSpan")
+		noOfLociIndex = reader.getColIndexGivenColHeader("#sitesInInput2")
+		
+		totalSpan = 0
+		totalNoOfLoci = 0
+		counter = 0
+		for row in reader:
+			counter += 1
+			switchFrequency = row[switchFrequencyIndex]
+			regionSpan = row[regionSpanIndex]
+			noOfLoci = row[noOfLociIndex]
+			if switchFrequency and regionSpan and noOfLoci:	#non-empty
+				switchFrequency = float(switchFrequency)
+				regionSpan = int(regionSpan)
+				noOfLoci = int(noOfLoci)
+				data_matrix.append([switchFrequency, regionSpan, noOfLoci])
+				totalSpan += regionSpan
+				totalNoOfLoci += noOfLoci
+		reader.close()
+		sys.stderr.write(" %s valid entries (from %s rows) with totalSpan=%s, totalNoOfLoci=%s.\n"%\
+						(len(data_matrix), counter, totalSpan, totalNoOfLoci))
+		
+		sys.stderr.write("Processing data ...")
+		writer = MatrixFile('%s.stats.tsv'%(outputFnamePrefix), openMode='w')
+		header = ["maxSwitchFrequency", "genomeCovered", 'genomeCoveredFraction', "noOfLoci", 'noOfLociFraction']
+		writer.writeHeader(header)
+		#sort it based on switchFrequency
+		data_matrix.sort(reverse=True)
+		maxSwitchFrequencyLs = []
+		cumulativeRegionSpanLs = []
+		cumulativeNoOfLociLs = []
+		for i in xrange(len(data_matrix)):
+			switchFrequency, regionSpan, noOfLoci = data_matrix[i]
+			maxSwitchFrequencyLs.append(switchFrequency)
+			if i==0:
+				cumulativeRegionSpan = totalSpan-regionSpan
+				
+				cumulativeNoOfLoci = totalNoOfLoci - noOfLoci
+			else:
+				cumulativeRegionSpan = cumulativeRegionSpanLs[i-1]-regionSpan
+				cumulativeNoOfLoci = cumulativeNoOfLociLs[i-1] - noOfLoci
+			cumulativeRegionSpanLs.append(cumulativeRegionSpan)
+			cumulativeNoOfLociLs.append(cumulativeNoOfLoci)
+			writer.writerow([switchFrequency, cumulativeRegionSpan, cumulativeRegionSpan/float(totalSpan),\
+							cumulativeNoOfLoci, cumulativeNoOfLoci/float(totalNoOfLoci)])
+		writer.close()
+		sys.stderr.write(".\n")
+		
+		from pymodule.plot import yh_matplotlib
+		yh_matplotlib.drawScatter(x_ls=maxSwitchFrequencyLs, y_ls=cumulativeRegionSpanLs, \
+								fig_fname='%s_maxSwitchFrequency_vs_cumulativeSpan.svg'%(outputFnamePrefix), \
+								title=None, xlabel="max switch point density", \
+								ylabel="genome covered", logY=False)
+		
+		yh_matplotlib.drawScatter(x_ls=maxSwitchFrequencyLs, y_ls=cumulativeNoOfLociLs, \
+								fig_fname='%s_maxSwitchFrequency_vs_cumulativeNoOfLoci.svg'%(outputFnamePrefix), \
+								title=None, xlabel="max switch point density", \
+								ylabel="no of loci", logY=False)
+	"""
+		#2013.07.12
+		inputFname = os.path.expanduser("~/mnt/hoffman2/u/home/eeskin2/polyacti/NetworkData/vervet/workflow/LiftPolymorphismCoordinates/FindNewRefCoordinates_Method109_vs_3488_BWA_F99.2013.Jul.11T191341/folderPreReduceGzip/oldChromosome.SwitchPoint.Stat.tsv")
+		outputFnamePrefix = os.path.expanduser("~/doc/vervet/figures/Method109LiftOver/BWA_F99")
+		QC.plotNoOfLociAndGenomeSpanByMaxSwitchFrequency(inputFname=inputFname, outputFnamePrefix=outputFnamePrefix)
+		sys.exit(0)
+	"""
+
 class VervetGenome(object):
 	"""
 	2011-6-27
@@ -7355,10 +7616,10 @@ class VervetGenome(object):
 		2011-6-27
 			In contigAGPFname, each contig is a supercontig composed of a couple of small contigs.
 			format:
-				Contig0 1       1865    1       W       Contig0.1       1       1865    +
-				Contig0 1866    1941    2       N       76      fragment        yes
-				Contig0 1942    3526    3       W       Contig0.2       1       1585    +
-				Contig0 3527    4532    4       N       1006    fragment        yes
+				Contig0 1	1865	1	W	Contig0.1	1	1865	+
+				Contig0 1866	1941	2	N	76	  fragment	yes
+				Contig0 1942	3526	3	W	Contig0.2	1	1585	+
+				Contig0 3527	4532	4	N	1006	fragment	yes
 			
 		"""
 		contig_id2size = cls.getContigID2SizeFromAGPFile(contigAGPFname)
@@ -7467,10 +7728,10 @@ class VervetGenome(object):
 		2011-6-27
 			In contigAGPFname, each contig is a supercontig composed of a couple of small contigs.
 			format:
-				Contig0 1       1865    1       W       Contig0.1       1       1865    +
-				Contig0 1866    1941    2       N       76      fragment        yes
-				Contig0 1942    3526    3       W       Contig0.2       1       1585    +
-				Contig0 3527    4532    4       N       1006    fragment        yes
+				Contig0	1	1865	1	W	Contig0.1	1	1865	+
+				Contig0	1866	1941	2	N	76	fragment	yes
+				Contig0	1942	3526	3	W	Contig0.2	1	1585	+
+				Contig0	3527	4532	4	N	1006	fragment	yes
 			
 		"""
 		contig_id2size = cls.getContigID2SizeFromAGPFile(contigAGPFname)
@@ -7801,7 +8062,7 @@ class VervetGenome(object):
 	"""
 	
 	@classmethod
-	def addMoreContigsAsChromosomeRecordsInGenomeDB(cls, db_genome, contigAGPFname, tax_id=60711,
+	def addMoreContigsAsChromosomeRecordsInGenomeDB(cls, db_genome=None, contigAGPFname=None, tax_id=60711,
 												sequence_type_name='Scaffold', minSize=500, **keywords):
 		"""
 		2011-11-6
@@ -7865,6 +8126,124 @@ class VervetGenome(object):
 		sys.exit(0)
 		
 		"""
+	
+	
+	@classmethod
+	def addCentromereAndGapsFromAGPFiles2GenomeDB(cls, db_genome=None, folderWithAGPFiles=None, tax_id=60711,
+								sequence_type_name='assembledChromosome', commit=True, genome_annotation_type_id_set=set([1,5]),\
+								**keywords):
+		"""
+		2013.08.01
+			AGP file is a header-less tab-delimited assembly annotation file.
+			AGP file specification: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/agp/AGP_Specification.shtml
+			Columns:
+				object
+				object_beg
+				object_end
+				part_number
+				component_type
+					A
+					Active Finishing
+					D
+					Draft HTG (often phase1 and phase2 are called Draft, whether or not they have the draft keyword).
+					F
+					Finished HTG (phase3)
+					G
+					Whole Genome Finishing
+					O
+					Other sequence (typically means no HTG keyword)
+					P
+					Pre Draft
+					W
+					WGS contig
+					N
+					gap with specified size
+					U
+					gap of unknown size, defaulting to 100 bases.
+				component_id
+				gap_length
+				component_beg
+				gap_type: scaffold, contig, centromere, short_arm, heterochromatin, telomere, repeat
+				component_end: If column 5 not equal to N or U: This column specifies the end of the part of the component that contributes to the object in column 1 (in component coordinates).
+				linkage: yes, no (supported by linkage data)
+				orientation: +, -, ?, 0 (unknown)
+				Linkage evidence:
+			
+			Real-life Example, columns may vary:
+				CAE9	1	863	1	W	Contig2222.1840	1	863	-
+				CAE9	864	873	2	N	10	scaffold	yes	paired-ends
+				CAE9	874	926	3	W	Contig2222.1839	1	53	-
+				CAE9	927	936	4	N	10	scaffold	yes	paired-ends
+				...
+				CAE9	35835553        35841026        4027    W       Contig207.1     1       5474    -                                 
+				CAE9	35841027        36841026        4028    N       1000000 centromere      no      na                                
+				CAE9	36841027        36857299        4029    W       Contig154.1     1       16273   + 
+				...
+		"""
+		from pymodule.db import GenomeDB
+		from pymodule.yhio.MatrixFile import MatrixFile
+		import glob
+		sys.stderr.write("Parsing centromeres (tax_id=%s, sequence_type_name=%s) from .agp files in %s and add them as GenomeAnnotation entries into genome db, commit=%s ... \n"%\
+						(tax_id, sequence_type_name, folderWithAGPFiles, commit))
+		counter = 0
+		real_counter = 0
+		
+		db_genome.session.begin()
+		for inputFname in glob.glob("%s/*[0-9XY].agp"%(folderWithAGPFiles)):	#avoid CAE1_random.agp
+			sys.stderr.write("Working on file %s ..."%(inputFname))
+			reader = MatrixFile(inputFname)
+			for row in reader:
+				counter += 1
+				chromosome, start, stop, part_number, component_type = row[:5]
+				start = int(start)
+				stop = int(stop)
+				#component_id, gap_length, component_beg, gap_type, component_end = row[:10]
+				if component_type=='N':
+					gap_length = int(row[5])
+					gap_type = row[6]
+					if gap_type=='centromere':
+						genome_annotation_type_id = 1
+					elif gap_type=='scaffold':
+						genome_annotation_type_id = 5	#AKA gaps
+					else:
+						genome_annotation_type_id = None
+					if genome_annotation_type_id in genome_annotation_type_id_set:
+						db_entry = db_genome.getGenomeAnnotation(start=start, stop =stop, \
+									annot_assembly_id=None, \
+									tax_id=tax_id, chromosome=chromosome, version=None, \
+									sequence_type_name=sequence_type_name, sequence_type_id=None, \
+									genome_annotation_type_id=genome_annotation_type_id, \
+									description=chromosome, comment=None)
+						real_counter += 1
+			reader.close()
+			sys.stderr.write("%s/%s genome annotations added.\n"%(real_counter, counter))
+		if commit:
+			db_genome.session.commit()
+		sys.stderr.write("In total, %s/%s genome annotations added.\n"%(real_counter, counter))
+		"""
+		#2013.08.01
+		from pymodule import GenomeDB
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
+						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
+		db_genome.setup(create_tables=False)
+		VervetGenome.addCentromereAndGapsFromAGPFiles2GenomeDB(db_genome=db_genome, \
+			folderWithAGPFiles="../raw_sequence/Chlorocebus_sabaeus_1.0/Chlorocebus_sabaeus_1.0.chromosomal_agp_fasta", tax_id=60711,\
+			sequence_type_name='assembledChromosome', commit=True)
+		sys.exit(0)
+		
+		#2013.08.01
+		from pymodule import GenomeDB
+		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, username=self.db_user,
+						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
+		db_genome.setup(create_tables=False)
+		VervetGenome.addCentromereAndGapsFromAGPFiles2GenomeDB(db_genome=db_genome, \
+			folderWithAGPFiles="../raw_sequence/Chlorocebus_sabaeus_1.0/Chlorocebus_sabaeus_1.0.chromosomal_agp_fasta", tax_id=60711,\
+			sequence_type_name='assembledChromosome')
+		sys.exit(0)
+		
+		
+		"""
+	
 	@classmethod
 	def extractGeneRoughLocationFromHumanExonBlastResult(cls, blastInputFname=None, outputFname=None):
 		"""
@@ -8229,6 +8608,7 @@ class Main(object):
 		else:
 			debug =False
 		
+		
 		from vervet.src import VervetDB
 		db_vervet = VervetDB.VervetDB(drivername=self.drivername, username=self.db_user,
 					password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema=self.schema)
@@ -8238,28 +8618,7 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		#2013.05.25 delete outdated alignments on icnn1 
-		data_dir = os.path.expanduser("/home/polyacti/NetworkData/vervet/db/")
-		DBVervet.removeOutdatedAndUnusedAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir, ref_ind_seq_id=524, commit=True)
-		sys.exit(0)
-				
-		#2013.04.18
-		data_dir = os.path.expanduser("/Network/Data/vervet/db/")	#vervetNFS
-		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")	#hoffman2
-		DBVervet.removeIndividualSequenceFiles(db_vervet=db_vervet, data_dir=data_dir, commit=True, site_id=447,\
-											filtered=1)
-		sys.exit(0)
 		
-		
-		#2013.03.24
-		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
-		DBVervet.indexBamAlignmentFilesInDB(db_vervet, data_dir=data_dir)
-		sys.exit(0)
-		
-		#2013.04.01
-		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
-		DBVervet.findBrokenIndividualAlignmentFiles(db_vervet=db_vervet, data_dir=data_dir)
-		sys.exit(0)
 		
 		
 		#2012.9.25 update the file_size for the existing db entries

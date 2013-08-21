@@ -47,6 +47,9 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 			('minChrLength', 1, int): [1000000, '', 1, 'minimum chromosome length for one chromosome to be included', ],\
 			('outputFnamePrefix', 0, ): [None, 'O', 1, 'output filename prefix (optional).'],\
 			('logCount', 0, int): [0, '', 0, 'whether to take log on the y-axis of the histogram, the raw count'], \
+			('tax_id', 0, int): [60711, '', 1, 'taxonomy ID of the organism from which to retrieve the chromosome info', ],\
+			('sequence_type_id', 0, int): [1, '', 1, 'sequence_type_id (annot_assembly) of the chromosomes, to retrieve the chromosome info. 1: assembledChromosome, 9: Scaffolds', ],\
+			('chrOrder', 0, int): [1, '', 1, 'how to order chromosomes. 1: column genome_order in db; 2: by chromosome size, descending', ],\
 			})
 	option_for_DB_dict = {('drivername', 1,):['postgresql', '', 1, 'which type of database? mysql or postgresql', ],\
 						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
@@ -153,15 +156,17 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 						password=self.db_passwd, hostname=self.hostname, database=self.dbname, schema="genome")
 		db_genome.setup(create_tables=False)
 		#chrOrder=2 means chromosomes are not ordered alphabetically but by their sizes (descendingly)
-		oneGenomeData = db_genome.getOneGenomeData(tax_id=60711, chr_gap=0, chrOrder=2, sequence_type_id=9)
-		chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, \
-											sequence_type_id=9)
+		oneGenomeData = db_genome.getOneGenomeData(tax_id=self.tax_id, chr_gap=0, chrOrder=self.chrOrder, \
+												sequence_type_id=self.sequence_type_id)
+		chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=self.tax_id, \
+											sequence_type_id=self.sequence_type_id)
 		
 		self.chr_id2cumu_start = oneGenomeData.chr_id2cumu_start
+		"""
 		size_chr_id_ls = [(value, key) for key, value in chr2size.iteritems()]
 		size_chr_id_ls.sort()
 		size_chr_id_ls.reverse()
-		
+		"""
 		sys.stderr.write("Reading in data ...")
 		for inputFname in self.inputFnameLs:
 			if not os.path.isfile(inputFname):
@@ -172,17 +177,17 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 			
 		sys.stderr.write("Done.\n")
 		
-		import pylab
 		pylab.clf()
-		fig = pylab.figure(figsize=(20,2))
+		yh_matplotlib.setPlotDimension(left=0.025, right=0.985, bottom=0.1, top=0.9)
+		fig = pylab.figure(figsize=(30,2))
 		#ax = pylab.axes()
 		ax = fig.gca()
-		import numpy
+		
 		max_y = None
 		min_y = None
 		value_ls = []
-		for size, chr in size_chr_id_ls:
-			xy_ls = self.chr2xy_ls.get(chr)
+		for chromosome in oneGenomeData.chr_id_ls:
+			xy_ls = self.chr2xy_ls.get(chromosome)
 			if xy_ls:
 				if max_y is None:
 					max_y = max(xy_ls[1])
@@ -195,9 +200,9 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 				ax.plot(xy_ls[0], xy_ls[1], '.', markeredgewidth=0, markersize=4, alpha=0.8)
 				value_ls += xy_ls[1]
 		#separate each chromosome
-		#for chr in chr_ls[:-1]:
-		#	print chr
-		#	ax.axvline(chr_id2cumu_size[chr], linestyle='--', color='k', linewidth=0.8)
+		#for chromosome in chr_ls[:-1]:
+		#	print chromosome
+		#	ax.axvline(chr_id2cumu_size[chromosome], linestyle='--', color='k', linewidth=0.8)
 		
 		
 		#draw the bonferroni line
@@ -222,7 +227,8 @@ class PlotVCFtoolsStat(PlotTrioInconsistencyOverFrequency, AbstractMatrixFileWal
 			pylab.savefig('%s.svg'%outputFnamePrefix, dpi=self.figureDPI)
 		outputFname = '%s_hist.png'%(outputFnamePrefix)
 		yh_matplotlib.drawHist(value_ls, title='', \
-				xlabel_1D=self.whichColumnPlotLabel, xticks=None, outputFname=outputFname, min_no_of_data_points=self.minNoOfTotal, \
+				xlabel_1D=self.whichColumnPlotLabel, xticks=None, \
+				outputFname=outputFname, min_no_of_data_points=self.minNoOfTotal, \
 				needLog=self.logCount, \
 				dpi=self.figureDPI, min_no_of_bins=40)
 

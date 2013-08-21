@@ -92,7 +92,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 							outputFile=None,\
 							min_coverage=None, max_coverage=None,\
 							pop_tax_id_ls_str=None, pop_site_id_ls_str=None, pop_country_id_ls_str=None, popHeader=None,\
-							pop_sampleSize=None, returnData=None,\
+							pop_sampleSize=None, is_contaminated=None, outputFormat=2, returnData=None,\
 							transferOutput=False, extraArguments=None, extraArgumentList=None, job_max_memory=1000, \
 							parentJobLs=None,\
 							**keywords):
@@ -106,6 +106,11 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 			if inputFile is None, this function will try to derive it from passingData
 		if outputFile or parentJobLs is not given, this function will try to derive it from passingData.
 		
+		2013.07.03 added argument is_contaminated (whether to fetch contaminated samples or not)
+		2013.06.24 expose argument outputFormat (default=2)
+			1: a subset VCF file; \n\
+			2: file with a list of sample IDs (one per line), with header
+			3: file with a list of sample IDs (one per line), without header
 		2013.06.11
 			added argument inputFile and outputFile (previously these are derived from passingData)
 			added argument min_coverage, max_coverage
@@ -142,11 +147,14 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 			reduceOutputDirJob = passingData.reduceOutputDirJob
 			outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_sampleID.tsv'%(commonPrefix)))
 		
-		extraArgumentList.append('--outputFormat 2')	#output a list of sample IDs
+		if outputFormat is not None:
+			extraArgumentList.append('--outputFormat %s'%(outputFormat))	#output a list of sample IDs
 		if min_coverage is not None:
 			extraArgumentList.append("--min_coverage %s"%(min_coverage))
 		if max_coverage is not None:
 			extraArgumentList.append("--max_coverage %s"%(max_coverage))
+		if is_contaminated is not None:
+			extraArgumentList.append("--is_contaminated %s"%(is_contaminated))
 		if pop_tax_id_ls_str:
 			extraArgumentList.append("--tax_id_ls %s"%(pop_tax_id_ls_str))
 		if pop_site_id_ls_str:
@@ -221,11 +229,13 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		return extractPopSampleIDJob
 	
 	def addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(self, executable=None, inputFile=None, outputFile=None,\
-						sampleID2FamilyCountF=None, polymuttDatFile=None, treatEveryOneIndependent=False, outputFileFormat=None,\
-						replicateIndividualTag=None,\
+						sampleID2FamilyCountF=None, polymuttDatFile=None, treatEveryOneIndependent=False, \
+						outputFileFormat=None,\
+						replicateIndividualTag=None, addUngenotypedDuoParents=False, \
 						parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 						extraArguments=None, job_max_memory=2000, sshDBTunnel=False, **keywords):
 		"""
+		2013.07.19 added argument addUngenotypedDuoParents
 		2012.9.13
 			add argument treatEveryOneIndependent for OutputVRCPedigreeInTFAMGivenOrderFromFile.
 		2012.8.9
@@ -240,6 +250,8 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 			extraArgumentList.append("--treatEveryOneIndependent")
 		if replicateIndividualTag is not None:
 			extraArgumentList.append("--replicateIndividualTag %s"%(replicateIndividualTag))
+		if addUngenotypedDuoParents:
+			extraArgumentList.append("--addUngenotypedDuoParents 1")
 		
 		if sampleID2FamilyCountF:
 			extraArgumentList.extend(["--sampleID2FamilyCountFname", sampleID2FamilyCountF])

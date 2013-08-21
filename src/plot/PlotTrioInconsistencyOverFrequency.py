@@ -50,7 +50,7 @@ class PlotTrioInconsistencyOverFrequency(AbstractPlot):
 						}
 	"""
 
-	def __init__(self, inputFnameLs, **keywords):
+	def __init__(self, inputFnameLs=None, **keywords):
 		"""
 		2011-7-11
 		"""
@@ -131,7 +131,7 @@ class PlotTrioInconsistencyOverFrequency(AbstractPlot):
 		self.handleYLabel()
 		
 		pylab.savefig(self.outputFname, dpi=self.figureDPI)
-		sys.stderr.write("Done.\n")
+		sys.stderr.write("\n")
 
 
 if __name__ == '__main__':

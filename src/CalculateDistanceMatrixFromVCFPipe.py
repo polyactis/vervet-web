@@ -140,13 +140,13 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVervetWorkflow):
 		returnData.jobDataLs = []
 		
 		topOutputDirJob = passingData.topOutputDirJob
-		intervalFnamePrefix = passingData.intervalFnamePrefix
+		intervalFileBasenamePrefix = passingData.intervalFileBasenamePrefix
 		jobData = passingData.jobData
 		callOutputDirJob = passingData.callOutputDirJob
 		
 		splitVCFJob = passingData.mapEachVCFData.splitVCFJob
 		
-		genotypeCallOutputFname = os.path.join(callOutputDirJob.output, '%s.call'%(intervalFnamePrefix))
+		genotypeCallOutputFname = os.path.join(callOutputDirJob.output, '%s.call'%(intervalFileBasenamePrefix))
 		genotypeCallOutput = File(genotypeCallOutputFname)
 		genotypeCallByCoverage_job = self.addVCF2MatrixJob(workflow, executable=self.GenotypeCallByCoverage, \
 											inputVCF=VCFJobData.file, outputFile=genotypeCallOutput, \
@@ -155,7 +155,7 @@ class CalculateDistanceMatrixFromVCFPipe(AbstractVervetWorkflow):
 					extraArguments=None, job_max_memory=2000)
 		
 		matrixDirJob = passingData.matrixDirJob
-		calculaOutputFname =os.path.join(matrixDirJob.output, '%s.pairwiseDist.convertHetero2NA%s.minMAF%.2f.maxNA%.2f.tsv'%(intervalFnamePrefix, \
+		calculaOutputFname =os.path.join(matrixDirJob.output, '%s.pairwiseDist.convertHetero2NA%s.minMAF%.2f.maxNA%.2f.tsv'%(intervalFileBasenamePrefix, \
 							self.convertHetero2NA, self.min_MAF, self.max_NA_rate))
 		calculaOutput = File(calculaOutputFname)
 		calculaJob = self.addCalculatePairwiseDistanceFromSNPXStrainMatrixJob(workflow, \

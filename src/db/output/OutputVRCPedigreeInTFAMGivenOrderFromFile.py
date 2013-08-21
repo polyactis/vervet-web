@@ -15,9 +15,11 @@ Examples:
 		--sampleID2FamilyCountFname=/tmp/sampleID2familyCount_y3.tsv --db_passwd secret
 	
 Description:
-	2012.8.9
-		outputs VRC pedigrees (only the monkeys in inputFname/vcf format) in plink tfam format.
+	2013.06.24
+		The input VCF file should not have replicated individuals.
+		output pedigree (only individuals in input vcf file, some parents might not be in input VCF though) in plink tfam (linkage) or other formats.
 		parse the order of monkeys from VCF file (inputFname) and preserve it in TFAM file.
+		
 	six columns:
 	 Family ID
 	 Individual ID
@@ -46,15 +48,20 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 	option_default_dict = copy.deepcopy(AbstractVervetMapper.option_default_dict)
 	option_default_dict.pop(('outputFnamePrefix', 0, ))
 	option_default_dict.update({
-						('outputFname', 1, ):option_default_dict.get(('outputFname', 0, )),\
-						('outputFileFormat', 1, int ):[1, '', 1, '1: for plink; 2: for TrioCaller; \n\
-	3: for polymutt, replicate certain individuals to make pedigree loop-free'],\
-						('sampleID2FamilyCountFname', 0, ): ['', '', 1, 'a tab-delimited file that records how many families in which each individual occurs'],\
-						("treatEveryOneIndependent", 0, int): [0, '', 0, 'toggle this to treat everyone in the pedigree independent (parents=0)'],\
-						('replicateIndividualTag', 1, ): ['copy', 'T', 1, 'the tag that separates the true ID and its replicate count'],\
-						('dummyIndividualNamePrefix', 1, ): ['dummy', '', 1, 'the prefix to name a dummy parent (TrioCaller format). The suffix is its order among all dummies.'],\
-						('polymuttDatFname', 0, ): ['', '', 1, 'if present, add "T\tGLF_Index" into the file. required for polymutt'],\
-						})
+					('outputFname', 1, ):option_default_dict.get(('outputFname', 0, )),\
+					('outputFileFormat', 1, int ):[1, '', 1, '1: space-delimited plink/Linkage format \n\
+		(use individual.ucla_id as sample ID, parents that are not in input VCF will also show up); \n\
+	2: for TrioCaller, individuals involved in >1 matings will be replicated; \n\
+	3: for polymutt, replicate some individuals to make pedigree loop-free; \n\
+	4: plink format, (same as 1) but using input sample ID'],\
+					('sampleID2FamilyCountFname', 0, ): ['', '', 1, 'a tab-delimited file that records how many families in which each individual occurs'],\
+					("treatEveryOneIndependent", 0, int): [0, '', 0, 'toggle this to treat everyone in the pedigree independent (parents=0)'],\
+					('replicateIndividualTag', 1, ): ['copy', 'T', 1, 'the tag that separates the true ID and its replicate count'],\
+					('dummyIndividualNamePrefix', 1, ): ['dummy', '', 1, 'the prefix to name a dummy parent (TrioCaller format). The suffix is its order among all dummies.'],\
+					('polymuttDatFname', 0, ): ['', '', 1, 'if present, add "T\tGLF_Index" into the file. required for polymutt'],\
+					('addUngenotypedDuoParents', 0, int): [0, '', 1, 'whether to append ungenotyped duo parents to output '],\
+					})
+	
 	option_default_dict.pop(('outputFname', 0, ))	#pop after its value has been used above
 	def __init__(self, inputFnameLs=None, **keywords):
 		"""
@@ -64,6 +71,7 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 	def getIndividual(self, db_vervet=None, individual_id=None, individual_id2individual=None):
 		"""
 		2012.8.14
+			cache data fetched from db 
 		"""
 		if isinstance(individual_id, tuple):
 			individual_id = individual_id[0]
@@ -81,12 +89,92 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 			individual = VervetDB.Individual.get(individual_id)
 			return individual
 	
-	def outputPedigreeForPlink(self, DG=None, db_vervet=None, inputFname=None, outputFname=None, treatEveryOneIndependent=None):
+	def getProperSampleIDForPlinkOutput(self, individual=None, alignmentID2sampleData=None, \
+									individual_id2alignment=None, sampleIDFormat=1, defaultSampleID=0):
 		"""
+		sampleIDFormat
+			1: individual.ucla_id
+			2: input sampleID
+		
+		2013.06.24
+			used by outputPedigreeForPlink()
+			
+		"""
+		sampleID=defaultSampleID	#default
+		if sampleIDFormat==1 and individual is not None:
+			sampleID = individual.ucla_id
+		elif sampleIDFormat==2 and individual is not None:
+			alignment = individual_id2alignment.get(individual.id)
+			if alignment:
+				sampleData = alignmentID2sampleData.get(alignment.id)
+				if sampleData:
+					sampleID = sampleData.sampleID
+		return sampleID
+	
+	def generateFakeIndividualID(self, fakeIDPrefix="fake", pedigreeGraph=None, currentNoOfFakes=0):
+		"""
+		2013.07.18
+			if one individual has only one parent in the pedigree graph, fake the other parent (instead of giving 0)
+				the fake parent ID has to be unique (not already in the graph)
+		"""
+		currentNoOfFakes += 1
+		individualID = "%s%s"%(fakeIDPrefix, currentNoOfFakes)
+		while individualID in pedigreeGraph:
+			currentNoOfFakes += 1
+			individualID = "%s%s"%(fakeIDPrefix, currentNoOfFakes)
+		return PassingData(currentNoOfFakes=currentNoOfFakes, individualID=individualID)
+	
+	def outputPedigreeForPlink(self, DG=None, db_vervet=None, inputFname=None, outputFname=None, \
+							treatEveryOneIndependent=None, sampleIDFormat=1,\
+							addUngenotypedDuoParents=False):
+		"""
+		http://pngu.mgh.harvard.edu/~purcell/plink/data.shtml
+			either space or tab could be the delimiter.
+		sampleIDFormat
+			1: individual.ucla_id
+			2: input sampleID
+		argument addUngenotypedDuoParents
+				for mendel error detection, if an ungenotyped parent in a duo (the other is genotyped) is not present in the genotype file (PED/TPED/BED),
+					then plink won't look for its mendel inconsistency 
+		
+		2013.07.18
+			added argument addUngenotypedDuoParents
+				for mendel error detection, if an ungenotyped parent in a duo is not present in the genotype file (PED/TPED/BED),
+					then plink won't look for its mendel inconsistency 
+		
+		2013.06.24 added argument sampleIDFormat
+			1: individual.ucla_id
+			2: alignment.read_group
 		2013.1.2
 			copied from run()
+			
 		"""
-		alignmentLs = db_vervet.getAlignmentsFromVCFFile(inputFname =inputFname)
+		sys.stderr.write("Outputting pedigree constrained by %s to %s, treatEveryOneIndependent=%s, sampleIDFormat=%s, addUngenotypedDuoParents=%s ... "%\
+						(inputFname, outputFname, treatEveryOneIndependent, sampleIDFormat, addUngenotypedDuoParents))
+		vcfFile = VCFFile(inputFname=inputFname)
+		
+		alignmentLs = []
+		alignmentID2sampleData = {}
+		individual_id2alignment = {}
+		for sampleID in vcfFile.getSampleIDList():
+			alignment = db_vervet.parseAlignmentReadGroup(sampleID).individualAlignment
+			alignmentLs.append(alignment)
+			if alignment.id in alignmentID2sampleData:
+				sys.stderr.write("Error: alignment %s (%s) for sample %s already in alignmentID2sampleData, with sampleID=%s.\n"%\
+								(alignment.id, alignment.read_group, sampleID, \
+								alignmentID2sampleData.get(alignment.id).sampleID))
+				raise
+			alignmentID2sampleData[alignment.id] = PassingData(sampleID=sampleID, alignment=alignment)
+			
+			individual_id = alignment.individual_sequence.individual_id
+			if individual_id in individual_id2alignment:
+				sys.stderr.write("Error: alignment %s (%s) for sample %s already in alignmentID2sampleData, with sampleID=%s.\n"%\
+								(alignment.id, alignment.read_group, sampleID, \
+								alignmentID2sampleData.get(alignment.id).sampleID))
+				raise
+			individual_id2alignment[individual_id] = alignment
+		#alignmentLs = db_vervet.getAlignmentsFromVCFFile(inputFname =inputFname)
+		
 		"""
 		pedigreeGraphData = db_vervet.constructPedgreeGraphOutOfAlignments(alignmentLs)
 		DG = pedigreeGraphData.DG
@@ -94,56 +182,108 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 		"""
 		individual_id2individual = {}
 		
-		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		ungenotypedNodeID2Data = {}
+		writer = csv.writer(open(outputFname, 'w'), delimiter=' ')
 		counter = 0
 		family_id= 1	#all in one family
+		currentNoOfFakes = 0
 		for alignment in alignmentLs:
 			nodeID = alignment.individual_sequence.individual_id
 			individual = self.getIndividual(db_vervet=db_vervet, individual_id=nodeID, \
 										individual_id2individual=individual_id2individual)
-			if treatEveryOneIndependent:
-				father_id = 0
-				mother_id = 0
-			elif nodeID in DG:
+			
+			if nodeID in DG:
 				parents = DG.predecessors(nodeID)
 				if len(parents)==2:
+					
 					parent1 = self.getIndividual(db_vervet=db_vervet, individual_id=parents[0], \
 												individual_id2individual=individual_id2individual)
 					parent2 = self.getIndividual(db_vervet=db_vervet, individual_id=parents[1], \
 												individual_id2individual=individual_id2individual)
 					parent1Sex = parent1.codeSexInNumber()
+					parent2Sex = parent2.codeSexInNumber()
+					#2013.07.18	one and only genotyped, then add the ungenotyped as a ungenotyped duo
+					if parents[0] not in individual_id2alignment and parents[1] in individual_id2alignment:
+						if parents[0] not in ungenotypedNodeID2Data:
+							ungenotypedNodeID2Data[parents[0]] = PassingData(individualDBEntry=parent1, sex=parent1Sex)
+					elif parents[0] in individual_id2alignment and parents[1] not in individual_id2alignment:
+						if parents[1] not in ungenotypedNodeID2Data:
+							ungenotypedNodeID2Data[parents[1]] = PassingData(individualDBEntry=parent2, sex=parent2Sex)
+						
 					if parent1Sex==2:
 						#swap the father and mother row
 						tmp = parent1
 						parent1 = parent2
 						parent2 = tmp
 					
-					father_id = parent1.ucla_id
-					mother_id = parent2.ucla_id
+					father_id = self.getProperSampleIDForPlinkOutput(individual=parent1, \
+									alignmentID2sampleData=alignmentID2sampleData, \
+									individual_id2alignment=individual_id2alignment, sampleIDFormat=sampleIDFormat)
+					mother_id = self.getProperSampleIDForPlinkOutput(individual=parent2, \
+									alignmentID2sampleData=alignmentID2sampleData, \
+									individual_id2alignment=individual_id2alignment, sampleIDFormat=sampleIDFormat)
 				elif len(parents)==1:
 					parent1 = self.getIndividual(db_vervet=db_vervet, individual_id=parents[0], \
 										individual_id2individual=individual_id2individual)
 					parent1Sex = parent1.codeSexInNumber()
+					
+					
 					if parent1Sex==2:
+						parent2Sex = 1
 						father_id = 0
-						mother_id = parent1.ucla_id
+						mother_id = self.getProperSampleIDForPlinkOutput(individual=parent1, \
+									alignmentID2sampleData=alignmentID2sampleData, \
+									individual_id2alignment=individual_id2alignment, sampleIDFormat=sampleIDFormat)
 					else:
-						father_id = parent1.ucla_id
+						parent2Sex = 2
+						father_id = self.getProperSampleIDForPlinkOutput(individual=parent1, \
+									alignmentID2sampleData=alignmentID2sampleData, \
+									individual_id2alignment=individual_id2alignment, sampleIDFormat=sampleIDFormat)
 						mother_id = 0
+					#2013.07.18 parent1 (parents[0]) has to be in individual_id2alignment (genotyped) in order for the other
+						#to qualify as an ungenotype parent in a duo
+					if parents[0] in individual_id2alignment:
+						#if parents[0] not in ungenotypedNodeID2Data:
+						#	ungenotypedNodeID2Data[parents[0]] = PassingData(individualDBEntry=parent1, sex=parent1Sex)
+						fakeParentData = self.generateFakeIndividualID(pedigreeGraph=DG, currentNoOfFakes=currentNoOfFakes)
+						currentNoOfFakes = fakeParentData.currentNoOfFakes
+						fakeParent2ID = fakeParentData.individualID
+						if fakeParent2ID not in individual_id2alignment:
+							if fakeParent2ID not in ungenotypedNodeID2Data:
+								ungenotypedNodeID2Data[fakeParent2ID] = PassingData(individualDBEntry=None, sex=parent2Sex)
 				elif len(parents)==0:
 					father_id = 0
 					mother_id = 0
 				else:
 					sys.stderr.write("Error: number of parents (%s) for %s is %s.\n"%(repr(parents), nodeID, len(parents)))
 					sys.exit(3)
-			else:
+			else:	# founders
 				father_id = 0
 				mother_id = 0
-			data_row = [family_id, individual.ucla_id, father_id, mother_id, \
+			
+			if treatEveryOneIndependent:	#force the parents to be 0, everyone becomes founders
+				father_id = 0
+				mother_id = 0
+			individual_id = self.getProperSampleIDForPlinkOutput(individual=individual, \
+									alignmentID2sampleData=alignmentID2sampleData, \
+									individual_id2alignment=individual_id2alignment, sampleIDFormat=sampleIDFormat)
+			data_row = [family_id, individual_id, father_id, mother_id, \
 					individual.codeSexInNumber(), 1]
 			writer.writerow(data_row)
 			counter += 1
-		sys.stderr.write("%s alignments outputted.\n"%(counter))
+		
+		noOfUngenotypedParentsOutputted = 0
+		if addUngenotypedDuoParents:
+			for ungenotypedNodeID, pdata in ungenotypedNodeID2Data.iteritems():
+				individual_id = self.getProperSampleIDForPlinkOutput(individual=pdata.individualDBEntry, \
+									alignmentID2sampleData=alignmentID2sampleData, \
+									individual_id2alignment=individual_id2alignment, \
+									sampleIDFormat=sampleIDFormat, defaultSampleID=ungenotypedNodeID)
+				data_row = [family_id, individual_id, 0, 0, pdata.sex, 1]
+				writer.writerow(data_row)
+				noOfUngenotypedParentsOutputted += 1
+		sys.stderr.write("%s individuals and %s ungenotyped duo-parents outputted, number of fake parents %s, addUngenotypedDuoParents=%s.\n"%\
+						(counter, noOfUngenotypedParentsOutputted, currentNoOfFakes, addUngenotypedDuoParents))
 		del writer
 		
 	
@@ -551,18 +691,22 @@ class OutputVRCPedigreeInTFAMGivenOrderFromFile(AbstractVervetMapper):
 		
 		if self.outputFileFormat==1:
 			self.outputPedigreeForPlink(DG=DG, db_vervet=db_vervet, inputFname=self.inputFname, outputFname=self.outputFname, \
-									treatEveryOneIndependent=self.treatEveryOneIndependent)
-		elif self.outputFileFormat==3:
-			self.outputPedigreeForPolymutt(DG=DG, db_vervet=db_vervet, inputFname=self.inputFname, \
-								outputFname=self.outputFname, replicateIndividualTag=self.replicateIndividualTag,\
-								sampleID2FamilyCountFname=self.sampleID2FamilyCountFname, \
-								treatEveryOneIndependent=self.treatEveryOneIndependent)
+									treatEveryOneIndependent=self.treatEveryOneIndependent, addUngenotypedDuoParents=self.addUngenotypedDuoParents)
 		elif self.outputFileFormat==2:
 			self.outputPedigreeForTrioCaller(db_vervet=db_vervet, inputFname=self.inputFname, \
 							pedigreeOutputFname=self.outputFname, replicateIndividualTag=self.replicateIndividualTag,\
 							dummyIndividualNamePrefix=self.dummyIndividualNamePrefix,\
 							treatEveryOneIndependent=self.treatEveryOneIndependent, \
 							sampleID2FamilyCountFname=self.sampleID2FamilyCountFname)
+		elif self.outputFileFormat==3:
+			self.outputPedigreeForPolymutt(DG=DG, db_vervet=db_vervet, inputFname=self.inputFname, \
+								outputFname=self.outputFname, replicateIndividualTag=self.replicateIndividualTag,\
+								sampleID2FamilyCountFname=self.sampleID2FamilyCountFname, \
+								treatEveryOneIndependent=self.treatEveryOneIndependent)
+		elif self.outputFileFormat==4:
+			self.outputPedigreeForPlink(DG=DG, db_vervet=db_vervet, inputFname=self.inputFname, outputFname=self.outputFname, \
+									treatEveryOneIndependent=self.treatEveryOneIndependent, sampleIDFormat=2,\
+									addUngenotypedDuoParents=self.addUngenotypedDuoParents)
 		else:
 			sys.stderr.write("Error: un-supported output file format %s.\n"%(self.outputFileFormat))
 			sys.exit(3)

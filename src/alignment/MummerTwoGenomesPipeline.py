@@ -147,12 +147,12 @@ class MummerTwoGenomesPipeline(AbstractWorkflow):
 		PostNucmer.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "shell/PostNucmer.sh"), site_handler))
 		executableClusterSizeMultiplierList.append((PostNucmer, 0))
 		
-		SelectAndSplitFastaRecords = Executable(namespace=namespace, name="SelectAndSplitFastaRecords", version=version, \
-										os=operatingSystem, arch=architecture, installed=True)
-		SelectAndSplitFastaRecords.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/SelectAndSplitFastaRecords.py"), site_handler))
-		executableClusterSizeMultiplierList.append((SelectAndSplitFastaRecords, 0))
-		
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
+		
+		#2013.07.26
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path= os.path.join(vervetSrcPath, "mapper/SelectAndSplitFastaRecords.py"), \
+												name='SelectAndSplitFastaRecords', clusterSizeMultipler=0)
+		
 	
 	def run(self):
 		"""

@@ -85,8 +85,9 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 from pymodule import ProcessOptions, PassingData, yh_pegasus, utils, NextGenSeq
-from Pegasus.DAX3 import *
+from Pegasus.DAX3 import Executable, File, Profile, PFN, Namespace
 from vervet.src import VervetDB, AbstractVervetWorkflow
+
 #from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 parentClass = AbstractVervetWorkflow
 class FilterVCFPipeline(parentClass):
@@ -107,6 +108,7 @@ class FilterVCFPipeline(parentClass):
 						('depthFoldChange', 0, float): [0, '', 1, 'a variant is retained if its depth within this fold change of meanDepth,\
 		set this to 0 or below to eliminate this step of filtering.', ],\
 						("maxSNPMismatchRate", 0, float): [0, '', 1, 'maximum SNP mismatch rate between two vcf calls'],\
+						("maxLocusHetFraction", 0, float): [None, '', 1, 'maximum SNP heterozygous fraction, valid values: [0,1) '],\
 						("minMAC", 0, int): [None, 'n', 1, 'minimum MinorAlleleCount (by chromosome)'],\
 						("minMAF", 0, float): [None, 'f', 1, 'minimum MinorAlleleFrequency (by chromosome)'],\
 						("maxSNPMissingRate", 0, float): [1.0, 'L', 1, 'maximum SNP missing rate in one vcf (denominator is #chromosomes)'],\
@@ -121,7 +123,7 @@ class FilterVCFPipeline(parentClass):
 						})
 	#set no overlap between adjacent intervals 
 	option_default_dict[('intervalOverlapSize', 1, int)][0] = 0
-	option_default_dict[('intervalSize', 1, int)][0] = 10000
+	option_default_dict[('intervalSize', 1, int)][0] = 20000
 	#('alnStatForFilterFname', 0, ): ['', 'q', 1, 'The alignment stat file for FilterVCFByDepthJava. tab-delimited: individual_alignment.id minCoverage maxCoverage minGQ'],\
 	#	2013.06.13 alnStatForFilterFname is no longer used. 
 	#("minDepthPerGenotype", 0, int): [0, 'Z', 1, 'mask genotype with below this depth as ./. (other fields retained), \
@@ -174,20 +176,13 @@ class FilterVCFPipeline(parentClass):
 		site_handler = workflow.site_handler
 		vervetSrcPath = self.vervetSrcPath
 		
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='FilterLocusHetFractionJava', clusterSizeMultipler=0.1)
+
 		#in order for two different input's FilterVCFByDepth to be merged into different-named clustered jobs
-		FilterVCFByDepth2Java = Executable(namespace=namespace, name="FilterVCFByDepth2", version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		FilterVCFByDepth2Java.addPFN(PFN("file://" + self.javaPath, site_handler))
-		FilterVCFByDepth2Java.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(FilterVCFByDepth2Java)
-		workflow.FilterVCFByDepth2Java = FilterVCFByDepth2Java
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='FilterVCFByDepth2Java', clusterSizeMultipler=1)
 		
-		CalculateSNPMismatchRateOfTwoVCF = Executable(namespace=namespace, name="CalculateSNPMismatchRateOfTwoVCF", \
-							version=version, os=operatingSystem, arch=architecture, installed=True)
-		CalculateSNPMismatchRateOfTwoVCF.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "mapper/CalculateSNPMismatchRateOfTwoVCF.py"), site_handler))
-		CalculateSNPMismatchRateOfTwoVCF.addProfile(Profile(Namespace.PEGASUS, key="clusters.size", value="%s"%clusters_size))
-		workflow.addExecutable(CalculateSNPMismatchRateOfTwoVCF)
-		workflow.CalculateSNPMismatchRateOfTwoVCF = CalculateSNPMismatchRateOfTwoVCF
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(vervetSrcPath, "mapper/CalculateSNPMismatchRateOfTwoVCF.py"), \
+															name='CalculateSNPMismatchRateOfTwoVCF', clusterSizeMultipler=1)
 		
 		#2013.05.20
 		self.setOrChangeExecutableClusterSize(executable=self.SelectVariantsJava, clusterSizeMultipler=1.0, \
@@ -467,6 +462,12 @@ class FilterVCFPipeline(parentClass):
 							extraArguments="-k 1 -v 2-4")
 			returnData.jobDataLs.append(self.constructJobDataFromJob(job=self.filterByMinNeighborDistanceMergeJob))
 		
+		if self.maxLocusHetFraction is not None and self.maxLocusHetFraction<1 and self.maxLocusHetFraction>=0:
+			filterByMaxHetFrationMergeFile = File(os.path.join(self.filterStatDirJob.output, 'filterByMaxLocusHetFraction%s_s8.tsv'%(self.maxLocusHetFraction)))
+			self.filterByMaxLocusHetFractionMergeJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
+							outputF=filterByMaxHetFrationMergeFile, transferOutput=True, parentJobLs=[self.filterStatDirJob],\
+							extraArguments="-k 1 -v 2-4")
+			returnData.jobDataLs.append(self.constructJobDataFromJob(job=self.filterByMaxLocusHetFractionMergeJob))
 		return returnData
 	
 	def mapEachInterval(self, workflow=None, VCFJobData=None, chromosome=None,intervalData=None,\
@@ -582,7 +583,7 @@ class FilterVCFPipeline(parentClass):
 				refFastaFList=self.registerReferenceData.refFastaFList, \
 				sampleIDKeepFile=None, snpIDKeepFile=None, sampleIDExcludeFile=None, \
 				interval=None,\
-				parentJobLs=lastRoundJobLs + self.filterPASSDirJob, extraDependentInputLs=lastRoundExtraDependentInputLs, transferOutput=False, \
+				parentJobLs=lastRoundJobLs + [self.filterPASSDirJob], extraDependentInputLs=lastRoundExtraDependentInputLs, transferOutput=False, \
 				extraArguments="""--select_expressions "%s" """%(selectExpression), job_max_memory=2000, walltime=None)
 			
 			currentVCFJob = FILTER_PASS_Job
@@ -656,9 +657,8 @@ class FilterVCFPipeline(parentClass):
 			noTransferFlagJobSet.add(currentVCFJob)
 			lastVCFJob = currentVCFJob
 			lastRoundJobLs = [currentVCFJob]
-			
 		
-			
+		
 		if self.minMAC is not None:
 			outputFnamePrefix = os.path.join(self.filterDirJob.output, '%s.filterByMinMAC'%(commonPrefix))
 			vcf1FilterByMinMACJob = self.addFilterJobByvcftools(workflow, vcftoolsWrapper=workflow.vcftoolsWrapper, \
@@ -750,6 +750,34 @@ class FilterVCFPipeline(parentClass):
 			lastVCFJob = currentVCFJob
 			lastRoundJobLs = [currentVCFJob]
 			lastRoundExtraDependentInputLs=[]
+		
+		if self.maxLocusHetFraction is not None and self.maxLocusHetFraction<1 and self.maxLocusHetFraction>=0:
+			#2013.08.12
+			afterFilterHetFractionVCFFile = File(os.path.join(self.filterDirJob.output, '%s_filterByMaxLocusHetFraction%s.vcf'%(commonPrefix, self.maxLocusHetFraction)))
+			filterLocusHetFractionJob = self.addGATKJob(executable=self.FilterLocusHetFractionJava, \
+				GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, \
+				GATKAnalysisType="FilterVCFBySiteHetFraction",\
+				inputFile=lastVCFJob.output, inputArgumentOption="--variant", \
+				outputFile=afterFilterHetFractionVCFFile, outputArgumentOption="--out", \
+				refFastaFList=self.registerReferenceData.refFastaFList, \
+				parentJobLs=lastRoundJobLs + [self.filterDirJob], \
+				extraDependentInputLs=lastRoundExtraDependentInputLs, transferOutput=False, \
+				extraArguments="--maxLocusHetFraction %s"%(self.maxLocusHetFraction), \
+				job_max_memory=5000, walltime=None)
+			
+			currentVCFJob = filterLocusHetFractionJob
+			#check how much sites got filtered
+			outputF = File(os.path.join(self.filterStatDirJob.output, '%s_filterByMaxLocusHetFraction%s.tsv'%(commonPrefix, self.maxLocusHetFraction)))
+			self.addVCFBeforeAfterFilterStatJob(chromosome=chromosome, outputF=outputF, \
+								vcf1=lastVCFJob.output, \
+								currentVCFJob=currentVCFJob,\
+								statMergeJob=self.filterByMaxLocusHetFractionMergeJob, \
+								parentJobLs=lastRoundJobLs + [self.filterStatDirJob])
+			
+			lastVCFJob = currentVCFJob
+			noTransferFlagJobSet.add(currentVCFJob)
+			lastRoundJobLs=[currentVCFJob]
+			lastRoundExtraDependentInputLs = []
 		
 		#bgzip last VCF job's output
 		bgzipFile = File("%s.gz"%lastVCFJob.output.name)

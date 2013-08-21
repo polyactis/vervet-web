@@ -30,7 +30,9 @@ Examples:
 	
 	# 2012.8.10 Plink Mendel Error
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkMendelError/PlinkMendelError_Method14.xml
-		--checkEmptyVCFByReading --clusters_size 4  --needSSHDBTunnel --site_handler hcondor --input_site_handler hcondor
+		--checkEmptyVCFByReading --clusters_size 4  --needSSHDBTunnel
+		--ref_ind_seq_id 529
+		--site_handler hcondor --input_site_handler hcondor
 		--db_user yh --hostname localhost
 		--local_data_dir ~/NetworkData/vervet/db/ --data_dir ~/NetworkData/vervet/db/ 
 		-y1
@@ -66,7 +68,7 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import copy
-from Pegasus.DAX3 import *
+from Pegasus.DAX3 import PFN, Executable, File
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq, \
 	figureOutDelimiter, getColName2IndexFromHeader, utils
 from pymodule import GenomeDB
@@ -107,39 +109,90 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		"""
 		"""
 		GenericVCFWorkflow.__init__(self, **keywords)
-
-	def addPlinkMendelErrorJobs(self, workflow=None, inputData=None, transferOutput=True,\
-						maxContigID=None, outputDirPrefix="", returnMode=2, **keywords):
+	
+	def _addGenomeMovingAvgAndPlotJob(self, splitPlinkLMendelFileSNPIDIntoChrPositionJob=None, mergeOutputDirJob=None, plotOutputDirJob=None,\
+									returnData=None, windowSize=500000, minValueForFraction=1, \
+									run_type=1):
 		"""
-		2012.8.9
+		2013.07.31
+		"""
+		run_type2movingAverageName = {1: "median", 2:"mean", 3:"fraction"}
+		extraArgumentList=["--windowSize %s"%(windowSize), "--windowOverlapSize 0", "--run_type %s"%(run_type),  ]
+		if run_type==3:
+			extraArgumentList.append("--minValueForFraction %s"%(minValueForFraction))
+		genomeMovingAverageJob= self.addAbstractGenomeFileWalkerJob(executable=self.GenomeMovingAverageStatistics, \
+					inputFileList=None, inputFile=splitPlinkLMendelFileSNPIDIntoChrPositionJob.output, \
+					outputFile=File(os.path.join(mergeOutputDirJob.output, 'merged_lmendel_windowSize%s_run_type%s_%s.tsv'%\
+												(windowSize, run_type, run_type2movingAverageName.get(run_type)))), \
+					outputFnamePrefix=None, whichColumn=None, whichColumnHeader="N", \
+					logY=None, valueForNonPositiveYValue=-1, \
+					minNoOfTotal=10,\
+					samplingRate=1, \
+					chrColumnHeader="Chromosome", \
+					tax_id=self.ref_genome_tax_id, sequence_type_id=self.ref_genome_sequence_type_id, chrOrder=1,\
+					positionHeader="Start",\
+					inputFileFormat=1, outputFileFormat=None,\
+					parentJobLs=[splitPlinkLMendelFileSNPIDIntoChrPositionJob, mergeOutputDirJob], \
+					extraDependentInputLs=None, \
+					extraArgumentList=extraArgumentList, \
+					extraArguments=None, transferOutput=False,  job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, \
+					objectWithDBGenomeArguments=self)
+		returnData.jobDataLs.append(self.constructJobDataFromJob(genomeMovingAverageJob))
+		
+		outputFile = File(os.path.join(plotOutputDirJob.output, 'mendelError_windowSize%s_run_type%s_%s.png'%\
+									(windowSize, run_type, run_type2movingAverageName.get(run_type))))
+		self.addPlotGenomeWideDataJob(inputFileList=None, \
+							inputFile=genomeMovingAverageJob.output,\
+							outputFile=outputFile,\
+							whichColumn=None, \
+							whichColumnHeader="score", whichColumnPlotLabel="%sMendelError"%(run_type2movingAverageName.get(run_type)), \
+							logX=None, logY=None, valueForNonPositiveYValue=-1, \
+							xScaleLog=None, yScaleLog=None,\
+							missingDataNotation='NA',\
+							xColumnPlotLabel="genomePosition", xColumnHeader="start", \
+							xtickInterval=20000000,\
+							drawCentromere=True, chrColumnHeader="chromosome", \
+							minChrLength=None, minNoOfTotal=None, maxNoOfTotal=None, \
+							figureDPI=100, formatString=".", ylim_type=2, samplingRate=1, logCount=False, need_svg=False,\
+							tax_id=self.ref_genome_tax_id, sequence_type_id=self.ref_genome_sequence_type_id, chrOrder=1,\
+							inputFileFormat=1, outputFileFormat=None,\
+							parentJobLs=[genomeMovingAverageJob, plotOutputDirJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, extraArgumentList=None, \
+							transferOutput=True, job_max_memory=1000, sshDBTunnel=self.needSSHDBTunnel)
+	
+	def setupForPlinkMendelSubWorkflow(self, workflow=None, inputData=None, transferOutput=True,\
+						outputDirPrefix="", **keywords):
+		"""
+		2013.07.24
+			split out of addPlinkMendelErrorJobs so that setupForPlinkMendelSubWorkflow() could use it.
 		"""
 		if workflow is None:
 			workflow = self
-		sys.stderr.write("Adding plink mendel error jobs for %s  files ... "%(len(inputData.jobDataLs)))
 		
 		returnData = PassingData()
 		returnData.jobDataLs = []
 		
-		topOutputDir = "%sMendelError"%(outputDirPrefix)
-		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
+		mapDirJob = self.addMkDirJob(outputDir="%sMap"%(outputDirPrefix))
+		returnData.mapDirJob = mapDirJob
 		
-		mergedOutputDir = "%sMerged"%(outputDirPrefix)
-		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
+		mergeOutputDir = "%sReduce"%(outputDirPrefix)
+		mergeOutputDirJob = self.addMkDirJob(outputDir=mergeOutputDir)
 		
-		plotOutputDir = "%splot"%(outputDirPrefix)
+		plotOutputDir = "%sPlot"%(outputDirPrefix)
 		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
 		
-		mendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_mendel.tsv'))
+		mendelMergeFile = File(os.path.join(mergeOutputDir, 'merged_mendel.tsv'))
 		#each input has no header
-		mendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-							outputF=mendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob])
+		mendelMergeJob = self.addStatMergeJob(statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=mendelMergeFile, transferOutput=False, parentJobLs=[mergeOutputDirJob])
 		returnData.jobDataLs.append(PassingData(jobLs=[mendelMergeJob], file=mendelMergeJob.output, \
 											fileLs=mendelMergeJob.outputLs))
 		
-		imendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_imendel.tsv'))
+		imendelMergeFile = File(os.path.join(mergeOutputDir, 'merged_imendel.tsv'))
 		#each input has no header
-		imendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
-							outputF=imendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob], \
+		imendelMergeJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
+							outputF=imendelMergeFile, transferOutput=False, parentJobLs=[mergeOutputDirJob], \
 							extraArguments='--keyColumnLs 1 --valueColumnLs 2')
 		
 		returnData.jobDataLs.append(PassingData(jobLs=[imendelMergeJob], file=imendelMergeJob.output, \
@@ -149,57 +202,162 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
 		self.addDrawHistogramJob(executable=workflow.DrawHistogram, inputFileList=[imendelMergeFile], \
 							outputFile=outputFile, \
-					whichColumn=None, whichColumnHeader="N", whichColumnPlotLabel="log_NoOfMendelErrors", \
-					logY=1, logCount=True, valueForNonPositiveYValue=50,\
+					whichColumn=None, whichColumnHeader="N", whichColumnPlotLabel="noOfMendelErrors", \
+					xScaleLog=0, yScaleLog=0, \
+					logCount=True, logY=0, valueForNonPositiveYValue=50,\
 					minNoOfTotal=10,\
-					figureDPI=100, samplingRate=1,\
+					figureDPI=100, samplingRate=1,legendType=1, \
 					parentJobLs=[plotOutputDirJob, imendelMergeJob], \
 					extraDependentInputLs=None, \
-					extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+					extraArguments=None, transferOutput=True,  job_max_memory=2000)
 		
-		fmendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_fmendel.tsv'))
-		fmendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-							outputF=fmendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob])
-		returnData.jobDataLs.append(PassingData(jobLs=[fmendelMergeJob], file=fmendelMergeJob.output, \
-											fileLs=fmendelMergeJob.outputLs))
+		fmendelMergeFile = File(os.path.join(mergeOutputDir, 'merged_fmendel.tsv'))
+		fmendelMergeJob = self.addStatMergeJob(statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=fmendelMergeFile, transferOutput=False, parentJobLs=[mergeOutputDirJob])
+		returnData.jobDataLs.append(self.constructJobDataFromJob(fmendelMergeJob))
 		
-		lmendelMergeFile = File(os.path.join(mergedOutputDir, 'merged_lmendel.tsv'))
-		lmendelMergeJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-							outputF=lmendelMergeFile, transferOutput=False, parentJobLs=[mergedOutputDirJob], \
+		lmendelMergeFile = File(os.path.join(mergeOutputDir, 'merged_lmendel.tsv'))
+		lmendelMergeJob = self.addStatMergeJob(statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+							outputF=lmendelMergeFile, transferOutput=False, parentJobLs=[mergeOutputDirJob], \
 							extraArguments='')
-		returnData.jobDataLs.append(PassingData(jobLs=[lmendelMergeJob], file=lmendelMergeJob.output, \
-											fileLs=lmendelMergeJob.outputLs))
+		returnData.jobDataLs.append(self.constructJobDataFromJob(lmendelMergeJob))
 		
 		outputFile = File( os.path.join(plotOutputDir, 'locusMendelErrorHist.png'))
 		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
 		# samplingRate=1 because plink doesn't output zero-mendel-error sites.
 		self.addDrawHistogramJob(executable=workflow.DrawHistogram, inputFileList=[lmendelMergeFile], \
 							outputFile=outputFile, \
-					whichColumn=2, whichColumnHeader=None, whichColumnPlotLabel="NoOfMendelErrors", \
+					whichColumn=2, whichColumnHeader=None, whichColumnPlotLabel="noOfMendelErrors", \
 					logY=0, logCount=True, valueForNonPositiveYValue=50,\
 					minNoOfTotal=10,\
-					figureDPI=100, samplingRate=1,\
+					figureDPI=100, samplingRate=1,legendType=1, \
 					parentJobLs=[plotOutputDirJob, lmendelMergeJob], \
 					extraDependentInputLs=None, \
-					extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
+					extraArguments=None, transferOutput=True,  job_max_memory=2000)
 		
+		splitPlinkLMendelFileSNPIDIntoChrPositionJob = self.addAbstractMapperLikeJob(executable=workflow.SplitPlinkLMendelFileSNPIDIntoChrPosition, \
+					inputF=lmendelMergeJob.output, \
+					outputF=File(os.path.join(mergeOutputDirJob.output, 'merged_lmendel_chr_pos.tsv')), \
+					parentJobLs=[lmendelMergeJob, mergeOutputDirJob,], \
+					transferOutput=False, job_max_memory=200,\
+					extraArgumentList=None, \
+					extraDependentInputLs=None)
+		returnData.jobDataLs.append(self.constructJobDataFromJob(splitPlinkLMendelFileSNPIDIntoChrPositionJob))
+		
+		# whichColumnPlotLabel and xColumnPlotLabel should not contain spaces or ( or ). because they will disrupt shell commandline
+		"""
+		outputFnamePrefix = os.path.join(plotOutputDir, 'noOfMendelErrors_along_chromosome')
+		self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, \
+								inputFileList=[splitPlinkLMendelFileSNPIDIntoChrPositionJob.output], \
+								outputFnamePrefix=outputFnamePrefix, \
+								whichColumn=None, whichColumnHeader="N", whichColumnPlotLabel="noOfMendelErrors", need_svg=False, \
+								logY=0, valueForNonPositiveYValue=-1, \
+								xColumnPlotLabel="genomePosition", chrLengthColumnHeader=None, chrColumnHeader="Chromosome", \
+								minChrLength=100000, xColumnHeader="Start", minNoOfTotal=50,\
+								figureDPI=100, ylim_type=2, samplingRate=1,\
+								tax_id=self.ref_genome_tax_id, sequence_type_id=self.ref_genome_sequence_type_id, chrOrder=1,\
+								parentJobLs=[splitPlinkLMendelFileSNPIDIntoChrPositionJob, plotOutputDirJob], \
+								extraDependentInputLs=None, \
+								extraArguments=None, transferOutput=True, sshDBTunnel=self.needSSHDBTunnel)
+		"""
+		outputFile = File(os.path.join(plotOutputDir, 'noOfMendelErrors_along_chromosome.png'))
+		self.addPlotGenomeWideDataJob(inputFileList=None, \
+							inputFile=splitPlinkLMendelFileSNPIDIntoChrPositionJob.output,\
+							outputFile=outputFile,\
+							whichColumn=None, whichColumnHeader="N", whichColumnPlotLabel="noOfMendelErrors", \
+							logX=None, logY=None, valueForNonPositiveYValue=-1, \
+							xScaleLog=None, yScaleLog=None,\
+							missingDataNotation='NA',\
+							xColumnPlotLabel="genomePosition", xColumnHeader="Start", \
+							xtickInterval=20000000,\
+							drawCentromere=True, chrColumnHeader="Chromosome", \
+							minChrLength=None, minNoOfTotal=None, maxNoOfTotal=None, \
+							figureDPI=100, formatString=".", ylim_type=2, samplingRate=1, logCount=False, need_svg=False,\
+							tax_id=self.ref_genome_tax_id, sequence_type_id=self.ref_genome_sequence_type_id, chrOrder=1,\
+							inputFileFormat=1, outputFileFormat=None,\
+							parentJobLs=[splitPlinkLMendelFileSNPIDIntoChrPositionJob, plotOutputDirJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, extraArgumentList=None, \
+							transferOutput=True, job_max_memory=1000, sshDBTunnel=self.needSSHDBTunnel)
+		
+		self._addGenomeMovingAvgAndPlotJob(splitPlinkLMendelFileSNPIDIntoChrPositionJob=splitPlinkLMendelFileSNPIDIntoChrPositionJob, \
+										mergeOutputDirJob=mergeOutputDirJob, plotOutputDirJob=plotOutputDirJob, \
+										returnData=returnData, windowSize=500000, \
+										minValueForFraction=1, run_type=1)
+		self._addGenomeMovingAvgAndPlotJob(splitPlinkLMendelFileSNPIDIntoChrPositionJob=splitPlinkLMendelFileSNPIDIntoChrPositionJob, \
+										mergeOutputDirJob=mergeOutputDirJob, plotOutputDirJob=plotOutputDirJob, \
+										returnData=returnData, windowSize=500000, \
+										minValueForFraction=1, run_type=2)
+		self._addGenomeMovingAvgAndPlotJob(splitPlinkLMendelFileSNPIDIntoChrPositionJob=splitPlinkLMendelFileSNPIDIntoChrPositionJob, \
+										mergeOutputDirJob=mergeOutputDirJob, plotOutputDirJob=plotOutputDirJob, \
+										returnData=returnData, windowSize=500000, \
+										minValueForFraction=1, run_type=3)
 		#2013.1.8
-		meanMedianModePerLocusMendelErrorFile = File(os.path.join(mergedOutputDirJob.output, "meanMedianModePerLocusMendelError.tsv"))
+		meanMedianModePerLocusMendelErrorFile = File(os.path.join(mergeOutputDirJob.output, "meanMedianModePerLocusMendelError.tsv"))
 		meanMedianModePerLocusMendelErrorJob = self.addCalculateDepthMeanMedianModeJob(\
 							executable=workflow.CalculateMedianMeanOfInputColumn, \
 							inputFile=lmendelMergeJob.output, outputFile=meanMedianModePerLocusMendelErrorFile, alignmentID=0, \
 							fractionToSample=1, \
 							noOfLinesInHeader=1, whichColumn=2, maxNumberOfSamplings=1E8, inputStatName="MendelError",\
-							parentJobLs=[mergedOutputDirJob, lmendelMergeJob], job_max_memory = 500, extraArguments=None, \
+							parentJobLs=[mergeOutputDirJob, lmendelMergeJob], job_max_memory = 500, extraArguments=None, \
 							transferOutput=False)
-		returnData.jobDataLs.append(PassingData(jobLs=[meanMedianModePerLocusMendelErrorJob], \
-									file=meanMedianModePerLocusMendelErrorJob.output, \
-									fileLs=meanMedianModePerLocusMendelErrorJob.outputLs))
+		returnData.jobDataLs.append(self.constructJobDataFromJob(meanMedianModePerLocusMendelErrorJob))
 		
-		#2013.1.8 next add a job that calculates the number of nuclear families (plink definition) and divide above meanMendelError with that
+		# 2013.07.19 2013.1.8 next add a job that calculates the number of nuclear families (plink definition) and divide above meanMendelError with that
 		# => meanMendelErrorRate per site
 		# the number of nuclear families => the number of unique parents pairs in the tfam file (both parents are not missing)
 		# ...
+		try:
+			tfamJob = inputData.tfamJob
+			#oneRandomInputJob = inputData.jobDataLs[0].jobLs[0]
+		except:
+			sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
+			import traceback
+			traceback.print_exc()
+			message = "ERROR in PlinkOnVCFWorkflow.addPlinkMendelErrorJobs(): inputData.jobDataLs is %s. Couldnot derive random input job (and its pedigree file) for mendel error rate calculation.\n"%\
+				(repr(inputData.jobDataLs))
+			utils.pauseForUserInput(message, continueAnswerSet=None, exitType=2)
+		calculateMendelErrorRateJob = self.addAbstractMapperLikeJob(executable=workflow.CalculateMendelErrorRateGivenPlinkOutput, \
+					inputF=meanMedianModePerLocusMendelErrorJob.output, \
+					outputF=File(os.path.join(mergeOutputDirJob.output, 'meanMendelErrorRatePerLocusPerFamily.tsv')), \
+					parentJobLs=[meanMedianModePerLocusMendelErrorJob, mergeOutputDirJob, tfamJob], \
+					transferOutput=False, job_max_memory=200,\
+					extraArgumentList=["--pedigreeFname", tfamJob.tfamFile], \
+					extraDependentInputLs=[tfamJob.tfamFile])
+		returnData.jobDataLs.append(self.constructJobDataFromJob(calculateMendelErrorRateJob))
+		
+		##2012.7.21 gzip the final output
+		gzipReturnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
+					outputDirPrefix=outputDirPrefix)
+		gzipReturnData.lmendelMergeJob = lmendelMergeJob	#2013.07.17
+		gzipReturnData.imendelMergeJob = imendelMergeJob
+		gzipReturnData.meanMedianModePerLocusMendelErrorJob = meanMedianModePerLocusMendelErrorJob
+		
+		returnData.mendelMergeJob = mendelMergeJob
+		returnData.fmendelMergeJob = fmendelMergeJob
+		returnData.imendelMergeJob = imendelMergeJob
+		returnData.lmendelMergeJob = lmendelMergeJob
+		returnData.meanMedianModePerLocusMendelErrorJob = meanMedianModePerLocusMendelErrorJob
+		returnData.calculateMendelErrorRateJob = calculateMendelErrorRateJob
+		returnData.mergeOutputDirJob = mergeOutputDirJob
+		return returnData
+	
+	def addPlinkMendelErrorJobs(self, workflow=None, inputData=None, \
+						transferOutput=True,\
+						maxContigID=None, outputDirPrefix="", returnMode=2, **keywords):
+		"""
+		2013.07.24 call setupForPlinkMendelSubWorkflow()
+		2012.8.9
+		"""
+		if workflow is None:
+			workflow = self
+		sys.stderr.write("Adding plink mendel error jobs for %s  files ... "%(len(inputData.jobDataLs)))
+		
+		
+		setupData = self.setupForPlinkMendelSubWorkflow(workflow=workflow, inputData=inputData, transferOutput=transferOutput, \
+											outputDirPrefix=outputDirPrefix)
+		returnData = PassingData()
+		returnData.jobDataLs = []
 		
 		for i in xrange(len(inputData.jobDataLs)):
 			jobData = inputData.jobDataLs[i]
@@ -221,38 +379,31 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 				transferOneContigPlinkOutput = True
 			else:
 				transferOneContigPlinkOutput = False
-			i += 1
-			mendelFnamePrefix = os.path.join(topOutputDir, '%s'%(commonPrefix))
+			mendelFnamePrefix = os.path.join(setupData.mapDirJob.output, '%s'%(commonPrefix))
 			plinkMendelJob = self.addPlinkJob(executable=self.plink, \
-									bedFile=inputJob.bedFile, famFile=inputJob.famFile, bimFile=inputJob.bimFile, \
+							parentPlinkJob=inputJob,\
 					outputFnamePrefix=mendelFnamePrefix, outputOption='--out',\
 					calculateMendelError=True, \
 					extraDependentInputLs=None, transferOutput=transferOneContigPlinkOutput, \
-					extraArguments=None, job_max_memory=2000,\
-					parentJobLs =[topOutputDirJob]+ jobData.jobLs)
+					extraArguments="--allow-no-sex", job_max_memory=2000,\
+					parentJobLs =[setupData.mapDirJob]+ jobData.jobLs)
 			
 			#add output to some reduce job
-			self.addInputToStatMergeJob(workflow, statMergeJob=mendelMergeJob, \
+			self.addInputToStatMergeJob(workflow, statMergeJob=setupData.mendelMergeJob, \
 								inputF=plinkMendelJob.mendelFile, \
 								parentJobLs=[plinkMendelJob])
-			self.addInputToStatMergeJob(workflow, statMergeJob=imendelMergeJob, \
+			self.addInputToStatMergeJob(workflow, statMergeJob=setupData.imendelMergeJob, \
 								inputF=plinkMendelJob.imendelFile, \
 								parentJobLs=[plinkMendelJob])
-			self.addInputToStatMergeJob(workflow, statMergeJob=fmendelMergeJob, \
+			self.addInputToStatMergeJob(workflow, statMergeJob=setupData.fmendelMergeJob, \
 								inputF=plinkMendelJob.fmendelFile, \
 								parentJobLs=[plinkMendelJob])
-			self.addInputToStatMergeJob(workflow, statMergeJob=lmendelMergeJob, \
+			self.addInputToStatMergeJob(workflow, statMergeJob=setupData.lmendelMergeJob, \
 								inputF=plinkMendelJob.lmendelFile, \
 								parentJobLs=[plinkMendelJob])
 		
-		##2012.7.21 gzip the final output
-		returnData = self.addGzipSubWorkflow(workflow=workflow, inputData=returnData, transferOutput=transferOutput,\
-					outputDirPrefix=outputDirPrefix)
-		returnData.lmendelMergeJob = lmendelMergeJob	#2013.07.17
-		returnData.imendelMergeJob = imendelMergeJob
-		returnData.meanMedianModePerLocusMendelErrorJob = meanMedianModePerLocusMendelErrorJob
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
-		return returnData
+		return setupData
 	
 	def writePlinkMergeListFile(self, outputFname=None, extractedFilenameTupleList=[]):
 		"""
@@ -270,20 +421,40 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		del outf
 	
 	def markMendelErrorLociMissingSubWorkflow(self, workflow=None, inputData=None, transferOutput=True,\
-						maxContigID=None, tfamJob=None, outputDirPrefix="", **keywords):
+						maxContigID=None, \
+						famJob=None, tfamJob=None, \
+						outputDirPrefix="", returnMode=1, **keywords):
 		"""
+		argument returnMode
+			1: a list of chromosome-level plink jobs with tped output
+			2: a list of chromosome-level plink jobs with bed output
+		famJob is used when inputData is plink bed output
+		tfamJob is used when inputData is plink tped output 
+		
+		2013.07.25
+			added argument returnMode
+			added argument famJob 
+		2013.07.24 call setupForPlinkMendelSubWorkflow()
 		2013.1.29
 		"""
 		if workflow is None:
 			workflow = self
 		sys.stderr.write("Adding jobs that mark mendel-error loci missing for %s  files ... "%(len(inputData.jobDataLs)))
 		
-		topOutputDir = "%sMarkMendelLocusMissing"%(outputDirPrefix)
-		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
+		setupData = self.setupForPlinkMendelSubWorkflow(workflow=workflow, inputData=inputData, transferOutput=True, \
+											outputDirPrefix="%s_s1_beforeNukeMendelError"%(outputDirPrefix))
+		setupAfterMendelErrorMarkedData = self.setupForPlinkMendelSubWorkflow(workflow=workflow, inputData=inputData, transferOutput=True, \
+											outputDirPrefix="%s_s2_afterNukeMendelError"%(outputDirPrefix))
 		
+		genotypeMarkedMissingStatMergeFile = File(os.path.join(setupData.mergeOutputDirJob.output, 'genotypeMarkedMissingStat.tsv'))
+		genotypeMarkedMissingStatMergeJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
+							outputF=genotypeMarkedMissingStatMergeFile, transferOutput=True, \
+							parentJobLs=[setupData.mergeOutputDirJob], \
+							extraArguments='--keyColumnLs 0 --valueColumnLs 1')
 		
 		returnData = PassingData()
 		returnData.jobDataLs = []
+		
 		for i in xrange(len(inputData.jobDataLs)):
 			jobData = inputData.jobDataLs[i]
 			inputJob = jobData.jobLs[0]
@@ -307,30 +478,99 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 				transferOneContigPlinkOutput = False
 				transferOneContigModifyTPEDOutput = transferOutput
 				
-			mendelFnamePrefix = os.path.join(topOutputDir, '%s'%(commonPrefix))
+			mendelFnamePrefix = os.path.join(setupData.mapDirJob.output, '%s'%(commonPrefix))
+			
+			inputJob = copy.deepcopy(inputJob)	#2013.07.25 make a copy of it , rather than change the original's tfamFile/famFile
+			if inputJob.output.name[-4:]=='tped':	#2013.07.25 make sure addPlinkJob could get the right tfamFile
+				inputJob.tfamFile = getattr(tfamJob, 'tfamFile', inputJob.tfamFile)
+			elif inputJob.output.name[-4:]=='.bed':	#2013.07.25 make sure addPlinkJob could get the right famFile
+				inputJob.famFile = getattr(famJob, 'famFile', inputJob.famFile)
+			
 			plinkMendelJob = self.addPlinkJob(executable=self.plink, \
-									tpedFile=inputJob.output, tfamFile=tfamJob.tfamFile,\
+					parentPlinkJob=inputJob,\
 					outputFnamePrefix=mendelFnamePrefix, outputOption='--out',\
 					calculateMendelError=True, \
 					extraDependentInputLs=None, transferOutput=transferOneContigPlinkOutput, \
 					extraArguments=None, job_max_memory=2000,\
-					parentJobLs =[topOutputDirJob, tfamJob]+ jobData.jobLs)
+					parentJobLs =[setupData.mapDirJob, famJob, tfamJob]+ jobData.jobLs)
 			
+			#add output to some reduce job
+			self.addInputToStatMergeJob(statMergeJob=setupData.mendelMergeJob, \
+								inputF=plinkMendelJob.mendelFile, \
+								parentJobLs=[plinkMendelJob])
+			self.addInputToStatMergeJob(statMergeJob=setupData.imendelMergeJob, \
+								inputF=plinkMendelJob.imendelFile, \
+								parentJobLs=[plinkMendelJob])
+			self.addInputToStatMergeJob(statMergeJob=setupData.fmendelMergeJob, \
+								inputF=plinkMendelJob.fmendelFile, \
+								parentJobLs=[plinkMendelJob])
+			self.addInputToStatMergeJob(statMergeJob=setupData.lmendelMergeJob, \
+								inputF=plinkMendelJob.lmendelFile, \
+								parentJobLs=[plinkMendelJob])
 			
+			outputFnamePrefix = os.path.join(setupData.mapDirJob.output, '%s'%(commonPrefix))
+			if returnMode==1:	#tped output
+				recodeTransposeOutput=True
+				makeBED=False
+			else:	#bed output
+				recodeTransposeOutput=False
+				makeBED=True
+			markMendelErrorMissingJob = self.addPlinkJob(executable=self.plink, \
+					parentPlinkJob=inputJob,\
+					outputFnamePrefix=outputFnamePrefix, outputOption='--out',\
+					recodeTransposeOutput=recodeTransposeOutput,\
+					makeBED=makeBED,\
+					extraDependentInputLs=None, transferOutput=transferOneContigModifyTPEDOutput, \
+					extraArguments="--me 1 1 --set-me-missing", job_max_memory=2000,\
+					parentJobLs =[setupData.mapDirJob, famJob, tfamJob]+ jobData.jobLs)
+			
+			"""
 			#2012.7.20 modify the TPED 2nd column, to become chr_pos (rather than 0)
-			modifyTPEDFnamePrefix = os.path.join(topOutputDir, '%s_markMissing'%(commonPrefix))
+			modifyTPEDFnamePrefix = os.path.join(setupData.mapDirJob.output, '%s_markMissing'%(commonPrefix))
 			outputF = File('%s.tped'%(modifyTPEDFnamePrefix))
 			modifyTPEDJobExtraArguments = "--run_type 4"
+			markMissingStatFile = File(os.path.join(setupData.mapDirJob.output, '%s_markMissing_stat.tsv'%(commonPrefix)))
 			extraArgumentList = [" --mendelErrorFname", plinkMendelJob.mendelFile, \
-								"--tfamFname ",tfamJob.tfamFile ]
-			modifyTPEDJob = self.addAbstractMapperLikeJob(workflow, executable=workflow.ModifyTPED, \
+								"--tfamFname ",tfamJob.tfamFile, "--markMissingStatFname", markMissingStatFile ]
+			markMendelErrorMissingJob = self.addAbstractMapperLikeJob(executable=workflow.ModifyTPED, \
 						inputF=inputJob.output, outputF=outputF, \
 						parentJobLs=jobData.jobLs + [plinkMendelJob, tfamJob], \
 						transferOutput=transferOneContigModifyTPEDOutput, job_max_memory=200,\
 						extraArguments=modifyTPEDJobExtraArguments, extraArgumentList=extraArgumentList,\
-						extraDependentInputLs=[plinkMendelJob.mendelFile, tfamJob.tfamFile])
-			returnData.jobDataLs.append(PassingData(jobLs=[modifyTPEDJob], file=modifyTPEDJob.output, \
-											fileLs=modifyTPEDJob.outputLs))
+						extraDependentInputLs=[plinkMendelJob.mendelFile, tfamJob.tfamFile],\
+						extraOutputLs=[markMissingStatFile])
+			markMendelErrorMissingJob.markMissingStatFile = markMissingStatFile
+			self.addInputToStatMergeJob(statMergeJob=genotypeMarkedMissingStatMergeJob, \
+								inputF=markMendelErrorMissingJob.markMissingStatFile, \
+								parentJobLs=[markMendelErrorMissingJob])
+			"""
+			returnData.jobDataLs.append(PassingData(jobLs=[markMendelErrorMissingJob], file=markMendelErrorMissingJob.output, \
+											fileLs=markMendelErrorMissingJob.outputLs))
+			
+			
+			#2013.07.24 find mendel errors after mendel errors are supposedly all marked as missing
+			mendelFnamePrefix = os.path.join(setupAfterMendelErrorMarkedData.mapDirJob.output, '%s'%(commonPrefix))
+			plinkMendelJob = self.addPlinkJob(executable=self.plink, \
+									parentPlinkJob=markMendelErrorMissingJob,\
+					outputFnamePrefix=mendelFnamePrefix, outputOption='--out',\
+					calculateMendelError=True, \
+					extraDependentInputLs=None, transferOutput=transferOneContigPlinkOutput, \
+					extraArguments=None, job_max_memory=2000,\
+					parentJobLs =[markMendelErrorMissingJob, setupAfterMendelErrorMarkedData.mapDirJob])
+			#add output to some reduce job
+			self.addInputToStatMergeJob(statMergeJob=setupAfterMendelErrorMarkedData.mendelMergeJob, \
+								inputF=plinkMendelJob.mendelFile, \
+								parentJobLs=[plinkMendelJob])
+			self.addInputToStatMergeJob(statMergeJob=setupAfterMendelErrorMarkedData.imendelMergeJob, \
+								inputF=plinkMendelJob.imendelFile, \
+								parentJobLs=[plinkMendelJob])
+			self.addInputToStatMergeJob(statMergeJob=setupAfterMendelErrorMarkedData.fmendelMergeJob, \
+								inputF=plinkMendelJob.fmendelFile, \
+								parentJobLs=[plinkMendelJob])
+			self.addInputToStatMergeJob(statMergeJob=setupAfterMendelErrorMarkedData.lmendelMergeJob, \
+								inputF=plinkMendelJob.lmendelFile, \
+								parentJobLs=[plinkMendelJob])
+			
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
@@ -349,8 +589,8 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		topOutputDir = "%sPlinkBinary"%(outputDirPrefix)
 		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		
-		mergedOutputDir = "%sPlinkMerged"%(outputDirPrefix)
-		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
+		mergeOutputDir = "%sPlinkMerged"%(outputDirPrefix)
+		mergeOutputDirJob = self.addMkDirJob(outputDir=mergeOutputDir)
 		
 		returnData = PassingData()
 		returnData.jobDataLs = []
@@ -382,9 +622,11 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			
 			#convert single plink tped file into binary bed file
 			bedFnamePrefix = os.path.join(topOutputDirJob.output, '%s_bed'%(commonPrefix))
-			convertSingleTPED2BEDJob = self.addPlinkJob(executable=self.plinkConvert, inputFileList=[], 
-								tpedFile=inputJob.output, tfamFile=tfamJob.tfamFile,\
-								inputFnamePrefix=None, inputOption=None, \
+			if inputJob.output.name[-4:]=='tped':	#2013.07.25 make sure addPlinkJob could get the right tfamFile
+				inputJob.tfamFile = tfamJob.tfamFile
+			convertSingleTPED2BEDJob = self.addPlinkJob(executable=self.plinkConvert, inputFileList=[], \
+							parentPlinkJob=inputJob,\
+							inputFnamePrefix=None, inputOption=None, \
 						outputFnamePrefix=bedFnamePrefix, outputOption='--out',\
 						makeBED=True, \
 						extraDependentInputLs=None, transferOutput=transferOutput, \
@@ -398,7 +640,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			if i>0:	#the 1st one is to be directly added to the plink merge job 
 				extractedFilenameTupleList.append([convertSingleTPED2BEDJob.bedFile.name, convertSingleTPED2BEDJob.bimFile.name, convertSingleTPED2BEDJob.famFile.name])
 				plinkMergeExtraDependentInputList.extend([convertSingleTPED2BEDJob.bedFile, convertSingleTPED2BEDJob.bimFile, convertSingleTPED2BEDJob.famFile])
-			i += 1
 			if returnMode==1:
 				returnData.jobDataLs.append(PassingData(jobLs=[convertSingleTPED2BEDJob], file=convertSingleTPED2BEDJob.bedFile, \
 											fileLs=convertSingleTPED2BEDJob.outputLs))
@@ -407,16 +648,15 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		self.writePlinkMergeListFile(outputFname=yh_pegasus.getAbsPathOutOfFile(mergeListFile),\
 									extractedFilenameTupleList=extractedFilenameTupleList)
 		
-		plinkMergeFnamePrefix = os.path.join(mergedOutputDir, 'LDPrunedMerged')
+		plinkMergeFnamePrefix = os.path.join(mergeOutputDir, 'PlinkMerged')
 		firstPlinkTPED2BEDJob = plinkTPED2BEDJobList[0]
 		plinkMergeJob = self.addPlinkJob(executable=self.plinkMerge, \
-						bedFile=firstPlinkTPED2BEDJob.bedFile, famFile=firstPlinkTPED2BEDJob.famFile, \
-						bimFile=firstPlinkTPED2BEDJob.bimFile, \
+						parentPlinkJob=firstPlinkTPED2BEDJob,\
 						outputFnamePrefix=plinkMergeFnamePrefix, outputOption='--out',\
 						mergeListFile=mergeListFile, makeBED=True, \
 						extraDependentInputLs=plinkMergeExtraDependentInputList, transferOutput=transferOutput, \
 						extraArguments=None, job_max_memory=2000,\
-						parentJobLs =[mergedOutputDirJob] + plinkTPED2BEDJobList)
+						parentJobLs =[mergeOutputDirJob] + plinkTPED2BEDJobList)
 		
 		if returnMode==2:
 			returnData.jobDataLs.append(PassingData(jobLs=[plinkMergeJob], file=plinkMergeJob.bedFile, \
@@ -426,7 +666,9 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		return returnData
 	
 	
-	def addPlinkLDPruneJobs(self, workflow=None, inputData=None, transferOutput=True,\
+	def addPlinkLDPruneJobs(self, workflow=None, inputData=None, \
+						famJob=None, tfamJob=None, \
+						transferOutput=True,\
 						maxContigID=None, LDPruneMinR2=0.1, outputDirPrefix="", returnMode=1, \
 						LDPruneWindowSize=100, LDPruneWindowShiftSize=5, mergeListFile=None, **keywords):
 		"""
@@ -439,8 +681,8 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		topOutputDir = "%sLDPrune"%(outputDirPrefix)
 		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		
-		mergedOutputDir = "%sMerged"%(outputDirPrefix)
-		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
+		mergeOutputDir = "%sMerged"%(outputDirPrefix)
+		mergeOutputDirJob = self.addMkDirJob(outputDir=mergeOutputDir)
 		
 		plotOutputDir = "%sPlot"%(outputDirPrefix)
 		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
@@ -472,29 +714,34 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 				transferOneContigPlinkOutput = True
 			else:
 				transferOneContigPlinkOutput = False
+			
+			inputJob = copy.deepcopy(inputJob)	#2013.07.25 make a copy of it , rather than change the original's tfamFile/famFile
+			if inputJob.output.name[-4:]=='tped':	#2013.07.25 make sure addPlinkJob could get the right tfamFile
+				inputJob.tfamFile = getattr(tfamJob, 'tfamFile', inputJob.tfamFile)
+			elif inputJob.output.name[-4:]=='.bed':	#2013.07.25 make sure addPlinkJob could get the right famFile
+				inputJob.famFile = getattr(famJob, 'famFile', inputJob.famFile)
 			LDPruneFnamePrefix = os.path.join(topOutputDir, '%s'%(commonPrefix))
 			plinkLDPruneJob = self.addPlinkJob(executable=self.plinkLDPrune, \
-									bedFile=inputJob.bedFile, famFile=inputJob.famFile, bimFile=inputJob.bimFile, \
+									parentPlinkJob=inputJob,\
 					outputFnamePrefix=LDPruneFnamePrefix, outputOption='--out',\
 					LDPruneWindowSize=LDPruneWindowSize, LDPruneWindowShiftSize=LDPruneWindowShiftSize, \
 					LDPruneByPairwiseR2=True, LDPruneMinR2=LDPruneMinR2,\
 					extraDependentInputLs=None, transferOutput=transferOneContigPlinkOutput, \
 					extraArguments=None, job_max_memory=2000,\
-					parentJobLs =[topOutputDirJob]+ jobData.jobLs)
+					parentJobLs =[topOutputDirJob, famJob, tfamJob]+ jobData.jobLs)
 			
 			extractFnamePrefix = os.path.join(topOutputDir, '%s_extract'%(commonPrefix))
 			plinkExtractJob = self.addPlinkJob(executable=self.plinkExtract, \
-									bedFile=inputJob.bedFile, famFile=inputJob.famFile, bimFile=inputJob.bimFile, \
+									parentPlinkJob=inputJob,\
 					outputFnamePrefix=extractFnamePrefix, outputOption='--out',\
 					extractSNPFile = plinkLDPruneJob.prune_inFile, makeBED=True, \
 					extraDependentInputLs=None, transferOutput=transferOneContigPlinkOutput, \
 					extraArguments=None, job_max_memory=2000,\
-					parentJobLs =[topOutputDirJob, plinkLDPruneJob ]+ jobData.jobLs)
+					parentJobLs =[topOutputDirJob, plinkLDPruneJob, famJob, tfamJob]+ jobData.jobLs)
 			plinkExtractJobList.append(plinkExtractJob)
 			if i>0:	#the 1st one is to be directly added to the plink merge job 
 				extractedFilenameTupleList.append([plinkExtractJob.bedFile.name, plinkExtractJob.bimFile.name, plinkExtractJob.famFile.name])
 				plinkMergeExtraDependentInputList.extend([plinkExtractJob.bedFile, plinkExtractJob.bimFile, plinkExtractJob.famFile])
-			i += 1
 			if returnMode==2:
 				returnData.jobDataLs.append(PassingData(jobLs=[plinkExtractJob], file=plinkExtractJob.bedFile, \
 											fileLs=plinkExtractJob.outputLs))
@@ -503,22 +750,22 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		self.writePlinkMergeListFile(outputFname=yh_pegasus.getAbsPathOutOfFile(mergeListFile),\
 									extractedFilenameTupleList=extractedFilenameTupleList)
 		
-		plinkMergeFnamePrefix = os.path.join(mergedOutputDir, 'LDPrunedMerged')
+		plinkMergeFnamePrefix = os.path.join(mergeOutputDir, 'LDPrunedMerged')
 		firstPlinkExtractJob = plinkExtractJobList[0]
 		plinkMergeJob = self.addPlinkJob(executable=self.plinkMerge, \
-						bedFile=firstPlinkExtractJob.bedFile, famFile=firstPlinkExtractJob.famFile, \
-						bimFile=firstPlinkExtractJob.bimFile, \
+						parentPlinkJob=firstPlinkExtractJob,\
 						outputFnamePrefix=plinkMergeFnamePrefix, outputOption='--out',\
 						mergeListFile=mergeListFile, makeBED=True, \
 						extraDependentInputLs=plinkMergeExtraDependentInputList, transferOutput=transferOutput, \
 						extraArguments=None, job_max_memory=2000,\
-						parentJobLs =[mergedOutputDirJob] + plinkExtractJobList)
+						parentJobLs =[mergeOutputDirJob] + plinkExtractJobList)
 		
 		
 		if returnMode==1 or returnMode==3:
 			returnData.jobDataLs.append(PassingData(jobLs=[plinkMergeJob], file=plinkMergeJob.bedFile, \
 											fileLs=plinkMergeJob.outputLs))
-			
+		
+		returnData.plinkMergeJob = plinkMergeJob
 		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
@@ -648,8 +895,8 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		topOutputDir = "%sIBDCheck"%(outputDirPrefix)
 		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		
-		mergedOutputDir = "%sMerged"%(outputDirPrefix)
-		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
+		mergeOutputDir = "%sMerged"%(outputDirPrefix)
+		mergeOutputDirJob = self.addMkDirJob(outputDir=mergeOutputDir)
 		
 		plotOutputDir = "%sPlot"%(outputDirPrefix)
 		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
@@ -671,7 +918,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			if useAlleleFrequencyFromNonFounders:	#2012.8.28
 				freqFnamePrefix = os.path.join(topOutputDir, '%s_nonFounders_frequency'%(commonPrefix))
 				plinkFrqJob = self.addPlinkJob(executable=self.plinkIBD, \
-										bedFile=inputJob.bedFile, famFile=inputJob.famFile, bimFile=inputJob.bimFile, \
+								parentPlinkJob=inputJob,\
 						outputFnamePrefix=freqFnamePrefix, outputOption='--out',\
 						estimateAlleFrequency=True, \
 						extraDependentInputLs=None, transferOutput=transferOutput, \
@@ -685,7 +932,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 				
 			IBDCheckFnamePrefix = os.path.join(topOutputDir, '%s'%(commonPrefix))
 			plinkIBDCheckJob = self.addPlinkJob(executable=self.plinkIBD, \
-									bedFile=inputJob.bedFile, famFile=inputJob.famFile, bimFile=inputJob.bimFile, \
+								parentPlinkJob=inputJob,\
 					outputFnamePrefix=IBDCheckFnamePrefix, outputOption='--out',\
 					estimatePairwiseGenomeWideIBD=True, estimatePairwiseGenomeWideIBDFreqFile=frqFile, \
 					extraDependentInputLs=None, transferOutput=transferOutput, \
@@ -888,17 +1135,14 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		if workflow is None:
 			workflow = self
 		sys.stderr.write("Adding plink Sex checking jobs for %s  files ... "%(len(inputData.jobDataLs)))
-		no_of_jobs= 0
 		
 		
 		topOutputDir = "%sSexCheck"%(outputDirPrefix)
 		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
-		no_of_jobs += 1
 		
 		
 		plotOutputDir = "%splot"%(outputDirPrefix)
 		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
-		no_of_jobs += 1
 		
 		
 		returnData = PassingData()
@@ -916,7 +1160,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 				transferOneContigPlinkOutput = False
 			outputFnamePrefix = os.path.join(topOutputDir, '%s'%(commonPrefix))
 			plinkJob = self.addPlinkJob(executable=self.plink, \
-									bedFile=inputJob.bedFile, famFile=inputJob.famFile, bimFile=inputJob.bimFile, \
+								parentPlinkJob=inputJob,\
 					outputFnamePrefix=outputFnamePrefix, outputOption='--out',\
 					checkSex=True,\
 					extraDependentInputLs=None, transferOutput=transferOutput, \
@@ -937,7 +1181,6 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						parentJobLs=[plotOutputDirJob, plinkJob], \
 						extraDependentInputLs=None, \
 						extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-			no_of_jobs +=2
 			
 			outputFile = File(os.path.join(topOutputDir, "%s.male.sexCheck"%(commonPrefix)))
 			selectMaleDataJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=workflow.SelectRowsFromMatrix, \
@@ -961,8 +1204,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						parentJobLs=[plotOutputDirJob, selectMaleDataJob], \
 						extraDependentInputLs=None, \
 						extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-			no_of_jobs +=2
-
+			
 			outputFile = File(os.path.join(topOutputDir, "%s.female.sexCheck"%(commonPrefix)))
 			selectFemaleDataJob = self.addAbstractMatrixFileWalkerJob(workflow=workflow, executable=workflow.SelectRowsFromMatrix, \
 								inputFileList=[plinkJob.sexcheckFile], \
@@ -985,9 +1227,8 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						parentJobLs=[plotOutputDirJob, selectFemaleDataJob], \
 						extraDependentInputLs=None, \
 						extraArguments=None, transferOutput=transferOutput,  job_max_memory=2000)
-			no_of_jobs +=2
 		
-		sys.stderr.write("%s jobs. Done.\n"%(no_of_jobs))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		return returnData
 	
 	def registerCustomExecutables(self, workflow=None):
@@ -1048,7 +1289,8 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema="genome")
 			db_genome.setup(create_tables=False)
 			#chrOrder=2 means chromosomes are not ordered alphabetically but by their sizes (descendingly)
-			oneGenomeData = db_genome.getOneGenomeData(tax_id=60711, chr_gap=0, chrOrder=2, sequence_type_id=9,\
+			oneGenomeData = db_genome.getOneGenomeData(tax_id=self.ref_genome_tax_id, chr_gap=0, chrOrder=2, \
+													sequence_type_id=self.ref_genome_sequence_type_id,\
 													maxPseudoChrSize=1000000000)	#plink could not handle a chromosome of >2^31 bp length
 			chr_id2cumu_chr_start = oneGenomeData.chr_id2cumu_chr_start
 			if self.run_type==4:
@@ -1113,6 +1355,11 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			sys.stderr.write("No VCF files in this folder , %s.\n"%self.inputDir)
 			sys.exit(0)
 		
+		if self.run_type in [1,5]:
+			addUngenotypedDuoParents = True
+		else:
+			addUngenotypedDuoParents = False
+		
 		if self.run_type==5:
 			vcf2PlinkReturnMode = 4
 		else:
@@ -1122,7 +1369,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 						maxContigID=self.maxContigID, outputDirPrefix="vcf2plink", outputPedigreeAsTFAM=True,\
 						treatEveryOneIndependent=treatEveryOneIndependent,\
 						returnMode=vcf2PlinkReturnMode, ModifyTPEDRunType=ModifyTPEDRunType, \
-						chr_id2cumu_chr_start=chr_id2cumu_chr_start)
+						chr_id2cumu_chr_start=chr_id2cumu_chr_start, addUngenotypedDuoParents=addUngenotypedDuoParents)
 		
 		if self.run_type==1:	#plink mendel
 			mendelJobData = self.addPlinkMendelErrorJobs(inputData=vcf2PlinkJobData, transferOutput=True,\
@@ -1141,7 +1388,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			LDPruneJobData = self.addPlinkLDPruneJobs(inputData=vcf2PlinkJobData, transferOutput=True,\
 						maxContigID=self.maxContigID, LDPruneMinR2=self.LDPruneMinR2, \
 						LDPruneWindowSize=self.LDPruneWindowSize, LDPruneWindowShiftSize=self.LDPruneWindowShiftSize, \
-						outputDirPrefix="ldPrune", returnMode=1, \
+						outputDirPrefix="ibdCheckLDPrune", returnMode=1, \
 						mergeListFile=mergeListFile)
 			if self.kinshipFname:
 				kinshipFile = self.registerOneInputFile(inputFname=self.kinshipFname, folderName=self.pegasusFolderName)
@@ -1159,7 +1406,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			LDPruneJobData = self.addPlinkLDPruneJobs(inputData=vcf2PlinkJobData, transferOutput=True,\
 						maxContigID=self.maxContigID, LDPruneMinR2=self.LDPruneMinR2, \
 						LDPruneWindowSize=self.LDPruneWindowSize, LDPruneWindowShiftSize=self.LDPruneWindowShiftSize, \
-						outputDirPrefix="ldPrune", returnMode=1, \
+						outputDirPrefix="sexCheckLDPrune", returnMode=1, \
 						mergeListFile=mergeListFile)
 			self.addPlinkSexCheckJobs(workflow=None, inputData=LDPruneJobData, transferOutput=True,\
 						maxContigID=self.maxContigID, outputDirPrefix="sexCheck")
@@ -1171,7 +1418,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			mergeListFile = self.registerOneInputFile(inputFname=self.mergeListFname, folderName=self.pegasusFolderName, checkFileExistence=False)
 			self.addPlinkBinaryConversionJobs(inputData=missingJobData, transferOutput=True, maxContigID=self.maxContigID, \
 											tfamJob=vcf2PlinkJobData.tfamJob, \
-											outputDirPrefix='plinkBinary', returnMode=1, mergeListFile=mergeListFile)
+											outputDirPrefix='mendelErrorMarkedMissingPlinkBinary', returnMode=1, mergeListFile=mergeListFile)
 		else:
 			sys.stderr.write("run_type %s not supported.\n"%(self.run_type))
 			sys.exit(0)
