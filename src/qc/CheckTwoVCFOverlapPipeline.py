@@ -37,9 +37,10 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, GenomeDB, Nex
 from pymodule.pegasus import yh_pegasus
 from vervet.src import VervetDB, AbstractVervetWorkflow
 
-class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
+parentClass = AbstractVervetWorkflow
+class CheckTwoVCFOverlapPipeline(parentClass):
 	__doc__ = __doc__
-	option_default_dict = AbstractVervetWorkflow.option_default_dict.copy()
+	option_default_dict = parentClass.option_default_dict.copy()
 	option_default_dict.pop(('inputDir', 0, ))
 	option_default_dict.update({
 						('vcf1Dir', 1, ): ['', 'i', 1, 'input folder that contains vcf or vcf.gz files', ],\
@@ -50,20 +51,13 @@ class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 	def __init__(self,  **keywords):
 		"""
 		"""
-		AbstractVervetWorkflow.__init__(self, **keywords)
+		parentClass.__init__(self, **keywords)
 	
-	def registerCustomExecutables(self, workflow):
+	def registerCustomExecutables(self, workflow=None):
 		"""
 		2011-11-28
 		"""
-		namespace = workflow.namespace
-		version = workflow.version
-		operatingSystem = workflow.operatingSystem
-		architecture = workflow.architecture
-		clusters_size = workflow.clusters_size
-		site_handler = workflow.site_handler
-		vervetSrcPath = self.vervetSrcPath
-		
+		parentClass.registerCustomExecutables(self, workflow=workflow)
 		
 	
 	def run(self):
@@ -75,18 +69,14 @@ class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 			pdb.set_trace()
 		
 		#without commenting out db_vervet connection code. schema "genome" wont' be default path.
-		db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
-						db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema="genome")
-		db_genome.setup(create_tables=False)
-		chr2size = db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, sequence_type_id=9)
+		#db_genome = GenomeDB.GenomeDatabase(drivername=self.drivername, db_user=self.db_user,
+		#				db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema="genome")
+		#db_genome.setup(create_tables=False)
+		#db_genome.getTopNumberOfChomosomes(contigMaxRankBySize=80000, contigMinRankBySize=1, tax_id=60711, sequence_type_id=9)
+		pdata = self.setup_run()
+		workflow = pdata.workflow
 		
-		# Create a abstract dag
-		workflowName = os.path.splitext(os.path.basename(self.outputFname))[0]
-		workflow = self.initiateWorkflow(workflowName)
-		
-		self.registerJars(workflow)
-		self.registerCommonExecutables(workflow)
-		self.registerCustomExecutables(workflow)
+		chr2size = self.chr2size
 		
 		
 		statOutputDir = "statDir"
@@ -188,9 +178,7 @@ class CheckTwoVCFOverlapPipeline(AbstractVervetWorkflow):
 				counter += 1
 		sys.stderr.write("%s jobs.\n"%(counter+1))
 		
-		# Write the DAX to stdout
-		outf = open(self.outputFname, 'w')
-		workflow.writeXML(outf)
+		self.end_run()
 		
 
 

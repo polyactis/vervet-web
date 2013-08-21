@@ -214,7 +214,22 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		
 		db_vervet = self.db_vervet
 		session = db_vervet.session
-		session.begin()
+		session.begin(subtransactions=True)
+		"""
+		Traceback (most recent call last):
+		  File "/u/home/eeskin/polyacti/script/vervet/src/db/ReadFileBaseCountWorkflow.py", line 249, in <module>
+		    instance.run()
+		  File "/u/home/eeskin/polyacti/script/vervet/src/db/ReadFileBaseCountWorkflow.py", line 232, in run
+		    pdata = self.setup_run()
+		  File "/u/home/eeskin/polyacti/script/vervet/src/db/ReadFileBaseCountWorkflow.py", line 217, in setup_run
+		    session.begin()
+		  File "/u/home/eeskin/polyacti/lib/python/sqlalchemy/orm/scoping.py", line 139, in do
+		    return getattr(self.registry(), name)(*args, **kwargs)
+		  File "/u/home/eeskin/polyacti/lib/python/sqlalchemy/orm/session.py", line 550, in begin
+		    "A transaction is already begun.  Use subtransactions=True "
+		sqlalchemy.exc.InvalidRequestError: A transaction is already begun.  Use subtransactions=True to allow subtransactions.
+
+		"""
 		
 		inputData = self.registerISQFiles(workflow=workflow, db_vervet=db_vervet, ind_seq_id_ls=self.ind_seq_id_ls, \
 										local_data_dir=self.local_data_dir, pegasusFolderName=self.pegasusFolderName,\
@@ -237,9 +252,6 @@ class ReadFileBaseCountWorkflow(AbstractVervetWorkflow):
 		self.addJobs(workflow, inputData=inputData, pegasusFolderName=self.pegasusFolderName,
 					needSSHDBTunnel=self.needSSHDBTunnel)
 		
-		# Write the DAX to stdout
-		outf = open(self.outputFname, 'w')
-		workflow.writeXML(outf)
 		self.end_run()
 
 if __name__ == '__main__':

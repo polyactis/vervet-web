@@ -418,6 +418,7 @@ class AlignmentMethod(Entity):
 
 class IndividualAlignment(Entity, AbstractTableWithFilename):
 	"""
+	2013.08.08 added column path_to_depth_file, depth_file_size
 	2013.04.11 added column reduce_reads
 	2013.04.01 added columns local_realigned, version
 	2012.9.21 rename IndividualAlignment.ind_sequence to individual_sequence
@@ -443,6 +444,8 @@ class IndividualAlignment(Entity, AbstractTableWithFilename):
 	alignment_method = ManyToOne('%s.AlignmentMethod'%__name__, colname='alignment_method_id', ondelete='CASCADE', onupdate='CASCADE')
 	genotype_method_ls = ManyToMany("%s.GenotypeMethod"%__name__,tablename='genotype_method2individual_alignment', local_colname='individual_alignment_id')
 	path = Field(Text)
+	path_to_depth_file = Field(Text)	#2013.08.08
+	depth_file_size = Field(BigInteger)	#2013.08.08
 	format = Field(String(512))
 	median_depth = Field(Float)	#2011-8-2
 	mode_depth = Field(Float)	#2011-8-2
@@ -813,10 +816,13 @@ class PopGenSimulationType(Entity):
 	"""
 	short_name = Field(String(256), unique=True)
 	description = Field(Text)
+	r = Field(Float)	#recombination rate per base per generation
 	rho = Field(Float)	#if hotspot is used, say so in comments
-	mu = Field(Float)	#if varying mu is used, say so in comments
-	selection = Field(Integer, default=0)	#0=neutral, 1=any selection is involved
-	selection_parameters = Field(Text)
+	mu = Field(Float)	#mutation rate per base per generation
+	theta = Field(Float)
+	n0 = Field(Integer)	#initial population size
+	is_selection = Field(Integer, default=0)	#0=neutral, 1=any selection is involved
+	selection_parameters = Field(Text)	#such "-s 0.01"
 	indel = Field(Integer, default=0)	#0= no indel, 1=indel
 	indel_parameters = Field(Text)
 	
@@ -832,7 +838,9 @@ class PopGenSimulationType(Entity):
 	date_updated = Field(DateTime)
 	using_options(tablename='pop_gen_simulation_type', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-
+	using_table_options(UniqueConstraint("r", 'rho', 'mu', 'theta', 'n0', 'is_selection',\
+		'selection_parameters', 'indel', 'indel_parameters', 'population_size_parameters'))
+	
 class PopGenSimulation(Entity, AbstractTableWithFilename):
 	"""
 	2013.3.12 this stores the output of pop-gen simulation.
@@ -845,14 +853,15 @@ class PopGenSimulation(Entity, AbstractTableWithFilename):
 	md5sum = Field(Text, unique=True)
 	file_size = Field(BigInteger)
 	pop_gen_simulation_type = ManyToOne('PopGenSimulationType', colname='pop_gen_simulation_type_id', \
-											ondelete='CASCADE', onupdate='CASCADE')
+									ondelete='CASCADE', onupdate='CASCADE')
 	no_of_populations = Field(Integer, default=1)
-	no_of_chromosomes = Field(Integer, default=1)
-	genome_size = Field(BigInteger)	#length of all chromosomes together
+	no_of_chromosomes = Field(Integer, default=1)	#how many haplotypes in each population
+	chromosome_length = Field(BigInteger)	#length of the simulated chromosome
 	sample_size = Field(Integer)
 	no_of_polymorphic_loci = Field(BigInteger)
+	replicate_index = Field(Integer)	#2013.08.04 replicates with same pop_gen_simulation_type
 	
-	nucleotide_diversity = Field(Float)
+	nucleotide_diversity = Field(Float)	#statistics derived from the pop-gen data associated with this entry
 	
 	programs = Field(String(512))	#a coma-separated list of which simulation program(s) used
 	commandline = Field(Text)	#detailed commandline.
@@ -861,8 +870,11 @@ class PopGenSimulation(Entity, AbstractTableWithFilename):
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
 	date_updated = Field(DateTime)
+	
 	using_options(tablename='pop_gen_simulation', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
+	using_table_options(UniqueConstraint('pop_gen_simulation_type_id', 'replicate_index', 'no_of_populations', 'no_of_chromosomes',\
+		'chromosome_length', 'sample_size', 'no_of_polymorphic_loci'))
 	
 	folderName = 'pop_gen_simulation'
 	def constructRelativePath(self, subFolder=None, **keywords):
@@ -881,8 +893,8 @@ class PopGenSimulation(Entity, AbstractTableWithFilename):
 			filename_part_ls.append('%sPopulations'%(self.no_of_populations))
 		if self.no_of_chromosomes is not None:
 			filename_part_ls.append("%sChromosomes"%(self.no_of_chromosomes))
-		if self.genome_size is not None:
-			filename_part_ls.append("%sGenomeSize"%(self.genome_size))
+		if self.chromosome_length is not None:
+			filename_part_ls.append("%sChromosomeLength"%(self.chromosome_length))
 		if self.sample_size is not None:
 			filename_part_ls.append("%sSamples"%(self.sample_size))
 		
@@ -893,6 +905,7 @@ class PopGenSimulation(Entity, AbstractTableWithFilename):
 
 class IndividualSequenceFile(Entity, AbstractTableWithFilename):
 	"""
+	#2013.04.30 added file_size
 	2012.7.14 add md5sum
 	2012.2.27
 		add column read_count
@@ -919,6 +932,7 @@ class IndividualSequenceFile(Entity, AbstractTableWithFilename):
 	md5sum = Field(Text, unique=True)
 	parent_individual_sequence_file = ManyToOne('IndividualSequenceFile', colname='parent_individual_sequence_file_id', \
 											ondelete='CASCADE', onupdate='CASCADE')
+	file_size = Field(BigInteger)	#2013.04.30
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -1344,6 +1358,7 @@ class GenotypeMethod(Entity, AbstractTableWithFilename):
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('short_name', 'ref_ind_seq_id'))
 	
+	folderName = 'genotype_file'
 	def constructRelativePath(self, subFolder='genotype_file', **keywords):
 		"""
 		2012.7.12
@@ -1403,7 +1418,7 @@ class GenotypeFile(Entity, AbstractTableWithFilename):
 		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
 		folderRelativePath = folderRelativePath.lstrip('/')
 		if self.no_of_chromosomes<=1:
-			dst_relative_path = os.path.join(folderRelativePath, '%s_%s_%s'%(self.id, self.format, sourceFilename))
+			dst_relative_path = os.path.join(folderRelativePath, '%s_chr_%s_%s_%s'%(self.id, self.chromosome, sourceFilename, self.format))
 		else:	#files with more than 1 chromosome
 			# 2012.8.30
 			# it'll be something like genotype_file/method_6_$id_$format_#chromosomes_sourceFilename
@@ -1415,6 +1430,95 @@ class GenotypeFile(Entity, AbstractTableWithFilename):
 	def getFileSize(self, data_dir=None):
 		"""
 		2012.7.12
+		"""
+		from pymodule import utils
+		if data_dir is None:
+			data_dir = VervetDB.get_data_dir()
+		return utils.getFileOrFolderSize(os.path.join(data_dir, self.path))
+
+
+class AlignmentDepthIntervalMethod(Entity, AbstractTableWithFilename):
+	"""
+	2013.08.16
+	"""
+	short_name = Field(String(256), unique=True)
+	description = Field(Text)
+	path = Field(Text, unique=True)
+	individual_alignment_ls = ManyToMany("%s.IndividualAlignment"%(__name__), tablename='alignment_depth_interval_method2individual_alignment', \
+							local_colname='alignment_depth_interval_method_id')
+	parent = ManyToOne("%s.AlignmentDepthIntervalMethod"%(__name__), colname='parent_id', ondelete='CASCADE', onupdate='CASCADE')
+	alignment_depth_interval_file_ls = OneToMany('AlignmentDepthIntervalFile')
+	no_of_alignments = Field(Integer)
+	no_of_intervals = Field(BigInteger)
+	sum_median_depth = Field(Float)
+	sum_mean_depth = Field(Float)
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='alignment_depth_interval_method', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+	using_table_options(UniqueConstraint('short_name', 'parent_id'))
+	
+	folderName="alignment_depth_interval_file"
+	def constructRelativePath(self, subFolder='', **keywords):
+		"""
+		2013.08.16
+		"""
+		#'/' must not be put in front of the relative path.
+		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
+		dst_relative_path = '%s/method_%s'%(subFolder, self.id)
+		return dst_relative_path
+	
+class AlignmentDepthIntervalFile(Entity, AbstractTableWithFilename):
+	"""
+	2013.08.16
+	"""
+	#individual = ManyToOne('Individual', colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
+	path = Field(Text, unique=True)
+	original_path = Field(Text)
+	md5sum = Field(Text)	# unique=True
+	file_size = Field(BigInteger)	#2012.7.12
+	chromosome = Field(Text)
+	no_of_chromosomes = Field(BigInteger, default=1)	#2012.8.30 BigInteger in case some huge number of contigs
+	no_of_intervals = Field(BigInteger)
+	mean_interval_value = Field(Float)
+	median_interval_value = Field(Float)
+	format = Field(Text)	# BED or other
+	alignment_depth_interval_method = ManyToOne('%s.AlignmentDepthIntervalMethod'%(__name__), \
+									colname='alignment_depth_interval_method_id', ondelete='CASCADE', onupdate='CASCADE')
+	comment = Field(String(4096))
+	created_by = Field(String(128))
+	updated_by = Field(String(128))
+	date_created = Field(DateTime, default=datetime.now)
+	date_updated = Field(DateTime)
+	using_options(tablename='alignment_depth_interval_file', metadata=__metadata__, session=__session__)
+	using_table_options(mysql_engine='InnoDB')
+	using_table_options(UniqueConstraint('alignment_depth_interval_method_id', 'chromosome', 'format', 'no_of_chromosomes'))
+	
+	folderName=AlignmentDepthIntervalMethod.folderName
+	def constructRelativePath(self, subFolder='', sourceFilename="", **keywords):
+		"""
+		2013.8.16
+		"""
+		folderRelativePath = self.alignment_depth_interval_method.constructRelativePath(subFolder=subFolder)
+		#'/' must not be put in front of the relative path.
+		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
+		folderRelativePath = folderRelativePath.lstrip('/')
+		if self.no_of_chromosomes<=1:
+			dst_relative_path = os.path.join(folderRelativePath, '%s_chr_%s_%s_%s'%(self.id, self.chromosome, \
+																	sourceFilename, self.format))
+		else:	#files with more than 1 chromosome
+			# 2012.8.30
+			# it'll be something like alignment_depth_interval_file/method_6_$id_$format_#chromosomes_sourceFilename
+			# do not put it inside the alignment_depth_interval_file/method_6/ folder.
+			folderRelativePath= folderRelativePath.rstrip('/')
+			dst_relative_path = '%s_%s_%s_%schromosomes_%s'%(folderRelativePath, self.id, self.format, self.no_of_chromosomes, sourceFilename)
+		return dst_relative_path
+	
+	def getFileSize(self, data_dir=None):
+		"""
+		2013.8.16
 		"""
 		from pymodule import utils
 		if data_dir is None:
@@ -1548,8 +1652,11 @@ class VervetDB(ElixirDB):
 		
 		self.READMEClass = README	#2012.12.18 required to figure out data_dir
 	
-	def isThisAlignmentComplete(self, individual_alignment=None, data_dir=None):
+	def isThisAlignmentComplete(self, individual_alignment=None, data_dir=None, returnFalseIfInexitentFile=False):
 		"""
+		2013.05.04 added argument returnFalseIfInexitentFile
+		2013.04.29 whether os.path.isfile(alignmentAbsPath) is true or not is not mandatory anymore.
+			Will give a warning though. 
 		2013.04.10 bugfix. individual_alignment.path could be None.
 		2013.03.28
 		"""
@@ -1559,7 +1666,13 @@ class VervetDB(ElixirDB):
 			return False
 		alignmentAbsPath= os.path.join(data_dir, individual_alignment.path)
 		#2012.3.29	check if the alignment exists or not. if it already exists, no alignment jobs.
-		if os.path.isfile(alignmentAbsPath) and individual_alignment.file_size is not None:
+		if individual_alignment.file_size is not None and individual_alignment.file_size>0:
+			if not os.path.isfile(alignmentAbsPath):
+				if returnFalseIfInexitentFile:	#2013.05.04
+					sys.stderr.write("Warning: Skip alignment file for id=%s, %s does not exist but file_size is recorded in DB.\n"%(individual_alignment.id, alignmentAbsPath))
+					return False
+				else:
+					sys.stderr.write("Warning: Alignment file for id=%s, %s does not exist but file_size is recorded in DB.\n"%(individual_alignment.id, alignmentAbsPath))
 			return True
 		else:
 			return False
@@ -1750,8 +1863,13 @@ class VervetDB(ElixirDB):
 					data_dir=None, sequence_type_name=None, sequence_type_id=None, outdated_index=0, mask_genotype_method_id=None, \
 					parent_individual_alignment_id=None, individual_sequence_file_raw_id_type=1,\
 					country_id_ls=None, tax_id_ls=None, excludeAlignmentWithoutLocalFile=True, local_realigned=1,\
-					reduce_reads=None):
+					reduce_reads=None, completedAlignment=None, completeAlignmentCheckFunction=None):
 		"""
+		2013.05.04 added argument completeAlignmentCheckFunction
+			if mask_genotype_method_id is 0 or '0', then this requires alignment.mask_genotype_method_id to be null. 
+			if mask_genotype_method_id is None or '', then it's not checked .
+			ditto for parent_individual_alignment_id
+		2013.05.03 added argument completedAlignment
 		2013.04.11 added argument reduce_reads
 		2013.04.05 added argument local_realigned
 		2012.11.29 added argument excludeAlignmentWithoutLocalFile, (exclude an alignment if it does not exist in local storage)
@@ -1781,6 +1899,19 @@ class VervetDB(ElixirDB):
 		2011-7-12
 		
 		"""
+		if completedAlignment is not None:
+			if completedAlignment==0 or completedAlignment=='0' or completedAlignment=='':
+				completedAlignment = False
+			elif completedAlignment!=False:
+				completedAlignment = True
+		
+		sys.stderr.write("Get alignments to from local_realigned=%s, reduce_reads=%s \n\
+	mask_genotype_method_id=%s, parent_individual_alignment_id=%s, completedAlignment=%s ..."%\
+							( \
+							local_realigned, reduce_reads, \
+							mask_genotype_method_id, parent_individual_alignment_id, completedAlignment,\
+							)
+						)
 		if data_dir is None:
 			data_dir = self.data_dir
 		alignmentLs = []
@@ -1840,10 +1971,18 @@ class VervetDB(ElixirDB):
 		if outdated_index is not None:	#2013.04.11
 			sys.stderr.write("Adding filter outdated_index=%s ... \n"%(outdated_index))
 			query = query.filter_by(outdated_index=outdated_index)
-		sys.stderr.write("Adding filter mask_genotype_method_id=%s ... \n"%(mask_genotype_method_id))
-		query = query.filter_by(mask_genotype_method_id=mask_genotype_method_id)
-		sys.stderr.write("Adding filter parent_individual_alignment_id=%s ... \n"%(parent_individual_alignment_id))
-		query = query.filter_by(parent_individual_alignment_id=parent_individual_alignment_id)
+		if mask_genotype_method_id is not None and mask_genotype_method_id!='':	#2013.05.03
+			sys.stderr.write("Adding filter mask_genotype_method_id=%s ... \n"%(mask_genotype_method_id))
+			if mask_genotype_method_id==0 or mask_genotype_method_id=='0':	#only null
+				query = query.filter_by(mask_genotype_method_id=None)
+			else:
+				query = query.filter_by(mask_genotype_method_id=mask_genotype_method_id)
+		if parent_individual_alignment_id is not None and parent_individual_alignment_id!='':
+			sys.stderr.write("Adding filter parent_individual_alignment_id=%s ... \n"%(parent_individual_alignment_id))
+			if parent_individual_alignment_id==0 or parent_individual_alignment_id=='0':
+				query = query.filter_by(parent_individual_alignment_id=None)
+			else:
+				query = query.filter_by(parent_individual_alignment_id=parent_individual_alignment_id)
 		
 		query = query.order_by(TableClass.id)
 		if sequence_type_name:
@@ -1856,12 +1995,23 @@ class VervetDB(ElixirDB):
 			if sequence_type_id is not None and row.individual_sequence.sequence_type_id!=sequence_type_id:
 				continue
 			if row.path:	#it's not None
+				if completedAlignment is not None:
+					if completeAlignmentCheckFunction is None:
+						isAlignmentCompleted = self.isThisAlignmentComplete(individual_alignment=row, data_dir=data_dir)
+					else:
+						isAlignmentCompleted = completeAlignmentCheckFunction(individual_alignment=row, data_dir=data_dir)
+					if completedAlignment==isAlignmentCompleted:
+						pass
+					else:
+						sys.stderr.write("VervetDB.getAlignments() warning: completeness (%s) of alignment %s, (file=%s, read_group=%s, file_size=%s) does not match given(%s). Skip.\n"%\
+										(isAlignmentCompleted, row.id, row.path, row.getReadGroup(), row.file_size, completedAlignment))
+						continue
 				abs_path = os.path.join(data_dir, row.path)
 				if excludeAlignmentWithoutLocalFile:
 					if os.path.isfile(abs_path):
 						alignmentLs.append(row)
 					else:
-						sys.stderr.write("getAlignments() Warning: file %s does not exist. so skipping this alignment.\n"%(abs_path))
+						sys.stderr.write("VervetDB.getAlignments() Warning: file %s does not exist. so skipping this alignment.\n"%(abs_path))
 				else:
 					alignmentLs.append(row)
 				
@@ -1958,12 +2108,19 @@ class VervetDB(ElixirDB):
 								(ref_ind_seq_id, alignment_method_id))
 		return monkeyID2ProperAlignment
 	
-	def filterAlignments(self, alignmentLs=None, min_coverage=None, max_coverage=None, \
+	def filterAlignments(self, data_dir=None, alignmentLs=None, min_coverage=None, max_coverage=None, \
 						individual_site_id=None, sequence_filtered=None,\
 						individual_site_id_set=None, mask_genotype_method_id=None, parent_individual_alignment_id=None,\
-						country_id_set=None, tax_id_set=None, excludeContaminant=False, excludeTissueIDSet=set([6]),\
-						local_realigned=1, reduce_reads=None, report=True):
+						country_id_set=None, tax_id_set=None, excludeContaminant=False, is_contaminated=None, \
+						excludeTissueIDSet=set([6]),\
+						local_realigned=1, reduce_reads=None, completedAlignment=None, \
+						completeAlignmentCheckFunction=None, report=True):
 		"""
+		2013.07.03 added argument is_contaminated (whether to fetch contaminated samples or not)
+		2013.05.04 added argument completeAlignmentCheckFunction
+			if mask_genotype_method_id is 0 or '0', then this requires alignment.mask_genotype_method_id to be null. 
+			if mask_genotype_method_id is None or '', then it's not checked .
+		2013.05.03 added argument completedAlignment
 		2013.04.11 added argument reduce_reads
 		2013.04.05 added argument local_realigned
 		2013.3.15 use individual_sequence.is_contaminated, instead of individual_sequence.individual.is_contaminated
@@ -1983,16 +2140,22 @@ class VervetDB(ElixirDB):
 		2011-11-22
 			447 in "individual_site_id=447" is VRC.
 		"""
+		if completedAlignment is not None:
+			if completedAlignment==0 or completedAlignment=='0' or completedAlignment=='':
+				completedAlignment = False
+			elif completedAlignment!=False:
+				completedAlignment = True
 		if report:
 			sys.stderr.write("Filter %s alignments to select individual_sequence, %s<=coverage <=%s & site-id=%s & \n\
 	sequence_filtered=%s & from %s sites & %s countries & %s taxonomies & local_realigned=%s, reduce_reads=%s \n\
-	excludeContaminant=%s, excludeTissueIDSet=%s, mask_genotype_method_id=%s, parent_individual_alignment_id=%s, ..."%\
+	excludeContaminant=%s, is_contaminated=%s, excludeTissueIDSet=%s, \n\
+	mask_genotype_method_id=%s, parent_individual_alignment_id=%s, completedAlignment=%s ..."%\
 							(len(alignmentLs), min_coverage, max_coverage, individual_site_id, sequence_filtered, \
 							getattr(individual_site_id_set, '__len__', returnZeroFunc)(),\
 							getattr(country_id_set, '__len__', returnZeroFunc)(),\
 							getattr(tax_id_set, '__len__', returnZeroFunc)(),\
-							local_realigned, reduce_reads, excludeContaminant, repr(excludeTissueIDSet),\
-							mask_genotype_method_id, parent_individual_alignment_id,\
+							local_realigned, reduce_reads, excludeContaminant, is_contaminated, repr(excludeTissueIDSet),\
+							mask_genotype_method_id, parent_individual_alignment_id, completedAlignment,\
 							)
 						)
 		newAlignmentLs = []
@@ -2010,8 +2173,12 @@ class VervetDB(ElixirDB):
 			if individual_site_id_set and alignment.individual_sequence.individual.site_id not in individual_site_id_set:
 				#2012.4.13
 				continue
-			if mask_genotype_method_id is not None and alignment.mask_genotype_method_id!=mask_genotype_method_id:
-				continue
+			if mask_genotype_method_id is not None and mask_genotype_method_id!='':
+				if mask_genotype_method_id==0 or mask_genotype_method_id=='0':	#require mask_genotype_method_id to be null
+					if alignment.mask_genotype_method_id is not None:
+						continue
+				elif alignment.mask_genotype_method_id!=mask_genotype_method_id:
+					continue
 			if parent_individual_alignment_id is not None and alignment.parent_individual_alignment_id!=parent_individual_alignment_id:
 				continue
 			if local_realigned is not None and alignment.local_realigned!=local_realigned:
@@ -2035,8 +2202,21 @@ class VervetDB(ElixirDB):
 					continue
 			if excludeContaminant and alignment.individual_sequence.is_contaminated:	#2012.9.27
 				continue
+			if is_contaminated is not None and alignment.individual_sequence.is_contaminated!=is_contaminated: #2013.07.03
+				continue
 			if excludeTissueIDSet and alignment.individual_sequence.tissue_id in excludeTissueIDSet:	#2012.10.2
 				continue
+			if completedAlignment is not None:
+				if completeAlignmentCheckFunction is None:
+					isAlignmentCompleted = self.isThisAlignmentComplete(individual_alignment=alignment, data_dir=data_dir)
+				else:
+					isAlignmentCompleted = completeAlignmentCheckFunction(individual_alignment=alignment, data_dir=data_dir)
+				if completedAlignment==isAlignmentCompleted:
+					pass
+				else:
+					sys.stderr.write("VervetDB.getAlignments() warning: completeness (%s) of alignment %s, (file=%s, read_group=%s) does not match given(%s). Skip.\n"%\
+									(isAlignmentCompleted, alignment.id, alignment.path, alignment.getReadGroup(), completedAlignment))
+					continue
 			newAlignmentLs.append(alignment)
 		if report:
 			sys.stderr.write(" kept %s alignments. Done.\n"%(len(newAlignmentLs)))
@@ -2128,7 +2308,7 @@ class VervetDB(ElixirDB):
 						filtered=0,\
 						parent_individual_sequence_id=None,\
 						no_of_chromosomes=None, sequence_batch_id=None, version=None, \
-						is_contaminated=0, outdated_index=0):
+						is_contaminated=0, outdated_index=0, returnFirstEntry=True):
 		"""
 		2013.04.03 bugfix
 		2013.3.15
@@ -2183,8 +2363,11 @@ class VervetDB(ElixirDB):
 							tissue_id, parent_individual_sequence_id, sequence_batch_id, version,\
 							no_of_chromosomes))
 			raise
-		db_entry = query.first()
-		return db_entry
+		if returnFirstEntry:
+			db_entry = query.first()
+			return db_entry
+		else:
+			return query
 	
 	def checkIndividualAlignment(self, individual_code=None, individual_id=None, individual=None, individual_sequence_id=None, \
 					path_to_original_alignment=None, sequencer_name='GA', sequencer_id=None, \
@@ -2651,6 +2834,133 @@ class VervetDB(ElixirDB):
 				self.updateDBEntryPathFileSize(db_entry=db_entry, data_dir=data_dir)
 			if db_entry.path and db_entry.md5sum is None:
 				self.updateDBEntryMD5SUM(db_entry=db_entry, data_dir=data_dir)
+		return db_entry
+	
+	def checkPopGenSimulation(self, short_name=None, pop_gen_simulation_type_id=None, replicate_index=None, no_of_populations=None,\
+							no_of_chromosomes=None, chromosome_length=None, sample_size=None, \
+							no_of_polymorphic_loci=None, **keywords):
+		"""
+		2013.08.05 check whether one PopGenSimulation is in db or not.
+		"""
+		db_entry = self.checkIfEntryInTable(TableClass=PopGenSimulation, short_name=short_name, id=None)
+		if not db_entry:
+			query = PopGenSimulation.query.filter_by(pop_gen_simulation_type_id=pop_gen_simulation_type_id)
+			if replicate_index is not None:
+				query = query.filter_by(replicate_index=replicate_index)
+			if no_of_populations is not None:
+				query = query.filter_by(no_of_populations=no_of_populations)
+			if no_of_chromosomes is not None:
+				query = query.filter_by(no_of_chromosomes=no_of_chromosomes)
+			if chromosome_length is not None:
+				query = query.filter_by(chromosome_length=chromosome_length)
+			if sample_size is not None:
+				query = query.filter_by(sample_size=sample_size)
+			if no_of_polymorphic_loci is not None:
+				query = query.filter_by(no_of_polymorphic_loci=no_of_polymorphic_loci)
+			
+			db_entry = query.first()
+		if db_entry:
+			return db_entry
+		else:
+			return None
+	
+	def getPopGenSimulation(self, short_name=None, pop_gen_simulation_type_id=None, replicate_index=None, \
+						no_of_populations=None,\
+						no_of_chromosomes=None, chromosome_length=None, sample_size=None, \
+						no_of_polymorphic_loci=None, programs=None,\
+						original_path=None, data_dir=None, **keywords):
+		"""
+		2013.08.05 get one PopGenSimulation from db
+		"""
+		db_entry = self.checkPopGenSimulation(short_name=short_name, pop_gen_simulation_type_id=pop_gen_simulation_type_id, \
+											replicate_index=replicate_index, no_of_populations=no_of_populations, \
+											no_of_chromosomes=no_of_chromosomes, chromosome_length=chromosome_length, \
+											sample_size=sample_size, no_of_polymorphic_loci=no_of_polymorphic_loci)
+		
+		if not db_entry:
+			if original_path:
+				original_path = os.path.abspath(original_path)
+			db_entry = PopGenSimulation(short_name=short_name, pop_gen_simulation_type_id=pop_gen_simulation_type_id, \
+								replicate_index=replicate_index, no_of_populations=no_of_populations, \
+								no_of_chromosomes=no_of_chromosomes, chromosome_length=chromosome_length, \
+								sample_size=sample_size, no_of_polymorphic_loci=no_of_polymorphic_loci,\
+								programs=programs, original_path=original_path,  **keywords)
+			self.session.add(db_entry)
+			self.session.flush()
+			#db_entry.path = db_entry.constructRelativePath()	#this needs db_entry.id
+			#  .constructRelativePath() should be done after file is copied over
+			#self.session.add(db_entry)
+			#self.session.flush()			
+			if db_entry.path and db_entry.file_size is None:
+				self.updateDBEntryPathFileSize(db_entry=db_entry, data_dir=data_dir)
+			if db_entry.path and db_entry.md5sum is None:
+				self.updateDBEntryMD5SUM(db_entry=db_entry, data_dir=data_dir)
+			
+		return db_entry
+	
+	def checkPopGenSimulationType(self, short_name=None, r=None, rho=None, mu=None, theta=None, n0=None, is_selection=None,\
+								selection_parameters=None, indel=None, indel_parameters=None, \
+								population_size_parameters=None, parent_pop_gen_simulation_type_id=None,\
+								**keywords):
+		"""
+		2013.08.05 check whether one PopGenSimulationType is in db or not.
+		"""
+		db_entry = self.checkIfEntryInTable(TableClass=PopGenSimulationType, short_name=short_name, id=None)
+		if not db_entry:
+			query = PopGenSimulationType.query
+			if r is not None:
+				query = query.filter_by(r=r)
+			if rho is not None:
+				query = query.filter_by(rho=rho)
+			if mu is not None:
+				query = query.filter_by(mu=mu)
+			if theta is not None:
+				query = query.filter_by(theta=theta)
+			if n0 is not None:
+				query = query.filter_by(n0=n0)
+			if is_selection is not None:
+				query = query.filter_by(is_selection=is_selection)
+			if selection_parameters is not None:
+				query = query.filter_by(selection_parameters=selection_parameters)
+			if indel is not None:
+				query = query.filter_by(indel=indel)
+			if indel_parameters is not None:
+				query = query.filter_by(indel_parameters=indel_parameters)
+			if population_size_parameters is not None:
+				query = query.filter_by(population_size_parameters=population_size_parameters)
+			if parent_pop_gen_simulation_type_id is not None:
+				query = query.filter_by(parent_pop_gen_simulation_type_id=parent_pop_gen_simulation_type_id)
+			db_entry = query.first()
+		if db_entry:
+			return db_entry
+		else:
+			return None
+	
+	def getPopGenSimulationType(self, short_name=None, r=None, rho=None, mu=None, theta=None, n0=None, is_selection=None,\
+							selection_parameters=None, indel=None, indel_parameters=None, \
+							population_size_parameters=None, parent_pop_gen_simulation_type_id=None,\
+							**keywords):
+		"""
+		2013.08.05 get one PopGenSimulationType from db
+		"""
+		db_entry = self.checkPopGenSimulationType(short_name=short_name, \
+								r=r, rho=rho, mu=mu, \
+								theta=theta, n0=n0, is_selection=is_selection, \
+								selection_parameters=selection_parameters, indel=indel,\
+								indel_parameters=indel_parameters, \
+								population_size_parameters=population_size_parameters,\
+								parent_pop_gen_simulation_type_id=parent_pop_gen_simulation_type_id)
+		
+		if not db_entry:
+			db_entry = PopGenSimulationType(short_name=short_name, \
+								r=r, rho=rho, mu=mu, \
+								theta=theta, n0=n0, is_selection=is_selection, \
+								selection_parameters=selection_parameters, indel=indel,\
+								indel_parameters=indel_parameters, \
+								population_size_parameters=population_size_parameters,\
+								parent_pop_gen_simulation_type_id=parent_pop_gen_simulation_type_id, **keywords)
+			self.session.add(db_entry)
+			self.session.flush()
 		return db_entry
 	
 	def getInd2Ind(self, individual1=None, individual2=None, relationship_type_name=None):
@@ -3330,8 +3640,12 @@ class VervetDB(ElixirDB):
 		else:
 			return dataDirEntry.description
 	
-	def constructPedgreeGraphOutOfAlignments(self, alignmentLs):
+	def constructPedgreeGraphOutOfAlignments(self, alignmentLs=None, useAlignmentIDAsNodeID=False):
 		"""
+		2013.06.13 added argument useAlignmentIDAsNodeID
+			default is False, which means individual.id is used as node id.
+			If True, then alignment.id is used as node id.
+				If multiple alignments for one individual, only id of the first alignment will be used.
 		2012.4.20
 			Warning if one individual appears in the graph >1 times. 
 		2011-12-15
@@ -3339,7 +3653,8 @@ class VervetDB(ElixirDB):
 			
 			construct a directed graph (edge: from parent to child) of which nodes are all from alignmentLs.
 		"""
-		sys.stderr.write("Construct pedigree out of %s alignments... "%(len(alignmentLs)))
+		sys.stderr.write("Construct pedigree out of %s alignments, useAlignmentIDAsNodeID=%s... "%\
+						(len(alignmentLs), useAlignmentIDAsNodeID))
 		from pymodule.algorithm import graph
 		DG=graph.DiGraphWrapper()
 		
@@ -3347,26 +3662,38 @@ class VervetDB(ElixirDB):
 		for alignment in alignmentLs:
 			individual_id = alignment.individual_sequence.individual_id
 			if individual_id not in individual_id2alignmentLs:
-				individual_id2alignmentLs[individual_id] = []
+				individual_id2alignmentLs[individual_id] = [alignment]
 			else:
+				individual_id2alignmentLs[individual_id].append(alignment)
 				sys.stderr.write("Warning: individual_id %s appears in >%s alignments.\n"%(individual_id, \
 																	len(individual_id2alignmentLs[individual_id])))
-			individual_id2alignmentLs[individual_id].append(alignment)
-			if DG.has_node(individual_id):
+				continue
+			if useAlignmentIDAsNodeID:
+				node_id = alignment.id
+			else:
+				node_id = individual_id
+			if DG.has_node(node_id):
 				sys.stderr.write("Warning: individual_id %s already in the graph.\n"%(individual_id))
 			else:
-				DG.add_node(individual_id)
-		
+				DG.add_node(node_id)
 		
 		for row in Ind2Ind.query:
 			if row.individual1_id in individual_id2alignmentLs and row.individual2_id in individual_id2alignmentLs:
-				DG.add_edge(row.individual1_id, row.individual2_id)
-		sys.stderr.write("%s nodes. %s edges. %s connected components.\n"%(DG.number_of_nodes(), DG.number_of_edges(), \
-															nx.number_connected_components(DG.to_undirected())))
+				if useAlignmentIDAsNodeID:
+					node1_id = individual_id2alignmentLs[row.individual1_id][0].id
+					node2_id = individual_id2alignmentLs[row.individual2_id][0].id
+				else:
+					node1_id = row.individual1_id
+					node2_id = row.individual2_id
+				DG.add_edge(node1_id, node2_id)
+		sys.stderr.write("%s nodes (%s alignments). %s edges. %s connected components.\n"%(DG.number_of_nodes(), \
+							len(alignmentLs), DG.number_of_edges(), \
+							nx.number_connected_components(DG.to_undirected())))
 		return PassingData(DG=DG, individual_id2alignmentLs=individual_id2alignmentLs)
 	
-	def constructPedgree(self, directionType=1):
+	def constructPedgree(self, directionType=1, individualIDSet=None):
 		"""
+		2013.08.09 added argument individualIDSet
 		2012.9.6 add argument directionType
 			1: parent -> child as edge
 			2: child -> parent as edge
@@ -3381,6 +3708,9 @@ class VervetDB(ElixirDB):
 			DG = graph.DiGraphWrapper()
 		
 		for row in Ind2Ind.query:
+			if individualIDSet and (row.individual1_id not in individualIDSet or row.individual2_id not in individualIDSet):
+				#2013.08.09 ignore nodes that are not in individualIDSet if the latter is not None
+				continue
 			if directionType==2:
 				DG.add_edge(row.individual2_id, row.individual1_id)
 			else:
@@ -3504,6 +3834,32 @@ class VervetDB(ElixirDB):
 			self.calculateCumulativeAttributeForEachNodeInPedigree(self.pedigreeReverseDG, attributeName=attributeName)
 		return self.pedigreeReverseDG.node[individual_id][attributeName]
 	
+	def getPedigreeSplitStructure(self, pedigreeGraph=None, removeFamilyFromGraph=True):
+		"""
+		2013.06.13
+			This function splits a pedigree into list of trios, duos, singletons.
+			argument removeFamilyFromGraph decides whether
+				1. there will be overlap (removeFamilyFromGraph=False) among the trios/duos/singletons
+				2. or not (removeFamilyFromGraph=True).
+				"Overlap" means when nuclear families or half-siblings exist in the pedigree,
+					whether parents should be replicated in order for them to be associated with each kid during split.
+			one example in BeagleAndTrioCallerOnVCFWorkflow.py
+		"""
+		# work on the pedigree graph to figure out if singleton, trio, duo file will exist.
+		#figure out the singletons, duos, trios, using the function in AlignmentToTrioCall
+		pedigreeSplitStructure = PassingData(familySize2familyLs={})
+				
+		#find trios first
+		pedigreeSplitStructure.familySize2familyLs[3] = self.findFamilyFromPedigreeGivenSize(DG=pedigreeGraph, familySize=3, \
+																							removeFamilyFromGraph=removeFamilyFromGraph)
+		#find duos
+		pedigreeSplitStructure.familySize2familyLs[2] = self.findFamilyFromPedigreeGivenSize(DG=pedigreeGraph, familySize=2, \
+																							removeFamilyFromGraph=removeFamilyFromGraph)
+		#find singletons (familySize=1 => noOfIncomingEdges=0, noOfIncomingEdges=0 => will not be parents of others)
+		pedigreeSplitStructure.familySize2familyLs[1] = self.findFamilyFromPedigreeGivenSize(DG=pedigreeGraph, familySize=1, \
+																							removeFamilyFromGraph=removeFamilyFromGraph, \
+																							noOfOutgoingEdges=0)
+		return pedigreeSplitStructure
 	
 	def findFamilyFromPedigreeGivenSize(self, DG=None, familySize=3, removeFamilyFromGraph=True, noOfOutgoingEdges=None):
 		"""

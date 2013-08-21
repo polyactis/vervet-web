@@ -185,18 +185,18 @@ class AlignmentToCallPipeline(parentClass):
 		workflow.depends(parent=mkDirJob, child=selectAndSplitFastaJob)
 		
 		chr2jobDataLs = {}
-		for chr in chrLs:
-			if chr not in chr2jobDataLs:
-				chr2jobDataLs[chr] = []
-			selectAndSplitFastaJob.addArguments(chr)
+		for chromosome in chrLs:
+			if chromosome not in chr2jobDataLs:
+				chr2jobDataLs[chromosome] = []
+			selectAndSplitFastaJob.addArguments(chromosome)
 			
-			fastaFname = os.path.join(fastaOutputDir, '%s.fasta'%(chr))
+			fastaFname = os.path.join(fastaOutputDir, '%s.fasta'%(chromosome))
 			fastaFile = File(fastaFname)
 			
 			# add the index job
 			fai_index_job = Job(namespace=namespace, name=samtools.name, version=version)
 			fai_index_job.addArguments("faidx", fastaFname)
-			fastaFAIIndexFname = os.path.join(fastaOutputDir, '%s.fasta.fai'%(chr))
+			fastaFAIIndexFname = os.path.join(fastaOutputDir, '%s.fasta.fai'%(chromosome))
 			fastaFAIIndexFile = File(fastaFAIIndexFname)
 			fai_index_job.uses(fastaFAIIndexFile, transfer=True, register=False, link=Link.OUTPUT)	#this file is input & output
 			#fai_index_job.uses(output, transfer=True, register=True, link=Link.OUTPUT)	#registering here would result in their early deletion.
@@ -206,8 +206,8 @@ class AlignmentToCallPipeline(parentClass):
 			
 			# the add-read-group job
 			createSeqDictJob = Job(namespace=namespace, name=java.name, version=version)
-			dictFname = os.path.join(fastaOutputDir, '%s.dict'%(chr))
-			#outputRGFname = '%s_%s.RG.bam'%(inputFileBaseNamePrefix, chr)
+			dictFname = os.path.join(fastaOutputDir, '%s.dict'%(chromosome))
+			#outputRGFname = '%s_%s.RG.bam'%(inputFileBaseNamePrefix, chromosome)
 			dictFile = File(dictFname)
 			createSeqDictJob.addArguments('-jar', CreateSequenceDictionaryJar, \
 								"R=", fastaFile, 'O=', dictFile)
@@ -217,7 +217,7 @@ class AlignmentToCallPipeline(parentClass):
 			workflow.addJob(createSeqDictJob)
 			workflow.depends(parent=selectAndSplitFastaJob, child=createSeqDictJob)
 			
-			chr2jobDataLs[chr] = [fai_index_job, fastaFAIIndexFile, createSeqDictJob, fastaFile, dictFile]
+			chr2jobDataLs[chromosome] = [fai_index_job, fastaFAIIndexFile, createSeqDictJob, fastaFile, dictFile]
 			self.no_of_jobs += 1
 		return PassingData(chr2jobDataLs=chr2jobDataLs, workflow=workflow)
 	
@@ -262,16 +262,16 @@ class AlignmentToCallPipeline(parentClass):
 			workflow.addJob(mkdirJob)
 			workflow.depends(parent=mkCallDirJob, child=mkdirJob)
 			
-			for chr in chrLs:
-				if chr not in chr2jobDataLs:
-					chr2jobDataLs[chr] = []
+			for chromosome in chrLs:
+				if chromosome not in chr2jobDataLs:
+					chr2jobDataLs[chromosome] = []
 				#select reads that are aligned to one reference name
 				selectRefJob = Job(namespace=namespace, name=samtools.name, version=version)
 				
-				outputFname = os.path.join(outputDir, '%s_%s.bam'%(inputFileBaseNamePrefix, chr))
-				#outputFname = '%s_%s.bam'%(inputFileBaseNamePrefix, chr)
+				outputFname = os.path.join(outputDir, '%s_%s.bam'%(inputFileBaseNamePrefix, chromosome))
+				#outputFname = '%s_%s.bam'%(inputFileBaseNamePrefix, chromosome)
 				output = File(outputFname)
-				selectRefJob.addArguments('view', '-h', inputFile, chr, "-o", output, "-b", "-u")	# -b -u forces uncompressed bam output
+				selectRefJob.addArguments('view', '-h', inputFile, chromosome, "-o", output, "-b", "-u")	# -b -u forces uncompressed bam output
 				#selectRefJob.uses(inputFile, transfer=True, register=True, link=Link.INPUT)	#don't add this file. otherwise it'll be staged. transfer=False will result deletion of original file.
 				workflow.addJob(selectRefJob)
 				workflow.depends(parent=mkdirJob, child=selectRefJob)
@@ -290,17 +290,17 @@ class AlignmentToCallPipeline(parentClass):
 				#addRGJob = Job(namespace=namespace, name=addRGExecutable.name, version=version)
 				addRGJob = Job(namespace=namespace, name=java.name, version=version)
 				#2011-7-27 somehow AddOrReplaceReadGroupsAndCleanSQHeader.jar couldn't output a un-corrupted bam file. so sam first.
-				outputRGSAMFname = os.path.join(outputDir, '%s_%s.RG.sam'%(inputFileBaseNamePrefix, chr))
+				outputRGSAMFname = os.path.join(outputDir, '%s_%s.RG.sam'%(inputFileBaseNamePrefix, chromosome))
 				outputRGSAM = File(outputRGSAMFname)
 				"""
-				tmpRGFname = os.path.join(outputDir, '%s_%s.RG.txt'%(inputFileBaseNamePrefix, chr))
+				tmpRGFname = os.path.join(outputDir, '%s_%s.RG.txt'%(inputFileBaseNamePrefix, chromosome))
 				addRGJob.addArguments(read_group, platform_id, output, tmpRGFname, outputRGSAM)
 				"""
 				addRGJob.addArguments('-jar', AddOrReplaceReadGroupsAndCleanSQHeaderJar, \
 									"INPUT=", output,\
 									'RGID=%s'%(read_group), 'RGLB=%s'%(platform_id), 'RGPL=%s'%(platform_id), \
 									'RGPU=%s'%(read_group), 'RGSM=%s'%(read_group),\
-									'OUTPUT=', outputRGSAM, 'SQName=%s'%(chr))	#'SORT_ORDER=coordinate', (adding this is useless)
+									'OUTPUT=', outputRGSAM, 'SQName=%s'%(chromosome))	#'SORT_ORDER=coordinate', (adding this is useless)
 				self.addJobUse(addRGJob, file=AddOrReplaceReadGroupsAndCleanSQHeaderJar, transfer=True, register=True, link=Link.INPUT)
 				
 				addRGJob.uses(output, transfer=False, register=True, link=Link.INPUT)	#time to discard them
@@ -312,7 +312,7 @@ class AlignmentToCallPipeline(parentClass):
 				#selectAndSplitJob.uses(output, transfer=True, register=False, link=Link.OUTPUT)	#registering here would result in their early deletion.
 				
 				samToBamJob = Job(namespace=namespace, name=samtools.name, version=version)
-				outputRGFname = os.path.join(outputDir, '%s_%s.RG.bam'%(inputFileBaseNamePrefix, chr))
+				outputRGFname = os.path.join(outputDir, '%s_%s.RG.bam'%(inputFileBaseNamePrefix, chromosome))
 				outputRG = File(outputRGFname)
 				samToBamJob.addArguments('view', '-F4', '-Sbh', "-o", outputRG, "-u", outputRGSAM)	# -b -u forces uncompressed bam output
 				samToBamJob.uses(outputRGSAM, transfer=False, register=True, link=Link.INPUT)
@@ -339,12 +339,12 @@ class AlignmentToCallPipeline(parentClass):
 				"""
 				workflow.addJob(index_sam_job)
 				workflow.depends(parent=samToBamJob, child=index_sam_job)
-				chr2jobDataLs[chr].append((outputRG, index_sam_job, bai_output))
+				chr2jobDataLs[chromosome].append((outputRG, index_sam_job, bai_output))
 				
 				"""
 				#2011-9-1 temporary addition to make sure it's sorted for Vasily
 				# input bam doesn't need to be indexed.
-				outputRGSortSAMFnamePrefix = os.path.join(outputDir, '%s_%s.RG.sorted'%(inputFileBaseNamePrefix, chr))
+				outputRGSortSAMFnamePrefix = os.path.join(outputDir, '%s_%s.RG.sorted'%(inputFileBaseNamePrefix, chromosome))
 				outputRGSortSAMFname = File('%s.bam'%(outputRGSortSAMFnamePrefix))
 				sam_sort_job = Job(namespace=namespace, name=samtools.name, version=version)
 				sam_sort_job.addArguments('sort', '-m', '2000000000', outputRG, outputRGSortSAMFnamePrefix)	#maxMemory is down to 2G
@@ -524,14 +524,14 @@ class AlignmentToCallPipeline(parentClass):
 				else:
 					mpileupInterval = intervalData.interval
 					bcftoolsInterval = intervalData.interval
-				vcfBaseFname = intervalData.intervalFnameSignature
+				vcfBaseFname = intervalData.intervalFileBasenameSignature
 				
 				span = intervalData.span
 				readSpace = cumulativeMedianDepth * span
 				#base for Platypus is 450X coverage in 4Mb region => 80 minutes
 				genotypingJobWalltime = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=readSpace, \
-									baseInputVolume=450*2000000, baseJobPropertyValue=80, \
-									minJobPropertyValue=60, maxJobPropertyValue=500).value
+									baseInputVolume=450*2000000, baseJobPropertyValue=160, \
+									minJobPropertyValue=120, maxJobPropertyValue=500).value
 				#base for Platypus is 450X, => 5.2g
 				if genotypeCallerType==1:	#GATK
 					maxGenotypingJobMemory = 10000
@@ -823,8 +823,8 @@ class AlignmentToCallPipeline(parentClass):
 		
 		use this argument to focus on certain regions
 			--skipRegionsFile=SKIPREGIONSFILE
-				region as comma-separated list of chr:start-end, or
-				just list of chr, or nothing
+				region as comma-separated list of chromosome:start-end, or
+				just list of chromosome, or nothing
 			--outputRefCalls=OUTPUTREFCALLS, If 1, output block reference calls.
 
 		"""
@@ -876,7 +876,7 @@ class AlignmentToCallPipeline(parentClass):
 			added argument heterozygosityForGATK, minPruningForGATKHaplotypCaller
 			use addGenericJob
 		2012.7.30
-			interval could be a BED file, rather than just a string (chr:start-stop).
+			interval could be a BED file, rather than just a string (chromosome:start-stop).
 			start and stop are 0-based. i.e. start=0, stop=100 means bases from 0-99.
 			
 		2011-12-4
@@ -920,7 +920,7 @@ class AlignmentToCallPipeline(parentClass):
 			split argument interval into mpileupInterval and bcftoolsInterval
 		2012.8.6 add argument maxDP
 		2012.7.30
-			mpileupInterval could be a BED file, rather than just a string (chr:start-stop). CallVariantBySamtools would adjust itself.
+			mpileupInterval could be a BED file, rather than just a string (chromosome:start-stop). CallVariantBySamtools would adjust itself.
 			start and stop are 0-based. i.e. start=0, stop=100 means bases from 0-99.
 		2011-12-4
 		"""
@@ -968,29 +968,14 @@ class AlignmentToCallPipeline(parentClass):
 		site_handler = self.site_handler
 		vervetSrcPath = self.vervetSrcPath
 		
-		executableList = []
-		genotypingExecutableSet = set([self.genotyperJava, self.samtools, self.CallVariantBySamtools, \
-									self.MergeVCFReplicateHaplotypesJava, self.Platypus])
 		
 		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
 		
-		trioCallerWrapper = Executable(namespace=namespace, name="trioCallerWrapper", version=version, os=operatingSystem,\
-									arch=architecture, installed=True)
-		trioCallerWrapper.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "shell/trioCallerWrapper.sh"), site_handler))
-		executableClusterSizeMultiplierList.append((trioCallerWrapper, 0))
-		genotypingExecutableSet.add(trioCallerWrapper)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(vervetSrcPath, "shell/trioCallerWrapper.sh"), \
+												name="trioCallerWrapper", clusterSizeMultipler=0.001)
 		
-		MergeVCFReplicateGenotypeColumnsJava = Executable(namespace=namespace, name="MergeVCFReplicateGenotypeColumnsJava", \
-											version=version, os=operatingSystem,\
-											arch=architecture, installed=True)
-		MergeVCFReplicateGenotypeColumnsJava.addPFN(PFN("file://" + self.javaPath, site_handler))
-		executableClusterSizeMultiplierList.append((MergeVCFReplicateGenotypeColumnsJava, 0))
-		genotypingExecutableSet.add(MergeVCFReplicateGenotypeColumnsJava)
-		
-		ligateVcf = Executable(namespace=namespace, name="ligateVcf", \
-							version=version, os=operatingSystem, arch=architecture, installed=True)
-		ligateVcf.addPFN(PFN("file://" + os.path.join(vervetSrcPath, "shell/ligateVcf.sh"), site_handler))
-		executableClusterSizeMultiplierList.append((ligateVcf, 1))
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, \
+												name="MergeVCFReplicateGenotypeColumnsJava", clusterSizeMultipler=0.001)
 		
 		ReplicateVCFGenotypeColumns = Executable(namespace=namespace, name="ReplicateVCFGenotypeColumns", version=version, os=operatingSystem,\
 									arch=architecture, installed=True)
@@ -999,6 +984,9 @@ class AlignmentToCallPipeline(parentClass):
 	
 		self.addExecutableAndAssignProperClusterSize(executableClusterSizeMultiplierList, defaultClustersSize=self.clusters_size)
 		
+		genotypingExecutableSet = set([self.genotyperJava, self.samtools, self.CallVariantBySamtools, \
+									self.MergeVCFReplicateHaplotypesJava, self.Platypus, self.trioCallerWrapper, \
+									self.MergeVCFReplicateGenotypeColumnsJava])
 		#2012.1.3. added polymutt
 		if hasattr(self, 'polymuttPath'):	#some inherited classes do not have polymuttPath
 			polymutt = self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.expanduser(self.polymuttPath), \
@@ -1011,21 +999,34 @@ class AlignmentToCallPipeline(parentClass):
 				self.setOrChangeExecutableClusterSize(executable=executable, clusterSizeMultipler=self.noOfCallingJobsPerNode/float(self.clusters_size), \
 													defaultClustersSize=self.clusters_size)
 	
-	def addLigateVcfJob(self, executable=None, ligateVcfPerlPath=None, outputFile=None, \
-						parentJobLs=[], extraDependentInputLs=[], transferOutput=False, \
-						extraArguments=None, job_max_memory=2000, **keywords):
+	def addJobsToDeriveGenotypeCallingIntervals(self, workflow=None, alignmentLs=None):
 		"""
-		2012.6.1
-			ligateVcf ligates overlapping VCF files.
+		2013.08.11
+		#. check/get depth.tsv.gz for each alignment
+		#. add all depth.tsv.gz up and output it into a GADA input format
+		#. segment it (GADA)
+		#. output segmented intervals into one .bed file  (staged out in the end) and also small temporary .bed files (evenly by region sizes), under 5-fold threshold
+			#.  only one chromosome intervals in one .bed file
+			#.  keep track of chromosomes for each .bed file
 		"""
-		extraArgumentList = [ligateVcfPerlPath, outputFile]
-		if extraArguments:
-			extraArgumentList.append(extraArguments)
-		#do not pass outputFile as argument to addGenericJob() because addGenericJob will add "-o" in front of it.
-		return self.addGenericJob(executable=executable, \
-						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, extraOutputLs=[outputFile], \
-						transferOutput=transferOutput, \
-						extraArgumentList=extraArgumentList, job_max_memory=job_max_memory)
+		
+		returnData = []
+		for alignment in alignmentLs:
+			alignmentDepthFile = self.registerOneInputFile(inputFname=alignment.path_to_depth_file, \
+							input_site_handler=None, folderName="", useAbsolutePathAsPegasusFileName=False,\
+							pegasusFileName=None, checkFileExistence=True)
+		
+		
+		#. a job that adds all depth.tsv.gz up and output it into a GADA input format for each chromosome
+		#. for each chromosome
+		#.	run GADA job
+		
+		#.	output segmented intervals into one .bed file
+		#.	filter out segments that beyond 2-fold depth range, or too small (bad alignments),
+		#.		then output them in a fixed number of BED files for each chromosome, 
+		
+		sys.stderr.write(" %s jobs.\n"%(self.no_of_jobs))
+		
 	
 	def run(self):
 		"""

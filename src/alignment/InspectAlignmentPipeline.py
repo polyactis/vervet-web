@@ -57,7 +57,7 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import subprocess, cStringIO
-from Pegasus.DAX3 import *
+from Pegasus.DAX3 import Executable, PFN, File, Link, Job
 from pymodule import ProcessOptions, getListOutOfStr, PassingData
 from pymodule.pegasus import yh_pegasus
 from vervet.src import VervetDB
@@ -85,6 +85,8 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		AbstractVervetAlignmentWorkflow.__init__(self, **keywords)
 		self.no_of_alns_with_depth_jobs = 0
 		self.no_of_alns_with_flagstat_jobs = 0
+		
+		self.alignmentDepthJobDataList=[]	#2013.08.16 use to store 
 	
 	def addDepthOfCoverageJob(self, workflow=None, DOCWalkerJava=None, GenomeAnalysisTKJar=None,\
 							refFastaFList=None, bamF=None, baiF=None, DOCOutputFnamePrefix=None,\
@@ -379,12 +381,44 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 						parentJobLs=[reformatFlagStatOutputJob])
 			self.no_of_alns_with_flagstat_jobs += 1
 		
+		if alignment.path_to_depth_file is None:
+			depthOutputFile = File(os.path.join(topOutputDirJob.output, '%s_depth.tsv.gz'%(alignment.id)))
+			samtoolsDepthJob = self.addSAMtoolsDepthJob(workflow, samtoolsDepth=self.samtoolsDepth, \
+						samtools_path=self.samtools_path,\
+						bamF=bamF, outputFile=depthOutputFile, baiF=baiF, \
+						parentJobLs=[topOutputDirJob] + alignmentData.jobLs, job_max_memory = 2000, extraArguments="", \
+						transferOutput=False)
+			self.addRefFastaJobDependency(job=samtoolsDepthJob, refFastaF=passingData.refFastaF, \
+						fastaDictJob=passingData.fastaDictJob, refFastaDictF=passingData.refFastaDictF,\
+						fastaIndexJob = passingData.fastaIndexJob, refFastaIndexF=passingData.refFastaIndexF)
+			
+			logFile = File(os.path.join(passingData.reduceOutputDirJob.output, "%s_depth_file_2DB.log"%(alignment.id)))
+			outputFileRelativePath = "%s_depth.tsv.gz"%(os.path.splitext(alignment.path)[0])
+			extraArgumentList = ["--db_entry_id %s"%(alignment.id), "--tableClassName IndividualAlignment", \
+								"--filePathColumnName path_to_depth_file",\
+								"--fileSizeColumnName depth_file_size", \
+								"--outputFileRelativePath %s"%(outputFileRelativePath), "--data_dir %s"%(self.data_dir)]
+			simulation2DBJob = self.addPutStuffIntoDBJob(executable=self.AffiliateFile2DBEntry, \
+					inputFile=samtoolsDepthJob.output, inputArgumentOption='-i',\
+					logFile=logFile, commit=True, \
+					parentJobLs=[samtoolsDepthJob, passingData.reduceOutputDirJob], \
+					extraDependentInputLs=None, transferOutput=True, extraArguments=None, \
+					extraArgumentList=extraArgumentList,\
+					job_max_memory=10, sshDBTunnel=self.needSSHDBTunnel)
+			self.alignmentDepthJobDataList.append(self.constructJobDataFromJob(samtoolsDepthJob))
+		else:
+			alignmentDepthFile = self.registerOneInputFile(inputFname=alignment.path_to_depth_file, \
+							input_site_handler=None, folderName="", useAbsolutePathAsPegasusFileName=False,\
+							pegasusFileName=None, checkFileExistence=True)
+			self.alignmentDepthJobDataList.append(PassingData(job=None, jobLs=None, file=alignmentDepthFile, fileLs=[alignmentDepthFile]))
+		
+		
 		if self.needPerContigJob:	#need for per-contig job
 			statOutputDir = 'perContigStatOfAlignment%s'%(alignment.id)
 			passingData.statOutputDirJob = self.addMkDirJob(outputDir=statOutputDir)
 		else:
 			passingData.statOutputDirJob = None
-			
+		
 		return returnData
 	
 	def mapEachChromosome(self, workflow=None, alignmentData=None, chromosome=None,\
@@ -473,6 +507,7 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 	def reduce(self, workflow=None, passingData=None, reduceAfterEachAlignmentDataLs=None,
 			transferOutput=True, **keywords):
 		"""
+		2013.08.14 add 2DB jobs only when their input is not empty
 		2012.9.17
 		"""
 		returnData = PassingData(no_of_jobs = 0)
@@ -481,23 +516,28 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		
 		reduceOutputDirJob = passingData.reduceOutputDirJob
 		
-		flagStat2DBLogFile = File(os.path.join(reduceOutputDirJob.output, "flagStat2DB.log"))
-		flagStat2DBJob = self.addPutStuffIntoDBJob(workflow, executable=self.PutFlagstatOutput2DB, \
-					inputFileList=[passingData.flagStatOutputMergeJob.output], \
-					logFile=flagStat2DBLogFile, commit=True, \
-					parentJobLs=[reduceOutputDirJob, passingData.flagStatOutputMergeJob], \
-					extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
-					job_max_memory=10, sshDBTunnel=self.needSSHDBTunnel)
-		DOC2DBLogFile = File(os.path.join(reduceOutputDirJob.output, "DOC2DB.log"))
-		DOC2DBJob = self.addPutStuffIntoDBJob(workflow, executable=self.PutDOCOutput2DB, \
+		if passingData.flagStatOutputMergeJob.inputLs:	#the merge job's input is not empty or None
+			flagStat2DBLogFile = File(os.path.join(reduceOutputDirJob.output, "flagStat2DB.log"))
+			flagStat2DBJob = self.addPutStuffIntoDBJob(workflow, executable=self.PutFlagstatOutput2DB, \
+						inputFileList=[passingData.flagStatOutputMergeJob.output], \
+						logFile=flagStat2DBLogFile, commit=True, \
+						parentJobLs=[reduceOutputDirJob, passingData.flagStatOutputMergeJob], \
+						extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
+						job_max_memory=10, sshDBTunnel=self.needSSHDBTunnel)
+		if passingData.depthOfCoverageOutputMergeJob.inputLs:
+			DOC2DBLogFile = File(os.path.join(reduceOutputDirJob.output, "DOC2DB.log"))
+			DOC2DBJob = self.addPutStuffIntoDBJob(workflow, executable=self.PutDOCOutput2DB, \
 					inputFileList=[passingData.depthOfCoverageOutputMergeJob.output], \
 					logFile=DOC2DBLogFile, commit=True, \
 					parentJobLs=[reduceOutputDirJob, passingData.depthOfCoverageOutputMergeJob], \
 					extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
 					job_max_memory=10, sshDBTunnel=self.needSSHDBTunnel)
-		
+		if self.alignmentDepthJobDataList:
+			#2013.08.16
+			# add segmentation jobs to figure out intervals at similar
+			
 		sys.stderr.write(" %s jobs, %s alignments with depth jobs, %s alignments with flagstat jobs.\n"%(self.no_of_jobs, \
-										self.no_of_alns_with_depth_jobs, self.no_of_alns_with_flagstat_jobs))
+							self.no_of_alns_with_depth_jobs, self.no_of_alns_with_flagstat_jobs))
 		return returnData
 	
 	def registerCustomExecutables(self, workflow=None):
@@ -515,6 +555,10 @@ class InspectAlignmentPipeline(AbstractVervetAlignmentWorkflow):
 		site_handler = self.site_handler
 		
 		executableClusterSizeMultiplierList = []	#2012.8.7 each cell is a tuple of (executable, clusterSizeMultipler (0 if u do not need clustering)
+		
+		#2013.08.08
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'db/input/AffiliateFile2DBEntry.py'), \
+										name='AffiliateFile2DBEntry', clusterSizeMultipler=0.1)
 		
 		ReduceDepthOfCoverage = Executable(namespace=namespace, name="ReduceDepthOfCoverage", version=version, os=operatingSystem,\
 								arch=architecture, installed=True)

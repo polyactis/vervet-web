@@ -704,12 +704,10 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		
 		#noOfIndividuals
 		realInputVolume = noOfIndividuals * span
-		baseInputVolume = 200*2000000
-		#base is 200 individual X 2Mb region => 120 minutes
+		baseInputVolume = 600*2000	#600 individuals at 2000 sites
 		walltime = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
 							minJobPropertyValue=60, maxJobPropertyValue=1200).value
-		#base is 4X, => 5000M
 		job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
 							minJobPropertyValue=4000, maxJobPropertyValue=10000).value
@@ -799,15 +797,16 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		
 		##### Part 2 run Beagle on everyone with reference panel
 		# run Beagle
+		#refPanelFile=selectDistantMembersVariantsJob.output,\
 		outputFnamePrefix = os.path.join(self.mapDirJob.folder, '%s.beagled'%(intervalFileBasenamePrefix))
 		beagleJob = self.addBeagle4Job(executable=self.BeagleJava, \
-						inputFile=VCFJobData.file, refPanelFile=selectDistantMembersVariantsJob.output,\
+						inputFile=VCFJobData.file, refPanelFile=None,\
 						pedFile=self.outputPedigreeJob.output,\
 						outputFnamePrefix=outputFnamePrefix, \
 						burninIterations=7, phaseIterations=10, \
 						noOfSamplingHaplotypesPerSample=4, duoscale=2, trioscale=2, \
 						extraArguments=None, extraArgumentList=None,\
-						parentJobLs=[self.mapDirJob, selectDistantMembersVariantsJob, \
+						parentJobLs=[self.mapDirJob, \
 									self.outputPedigreeJob] + VCFJobData.jobLs, \
 						transferOutput=False, no_of_cpus=None, \
 						job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
@@ -903,6 +902,29 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		
 		returnData.refineGenotypeJob = refineGenotypeJob
 		
+		"""
+		2013.07.10 the TrioCaller VCF has some info tags that are not described in VCF header
+		"""
+		outputFile = File(os.path.join(self.mapDirJob.folder, \
+												'%s.extraInfoDesc.vcf'%(intervalFileBasenamePrefix)))
+		addInfoDescJob = self.addGenericJob(executable=self.AddMissingInfoDescriptionToVCFHeader, \
+					inputFile=refineGenotypeJob.output, \
+					inputArgumentOption="-i", \
+					outputFile=outputFile, outputArgumentOption="-o", \
+					parentJobLs=[self.mapDirJob, refineGenotypeJob], \
+					extraDependentInputLs=None, extraOutputLs=None, \
+					frontArgumentList=None, extraArguments=None, extraArgumentList=None, \
+					transferOutput=False, sshDBTunnel=None, \
+					key2ObjectForJob=None, objectWithDBArguments=None, \
+					no_of_cpus=None, 
+					job_max_memory=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=2000, \
+							minJobPropertyValue=1000, maxJobPropertyValue=3000).value, \
+					walltime=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
+							minJobPropertyValue=60, maxJobPropertyValue=500).value,\
+					max_walltime=None)
+		
 		# a CheckGenotypeConcordanceAmongReplicates.py job
 		trioCallerReplicateConcordanceFile = File(os.path.join(self.statDirJob.folder, \
 								'%s.trioCaller.concordance.tsv'%(intervalFileBasenamePrefix)))
@@ -919,8 +941,8 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 					transferOutput=False, \
 					no_of_cpus=None, \
 					job_max_memory=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
-							minJobPropertyValue=7000, maxJobPropertyValue=9000).value, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=6000, \
+							minJobPropertyValue=9000, maxJobPropertyValue=16000).value, \
 					walltime=self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
 							minJobPropertyValue=60, maxJobPropertyValue=1200).value)
@@ -934,10 +956,10 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		returnData.mergeVCFReplicateColumnsJob = self.addMergeVCFReplicateGenotypeColumnsJob(\
 							executable=self.MergeVCFReplicateHaplotypesJava,\
 							GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, \
-							inputF=refineGenotypeJob.output, outputF=mergeReplicateOutputF, \
+							inputF=addInfoDescJob.output, outputF=mergeReplicateOutputF, \
 							replicateIndividualTag=self.replicateIndividualTag, \
 							refFastaFList=self.registerReferenceData.refFastaFList, \
-							parentJobLs=[self.mapDirJob, refineGenotypeJob], \
+							parentJobLs=[self.mapDirJob, addInfoDescJob], \
 							extraDependentInputLs=[], transferOutput=False, \
 							extraArguments=None, \
 							analysis_type='MergeVCFReplicateGenotypeColumns',\
@@ -975,17 +997,17 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=2000, \
 							minJobPropertyValue=2000, maxJobPropertyValue=8000).value
-		self.concatenateOverlapIntervalsIntoVCF(chromosome=chromosome, passingData=passingData, \
+		self.concatenateOverlapIntervalsIntoOneVCFSubWorkflow(passingData=passingData, \
 						intervalJobLs=[pdata.beagleJob for pdata in mapEachIntervalDataLs],\
 						outputDirJob=self.beagleReduceDirJob, \
 						transferOutput=True, job_max_memory=job_max_memory, walltime=walltime,\
 						**keywords)
 		
-		self.concatenateOverlapIntervalsIntoVCF(chromosome=chromosome, passingData=passingData, \
+		self.concatenateOverlapIntervalsIntoOneVCFSubWorkflow(passingData=passingData, \
 						intervalJobLs=mergeVCFReplicateColumnsJobLs, outputDirJob=self.reduceOutputDirJob, \
 						transferOutput=True, job_max_memory=job_max_memory, walltime=walltime,\
 						**keywords)
-		self.concatenateOverlapIntervalsIntoVCF(chromosome=chromosome, passingData=passingData, \
+		self.concatenateOverlapIntervalsIntoOneVCFSubWorkflow(passingData=passingData, \
 						intervalJobLs=refineGenotypeJobLs, outputDirJob=self.replicateVCFDirJob, \
 						transferOutput=True, job_max_memory=job_max_memory, walltime=walltime, \
 						**keywords)
@@ -1006,48 +1028,6 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		return returnData
 		
 		
-	def concatenateOverlapIntervalsIntoVCF(self, chromosome=None, passingData=None, intervalJobLs=None,\
-					outputDirJob=None,
-					transferOutput=True, job_max_memory=None, walltime=None, **keywords):
-		"""
-		2013.06.14
-			#. concatenate overlapping (share some loci) VCFs into one, used in reduceEachVCF
-		"""
-		
-		#ligate vcf job (different segments of a chromosome into one chromosome) for replicate VCFs
-		concatTrioCallerOutputFname = os.path.join(outputDirJob.folder, '%s.vcf'%(passingData.fileBasenamePrefix))
-		concatTrioCallerOutputF = File(concatTrioCallerOutputFname)
-		concatJob = self.addLigateVcfJob(executable=self.ligateVcf, \
-									ligateVcfExecutableFile=self.ligateVcfExecutableFile, \
-									outputFile=concatTrioCallerOutputF, \
-									parentJobLs=[outputDirJob], \
-									extraDependentInputLs=None, transferOutput=False, \
-									extraArguments=None, job_max_memory=job_max_memory, walltime=walltime/2)
-		
-		for intervalJob in intervalJobLs:
-			#add this output to the union job
-			# 2012.6.1 done it through addInputToStatMergeJob()
-			self.addInputToStatMergeJob(statMergeJob=concatJob, inputF=intervalJob.output, \
-							parentJobLs=[intervalJob], extraDependentInputLs=[])
-		
-		
-		#convert to vcf4 so that other vcftools software could be used.
-		vcf4Filename = os.path.join(outputDirJob.folder, '%s.v4.vcf'%passingData.fileBasenamePrefix)
-		vcf4File = File(vcf4Filename)
-		vcf_convert_TrioCallerOutputJob = self.addVCFFormatConvertJob(vcf_convert=self.vcf_convert_in_reduce, \
-					parentJob=concatJob, inputF=concatJob.output, \
-					outputF=vcf4File, transferOutput=False, job_max_memory=job_max_memory, walltime=walltime/2)
-		
-		
-		#bgzip and tabix the trio caller output
-		trioGzipOutputF = File("%s.gz"%vcf4Filename)
-		bgzip_tabix_job = self.addBGZIP_tabix_Job(bgzip_tabix=self.bgzip_tabix_in_reduce, \
-								parentJob=vcf_convert_TrioCallerOutputJob, \
-								inputF=vcf4File, outputF=trioGzipOutputF, transferOutput=True,\
-								job_max_memory=job_max_memory/4, walltime=walltime/4)
-		
-		return bgzip_tabix_job
-	
 	def registerCustomExecutables(self, workflow=None):
 		"""
 		2013.06

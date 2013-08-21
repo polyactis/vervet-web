@@ -22,11 +22,7 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import matplotlib; matplotlib.use("Agg")	#to disable pop-up requirement
 import csv
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, getColName2IndexFromHeader, figureOutDelimiter, SNPData
-from pymodule.utils import getColName2IndexFromHeader, getListOutOfStr, figureOutDelimiter
-from pymodule import yh_matplotlib, GenomeDB, utils
-from pymodule import MatrixFile
-from pymodule import SNP
+from pymodule import ProcessOptions
 from pymodule import VCFFile
 from pymodule.utils import returnZeroFunc
 #used in getattr(individual_site_id_set, '__len__', returnZeroFunc)()
@@ -42,6 +38,7 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 						("tax_id_ls", 0, ): ["", '', 1, 'comma/dash-separated list of country IDs. individuals must come from these countries.'],\
 						("min_coverage", 0, int): [None, '', 1, 'minimum coverage for a sample to be extracted'],\
 						("max_coverage", 0, int): [None, '', 1, 'maximum coverage for a sample to be extracted'],\
+						("is_contaminated", 0, int): [None, '', 1, 'if not None, require individual_alignment.individual_sequence.is_contaminated be same value'],\
 						("outputFormat", 1, int): [1, '', 1, 'output format. 1: a subset VCF file; \n\
 	2: file with a list of sample IDs (one per line), with header; \n\
 	3: file with a list of sample IDs (one per line), without header'],\
@@ -58,20 +55,22 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 	
 	def extractSamples(self, db_vervet=None, inputFname=None, outputFname=None, \
 					tax_id_set=None, site_id_set=None, country_id_set=None, \
-					min_coverage=None, max_coverage=None, outputFormat=1,\
+					min_coverage=None, max_coverage=None, outputFormat=1, is_contaminated=None,\
 					**keywords):
 		"""
+		2013.07.03 added argument is_contaminated (whether to fetch contaminated samples or not)
 		2013.04.30 added argument min_coverage, max_coverage
 		2012.10.10
 			added argument outputFormat. 
 		2012.10.5
 			
 		"""
-		sys.stderr.write("Extracting samples from %s, %s sites & %s countries & %s taxonomies, min_coverage=%s, max_coverage=%s, outputFormat=%s ...\n"%(inputFname,\
+		sys.stderr.write("Extracting samples from %s, %s sites & %s countries & %s taxonomies, min_coverage=%s, max_coverage=%s, outputFormat=%s, is_contaminated=%s ...\n"%\
+							(inputFname,\
 							getattr(site_id_set, '__len__', returnZeroFunc)(),\
 							getattr(country_id_set, '__len__', returnZeroFunc)(),\
 							getattr(tax_id_set, '__len__', returnZeroFunc)(), min_coverage, max_coverage,\
-							outputFormat ))
+							outputFormat, is_contaminated ))
 		vcfFile = VCFFile(inputFname=inputFname)
 		
 		oldHeader = vcfFile.header
@@ -86,7 +85,8 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 						max_coverage=max_coverage, individual_site_id=None, \
 						sequence_filtered=None, individual_site_id_set=site_id_set, \
 						mask_genotype_method_id=None, parent_individual_alignment_id=None,\
-						country_id_set=country_id_set, tax_id_set=tax_id_set, excludeContaminant=False, excludeTissueIDSet=None,\
+						country_id_set=country_id_set, tax_id_set=tax_id_set, excludeContaminant=False, \
+						is_contaminated=is_contaminated, excludeTissueIDSet=None,\
 						local_realigned=None, reduce_reads=None, report=False)
 				if filteredAlignmentList:	#non-empty, passed the filter
 					newHeader.append(individual_name)
@@ -134,7 +134,8 @@ class ExtractSamplesFromVCF(AbstractVervetMapper):
 		
 		self.extractSamples(db_vervet=self.db_vervet, inputFname=self.inputFname, outputFname=self.outputFname, \
 					tax_id_set=set(self.tax_id_ls), site_id_set=set(self.site_id_ls), country_id_set=set(self.country_id_ls),\
-					min_coverage=self.min_coverage, max_coverage=self.max_coverage, outputFormat=self.outputFormat)
+					min_coverage=self.min_coverage, max_coverage=self.max_coverage, outputFormat=self.outputFormat,
+					is_contaminated=self.is_contaminated)
 		
 
 if __name__ == '__main__':

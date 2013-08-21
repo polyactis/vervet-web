@@ -59,6 +59,7 @@ class AbstractVervetAlignmentAndVCFWorkflow(AbstractAlignmentAndVCFWorkflow, Abs
 		2011-11-28
 		"""
 		AbstractVervetWorkflow.registerCustomExecutables(self, workflow=workflow)
+		AbstractAlignmentAndVCFWorkflow.registerCustomExecutables(self, workflow=workflow)
 		
 		if workflow is None:
 			workflow = self

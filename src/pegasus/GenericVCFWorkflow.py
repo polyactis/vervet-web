@@ -8,12 +8,12 @@ Examples:
 		-e /u/home/eeskin/polyacti/ -t /u/home/eeskin/polyacti/NetworkData/vervet/db/ -D /u/home/eeskin/polyacti/NetworkData/vervet/db/ 
 	
 	# 2012.5.10 subset + convert-2-plink.
-	# run on hoffman2 condor, minMAC=1 (-n 1), minMAF=0.1 (-f 0.1), maxSNPMissingRate=0 (-L 0)   (turn on checkEmptyVCFByReading, -E)
+	# run on hoffman2 condor, minMAC=1 (-n 1), minMAF=0.1 (-f 0.1), maxSNPMissingRate=0 (-L 0)   (turn on checkEmptyVCFByReading, --checkEmptyVCFByReading)
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8T21.42/trioCaller_vcftoolsFilter/
 		-o dags/SubsetTo36RNASamplesAndPlink_FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.2012.5.6_trioCaller.2012.5.8.xml
 		-i ~/script/vervet/data/RNADevelopment_eQTL/36monkeys.phenotypes.txt
 		-w ~/script/vervet/data/RNADevelopment_eQTL/36monkeys.inAlignmentReadGroup.tsv
-		-n1 -f 0.1 -L 0 -y3 -E
+		-n1 -f 0.1 -L 0 -y3 --checkEmptyVCFByReading
 		-l hcondor -j hcondor  -u yh -z localhost --needSSHDBTunnel
 		-e /u/home/eeskin/polyacti/
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
@@ -22,7 +22,7 @@ Examples:
 	# "-V 90 -x 100" are used to restrict contig IDs between 90 and 100.
 	%s -I FilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719/trioCaller_vcftoolsFilter/ 
 		-o dags/ToPlinkFilterVCF_VRC_SK_Nevis_FilteredSeq_top1000Contigs.MAC10.MAF.05_trioCaller.2012.5.21T1719.xml
-		-y 2  -E
+		-y 2 --checkEmptyVCFByReading
 		-l condorpool -j condorpool
 		-u yh -z uclaOffice  -C 4 --needSSHDBTunnel
 		#-V 90 -x 100 
@@ -30,12 +30,12 @@ Examples:
 	# 2012.7.25 calculate haplotype distance & majority call support stats
 	%s -I AlignmentToTrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicates/
 		-o dags/GetReplicateHaplotypeStat_TrioCall_VRC_FilteredSeq.2012.7.21T0248_VCFWithReplicats.xml
-		-y 5 -E -l condorpool -j condorpool -u yh -z uclaOffice  -C 1 -a 524
+		-y 5 --checkEmptyVCFByReading -l condorpool -j condorpool -u yh -z uclaOffice  -C 1 -a 524
 	
 	# 2012.8.20 convert method 16 to yu format (-y 6 works for generic VCF, -y 7 adds sample ID conversion first)
 	%s -I ~/NetworkData/vervet/db/genotype_file/method_16/
 		-o dags/VCF2YuFormat/VCF2YuFormat_Method16.xml
-		-y 7 -E  -l hcondor -j hcondor  -u yh -z localhost --needSSHDBTunnel -C 2
+		-y 7 --checkEmptyVCFByReading  -l hcondor -j hcondor  -u yh -z localhost --needSSHDBTunnel -C 2
 		-D /u/home/eeskin/polyacti/NetworkData/vervet/db/  -t /u/home/eeskin/polyacti/NetworkData/vervet/db/
 
 	# 2012.8.30 combine multiple VCF into one
@@ -101,14 +101,20 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 						maxSNPMissingRate=None, transferOutput=True,\
 						maxContigID=None, outputDirPrefix="", outputPedigreeAsTFAM=False, outputPedigreeAsTFAMInputJobData=None, \
 						treatEveryOneIndependent=False,\
-						returnMode=3, ModifyTPEDRunType=1, chr_id2cumu_chr_start=None):
+						returnMode=3, ModifyTPEDRunType=1, chr_id2cumu_chr_start=None,\
+						addUngenotypedDuoParents=False):
 		"""
 			returnMode
 				1: only the final merged binary .bed , .fam file and its generation job(s)
 				2: only the individual contig/chromosome (whatever in inputDat.jobDataLs) binary .bed, .fam files and the associated jobs
 				3: 1 & 2 (all individual binary .bed jobs&files + the last merged file/job)
-				4: the individual contig/chr non-binary job data
+				4: the individual contig/chr non-binary (TPED) job data (for Mark mendel error genotype as missing)
 				5: 
+		
+		2013.07.18
+			added argument addUngenotypedDuoParents
+				for mendel error detection, if an ungenotyped parent in a duo is not present in the genotype file (PED/TPED/BED),
+					then plink won't look for its mendel inconsistency 
 		2013.02
 		2013.1.29 added returnMode 4
 		2012.10.22
@@ -134,13 +140,15 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			all previous intermediate files are not transferred.
 		2012.5.9
 		"""
+		if workflow is None:
+			workflow = self
 		sys.stderr.write("Adding VCF2plink jobs for %s vcf files ... "%(len(inputData.jobDataLs)))
 		
 		topOutputDir = "%sVCF2Plink"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		
 		mergedOutputDir = "%sVCF2PlinkMerged"%(outputDirPrefix)
-		mergedOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergedOutputDir)
+		mergedOutputDirJob = self.addMkDirJob(outputDir=mergedOutputDir)
 		
 		mergedPlinkFnamePrefix = os.path.join(mergedOutputDir, 'merged')
 		mergedTPEDFile = File('%s.tped'%(mergedPlinkFnamePrefix))
@@ -158,6 +166,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			outputFile = File(os.path.join(mergedOutputDir, 'pedigree.tfam'))
 			outputPedigreeInTFAMJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
 								inputFile=inputF, outputFile=outputFile, treatEveryOneIndependent=treatEveryOneIndependent,\
+								addUngenotypedDuoParents=addUngenotypedDuoParents,\
 								parentJobLs=[mergedOutputDirJob]+jobData.jobLs, extraDependentInputLs=[], transferOutput=True, \
 								extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
 			outputPedigreeInTFAMJob.tfamFile = outputPedigreeInTFAMJob.output	#so that it looks like a vcf2plinkJob (vcftools job)
@@ -166,6 +175,9 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		
 		returnData = PassingData()
 		returnData.jobDataLs = []
+		returnData.tfamJob = None	#2013.07.25 family file for tped file 
+		returnData.famJob = None	#2013.07.25 family file for bed file
+		
 		for i in xrange(len(inputData.jobDataLs)):
 			jobData = inputData.jobDataLs[i]
 			inputF = jobData.vcfFile
@@ -196,6 +208,24 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 						minMAC=minMAC, minMAF=minMAF, \
 						maxSNPMissingRate=maxSNPMissingRate,\
 						extraDependentInputLs=[jobData.tbi_F], outputFormat='--plink-tped', transferOutput=transferOneContigPlinkOutput)
+			#2013.07.19
+			if addUngenotypedDuoParents and outputPedigreeInTFAMJob:
+				appendExtraIndividualsJob = self.addAbstractMapperLikeJob(executable=workflow.AppendExtraPedigreeIndividualsToTPED, \
+						inputF=vcf2plinkJob.tpedFile, \
+						outputF=File(os.path.join(topOutputDir, '%s_extraIndividuals.tped'%(commonPrefix))), \
+						parentJobLs=[vcf2plinkJob, outputPedigreeInTFAMJob, topOutputDirJob], transferOutput=False, job_max_memory=200,\
+						extraArgumentList=["--tfamFname", outputPedigreeInTFAMJob.tfamFile], \
+						extraDependentInputLs=[outputPedigreeInTFAMJob.tfamFile])
+				modifyTPEDParentJobLs = [appendExtraIndividualsJob]
+				modifyTPEDJobInputFile = appendExtraIndividualsJob.output
+			else:
+				if addUngenotypedDuoParents and outputPedigreeInTFAMJob is None:
+					message = "Warning: addUngenotypedDuoParents (%s) is True but outputPedigreeInTFAMJob (%s, outputPedigreeAsTFAM=%s) is None. so addUngenotypedDuoParents is effectively False."%\
+							(addUngenotypedDuoParents, outputPedigreeInTFAMJob, outputPedigreeAsTFAM)
+					utils.pauseForUserInput(message=message, continueAnswerSet=None, exitType=3) 	#pass on any user input.
+				modifyTPEDParentJobLs = [vcf2plinkJob]
+				modifyTPEDJobInputFile = vcf2plinkJob.tpedFile
+			
 			#2012.7.20 modify the TPED 2nd column, to become chr_pos (rather than 0)
 			modifyTPEDFnamePrefix = os.path.join(topOutputDir, '%s_SNPID_M'%(commonPrefix))
 			outputF = File('%s.tped'%(modifyTPEDFnamePrefix))
@@ -203,9 +233,9 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			if ModifyTPEDRunType==3 and chr_id2cumu_chr_start:
 				newChrID, newCumuStart = chr_id2cumu_chr_start.get(chr_id, (1,0))
 				modifyTPEDJobExtraArguments += ' --newChr %s --positionStartBase %s '%(newChrID, newCumuStart)
-			modifyTPEDJob = self.addAbstractMapperLikeJob(workflow, executable=workflow.ModifyTPED, \
-						inputF=vcf2plinkJob.tpedFile, outputF=outputF, \
-						parentJobLs=[vcf2plinkJob], transferOutput=False, job_max_memory=200,\
+			modifyTPEDJob = self.addAbstractMapperLikeJob(executable=workflow.ModifyTPED, \
+						inputF=modifyTPEDJobInputFile, outputF=outputF, \
+						parentJobLs=modifyTPEDParentJobLs, transferOutput=False, job_max_memory=200,\
 						extraArguments=modifyTPEDJobExtraArguments, extraDependentInputLs=[])
 			
 			#add output to the tped merge job
@@ -219,7 +249,11 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			else:
 				tfamJob = outputPedigreeInTFAMJob
 				convertSingleTPED2BEDParentJobLs = [modifyTPEDJob, outputPedigreeInTFAMJob]
-			returnData.tfamJob = tfamJob	#2013.1.29
+			
+			if returnData.tfamJob is None:
+				returnData.tfamJob = tfamJob	#2013.1.29
+			
+			
 			if returnMode==4:	#2013.1.29
 				returnData.jobDataLs.append(PassingData(jobLs=[modifyTPEDJob], file=modifyTPEDJob.output, \
 											fileLs=modifyTPEDJob.outputLs))
@@ -237,6 +271,8 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 					parentJobLs = convertSingleTPED2BEDParentJobLs)
 				returnData.jobDataLs.append(PassingData(jobLs=[convertSingleTPED2BEDJob], file=convertSingleTPED2BEDJob.bedFile, \
 											fileLs=convertSingleTPED2BEDJob.outputLs))
+				if returnData.famJob is None:
+					returnData.famJob = convertSingleTPED2BEDJob
 		
 		if returnMode==1 or returnMode==3:
 			#convert merged plain tped file into binary bed files
@@ -250,7 +286,8 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 					extraArguments=None, job_max_memory=2000, parentJobLs=[mergedOutputDirJob, tpedFileMergeJob, tfamJob])
 			returnData.jobDataLs.append(PassingData(jobLs=[convertMergedTPED2BEDJob], file=convertMergedTPED2BEDJob.bedFile, \
 											fileLs=convertMergedTPED2BEDJob.outputLs))
-		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
+			if returnData.famJob is None:
+				returnData.famJob = convertMergedTPED2BEDJob
 		##2012.8.9 gzip workflow is not needed anymore as binary bed is used instead.
 		##2012.7.21 gzip the final output
 		gzipInputData = PassingData()
@@ -259,6 +296,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 												fileLs=tpedFileMergeJob.outputLs))
 		self.addGzipSubWorkflow(workflow=workflow, inputData=gzipInputData, transferOutput=transferOutput,\
 						outputDirPrefix="gzipMergedTPED")
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		#2013.1.29 return the un-gzipped data so that downstream sub-workflows could work on un-gzipped files
 		return returnData
 	
@@ -273,13 +311,15 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 					2=only the individual contig/chromosome (whatever in inputDat.jobDataLs) converted files and conversion jobs
 					3= 1 & 2 (all individual input binary .bed job&file + the last merging job/file)
 		"""
+		if workflow is None:
+			workflow = self
 		sys.stderr.write("Adding VCF2YuFormat jobs for %s vcf files ... "%(len(inputData.jobDataLs)))
 		
 		topOutputDir = "%sVCF2BjarniFormat"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		
 		mergeOutputDir = "%sVCF2YuFormat"%(outputDirPrefix)
-		mergeOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=mergeOutputDir)
+		mergeOutputDirJob = self.addMkDirJob(outputDir=mergeOutputDir)
 		
 		mergeFnamePrefix = os.path.join(mergeOutputDir, 'merged')
 		mergeFile = File('%s.csv'%(mergeFnamePrefix))
@@ -372,7 +412,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		
 		
 		topOutputDir = "%sVCFSubset"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		no_of_jobs += 1
 		
 		returnData = PassingData()
@@ -404,7 +444,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			#samtools uses 'AC1' instead of AC, 'AF1' instead of AF.
 			VCF4OutputF = File(os.path.join(topOutputDir, '%s.niceformat.vcf'%commonPrefix))
 			vcfConvertJob = self.addSelectVariantsJob(workflow, SelectVariantsJava=workflow.SelectVariantsJava, \
-					GenomeAnalysisTKJar=GenomeAnalysisTKJar, inputF=vcfSubsetJob.output, outputF=VCF4OutputF, \
+					inputF=vcfSubsetJob.output, outputF=VCF4OutputF, \
 					refFastaFList=refFastaFList, parentJobLs=[vcfSubsetJob], \
 					extraDependentInputLs=[], transferOutput=False, \
 					extraArguments=None, job_max_memory=2000, interval=chr)
@@ -448,7 +488,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		
 		
 		topOutputDir = "%sSampleInUCLAID"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		no_of_jobs += 1
 		
 		returnData = PassingData()
@@ -498,7 +538,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		
 		
 		topOutputDir = "%sSampleInUCLAID"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		no_of_jobs += 1
 		
 		returnData = PassingData()
@@ -551,7 +591,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		
 		
 		topOutputDir = "%sMergeVCFReplicateHaplotypeStat"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		no_of_jobs += 1
 		
 		
@@ -660,7 +700,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			workflow = self
 		
 		topOutputDir = "%sVCFIntoOne"%(outputDirPrefix)
-		topOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=topOutputDir)
+		topOutputDirJob = self.addMkDirJob(outputDir=topOutputDir)
 		no_of_jobs += 1
 		
 		
@@ -863,9 +903,8 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 		else:
 			sys.stderr.write("run_type %s not supported.\n"%(self.run_type))
 			sys.exit(0)
-		# Write the DAX to stdout
-		outf = open(self.outputFname, 'w')
-		workflow.writeXML(outf)
+		
+		self.end_run()
 		
 
 
