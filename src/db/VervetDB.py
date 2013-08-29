@@ -1406,6 +1406,7 @@ class GenotypeFile(Entity, AbstractTableWithFilename):
 	using_table_options(mysql_engine='InnoDB')
 	using_table_options(UniqueConstraint('genotype_method_id', 'chromosome', 'format', 'no_of_chromosomes'))
 	
+	folderName = 'genotype_file'
 	def constructRelativePath(self, subFolder='genotype_file', sourceFilename="", **keywords):
 		"""
 		2012.8.30
@@ -1418,13 +1419,13 @@ class GenotypeFile(Entity, AbstractTableWithFilename):
 		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
 		folderRelativePath = folderRelativePath.lstrip('/')
 		if self.no_of_chromosomes<=1:
-			dst_relative_path = os.path.join(folderRelativePath, '%s_chr_%s_%s_%s'%(self.id, self.chromosome, sourceFilename, self.format))
+			dst_relative_path = os.path.join(folderRelativePath, '%s_chr_%s_%s'%(self.id, self.chromosome, sourceFilename))
 		else:	#files with more than 1 chromosome
 			# 2012.8.30
 			# it'll be something like genotype_file/method_6_$id_$format_#chromosomes_sourceFilename
 			# do not put it in genotype_file/method_6/ folder.
 			folderRelativePath= folderRelativePath.rstrip('/')
-			dst_relative_path = '%s_%s_%s_%schromosomes_%s'%(folderRelativePath, self.id, self.format, self.no_of_chromosomes, sourceFilename)
+			dst_relative_path = '%s_%s_%schromosomes_%s'%(folderRelativePath, self.id, self.no_of_chromosomes, sourceFilename)
 		return dst_relative_path
 	
 	def getFileSize(self, data_dir=None):
@@ -1448,23 +1449,26 @@ class AlignmentDepthIntervalMethod(Entity, AbstractTableWithFilename):
 							local_colname='alignment_depth_interval_method_id')
 	parent = ManyToOne("%s.AlignmentDepthIntervalMethod"%(__name__), colname='parent_id', ondelete='CASCADE', onupdate='CASCADE')
 	alignment_depth_interval_file_ls = OneToMany('AlignmentDepthIntervalFile')
+	ref_sequence = ManyToOne('%s.IndividualSequence'%(__name__), colname='ref_ind_seq_id', ondelete='CASCADE', onupdate='CASCADE')
 	no_of_alignments = Field(Integer)
 	no_of_intervals = Field(BigInteger)
-	sum_median_depth = Field(Float)
-	sum_mean_depth = Field(Float)
+	sum_median_depth = Field(Float)	#across all alignments
+	sum_mean_depth = Field(Float)	#across all alignments
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
 	date_updated = Field(DateTime)
 	using_options(tablename='alignment_depth_interval_method', metadata=__metadata__, session=__session__)
 	using_table_options(mysql_engine='InnoDB')
-	using_table_options(UniqueConstraint('short_name', 'parent_id'))
+	#using_table_options(UniqueConstraint('short_name', 'parent_id'))
 	
 	folderName="alignment_depth_interval_file"
-	def constructRelativePath(self, subFolder='', **keywords):
+	def constructRelativePath(self, subFolder=None, **keywords):
 		"""
 		2013.08.16
 		"""
+		if not subFolder:
+			subFolder =  self.folderName
 		#'/' must not be put in front of the relative path.
 		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
 		dst_relative_path = '%s/method_%s'%(subFolder, self.id)
@@ -1474,14 +1478,16 @@ class AlignmentDepthIntervalFile(Entity, AbstractTableWithFilename):
 	"""
 	2013.08.16
 	"""
-	#individual = ManyToOne('Individual', colname='individual_id', ondelete='CASCADE', onupdate='CASCADE')
 	path = Field(Text, unique=True)
 	original_path = Field(Text)
 	md5sum = Field(Text)	# unique=True
 	file_size = Field(BigInteger)	#2012.7.12
 	chromosome = Field(Text)
+	chromosome_size = Field(BigInteger)
 	no_of_chromosomes = Field(BigInteger, default=1)	#2012.8.30 BigInteger in case some huge number of contigs
 	no_of_intervals = Field(BigInteger)
+	min_interval_value = Field(Float)
+	max_interval_value = Field(Float)
 	mean_interval_value = Field(Float)
 	median_interval_value = Field(Float)
 	format = Field(Text)	# BED or other
@@ -1497,24 +1503,29 @@ class AlignmentDepthIntervalFile(Entity, AbstractTableWithFilename):
 	using_table_options(UniqueConstraint('alignment_depth_interval_method_id', 'chromosome', 'format', 'no_of_chromosomes'))
 	
 	folderName=AlignmentDepthIntervalMethod.folderName
-	def constructRelativePath(self, subFolder='', sourceFilename="", **keywords):
+	def constructRelativePath(self, subFolder=None, sourceFilename="", **keywords):
 		"""
 		2013.8.16
 		"""
+		if not subFolder:
+			subFolder =  self.folderName
 		folderRelativePath = self.alignment_depth_interval_method.constructRelativePath(subFolder=subFolder)
 		#'/' must not be put in front of the relative path.
 		# otherwise, os.path.join(self.data_dir, dst_relative_path) will only take the path of dst_relative_path.
 		folderRelativePath = folderRelativePath.lstrip('/')
+		
+		filename_part_ls = []
+		if self.id:
+			filename_part_ls.append(self.id)
+		
 		if self.no_of_chromosomes<=1:
-			dst_relative_path = os.path.join(folderRelativePath, '%s_chr_%s_%s_%s'%(self.id, self.chromosome, \
-																	sourceFilename, self.format))
-		else:	#files with more than 1 chromosome
-			# 2012.8.30
-			# it'll be something like alignment_depth_interval_file/method_6_$id_$format_#chromosomes_sourceFilename
-			# do not put it inside the alignment_depth_interval_file/method_6/ folder.
-			folderRelativePath= folderRelativePath.rstrip('/')
-			dst_relative_path = '%s_%s_%s_%schromosomes_%s'%(folderRelativePath, self.id, self.format, self.no_of_chromosomes, sourceFilename)
-		return dst_relative_path
+			filename_part_ls.append('chr_%s'%(self.chromosome))
+		else:
+			filename_part_ls.append('%schromosomes'%(self.no_of_chromosomes))
+		
+		filename_part_ls = map(str, filename_part_ls)
+		fileRelativePath = os.path.join(folderRelativePath, '%s_%s'%('_'.join(filename_part_ls), sourceFilename))
+		return fileRelativePath
 	
 	def getFileSize(self, data_dir=None):
 		"""
@@ -2056,6 +2067,22 @@ class VervetDB(ElixirDB):
 			for read_group in sampleIDList:
 				individualAlignment = self.parseAlignmentReadGroup(read_group).individualAlignment
 				individualAlignment.sampleID = read_group
+				alignmentLs.append(individualAlignment)
+		sys.stderr.write("%s alignments.\n"%(len(alignmentLs)))
+		return alignmentLs
+	
+	def getAlignmentsFromAlignmentIDList(self, alignmentIDList=None):
+		"""
+		2013.08.23
+		"""
+		no_of_samples = 0
+		if alignmentIDList:
+			no_of_samples = len(alignmentIDList)
+		sys.stderr.write("Getting alignments from %s samples ...\n"%(no_of_samples))
+		alignmentLs = []
+		if alignmentIDList:
+			for alignmentID in  alignmentIDList:
+				individualAlignment = self.checkIfEntryInTable(TableClass=IndividualAlignment, id=int(alignmentID))
 				alignmentLs.append(individualAlignment)
 		sys.stderr.write("%s alignments.\n"%(len(alignmentLs)))
 		return alignmentLs
@@ -2650,50 +2677,6 @@ class VervetDB(ElixirDB):
 		#	session.flush()
 		return individual_alignment
 	
-	def isPathInDBAffiliatedStorage(self, db_entry=None, relativePath=None, inputFileBasename=None, data_dir=None, \
-								constructRelativePathFunction=None):
-		"""
-		2012.8.29
-			check whether one relative path already exists in db-affliated storage.
-				return -1 if db_entry.path is different from relativePath and could not be updated in db.
-				return 1 if relativePath exists in db already
-				return 0 if not.
-			Example:
-				# simplest
-				db_vervet.isPathInDBAffiliatedStorage(relativePath=relativePath, data_dir=self.data_dir)
-				# this will check if db_entry.path == relativePath, if not, update it in db with relativePath.
-				db_vervet.isPathInDBAffiliatedStorage(db_entry=db_entry, relativePath=relativePath)
-				# 
-				db_vervet.isPathInDBAffiliatedStorage(db_entry=db_entry, inputFileBasename=inputFileBasename, data_dir=None, \
-								constructRelativePathFunction=genotypeFile.constructRelativePath)
-		"""
-		if data_dir is None:
-			data_dir = self.data_dir
-		
-		exitCode = 0
-		if db_entry and (relativePath is None) and constructRelativePathFunction and inputFileBasename:
-			relativePath = constructRelativePathFunction(db_entry=db_entry, sourceFilename=inputFileBasename)
-		
-		if db_entry and relativePath:
-			if db_entry.path != relativePath:
-				db_entry.path = relativePath
-				try:
-					self.session.add(db_entry)
-					self.session.flush()
-				except:
-					sys.stderr.write('Except type: %s\n'%repr(sys.exc_info()))
-					import traceback
-					traceback.print_exc()
-					exitCode = -1
-					return exitCode
-		
-		dstFilename = os.path.join(data_dir, relativePath)
-		if os.path.isfile(dstFilename):
-			exitCode = 1
-		else:
-			exitCode = 0
-		return exitCode
-	
 	def getIndividualSequenceFileRaw(self, individual_sequence_id=None, library=None, md5sum=None, path=None, \
 									original_path=None, mate_id=None, file_size=None):
 		"""
@@ -2977,7 +2960,137 @@ class VervetDB(ElixirDB):
 			self.session.add(db_entry)
 			self.session.flush()
 		return db_entry
-
+	
+	def getAlignmentDepthIntervalMethod(self, short_name=None, description=None, ref_ind_seq_id=None, \
+						individualAlignmentLs=None, parent_db_entry=None, parent_id=None, \
+						no_of_alignments=None, no_of_intervals=None, sum_median_depth=None, sum_mean_depth=None,\
+						data_dir=None):
+		"""
+		2013.08.23
+			examples:
+				alignmentDepthIntervalMethod = self.db_vervet.getAlignmentDepthIntervalMethod(short_name="725VRCAlignmentDepthInterval", \
+														individualAlignmentLs=individualAlignmentLs)
+		"""
+		if not short_name:
+			sys.stderr.write("Error: short_name (%s) is empty.\n"%(short_name))
+			return None
+		
+		if ref_ind_seq_id is None and individualAlignmentLs:
+			firstAlignment = individualAlignmentLs[0]
+			ref_ind_seq_id =firstAlignment.ref_ind_seq_id
+		
+		if parent_db_entry and parent_id is None:
+			parent_id = parent_db_entry.id
+		
+		query = AlignmentDepthIntervalMethod.query.filter_by(short_name=short_name)
+		
+		if ref_ind_seq_id:
+			query = query.filter_by(ref_ind_seq_id=ref_ind_seq_id)
+		if parent_id:
+			query = query.filter_by(parent_id=parent_id)
+		
+		
+		db_entry = query.first()
+		if not db_entry:
+			if individualAlignmentLs:
+				if no_of_alignments is None:
+					no_of_alignments = len(individualAlignmentLs)
+				if sum_median_depth is None:
+					sum_median_depth = sum([db_entry.median_depth for db_entry in individualAlignmentLs])
+				if sum_mean_depth is None:
+					sum_mean_depth = sum([db_entry.mean_depth for db_entry in individualAlignmentLs])
+			
+			db_entry = AlignmentDepthIntervalMethod(short_name=short_name, description=description, ref_ind_seq_id=ref_ind_seq_id,\
+								parent_id=parent_id, no_of_alignments=no_of_alignments, no_of_intervals=no_of_intervals, \
+								sum_median_depth=sum_median_depth, sum_mean_depth=sum_mean_depth)
+			db_entry.individual_alignment_ls = individualAlignmentLs
+			self.session.add(db_entry)
+			self.session.flush()
+			from pymodule.utils import runLocalCommand
+			if not data_dir:
+				data_dir = self.data_dir
+			
+			db_entry.path = db_entry.constructRelativePath()
+			folderAbsPath = os.path.join(data_dir, db_entry.path)
+			
+			if not os.path.isdir(folderAbsPath):	#the upper directory has to be created at this moment.
+				commandline = 'mkdir -p %s'%(folderAbsPath)
+				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+			self.session.add(db_entry)
+			self.session.flush()
+		return db_entry
+	
+	def checkAlignmentDepthIntervalFile(self, db_entry_id=None, alignment_depth_interval_method_id=None, \
+					chromosome=None, no_of_chromosomes=None, format=None,\
+					**keywords):
+		"""
+		2013.08.23
+		"""
+		if db_entry_id:
+			db_entry = self.checkIfEntryInTable(TableClass=AlignmentDepthIntervalFile, id=db_entry_id)
+		else:
+			db_entry = None
+		if not db_entry:
+			query = AlignmentDepthIntervalFile.query.filter_by(alignment_depth_interval_method_id=alignment_depth_interval_method_id)
+	
+			if format:
+				query = query.filter_by(format=format)
+			if no_of_chromosomes:
+				query = query.filter_by(no_of_chromosomes=no_of_chromosomes)
+			if chromosome:
+				query = query.filter_by(chromosome=chromosome)
+			
+			db_entry = query.first()
+		if db_entry:
+			return db_entry
+		else:
+			return None
+	
+	def getAlignmentDepthIntervalFile(self, alignment_depth_interval_method=None, alignment_depth_interval_method_id=None,  \
+					path=None, file_size=None, \
+					chromosome=None, chromosome_size=None, no_of_chromosomes=None, no_of_intervals=None,\
+					format="tsv",\
+					mean_interval_value=None, median_interval_value=None, \
+					min_interval_value=None, max_interval_value=None,\
+					md5sum=None, original_path=None, data_dir=None):
+		"""
+		2013.8.23
+			add argument no_of_chromosomes
+		"""
+		if alignment_depth_interval_method_id is None and alignment_depth_interval_method.id:
+			alignment_depth_interval_method_id = alignment_depth_interval_method.id
+			
+		
+		db_entry = self.checkAlignmentDepthIntervalFile(db_entry_id=None, \
+									alignment_depth_interval_method_id=alignment_depth_interval_method_id, chromosome=chromosome, \
+									no_of_chromosomes=no_of_chromosomes, format=format)
+		if original_path:
+			original_path = os.path.realpath(original_path)
+		
+		if not db_entry:
+			db_entry = AlignmentDepthIntervalFile(path=path, \
+							alignment_depth_interval_method_id=alignment_depth_interval_method_id, chromosome=chromosome, \
+							chromosome_size=chromosome_size, no_of_chromosomes=no_of_chromosomes, no_of_intervals=no_of_intervals,\
+							file_size=file_size, format=format,\
+							mean_interval_value=mean_interval_value, median_interval_value=median_interval_value, \
+							min_interval_value=min_interval_value, max_interval_value=max_interval_value,\
+							md5sum=md5sum, original_path=original_path)
+			if not data_dir:
+				data_dir = self.data_dir
+			if db_entry.file_size is None and db_entry.path:
+				db_entry.file_size = db_entry.getFileSize(data_dir=data_dir)
+			self.session.add(db_entry)
+			self.session.flush()
+			
+			from pymodule.utils import runLocalCommand
+			
+			folderAbsPath = os.path.join(data_dir, db_entry.alignment_depth_interval_method.constructRelativePath())
+			
+			if not os.path.isdir(folderAbsPath):	#the upper directory has to be created at this moment.
+				commandline = 'mkdir -p %s'%(folderAbsPath)
+				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
+		return db_entry
+	
 	def getGenotypeMethod(self, short_name=None, description=None, ref_ind_seq_id=None, \
 						individualAlignmentLs=None, parent_genotype_method=None, parent_id=None, \
 						min_depth=None, max_depth=None, max_missing_rate=None, min_maf=None,\
@@ -2996,7 +3109,7 @@ class VervetDB(ElixirDB):
 		if ref_ind_seq_id is None and individualAlignmentLs:
 			firstAlignment = individualAlignmentLs[0]
 			ref_ind_seq_id =firstAlignment.ref_ind_seq_id
-			
+		
 		if parent_genotype_method and parent_id is None:
 			parent_id = parent_genotype_method.id
 		
@@ -3022,10 +3135,10 @@ class VervetDB(ElixirDB):
 				data_dir = self.data_dir
 			
 			db_entry.path = db_entry.constructRelativePath(subFolder=subFolder)
-			genotypeFileUpperFolder = os.path.join(data_dir, db_entry.path)
+			folderAbsPath = os.path.join(data_dir, db_entry.path)
 			
-			if not os.path.isdir(genotypeFileUpperFolder):	#the upper directory has to be created at this moment.
-				commandline = 'mkdir -p %s'%(genotypeFileUpperFolder)
+			if not os.path.isdir(folderAbsPath):	#the upper directory has to be created at this moment.
+				commandline = 'mkdir -p %s'%(folderAbsPath)
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 			self.session.add(db_entry)
 			self.session.flush()
@@ -3071,10 +3184,10 @@ class VervetDB(ElixirDB):
 			
 			from pymodule.utils import runLocalCommand
 			
-			genotypeFileUpperFolder = os.path.join(data_dir, db_entry.genotype_method.constructRelativePath(subFolder=subFolder))
+			folderAbsPath = os.path.join(data_dir, db_entry.genotype_method.constructRelativePath(subFolder=subFolder))
 			
-			if not os.path.isdir(genotypeFileUpperFolder):	#the upper directory has to be created at this moment.
-				commandline = 'mkdir -p %s'%(genotypeFileUpperFolder)
+			if not os.path.isdir(folderAbsPath):	#the upper directory has to be created at this moment.
+				commandline = 'mkdir -p %s'%(folderAbsPath)
 				return_data = runLocalCommand(commandline, report_stderr=True, report_stdout=True)
 			
 		return db_entry
@@ -4123,6 +4236,32 @@ class VervetDB(ElixirDB):
 		db_entry.no_of_loci = max(noOfLociList)	#take the maximum
 		self.session.add(db_entry)
 		self.session.flush()
+		
+	def updateOneEntryByReducingItsAffiliatedTables(self, db_entry=None, affiliate_table_query=None, \
+									affiliate_table_field_name='no_of_loci', \
+									db_entry_field_name='no_of_loci', ):
+		"""
+		2013.08.23
+		"""
+		reduce_value = 0
+		for affiliate_table_entry in affiliate_table_query:
+			reduce_value += getattr(affiliate_table_entry, affiliate_table_field_name, 0)
+		setattr(db_entry, db_entry_field_name, reduce_value)
+		self.session.add(db_entry)
+		self.session.flush()
+
+	def updateAlignmentDepthIntervalMethodNoOfIntervals(self, db_entry=None, format=None, no_of_chromosomes=None):
+		"""
+		2013.08.23
+		"""
+		query = AlignmentDepthIntervalFile.query.filter_by(alignment_depth_interval_method_id=db_entry.id)
+		if format:
+			query = query.filter_by(format=format)
+		if no_of_chromosomes:	#2012.8.30
+			query = query.filter_by(no_of_chromosomes = no_of_chromosomes)
+		self.updateOneEntryByReducingItsAffiliatedTables(db_entry=db_entry, affiliate_table_query=query,\
+							affiliate_table_field_name='no_of_intervals', db_entry_field_name='no_of_intervals')
+		
 	
 if __name__ == '__main__':
 	main_class = VervetDB

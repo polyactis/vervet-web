@@ -49,3 +49,18 @@ class AbstractVervetMapper(AbstractDBInteractingClass):
 		db_vervet.setup(create_tables=False)
 		self.db_vervet = db_vervet
 	
+	def checkIfAlignmentListMatchMethodDBEntry(self, individualAlignmentLs=[], methodDBEntry=None, session=None):
+		"""
+		2013.08.23 moved from AddVCFFile2DB.py
+		2012.7.18
+		"""
+		#make sure methodDBEntry.individual_alignment_ls is identical to individualAlignmentLs
+		alignmentIDSetInFile = set([alignment.id for alignment in individualAlignmentLs])
+		alignmentIDSetInGenotypeMethod = set([alignment.id for alignment in methodDBEntry.individual_alignment_ls])
+		if alignmentIDSetInFile!=alignmentIDSetInGenotypeMethod:
+			sys.stderr.write("ERROR: alignmentIDSetInFile (%s) doesn't match alignmentIDSetInFile (%s).\n"%\
+							(repr(alignmentIDSetInFile), repr(alignmentIDSetInGenotypeMethod)))
+			if session:
+				session.rollback()
+			#delete all target files if there is any
+			self.cleanUpAndExitOnFailure(exitCode=2)

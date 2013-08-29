@@ -1,7 +1,7 @@
 #!/bin/bash
 # 2012.5.6
-minMapQDefault=20
-minBaseQDefault=30
+minMapQDefault=0
+minBaseQDefault=0
 if test $# -lt 3
 then
 	echo "Usage: $0 samtoolsPath inputBam outputDepthFname [minMapQ] [minBaseQ] [moreSAMtoolsArguments]"
@@ -43,6 +43,7 @@ echo minMapQ: $minMapQ
 echo minBaseQ: $minBaseQ
 
 commandline="$samtoolsPath depth -q $minMapQ -Q $minBaseQ $arguments $inputBam"
+#commandline="$samtoolsPath depth  $arguments $inputBam"
 outputFilenameLength=`expr length $outputDepthFname`
 gzSuffixStartPosition=`echo $outputFilenameLength-3+1|bc`
 gzSuffix=`expr substr $outputDepthFname $gzSuffixStartPosition 3`

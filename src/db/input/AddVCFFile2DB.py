@@ -78,21 +78,6 @@ class AddVCFFile2DB(AbstractVervetMapper):
 		sys.stderr.write("%s loci & %s chromosomes in this file.\n"%(no_of_loci, len(chromosome2noOfLoci)))
 		return PassingData(no_of_loci=no_of_loci, chromosome2noOfLoci=chromosome2noOfLoci)
 	
-	def checkIfAlignmentListMatchDB(self, individualAlignmentLs=[], genotypeMethod=None, session=None):
-		"""
-		2012.7.18
-		"""
-		#make sure genotypeMethod.individual_alignment_ls is identical to individualAlignmentLs
-		alignmentIDSetInFile = set([alignment.id for alignment in individualAlignmentLs])
-		alignmentIDSetInGenotypeMethod = set([alignment.id for alignment in genotypeMethod.individual_alignment_ls])
-		if alignmentIDSetInFile!=alignmentIDSetInGenotypeMethod:
-			sys.stderr.write("ERROR: alignmentIDSetInFile (%s) doesn't match alignmentIDSetInFile (%s).\n"%\
-							(repr(alignmentIDSetInFile), repr(alignmentIDSetInGenotypeMethod)))
-			if session:
-				session.rollback()
-			#delete all target files if there is any
-			self.cleanUpAndExitOnFailure(exitCode=2)
-		
 	def run(self):
 		"""
 		2012.7.13
@@ -119,7 +104,7 @@ class AddVCFFile2DB(AbstractVervetMapper):
 															individualAlignmentLs=individualAlignmentLs,\
 															no_of_individuals=len(individualAlignmentLs), no_of_loci=None,\
 															data_dir=self.data_dir)
-			self.checkIfAlignmentListMatchDB(individualAlignmentLs, genotypeMethod, session)
+			self.checkIfAlignmentListMatchMethodDBEntry(individualAlignmentLs, genotypeMethod, session)
 			
 			pdata = self.getNoOfLociFromVCFFile(vcfFile)
 			chromosome2noOfLoci = pdata.chromosome2noOfLoci

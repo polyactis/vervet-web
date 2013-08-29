@@ -63,7 +63,7 @@ class AddGenotypeMethod2DB(AddVCFFile2DB):
 												individualAlignmentLs=individualAlignmentLs,\
 												no_of_individuals=len(individualAlignmentLs), no_of_loci=None,\
 												data_dir=self.data_dir)
-		self.checkIfAlignmentListMatchDB(individualAlignmentLs, genotypeMethod, session)
+		self.checkIfAlignmentListMatchMethodDBEntry(individualAlignmentLs, genotypeMethod, session)
 		self.outputLogMessage(logMessage="genotypeMethod %s (%s) added into db.\n"%\
 							(genotypeMethod.id, self.genotypeMethodShortName))
 		if self.commit:

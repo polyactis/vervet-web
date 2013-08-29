@@ -109,21 +109,96 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		"""
 		"""
 		GenericVCFWorkflow.__init__(self, **keywords)
+
+	movingAverageRunType2movingAverageName = {1: "median", 2:"mean", 3:"fraction", 4:"meanPerBase"}
 	
-	def _addGenomeMovingAvgAndPlotJob(self, splitPlinkLMendelFileSNPIDIntoChrPositionJob=None, mergeOutputDirJob=None, plotOutputDirJob=None,\
-									returnData=None, windowSize=500000, minValueForFraction=1, \
-									run_type=1):
+	def addOutputGenomeAnnotationAndMovingAverageJob(self, outputDirJob=None, plotOutputDirJob=None, \
+					windowSize=400000, windowOverlapSize=100000, movingAverageRunType=4, minValueForFraction=1, ):
+		"""
+		2013.08.28
+		"""
+		
+		outputGenomeAnnotationJob = self.addAbstractGenomeFileWalkerJob(executable=self.OutputGenomeAnnotation, \
+					inputFileList=None, inputFile=None, \
+					outputFile=File(os.path.join(outputDirJob.output, 'genomeAnnotatioGapAndCentromerePerBaseForTaxID%s.tsv.gz'%\
+												(self.ref_genome_tax_id))), \
+					outputFnamePrefix=None, whichColumn=None, whichColumnHeader="is_annotated", \
+					chrColumnHeader="chromosome", \
+					tax_id=self.ref_genome_tax_id, sequence_type_id=self.ref_genome_sequence_type_id, chrOrder=1,\
+					positionHeader="position",\
+					inputFileFormat=1, outputFileFormat=None,\
+					parentJobLs=[outputDirJob], \
+					extraDependentInputLs=None, \
+					extraArgumentList=["--annotation_type_id_list 1,5"], \
+					extraArguments=None, transferOutput=False,  job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, \
+					objectWithDBGenomeArguments=self)
+		
+		averageColumnHeader = '%sGapCentromere'%(self.movingAverageRunType2movingAverageName.get(movingAverageRunType))
+		extraArgumentList=["--windowSize %s"%(windowSize), "--windowOverlapSize %s"%(windowOverlapSize), \
+						"--run_type %s"%(movingAverageRunType),  \
+						'--outputAverageColumnHeader %s'%(averageColumnHeader)]
+		if movingAverageRunType==3:
+			extraArgumentList.append("--minValueForFraction %s"%(minValueForFraction))
+		genomeMovingAverageJob= self.addAbstractGenomeFileWalkerJob(executable=self.GenomeMovingAverageStatistics, \
+					inputFileList=None, inputFile=outputGenomeAnnotationJob.output, \
+					outputFile=File(os.path.join(outputDirJob.output, 'genomeAnnotatioGapAndCentromere_wSize%s_o%s_run_type%s_%s.tsv.gz'%\
+												(windowSize, windowOverlapSize, movingAverageRunType, self.movingAverageRunType2movingAverageName.get(movingAverageRunType)))), \
+					outputFnamePrefix=None, whichColumn=None, whichColumnHeader="is_annotated", \
+					logY=None, valueForNonPositiveYValue=-1, \
+					minNoOfTotal=10,\
+					samplingRate=1, \
+					chrColumnHeader="chromosome", \
+					tax_id=self.ref_genome_tax_id, sequence_type_id=self.ref_genome_sequence_type_id, chrOrder=1,\
+					positionHeader="position",\
+					inputFileFormat=1, outputFileFormat=None,\
+					parentJobLs=[outputGenomeAnnotationJob, outputDirJob], \
+					extraDependentInputLs=None, \
+					extraArgumentList=extraArgumentList, \
+					extraArguments=None, transferOutput=True,  job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, \
+					objectWithDBGenomeArguments=self)
+		genomeMovingAverageJob.averageColumnHeader = averageColumnHeader
+		
+		outputFile = File(os.path.join(plotOutputDirJob.output, 'genomeAnnotatioGapAndCentromere_wSize%s_o%s_run_type%s_%s.png'%\
+									(windowSize, windowOverlapSize, movingAverageRunType, self.movingAverageRunType2movingAverageName.get(movingAverageRunType))))
+		self.addPlotGenomeWideDataJob(inputFileList=None, \
+							inputFile=genomeMovingAverageJob.output,\
+							outputFile=outputFile,\
+							whichColumn=None, \
+							whichColumnHeader=genomeMovingAverageJob.averageColumnHeader, \
+							whichColumnPlotLabel="%s_Gap_Centromere"%(self.movingAverageRunType2movingAverageName.get(movingAverageRunType)), \
+							logX=None, logY=None, valueForNonPositiveYValue=-1, \
+							xScaleLog=None, yScaleLog=None,\
+							missingDataNotation='NA',\
+							xColumnPlotLabel="genomePosition", xColumnHeader="start", \
+							xtickInterval=20000000,\
+							drawCentromere=True, chrColumnHeader="chromosome", \
+							minChrLength=None, minNoOfTotal=None, maxNoOfTotal=None, \
+							figureDPI=100, formatString=".", ylim_type=2, samplingRate=1, logCount=False, need_svg=True,\
+							tax_id=self.ref_genome_tax_id, sequence_type_id=self.ref_genome_sequence_type_id, chrOrder=1,\
+							inputFileFormat=1, outputFileFormat=None,\
+							parentJobLs=[genomeMovingAverageJob, plotOutputDirJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, extraArgumentList=None, \
+							transferOutput=True, job_max_memory=1000, sshDBTunnel=self.needSSHDBTunnel)
+		
+		return genomeMovingAverageJob
+	
+	def _addGenomeMovingAvgAndPlotJob(self, splitPlinkLMendelFileSNPIDIntoChrPositionJob=None, outputDirJob=None, plotOutputDirJob=None,\
+									returnData=None, windowSize=400000, windowOverlapSize=100000, minValueForFraction=1, \
+									movingAverageRunType=1, genomeWideGapDataJob=None):
 		"""
 		2013.07.31
 		"""
-		run_type2movingAverageName = {1: "median", 2:"mean", 3:"fraction"}
-		extraArgumentList=["--windowSize %s"%(windowSize), "--windowOverlapSize 0", "--run_type %s"%(run_type),  ]
-		if run_type==3:
+		averageColumnHeader = '%sMendelError'%(self.movingAverageRunType2movingAverageName.get(movingAverageRunType))
+		extraArgumentList=["--windowSize %s"%(windowSize), "--windowOverlapSize %s"%(windowOverlapSize), \
+						"--run_type %s"%(movingAverageRunType), \
+						'--outputAverageColumnHeader %s'%(averageColumnHeader)]
+		if movingAverageRunType==3:
 			extraArgumentList.append("--minValueForFraction %s"%(minValueForFraction))
 		genomeMovingAverageJob= self.addAbstractGenomeFileWalkerJob(executable=self.GenomeMovingAverageStatistics, \
 					inputFileList=None, inputFile=splitPlinkLMendelFileSNPIDIntoChrPositionJob.output, \
-					outputFile=File(os.path.join(mergeOutputDirJob.output, 'merged_lmendel_windowSize%s_run_type%s_%s.tsv'%\
-												(windowSize, run_type, run_type2movingAverageName.get(run_type)))), \
+					outputFile=File(os.path.join(outputDirJob.output, 'merged_lmendel_wSize%s_o%s_run_type%s_%s.tsv'%\
+												(windowSize, windowOverlapSize, movingAverageRunType, self.movingAverageRunType2movingAverageName.get(movingAverageRunType)))), \
 					outputFnamePrefix=None, whichColumn=None, whichColumnHeader="N", \
 					logY=None, valueForNonPositiveYValue=-1, \
 					minNoOfTotal=10,\
@@ -132,20 +207,22 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 					tax_id=self.ref_genome_tax_id, sequence_type_id=self.ref_genome_sequence_type_id, chrOrder=1,\
 					positionHeader="Start",\
 					inputFileFormat=1, outputFileFormat=None,\
-					parentJobLs=[splitPlinkLMendelFileSNPIDIntoChrPositionJob, mergeOutputDirJob], \
+					parentJobLs=[splitPlinkLMendelFileSNPIDIntoChrPositionJob, outputDirJob], \
 					extraDependentInputLs=None, \
 					extraArgumentList=extraArgumentList, \
 					extraArguments=None, transferOutput=False,  job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel, \
 					objectWithDBGenomeArguments=self)
+		genomeMovingAverageJob.averageColumnHeader = averageColumnHeader
 		returnData.jobDataLs.append(self.constructJobDataFromJob(genomeMovingAverageJob))
 		
-		outputFile = File(os.path.join(plotOutputDirJob.output, 'mendelError_windowSize%s_run_type%s_%s.png'%\
-									(windowSize, run_type, run_type2movingAverageName.get(run_type))))
+		outputFile = File(os.path.join(plotOutputDirJob.output, 'mendelError_wSize%s_o%s_run_type%s_%s.png'%\
+									(windowSize, windowOverlapSize, movingAverageRunType, self.movingAverageRunType2movingAverageName.get(movingAverageRunType))))
 		self.addPlotGenomeWideDataJob(inputFileList=None, \
 							inputFile=genomeMovingAverageJob.output,\
 							outputFile=outputFile,\
 							whichColumn=None, \
-							whichColumnHeader="score", whichColumnPlotLabel="%sMendelError"%(run_type2movingAverageName.get(run_type)), \
+							whichColumnHeader=genomeMovingAverageJob.averageColumnHeader, \
+							whichColumnPlotLabel="%sMendelError"%(self.movingAverageRunType2movingAverageName.get(movingAverageRunType)), \
 							logX=None, logY=None, valueForNonPositiveYValue=-1, \
 							xScaleLog=None, yScaleLog=None,\
 							missingDataNotation='NA',\
@@ -153,13 +230,44 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							xtickInterval=20000000,\
 							drawCentromere=True, chrColumnHeader="chromosome", \
 							minChrLength=None, minNoOfTotal=None, maxNoOfTotal=None, \
-							figureDPI=100, formatString=".", ylim_type=2, samplingRate=1, logCount=False, need_svg=False,\
+							figureDPI=100, formatString=".", ylim_type=2, samplingRate=1, logCount=False, need_svg=True,\
 							tax_id=self.ref_genome_tax_id, sequence_type_id=self.ref_genome_sequence_type_id, chrOrder=1,\
 							inputFileFormat=1, outputFileFormat=None,\
 							parentJobLs=[genomeMovingAverageJob, plotOutputDirJob], \
 							extraDependentInputLs=None, \
 							extraArguments=None, extraArgumentList=None, \
 							transferOutput=True, job_max_memory=1000, sshDBTunnel=self.needSSHDBTunnel)
+		
+		outputFile = File(os.path.join(outputDirJob.output, 'mendelError_wSize%s_o%s_run_type%s_%s_vs_gap_centromere.tsv'%\
+									(windowSize, windowOverlapSize, movingAverageRunType, self.movingAverageRunType2movingAverageName.get(movingAverageRunType)) ) )
+		
+		concatenateGWMendelErrorAndGapCentromereJob = self.addStatMergeJob(statMergeProgram=self.ReduceMatrixByMergeColumnsWithSameKey, \
+							outputF=outputFile, parentJobLs=[outputDirJob],\
+							extraArguments='--keyColumnLs 0,1,2 --valueColumnLs 4', transferOutput=False)
+		self.addInputToStatMergeJob(statMergeJob=concatenateGWMendelErrorAndGapCentromereJob, \
+							parentJobLs=[genomeMovingAverageJob])
+		self.addInputToStatMergeJob(statMergeJob=concatenateGWMendelErrorAndGapCentromereJob, \
+							parentJobLs=[genomeWideGapDataJob])
+		returnData.jobDataLs.append(PassingData(jobLs=[concatenateGWMendelErrorAndGapCentromereJob], \
+											fileLs=[concatenateGWMendelErrorAndGapCentromereJob.output]))
+		
+		outputFile = File(os.path.join(plotOutputDirJob.output, 'genome_wide_wSize%s_o%s_%s_vs_%s.png'%\
+									(windowSize, windowOverlapSize, genomeMovingAverageJob.averageColumnHeader, genomeWideGapDataJob.averageColumnHeader)))
+		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+		self.addAbstractPlotJob(executable=self.AbstractPlot, \
+							inputFileList=[concatenateGWMendelErrorAndGapCentromereJob.output], \
+							outputFile=outputFile, \
+							whichColumn=None, whichColumnHeader=genomeWideGapDataJob.averageColumnHeader, \
+							whichColumnPlotLabel=genomeWideGapDataJob.averageColumnHeader,\
+							xColumnHeader=genomeMovingAverageJob.averageColumnHeader, \
+							xColumnPlotLabel=genomeMovingAverageJob.averageColumnHeader, \
+							xScaleLog=0, yScaleLog=0, \
+							minNoOfTotal=1,\
+							figureDPI=150, samplingRate=1,legendType=0,\
+							need_svg=True, \
+							parentJobLs=[plotOutputDirJob, concatenateGWMendelErrorAndGapCentromereJob], \
+							extraDependentInputLs=None, \
+							extraArguments=None, transferOutput=True, job_max_memory=2000)
 	
 	def setupForPlinkMendelSubWorkflow(self, workflow=None, inputData=None, transferOutput=True,\
 						outputDirPrefix="", **keywords):
@@ -181,6 +289,15 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		
 		plotOutputDir = "%sPlot"%(outputDirPrefix)
 		plotOutputDirJob = self.addMkDirJob(outputDir=plotOutputDir)
+		
+		windowSize=400000
+		windowOverlapSize=100000
+		
+		if not getattr(self, "genomeWideGapDataJob", None):
+			self.genomeWideGapDataJob = self.addOutputGenomeAnnotationAndMovingAverageJob(outputDirJob=mergeOutputDirJob,\
+							plotOutputDirJob=plotOutputDirJob, \
+							windowSize=windowSize, windowOverlapSize=windowOverlapSize, \
+							movingAverageRunType=4)
 		
 		mendelMergeFile = File(os.path.join(mergeOutputDir, 'merged_mendel.tsv'))
 		#each input has no header
@@ -272,7 +389,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							xtickInterval=20000000,\
 							drawCentromere=True, chrColumnHeader="Chromosome", \
 							minChrLength=None, minNoOfTotal=None, maxNoOfTotal=None, \
-							figureDPI=100, formatString=".", ylim_type=2, samplingRate=1, logCount=False, need_svg=False,\
+							figureDPI=100, formatString=".", ylim_type=2, samplingRate=1, logCount=False, need_svg=True,\
 							tax_id=self.ref_genome_tax_id, sequence_type_id=self.ref_genome_sequence_type_id, chrOrder=1,\
 							inputFileFormat=1, outputFileFormat=None,\
 							parentJobLs=[splitPlinkLMendelFileSNPIDIntoChrPositionJob, plotOutputDirJob], \
@@ -281,17 +398,20 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 							transferOutput=True, job_max_memory=1000, sshDBTunnel=self.needSSHDBTunnel)
 		
 		self._addGenomeMovingAvgAndPlotJob(splitPlinkLMendelFileSNPIDIntoChrPositionJob=splitPlinkLMendelFileSNPIDIntoChrPositionJob, \
-										mergeOutputDirJob=mergeOutputDirJob, plotOutputDirJob=plotOutputDirJob, \
-										returnData=returnData, windowSize=500000, \
-										minValueForFraction=1, run_type=1)
+										outputDirJob=mergeOutputDirJob, plotOutputDirJob=plotOutputDirJob, \
+										returnData=returnData, windowSize=windowSize, windowOverlapSize=windowOverlapSize, \
+										minValueForFraction=1, movingAverageRunType=1, \
+										genomeWideGapDataJob=self.genomeWideGapDataJob)
 		self._addGenomeMovingAvgAndPlotJob(splitPlinkLMendelFileSNPIDIntoChrPositionJob=splitPlinkLMendelFileSNPIDIntoChrPositionJob, \
-										mergeOutputDirJob=mergeOutputDirJob, plotOutputDirJob=plotOutputDirJob, \
-										returnData=returnData, windowSize=500000, \
-										minValueForFraction=1, run_type=2)
+										outputDirJob=mergeOutputDirJob, plotOutputDirJob=plotOutputDirJob, \
+										returnData=returnData, windowSize=windowSize, windowOverlapSize=windowOverlapSize, \
+										minValueForFraction=1, movingAverageRunType=2,\
+										genomeWideGapDataJob=self.genomeWideGapDataJob)
 		self._addGenomeMovingAvgAndPlotJob(splitPlinkLMendelFileSNPIDIntoChrPositionJob=splitPlinkLMendelFileSNPIDIntoChrPositionJob, \
-										mergeOutputDirJob=mergeOutputDirJob, plotOutputDirJob=plotOutputDirJob, \
-										returnData=returnData, windowSize=500000, \
-										minValueForFraction=1, run_type=3)
+										outputDirJob=mergeOutputDirJob, plotOutputDirJob=plotOutputDirJob, \
+										returnData=returnData, windowSize=windowSize, windowOverlapSize=windowOverlapSize, \
+										minValueForFraction=1, movingAverageRunType=3,\
+										genomeWideGapDataJob=self.genomeWideGapDataJob)
 		#2013.1.8
 		meanMedianModePerLocusMendelErrorFile = File(os.path.join(mergeOutputDirJob.output, "meanMedianModePerLocusMendelError.tsv"))
 		meanMedianModePerLocusMendelErrorJob = self.addCalculateDepthMeanMedianModeJob(\

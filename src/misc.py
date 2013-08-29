@@ -8244,6 +8244,45 @@ class VervetGenome(object):
 		
 		"""
 	
+	
+	@classmethod
+	def addUnlocatedScaffoldsIntoReferenceGenome(cls, refGenomeFastaFname=None, unlocatedScaffoldFolder=None):
+		"""
+		2013.08.26
+			this program would append scaffolds from unlocatedScaffoldFolder to refGenomeFastaFname.
+			so refGenomeFastaFname would be modified, not overwritten.
+		"""
+		sys.stderr.write("Adding unlocated scaffolds from %s into %s ... \n"%(unlocatedScaffoldFolder, refGenomeFastaFname))
+		import glob
+		from Bio import SeqIO, Seq
+		outf = open(refGenomeFastaFname, 'a')
+		noOfRecords= 0
+		noOfBases = 0
+		noOfRecordsWithEmptySequence=0
+		for inputFname in glob.glob("%s/*_random.fa"%(unlocatedScaffoldFolder)):
+			sys.stderr.write(" \t %s "%(inputFname))
+			handle = open(inputFname, "r")
+			for record in SeqIO.parse(handle, "fasta") :
+				if len(record.seq)>0:
+					noOfRecords += 1
+					noOfBases += len(record.seq)
+					SeqIO.write([record], outf, "fasta")
+				else:
+					noOfRecordsWithEmptySequence += 1
+			handle.close()
+			sys.stderr.write("  noOfRecordsWithEmptySequence=%s, noOfRecords=%s, noOfBases=%s \n"%(noOfRecordsWithEmptySequence, noOfRecords, noOfBases))
+		outf.close()
+		sys.stderr.write("Added %s scaffolds and %s bases. %s scaffolds with empty sequence.\n"%(noOfRecords, noOfBases, noOfRecordsWithEmptySequence))
+		
+	"""
+		#2013.08.26
+		refGenomeFastaFname = os.path.expanduser("~/NetworkData/vervet/db/individual_sequence/3498_indID1_codeVRC_ref_sequencer3_seqType1_filtered0_version4.fasta")
+		unlocatedScaffoldFolder = os.path.expanduser("~/NetworkData/vervet/raw_sequence/Chlorocebus_sabaeus_1.0/Chlorocebus_sabaeus_1.0.chromosomal_agp_fasta/")
+		VervetGenome.addUnlocatedScaffoldsIntoReferenceGenome(refGenomeFastaFname=refGenomeFastaFname, \
+				unlocatedScaffoldFolder=unlocatedScaffoldFolder)
+		sys.exit(0)
+	"""
+
 	@classmethod
 	def extractGeneRoughLocationFromHumanExonBlastResult(cls, blastInputFname=None, outputFname=None):
 		"""
@@ -8618,7 +8657,12 @@ class Main(object):
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
 		
-		
+		#2013.08.26
+		refGenomeFastaFname = os.path.expanduser("~/NetworkData/vervet/db/individual_sequence/3498_indID1_codeVRC_ref_sequencer3_seqType1_filtered0_version4.fasta")
+		unlocatedScaffoldFolder = os.path.expanduser("~/NetworkData/vervet/raw_sequence/Chlorocebus_sabaeus_1.0/Chlorocebus_sabaeus_1.0.chromosomal_agp_fasta/")
+		VervetGenome.addUnlocatedScaffoldsIntoReferenceGenome(refGenomeFastaFname=refGenomeFastaFname, \
+				unlocatedScaffoldFolder=unlocatedScaffoldFolder)
+		sys.exit(0)
 		
 		
 		#2012.9.25 update the file_size for the existing db entries
