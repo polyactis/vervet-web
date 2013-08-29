@@ -3,12 +3,13 @@
 Examples:
 	%s 
 	
-	%s -i  folder/Contig456.filter_by_vcftools.recode.vcf.gz  -s 323VRCSKNevisTrioCallerMAC10MAF.05 -f VCF
-		-c -v postgresql -z uclaOffice -d vervetdb -u yh  -k public
+	%s --db_user yh --schema public -i  folderReduce/63_alignments_CAE5_depth_GADAOut_minSegLength1000.tsv.gz
+		--methodShortName PopSabaeusCoverageOn3488 --alignmentIDList 6115-6177 --chromosome CAE5 --format tsv
+		--data_dir /u/home/p/polyacti/NetworkData/vervet/db/ --commit
+		--logFilename  folderLog/AddAlignmentDepthIntervalFile2DB_chr_CAE5.log
 
 Description:
-	2012.5.2
-		Add locus from one VCF file into database. 
+	2013.08.29 add a new AlignmentDepthIntervalFile into db
 """
 
 import sys, os, math
