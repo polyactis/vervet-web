@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import copy
-from Pegasus.DAX3 import *
+from Pegasus.DAX3 import Executable, PFN, File
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, NextGenSeq
 from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 from vervet.src import VervetDB
