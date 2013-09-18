@@ -3,11 +3,11 @@
 Examples:
 	# all sites
 	%s -i AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/gatk/Contig119.vcf.gz
-		--outputFnamePrefix /tmp/Contig119.trio.75_17_86.het.homo.inconsistency -t 552_75,554_17,555_86
+		--outputFnamePrefix /tmp/Contig119.trio.75_17_86.het.homo.inconsistency --trio_id 552_75,554_17,555_86
 	
 	# homo ony
 	%s -i AlignmentToCallPipeline_AllVRC_Barbados_552_554_555_626_630_649_vs_524_top_156Contigs_condor_20110922T2216/gatk/Contig119.vcf.gz
-		--outputFnamePrefix /tmp/Contig119.trio.75_17_86.homo.only.inconsistency -t 552_75,554,555_86 -m
+		--outputFnamePrefix /tmp/Contig119.trio.75_17_86.homo.only.inconsistency --trio_id 552_75,554,555_86 --homoOnly
 	
 
 Description:
@@ -33,22 +33,21 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 	__doc__ = __doc__
 	option_default_dict = copy.deepcopy(AbstractVCFMapper.option_default_dict)
 	option_default_dict.update({
-						('trio_id', 1, ): ['', 't', 1, 'a comma-separated list of fa_id,mo_id,child_id. Each id is in the format of check IndividualAlignment.getCompositeID().\
+						('trio_id', 1, ): ['', '', 1, 'a comma-separated list of fa_id,mo_id,child_id. Each id is in the format of check IndividualAlignment.getCompositeID().\
 							Only the first digit, alignment.id, is required. \
 							Use 0 for missing parent.', ],\
-						("home_path", 1, ): [os.path.expanduser("~"), 'e', 1, 'path to the home directory on the working nodes'],\
+						("home_path", 1, ): [os.path.expanduser("~"), '', 1, 'path to the home directory on the working nodes'],\
 						("refSize", 0, int): [0, '', 1, 'size of the reference used for the input VCF file. NOT used now.'],\
 						("windowSize", 1, int): [200000, 'w', 1, 'calculate inconsistency within each window'],\
-						('homoOnly', 0, int):[0, 'm', 0, 'toggle to look at homozygous-only sites'],\
-						('minDepth', 1, float): [1, '', 1, 'minimum depth for a call to regarded as non-missing', ],\
+						('homoOnly', 0, int):[0, '', 0, 'toggle to look at homozygous-only sites'],\
 						})
+						#('minDepth', 1, float): [1, '', 1, 'minimum depth for a call to regarded as non-missing', ],\
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 
 	def __init__(self,  **keywords):
 		"""
 		2011-7-11
 		"""
-		from pymodule import ProcessOptions
 		self.ad = ProcessOptions.process_function_arguments(keywords, self.option_default_dict, error_doc=self.__doc__, \
 														class_to_have_attr=self)
 		#record it as string
@@ -113,11 +112,11 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 		windowKeyLs.sort()
 		for windowKey in windowKeyLs:
 			data = windowKey2data.get(windowKey)
-			chr, windowNo = windowKey[:2]
+			chromosome, windowNo = windowKey[:2]
 			inconsistency = data[0]/data[1]
 			windowStartPos = windowNo*windowSize + 1
 			windowStopPos = (windowNo+1)*windowSize
-			data = [trio_set_str, chr, windowStartPos, windowStopPos, data[0], data[1], inconsistency]
+			data = [trio_set_str, chromosome, windowStartPos, windowStopPos, data[0], data[1], inconsistency]
 			windowOutputWriter.writerow(data)
 		del windowOutputWriter
 		
@@ -132,15 +131,15 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 		frequencyKeyLs.sort()
 		for frequencyKey in frequencyKeyLs:
 			data = frequencyKey2data.get(frequencyKey)
-			chr, frequencyRounded = frequencyKey[:2]
+			chromosome, frequencyRounded = frequencyKey[:2]
 			inconsistency = data[0]/data[1]
 			startFrequency = frequencyRounded
 			stopFrequency = frequencyRounded + 0.1
-			data = [trio_set_str, chr, startFrequency, stopFrequency, data[0], data[1], inconsistency]
+			data = [trio_set_str, chromosome, startFrequency, stopFrequency, data[0], data[1], inconsistency]
 			frequencyOutputWriter.writerow(data)
 		del frequencyOutputWriter
 	
-	def openOutputFiles(self, outputFnamePrefix, windowSize=None):
+	def openOutputFiles(self, outputFnamePrefix=None, windowSize=None):
 		"""
 		2011-12-13
 		"""
@@ -195,8 +194,8 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 		depthOutputWriter = outputDStruc.depthOutputWriter
 		summaryOutputWriter = outputDStruc.summaryOutputWriter
 		
-		windowKey2data = {}	#(chr,window No.) as key, [no_of_inconsistent, no_of_total, ratio] as value
-		frequencyKey2data = {}	#(chr, frequency) as key, [no_of_inconsistent, no_of_total, ratio] as value
+		windowKey2data = {}	#(chromosome,window No.) as key, [no_of_inconsistent, no_of_total, ratio] as value
+		frequencyKey2data = {}	#(chromosome, frequency) as key, [no_of_inconsistent, no_of_total, ratio] as value
 		depth2data = {}	#depth is key, [no_of_inconsistent, no_of_total, ratio] as value
 		#for summary statistic
 		no_of_inconsistent = 0.
@@ -204,7 +203,7 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 		chr_set = set()
 		minStart = None
 		for vcfRecord in vcfFile.parseIter():
-			chr = vcfRecord.chr
+			chromosome = vcfRecord.chromosome
 			pos = vcfRecord.pos
 			pos = int(pos)
 			if pos>self.refSize:
@@ -212,7 +211,7 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 			if minStart is None or pos<minStart:
 				minStart = pos
 			
-			chr_set.add(chr)
+			chr_set.add(chromosome)
 			
 			pa_genotypeData = vcfRecord.data_row[parent_index]
 			child_genotypeData = vcfRecord.data_row[child_index]
@@ -232,14 +231,14 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 						potential_child_genotype_set.add('%s%s'%(parent_allele, anotherAllele))
 				
 				windowNo = int(pos/self.windowSize)
-				windowKey = (chr, windowNo)
+				windowKey = (chromosome, windowNo)
 				if windowKey not in windowKey2data:
 					windowKey2data[windowKey] = [0., 0., 0.] #[no_of_inconsistent, no_of_total, ratio]
 				windowKey2data[windowKey][1] += 1
 				
 				frequency = vcfRecord.getAAF()
 				frequencyRounded = int(frequency*10)/10.0	#round it by 0.1 interval
-				frequencyKey = (chr, frequencyRounded)
+				frequencyKey = (chromosome, frequencyRounded)
 				if frequencyKey not in frequencyKey2data:
 					frequencyKey2data[frequencyKey] = [0., 0., 0.] #[no_of_inconsistent, no_of_total, ratio]
 				frequencyKey2data[frequencyKey][1] += 1
@@ -252,7 +251,7 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 					windowKey2data[windowKey][0] += 1
 					frequencyKey2data[frequencyKey][0] += 1
 					isInconsistent = 1
-				depthOutputWriter.writerow([self.trio_set_str, chr, pos, pa_depth, pa_depth, child_depth, isInconsistent])
+				depthOutputWriter.writerow([self.trio_set_str, chromosome, pos, pa_depth, pa_depth, child_depth, isInconsistent])
 		
 		del depthOutputWriter
 		
@@ -287,8 +286,8 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 		depthOutputWriter = outputDStruc.depthOutputWriter
 		summaryOutputWriter = outputDStruc.summaryOutputWriter
 		
-		windowKey2data = {}	#(chr,window No.) as key, [no_of_inconsistent, no_of_total, ratio] as value
-		frequencyKey2data = {}	#(chr, frequency) as key, [no_of_inconsistent, no_of_total, ratio] as value
+		windowKey2data = {}	#(chromosome,window No.) as key, [no_of_inconsistent, no_of_total, ratio] as value
+		frequencyKey2data = {}	#(chromosome, frequency) as key, [no_of_inconsistent, no_of_total, ratio] as value
 		depth2data = {}	#depth is key, [no_of_inconsistent, no_of_total, ratio] as value
 		#for summary statistic
 		no_of_inconsistent = 0.
@@ -296,7 +295,7 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 		chr_set = set()
 		minStart = None
 		for vcfRecord in vcfFile.parseIter():
-			chr = vcfRecord.chr
+			chromosome = vcfRecord.chromosome
 			pos = vcfRecord.pos
 			pos = int(pos)
 			if pos>self.refSize:
@@ -304,7 +303,7 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 			if minStart is None or pos<minStart:
 				minStart = pos
 			
-			chr_set.add(chr)
+			chr_set.add(chromosome)
 			
 			fa_genotypeData = vcfRecord.data_row[father_index]
 			mo_genotypeData = vcfRecord.data_row[mother_index]
@@ -328,14 +327,14 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 						potential_child_genotype_set.add('%s%s'%(fg,mg))
 				
 				windowNo = int(pos/self.windowSize)
-				windowKey = (chr, windowNo)
+				windowKey = (chromosome, windowNo)
 				if windowKey not in windowKey2data:
 					windowKey2data[windowKey] = [0., 0., 0.] #[no_of_inconsistent, no_of_total, ratio]
 				windowKey2data[windowKey][1] += 1
 
 				frequency = vcfRecord.getAAF()
 				frequencyRounded = int(frequency*10)/10.0	#round it by 0.1 interval
-				frequencyKey = (chr, frequencyRounded)
+				frequencyKey = (chromosome, frequencyRounded)
 				if frequencyKey not in frequencyKey2data:
 					frequencyKey2data[frequencyKey] = [0., 0., 0.] #[no_of_inconsistent, no_of_total, ratio]
 				frequencyKey2data[frequencyKey][1] += 1
@@ -348,7 +347,7 @@ class CalculateTrioInconsistency(AbstractVCFMapper):
 					windowKey2data[windowKey][0] += 1
 					frequencyKey2data[frequencyKey][0] += 1
 					isInconsistent = 1
-				depthOutputWriter.writerow([self.trio_set_str, chr, pos, fa_depth, mo_depth, child_depth, isInconsistent])
+				depthOutputWriter.writerow([self.trio_set_str, chromosome, pos, fa_depth, mo_depth, child_depth, isInconsistent])
 		
 		del depthOutputWriter
 		

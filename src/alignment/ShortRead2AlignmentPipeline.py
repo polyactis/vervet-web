@@ -314,7 +314,7 @@ class ShortRead2AlignmentPipeline(ShortRead2AlignmentWorkflow):
 												AddOrReplaceReadGroupsJar=AddOrReplaceReadGroupsJar,\
 												parentJobLs=[alignmentJob, mkdirJob], extraDependentInputLs=None, \
 												extraArguments=None, job_max_memory = 2500, transferOutput=False)
-							AlignmentJobAndOutputLs.append(PassingData(parentJobLs=[addRGJob], file=addRGJob.output))
+							AlignmentJobAndOutputLs.append(PassingData(jobLs=[addRGJob], file=addRGJob.output))
 						if not skipLibraryAlignment:
 							#2012.9.19 add a AddReadGroup job for the library bam file
 							outputRGBAM = File(os.path.join(tmpOutputDir, "%s.isq_library_%s_RG.bam"%(fileBasenamePrefix, library)))

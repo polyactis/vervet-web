@@ -31,7 +31,6 @@ else:   #32bit
 	sys.path.insert(0, os.path.expanduser('~/lib/python'))
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import subprocess, cStringIO
 from Pegasus.DAX3 import File, Executable, PFN
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, GenomeDB, NextGenSeq
 from pymodule.pegasus import yh_pegasus
@@ -59,6 +58,13 @@ class CheckTwoVCFOverlapPipeline(parentClass):
 		"""
 		parentClass.registerCustomExecutables(self, workflow=workflow)
 		
+	def addCheckingOverlapSubWorkflow(self, workflow=None, inputVCFData1=None, inputVCFData2=None, \
+					outputDirPrefix="", **keywords):
+		"""
+		2013.09.05
+		"""
+	
+	addAllJobs = addCheckingOverlapSubWorkflow
 	
 	def run(self):
 		"""
@@ -82,8 +88,8 @@ class CheckTwoVCFOverlapPipeline(parentClass):
 		statOutputDir = "statDir"
 		statOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=statOutputDir)
 		
-		import re
-		chr_pattern = re.compile(r'(\w+\d+).*')
+		#import re
+		#chr_pattern = re.compile(r'(\w+\d+).*')
 		input_site_handler = self.input_site_handler
 		
 		counter = 1
@@ -159,9 +165,14 @@ class CheckTwoVCFOverlapPipeline(parentClass):
 				
 				
 				outputFnamePrefix = os.path.join(statOutputDir, os.path.splitext(gatkVCFFileBaseName)[0])
-				checkTwoVCFOverlapJob = self.addCheckTwoVCFOverlapJob(workflow, executable=workflow.CheckTwoVCFOverlap, \
+				outputFile = File("%s.tsv"%(outputFnamePrefix))
+				perSampleConcordanceOutputFile = File("%s_perSample.tsv"%(outputFnamePrefix))
+				overlapSiteOutputFile = File("%s_overlapSitePos.tsv"%(outputFnamePrefix))
+				checkTwoVCFOverlapJob = self.addCheckTwoVCFOverlapJob(workflow, executable=workflow.CheckTwoVCFOverlapCC, \
 						vcf1=vcf1, vcf2=vcf2, chromosome=chromosome, chrLength=chr_size, \
-						outputFnamePrefix=outputFnamePrefix, parentJobLs=[statOutputDirJob], \
+						outputFile=outputFile, perSampleConcordanceOutputFile=perSampleConcordanceOutputFile, \
+						overlapSiteOutputFile=overlapSiteOutputFile,\
+						parentJobLs=[statOutputDirJob], \
 						extraDependentInputLs=[], transferOutput=False, extraArguments=" -m %s "%(self.minDepth),\
 						perSampleMatchFraction=self.perSampleMatchFraction,\
 						job_max_memory=1000)
@@ -176,7 +187,7 @@ class CheckTwoVCFOverlapPipeline(parentClass):
 							inputF=checkTwoVCFOverlapJob.perSampleFile, \
 							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
 				counter += 1
-		sys.stderr.write("%s jobs.\n"%(counter+1))
+		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
 		
 		self.end_run()
 		

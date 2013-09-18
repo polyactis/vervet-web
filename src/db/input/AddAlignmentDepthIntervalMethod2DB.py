@@ -30,6 +30,7 @@ class AddAlignmentDepthIntervalMethod2DB(parentClass):
 	option_default_dict.pop(('outputFname', 0, ))
 	option_default_dict.pop(('outputFnamePrefix', 0, ))
 	option_default_dict.update({
+						('min_segment_length', 0, int): [None, '', 1, 'a parameter of segmentation algorithm used in segmenting the depth file', ],\
 						('alignmentIDList', 1, ): ['', '', 1, 'coma/dash-separated list of alignment IDs.', ],\
 						('methodShortName', 1, ):[None, 's', 1, 'column short_name of AlignmentDepthIntervalMethod table,\
 			will be created if not present in db.'],\
@@ -61,6 +62,7 @@ class AddAlignmentDepthIntervalMethod2DB(parentClass):
 						individualAlignmentLs=alignmentList, parent_db_entry=None, parent_id=None, \
 						no_of_alignments=None, no_of_intervals=None, \
 						sum_median_depth=None, sum_mean_depth=None,\
+						min_segment_length=self.min_segment_length, \
 						data_dir=self.data_dir)
 		self.checkIfAlignmentListMatchMethodDBEntry(individualAlignmentLs=alignmentList, methodDBEntry=method, session=session)
 		

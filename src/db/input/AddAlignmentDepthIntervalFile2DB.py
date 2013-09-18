@@ -20,8 +20,7 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import copy, numpy, re
 from pymodule import ProcessOptions, PassingData, utils, NextGenSeq
-from pymodule import MatrixFile
-from vervet.src import VervetDB
+from pymodule.yhio.AlignmentDepthIntervalFile import AlignmentDepthIntervalFile
 from vervet.src.mapper.AbstractVervetMapper import AbstractVervetMapper
 from AddAlignmentDepthIntervalMethod2DB import AddAlignmentDepthIntervalMethod2DB
 
@@ -52,29 +51,8 @@ class AddAlignmentDepthIntervalFile2DB(parentClass):
 		"""
 		2013.08.23
 		"""
-		reader = MatrixFile(inputFname=inputFname)
-		no_of_intervals = 0
-		interval_value_ls = []
-		chromosome_size = 0
-		min_interval_value = None
-		max_interval_value = None
-		for row in reader:
-			if row[0][0]=='#' or self.characterPattern.search(row[0]):	#2013.08.28 skip comments and headers
-				continue
-			span = int(row[2])
-			value = float(row[3])
-			no_of_intervals += 1
-			chromosome_size += span
-			interval_value_ls.append(value)
-			if min_interval_value is None or value <min_interval_value:
-				min_interval_value = value
-			if max_interval_value is None or value >max_interval_value:
-				max_interval_value = value
-		return PassingData(no_of_intervals=no_of_intervals, chromosome_size=chromosome_size, \
-						mean_interval_value=numpy.mean(interval_value_ls),\
-						median_interval_value=numpy.median(interval_value_ls),\
-						min_interval_value=min_interval_value,\
-						max_interval_value=max_interval_value)
+		reader = AlignmentDepthIntervalFile(inputFname=inputFname)
+		return reader.readThroughAndProvideSummary()
 	
 	def run(self):
 		"""
@@ -112,6 +90,8 @@ class AddAlignmentDepthIntervalFile2DB(parentClass):
 					format=self.format,\
 					mean_interval_value=inputFileData.mean_interval_value, median_interval_value=inputFileData.median_interval_value, \
 					min_interval_value=inputFileData.min_interval_value, max_interval_value=inputFileData.max_interval_value,\
+					min_interval_length=inputFileData.min_interval_length, max_interval_length=inputFileData.max_interval_length, \
+					median_interval_length=inputFileData.median_interval_length,\
 					md5sum=None, original_path=None, data_dir=self.data_dir)
 		if db_entry.id and db_entry.path:
 			isPathInDB = self.db_vervet.isPathInDBAffiliatedStorage(relativePath=db_entry.path, data_dir=self.data_dir)
@@ -131,6 +111,10 @@ class AddAlignmentDepthIntervalFile2DB(parentClass):
 				db_entry.median_interval_value=inputFileData.median_interval_value
 				db_entry.min_interval_value=inputFileData.min_interval_value
 				db_entry.max_interval_value=inputFileData.max_interval_value
+				
+				db_entry.min_interval_length=inputFileData.min_interval_length
+				db_entry.max_interval_length=inputFileData.max_interval_length
+				db_entry.median_interval_length=inputFileData.median_interval_length
 				session.add(db_entry)
 				session.flush()
 		
