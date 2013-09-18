@@ -72,9 +72,10 @@ class InspectAlignmentPipeline(parentClass):
 	
 	option_default_dict = commonOptionDict.copy()
 	option_default_dict.update({
+						('min_segment_length', 0, int): [100, '', 1, 'a parameter of segmentation algorithm used in segmenting the depth file', ],\
 						("needPerContigJob", 0, int): [0, 'P', 0, 'toggle to add DepthOfCoverage and VariousReadCount jobs for each contig.'],\
 						("skipAlignmentWithStats", 0, int): [0, 's', 0, 'If an alignment has depth stats filled, not DOC job will be run. similar for flagstat job.'],\
-						("alignmentDepthIntervalMethodShortName", 0, ): [None, '', 1, 'AlignmentDepthIntervalMethod.short_name, used to store depth intervals from all alignments into db'],\
+						("alignmentDepthIntervalMethodShortName", 0, ): [None, '', 1, 'AlignmentDepthIntervalMethod.short_name, used to store segmented depth intervals from all alignments into db. This portion of workflow will not run if this is not given.'],\
 						})
 	#	("fractionToSample", 0, float): [0.001, '', 1, 'fraction of loci to walk through for DepthOfCoverage walker.'],\
 	option_default_dict[('completedAlignment', 0, int)][0]=1	#2013.05.03
@@ -88,6 +89,7 @@ class InspectAlignmentPipeline(parentClass):
 		self.no_of_alns_with_flagstat_jobs = 0
 		
 		self.alignmentDepthJobDataList=[]	#2013.08.16 use to store 
+		self.needSplitChrIntervalData = False	#2013.09.01 no need for this.
 	
 	def addDepthOfCoverageJob(self, workflow=None, DOCWalkerJava=None, GenomeAnalysisTKJar=None,\
 							refFastaFList=None, bamF=None, baiF=None, DOCOutputFnamePrefix=None,\
@@ -541,6 +543,10 @@ class InspectAlignmentPipeline(parentClass):
 					extraDependentInputLs=[], transferOutput=True, extraArguments=None, \
 					job_max_memory=10, sshDBTunnel=self.needSSHDBTunnel)
 		if self.alignmentDepthJobDataList and self.alignmentDepthIntervalMethodShortName:
+			if not self.min_segment_length:
+				sys.stderr.write("alignmentDepthIntervalMethodShortName=%s is given but min_segment_length (%s) is not.\n"%\
+								(self.alignmentDepthIntervalMethodShortName, self.min_segment_length))
+				sys.exit(4)
 			#2013.08.16
 			alignmentIDList = [pdata.alignment.id for pdata in self.alignmentDepthJobDataList]
 			alignmentIDListInStr = utils.getSuccinctStrOutOfList(alignmentIDList)
@@ -553,7 +559,8 @@ class InspectAlignmentPipeline(parentClass):
 					parentJobLs=[self.logOutputDirJob], extraDependentInputLs=None, extraOutputLs=None, \
 					transferOutput=True, extraArguments=None, \
 					extraArgumentList=["--methodShortName %s"%(self.alignmentDepthIntervalMethodShortName), \
-									"--alignmentIDList %s"%(alignmentIDListInStr) ], \
+									"--alignmentIDList %s"%(alignmentIDListInStr),\
+									"--min_segment_length %s"%(self.min_segment_length)], \
 					job_max_memory=2000, walltime=30,  sshDBTunnel=self.needSSHDBTunnel)
 			
 			logFile = File(os.path.join(self.logOutputDirJob.output, 'updateMethodNoOfIntervals.log'))
@@ -580,7 +587,7 @@ class InspectAlignmentPipeline(parentClass):
 					selectRowsFromMatrixCCJob = self.addGenericJob(executable=self.SelectRowsFromMatrixCC, \
 									inputFile=alignmentDepthJobData.file, outputFile=outputFile, \
 									parentJobLs=alignmentDepthJobData.jobLs + [passingData.topOutputDirJob], extraDependentInputLs=None, \
-									extraArgumentList=["-w 0 --whichColumnValue %s"%(chromosome)], extraOutputLs=None,\
+									extraArgumentList=["--inputFileSortMode 1 -w 0 --whichColumnValue %s"%(chromosome)], extraOutputLs=None,\
 									transferOutput=False, \
 									key2ObjectForJob=None, job_max_memory=1000, walltime=60)
 					self.addInputToStatMergeJob(statMergeJob=reduceSameChromosomeAlignmentDepthFilesJob, inputF=selectRowsFromMatrixCCJob.output, \
@@ -588,29 +595,28 @@ class InspectAlignmentPipeline(parentClass):
 											extraDependentInputLs=None)
 				#add GADA job
 				# add segmentation jobs to figure out intervals at similar
-				minSegLength = 1000
 				outputFile = File(os.path.join(reduceOutputDirJob.output, '%s_alignments_%s_depth_GADAOut_minSegLength%s.tsv.gz'%\
-											(len(self.alignmentDepthJobDataList), chromosome, minSegLength)))
+											(len(self.alignmentDepthJobDataList), chromosome, self.min_segment_length)))
 				#adjust memory based on chromosome size, 135Mb => 21.4g memory
 				realInputVolume = chromosomeSize
 				jobWalltime = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-									baseInputVolume=60000000, baseJobPropertyValue=180, \
-									minJobPropertyValue=60, maxJobPropertyValue=1200).value
+									baseInputVolume=60000000, baseJobPropertyValue=600, \
+									minJobPropertyValue=60, maxJobPropertyValue=2400).value
 				#base is 135M, => 21G
 				jobMaxMemory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
-									baseInputVolume=135000000, baseJobPropertyValue=23000, \
-									minJobPropertyValue=11000, maxJobPropertyValue=26000).value
+									baseInputVolume=135000000, baseJobPropertyValue=25000, \
+									minJobPropertyValue=11000, maxJobPropertyValue=29000).value
 				GADAJob = self.addGenericJob(executable=self.GADA, \
 									inputFile=reduceSameChromosomeAlignmentDepthFilesJob.output, outputFile=outputFile, \
 									parentJobLs=[reduceOutputDirJob, reduceSameChromosomeAlignmentDepthFilesJob], extraDependentInputLs=None, \
-									extraArgumentList=["--MinSegLen %s"%(minSegLength), '--debug'], extraOutputLs=None,\
+									extraArgumentList=["--MinSegLen %s"%(self.min_segment_length), '--debug -T 10 -a 0.5'], extraOutputLs=None,\
 									transferOutput=False, \
 									key2ObjectForJob=None, job_max_memory=jobMaxMemory, walltime=jobWalltime)
 				"""
 				GADAJob = self.addGenericJob(executable=self.GADA, \
 									inputFile=reduceSameChromosomeAlignmentDepthFilesJob.output, outputFile=outputFile, \
 									parentJobLs=[reduceOutputDirJob, reduceSameChromosomeAlignmentDepthFilesJob], extraDependentInputLs=None, \
-									extraArgumentList=["-M %s"%(minSegLength)], extraOutputLs=None,\
+									extraArgumentList=["-M %s"%(self.min_segment_length)], extraOutputLs=None,\
 									transferOutput=False, \
 									key2ObjectForJob=None, job_max_memory=10000, walltime=200)
 				"""

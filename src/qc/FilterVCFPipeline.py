@@ -275,7 +275,7 @@ class FilterVCFPipeline(parentClass):
 					
 						vcf1filterByDepthInput=vcf1KeepGivenSNPByvcftoolsJob.output
 						lastRoundJobLs=[vcf1DepthFilterDirJob, vcf1KeepGivenSNPByvcftoolsJob]
-						lastRoundExtraDependentInputLs=[]
+						lastRoundExtraDependentInputLs=None
 						vcf2filterByDepthInput=vcf2KeepGivenSNPByvcftoolsJob.output
 						vcf2filterByDepthParentJobLs=[vcf2DepthFilterDirJob, vcf2KeepGivenSNPByvcftoolsJob]
 						vcf2filterByDepthExtraDependentInputLs=[]
@@ -503,7 +503,7 @@ class FilterVCFPipeline(parentClass):
 			lastVCFJob.output = VCFJobData.file	#2013.07.18 otherwise it's always unit1
 		else:
 			lastVCFJob = PassingData(output=VCFJobData.file, tbi_F=None)	#2012.8.3 fake, not a job. only useful when all filtering jobs are skipped.
-		lastRoundExtraDependentInputLs =[]
+		lastRoundExtraDependentInputLs=None	# 2013.09.03 must set this to None, not []. The latter would be expanded in addFilterJobByvcftools()
 		
 		noTransferFlagJobSet = set()
 		
@@ -536,7 +536,7 @@ class FilterVCFPipeline(parentClass):
 			
 			lastVCFJob = currentVCFJob
 			lastRoundJobLs = [currentVCFJob]
-			lastRoundExtraDependentInputLs=[]
+			lastRoundExtraDependentInputLs=None
 		
 		if self.keepSNPPosF:
 			#toss SNPs that are not in this keepSNPPosFname file
@@ -565,11 +565,11 @@ class FilterVCFPipeline(parentClass):
 			lastVCFJob = currentVCFJob
 			noTransferFlagJobSet.add(currentVCFJob)
 			lastRoundJobLs=[currentVCFJob]
-			lastRoundExtraDependentInputLs=[]
-		else:
-			lastRoundJobLs= lastRoundJobLs
-			lastRoundExtraDependentInputLs =lastRoundExtraDependentInputLs
-			lastVCFJob = lastVCFJob	#faking it
+			lastRoundExtraDependentInputLs=None
+		#else:
+		#	lastRoundJobLs= lastRoundJobLs
+		#	lastRoundExtraDependentInputLs =lastRoundExtraDependentInputLs
+		#	lastVCFJob = lastVCFJob	#faking it
 		
 		if self.excludeFilteredSites:
 			#2013.05.20
@@ -583,7 +583,8 @@ class FilterVCFPipeline(parentClass):
 				refFastaFList=self.registerReferenceData.refFastaFList, \
 				sampleIDKeepFile=None, snpIDKeepFile=None, sampleIDExcludeFile=None, \
 				interval=None,\
-				parentJobLs=lastRoundJobLs + [self.filterPASSDirJob], extraDependentInputLs=lastRoundExtraDependentInputLs, transferOutput=False, \
+				parentJobLs=lastRoundJobLs + [self.filterPASSDirJob], \
+				extraDependentInputLs=lastRoundExtraDependentInputLs, transferOutput=False, \
 				extraArguments="""--select_expressions "%s" """%(selectExpression), job_max_memory=2000, walltime=None)
 			
 			currentVCFJob = FILTER_PASS_Job
@@ -598,7 +599,7 @@ class FilterVCFPipeline(parentClass):
 			lastVCFJob = currentVCFJob
 			noTransferFlagJobSet.add(currentVCFJob)
 			lastRoundJobLs=[currentVCFJob]
-			lastRoundExtraDependentInputLs = []
+			lastRoundExtraDependentInputLs=None
 		#2012.8.1 mask zero-depth sites
 		if self.minDepthPerGenotype:
 			outputFnamePrefix = os.path.join(self.vcf1DepthFilterDirJob.output, '%s.minDP%s'%(commonPrefix, self.minDepthPerGenotype))
@@ -622,7 +623,8 @@ class FilterVCFPipeline(parentClass):
 			noTransferFlagJobSet.add(currentVCFJob)
 			lastVCFJob = currentVCFJob
 			lastRoundJobLs=[currentVCFJob]
-			
+			lastRoundExtraDependentInputLs=None
+		
 		if self.cumulativeMedianDepth and self.depthFoldChange:
 			vcf1AfterDepthFilter = File(os.path.join(self.vcf1DepthFilterDirJob.output, '%s.filterByDepth.vcf'%(commonPrefix)))
 			#2013.05.20 TC stands for total coverage in platypus output
@@ -657,6 +659,7 @@ class FilterVCFPipeline(parentClass):
 			noTransferFlagJobSet.add(currentVCFJob)
 			lastVCFJob = currentVCFJob
 			lastRoundJobLs = [currentVCFJob]
+			lastRoundExtraDependentInputLs=None
 		
 		
 		if self.minMAC is not None:
@@ -680,6 +683,7 @@ class FilterVCFPipeline(parentClass):
 			noTransferFlagJobSet.add(currentVCFJob)
 			lastVCFJob = currentVCFJob
 			lastRoundJobLs = [currentVCFJob]
+			lastRoundExtraDependentInputLs=None
 		
 		if self.minMAF is not None:
 			outputFnamePrefix = os.path.join(self.filterDirJob.output, '%s.filterByMinMAF'%(commonPrefix))
@@ -703,6 +707,7 @@ class FilterVCFPipeline(parentClass):
 			noTransferFlagJobSet.add(currentVCFJob)
 			lastVCFJob = currentVCFJob
 			lastRoundJobLs = [currentVCFJob]
+			lastRoundExtraDependentInputLs=None
 		
 		if self.maxSNPMissingRate is not None and self.maxSNPMissingRate>=0 and self.maxSNPMissingRate<1:
 			outputFnamePrefix = os.path.join(self.filterDirJob.output, '%s.filterByMaxSNPMissingRate'%(commonPrefix))
@@ -749,7 +754,7 @@ class FilterVCFPipeline(parentClass):
 			noTransferFlagJobSet.add(currentVCFJob)
 			lastVCFJob = currentVCFJob
 			lastRoundJobLs = [currentVCFJob]
-			lastRoundExtraDependentInputLs=[]
+			lastRoundExtraDependentInputLs=None
 		
 		if self.maxLocusHetFraction is not None and self.maxLocusHetFraction<1 and self.maxLocusHetFraction>=0:
 			#2013.08.12
@@ -777,7 +782,7 @@ class FilterVCFPipeline(parentClass):
 			lastVCFJob = currentVCFJob
 			noTransferFlagJobSet.add(currentVCFJob)
 			lastRoundJobLs=[currentVCFJob]
-			lastRoundExtraDependentInputLs = []
+			lastRoundExtraDependentInputLs=None
 		
 		#bgzip last VCF job's output
 		bgzipFile = File("%s.gz"%lastVCFJob.output.name)

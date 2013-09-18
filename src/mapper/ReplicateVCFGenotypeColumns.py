@@ -109,6 +109,19 @@ class ReplicateVCFGenotypeColumns(AbstractVCFMapper):
 		no_of_snps = 0
 		for vcfRecord in vcfFile.parseIter():
 			data_row =vcfRecord.row
+			#2013.09.13 replace all "./." with full NA formating i.e. "./.:.:.:.", pending fields in the "format" column
+			for i in xrange(vcfRecord.sampleStartingColumn, len(data_row)):
+				if data_row[i]=='./.':	#2013.09.15 expand this NA genotype for TrioCaller
+					field_value_ls = []
+					for format_field in vcfRecord.format_column_ls:
+						if format_field=='GT':
+							field_value_ls.append('./.')
+						elif format_field=='PL':	#for TrioCaller
+							field_value_ls.append('.,.,.')
+						else:
+							field_value_ls.append('.')
+					#field_value_ls = ['./.'] + ['.']*(len(vcfRecord.format_column_name2index)-1)
+					data_row[i] = ':'.join(field_value_ls)
 			for i in xrange(oldHeaderLength, newHeaderLength):	#add more genotype copies for those extra columns
 				sample_id = extraColIndex2sampleID.get(i)
 				sourceIndex = sampleID2DataIndexLs.get(sample_id)[0]

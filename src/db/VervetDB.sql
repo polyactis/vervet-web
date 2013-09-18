@@ -3,7 +3,7 @@
 -- added "individual_sequence_file_raw_id is null" because there are some  sub-alignments (alignment using one lane/library's reads out of all)
 drop view view_good_alignment cascade;
 create or replace view view_good_alignment as select * from view_alignment 
-    where filtered=1 and outdated_index=0 and alignment_method_id=2 and ref_ind_seq_id=3280
+    where filtered=1 and outdated_index=0 and alignment_method_id=6 and ref_ind_seq_id=3488
     and individual_sequence_file_raw_id is null;
 
 
@@ -11,16 +11,20 @@ create or replace view view_good_alignment as select * from view_alignment
 
 drop view view_individual cascade;
 create or replace view view_individual as select i.id, i.code, i.name, i.ucla_id, i.tax_id, i.sex, i.age, i.age_cas, 
-    i.approx_age_group_at_collection, u.realname as collector, i.collection_date, s.latitude, 
+    i.approx_age_group_at_collection, u.realname as collector, i.collection_date, i.date_created, i.date_updated, s.latitude, 
     s.longitude, i.site_id, i.target_coverage, s.short_name as site_name,
     s.city, s.stateprovince as province, s.country_id, c.name as country from individual i, site s, country c,
     acl_user u where i.site_id=s.id and s.country_id=c.id and i.collector_id=u.id;
     
 drop view view_alignment cascade;
 create or replace view view_alignment as select i.id as individual_id, i.code, i.ucla_id, i.tax_id, i.sex, i.age, 
-    i.site_id, i.collection_date, i.latitude, i.longitude, isq.id as isq_id, 
-    isq.filtered, isq.sequencer_id, isq.sequence_type_id, isq.tissue_id, isq.base_count, 
+    i.site_id, i.collection_date, i.latitude, i.longitude, i.date_created as date_individual_created,
+    i.date_updated as date_individual_updated,
+    isq.id as isq_id, 
+    isq.filtered, isq.sequencer_id, isq.sequence_type_id, isq.tissue_id, isq.base_count, isq.read_count, 
     isq.coverage as raw_coverage, isq.is_contaminated, isq.outdated_index as isq_outdated_index,
+    isq.parent_individual_sequence_id,
+    isq.date_created as date_sequence_created, isq.date_updated as date_sequence_updated,
     ia.id as alignment_id, ia.read_group, ia.ref_ind_seq_id, ia.alignment_method_id,
     ia.median_depth, ia.mean_depth, ia.mode_depth, ia.outdated_index, ia.individual_sequence_file_raw_id,
     ia.file_size, ia.total_no_of_reads, ia.parent_individual_alignment_id, ia.mask_genotype_method_id, ia.local_realigned,

@@ -1454,6 +1454,7 @@ class AlignmentDepthIntervalMethod(Entity, AbstractTableWithFilename):
 	no_of_intervals = Field(BigInteger)
 	sum_median_depth = Field(Float)	#across all alignments
 	sum_mean_depth = Field(Float)	#across all alignments
+	min_segment_length = Field(Integer)	#2013.09.02 this is a parameter of segmentation program
 	created_by = Field(String(128))
 	updated_by = Field(String(128))
 	date_created = Field(DateTime, default=datetime.now)
@@ -1490,6 +1491,9 @@ class AlignmentDepthIntervalFile(Entity, AbstractTableWithFilename):
 	max_interval_value = Field(Float)
 	mean_interval_value = Field(Float)
 	median_interval_value = Field(Float)
+	min_interval_length = Field(Integer)	#2013.08.30 length of the shortest interval in file
+	max_interval_length = Field(Integer)
+	median_interval_length = Field(Integer)
 	format = Field(Text)	# BED or other
 	alignment_depth_interval_method = ManyToOne('%s.AlignmentDepthIntervalMethod'%(__name__), \
 									colname='alignment_depth_interval_method_id', ondelete='CASCADE', onupdate='CASCADE')
@@ -2961,11 +2965,37 @@ class VervetDB(ElixirDB):
 			self.session.flush()
 		return db_entry
 	
+	def checkAlignmentDepthIntervalMethod(self, db_entry_id=None, short_name=None, \
+					ref_ind_seq_id=None, parent_id=None, \
+					min_segment_length=None,**keywords):
+		"""
+		2013.09.02
+		"""
+		if db_entry_id:
+			db_entry = self.checkIfEntryInTable(TableClass=AlignmentDepthIntervalMethod, id=db_entry_id)
+		else:
+			db_entry = None
+		if not db_entry:
+			query = AlignmentDepthIntervalMethod.query.filter_by(short_name=short_name)
+			if ref_ind_seq_id:
+				query = query.filter_by(ref_ind_seq_id=ref_ind_seq_id)
+			if parent_id:
+				query = query.filter_by(parent_id=parent_id)
+			if min_segment_length:
+				query = query.filter_by(min_segment_length=min_segment_length)
+			db_entry = query.first()
+		if db_entry:
+			return db_entry
+		else:
+			return None
+	
 	def getAlignmentDepthIntervalMethod(self, short_name=None, description=None, ref_ind_seq_id=None, \
 						individualAlignmentLs=None, parent_db_entry=None, parent_id=None, \
 						no_of_alignments=None, no_of_intervals=None, sum_median_depth=None, sum_mean_depth=None,\
+						min_segment_length=None,\
 						data_dir=None):
 		"""
+		2013.09.02 added min_segment_length
 		2013.08.23
 			examples:
 				alignmentDepthIntervalMethod = self.db_vervet.getAlignmentDepthIntervalMethod(short_name="725VRCAlignmentDepthInterval", \
@@ -2982,15 +3012,9 @@ class VervetDB(ElixirDB):
 		if parent_db_entry and parent_id is None:
 			parent_id = parent_db_entry.id
 		
-		query = AlignmentDepthIntervalMethod.query.filter_by(short_name=short_name)
-		
-		if ref_ind_seq_id:
-			query = query.filter_by(ref_ind_seq_id=ref_ind_seq_id)
-		if parent_id:
-			query = query.filter_by(parent_id=parent_id)
-		
-		
-		db_entry = query.first()
+		db_entry = self.checkAlignmentDepthIntervalMethod(db_entry_id=None, short_name=short_name, \
+					ref_ind_seq_id=ref_ind_seq_id, parent_id=parent_id, \
+					min_segment_length=min_segment_length)
 		if not db_entry:
 			if individualAlignmentLs:
 				if no_of_alignments is None:
@@ -3002,7 +3026,7 @@ class VervetDB(ElixirDB):
 			
 			db_entry = AlignmentDepthIntervalMethod(short_name=short_name, description=description, ref_ind_seq_id=ref_ind_seq_id,\
 								parent_id=parent_id, no_of_alignments=no_of_alignments, no_of_intervals=no_of_intervals, \
-								sum_median_depth=sum_median_depth, sum_mean_depth=sum_mean_depth)
+								sum_median_depth=sum_median_depth, sum_mean_depth=sum_mean_depth, min_segment_length=min_segment_length)
 			db_entry.individual_alignment_ls = individualAlignmentLs
 			self.session.add(db_entry)
 			self.session.flush()
@@ -3032,7 +3056,6 @@ class VervetDB(ElixirDB):
 			db_entry = None
 		if not db_entry:
 			query = AlignmentDepthIntervalFile.query.filter_by(alignment_depth_interval_method_id=alignment_depth_interval_method_id)
-	
 			if format:
 				query = query.filter_by(format=format)
 			if no_of_chromosomes:
@@ -3051,9 +3074,11 @@ class VervetDB(ElixirDB):
 					chromosome=None, chromosome_size=None, no_of_chromosomes=None, no_of_intervals=None,\
 					format="tsv",\
 					mean_interval_value=None, median_interval_value=None, \
-					min_interval_value=None, max_interval_value=None,\
+					min_interval_value=None, max_interval_value=None, \
+					min_interval_length=None, max_interval_length=None, median_interval_length=None,\
 					md5sum=None, original_path=None, data_dir=None):
 		"""
+		2013.08.30 added min_interval_length, max_interval_length, median_interval_length
 		2013.8.23
 			add argument no_of_chromosomes
 		"""
@@ -3062,18 +3087,22 @@ class VervetDB(ElixirDB):
 			
 		
 		db_entry = self.checkAlignmentDepthIntervalFile(db_entry_id=None, \
-									alignment_depth_interval_method_id=alignment_depth_interval_method_id, chromosome=chromosome, \
+									alignment_depth_interval_method_id=alignment_depth_interval_method_id, \
+									chromosome=chromosome, \
 									no_of_chromosomes=no_of_chromosomes, format=format)
 		if original_path:
 			original_path = os.path.realpath(original_path)
 		
 		if not db_entry:
 			db_entry = AlignmentDepthIntervalFile(path=path, \
-							alignment_depth_interval_method_id=alignment_depth_interval_method_id, chromosome=chromosome, \
+							alignment_depth_interval_method_id=alignment_depth_interval_method_id, \
+							chromosome=chromosome, \
 							chromosome_size=chromosome_size, no_of_chromosomes=no_of_chromosomes, no_of_intervals=no_of_intervals,\
 							file_size=file_size, format=format,\
 							mean_interval_value=mean_interval_value, median_interval_value=median_interval_value, \
 							min_interval_value=min_interval_value, max_interval_value=max_interval_value,\
+							min_interval_length=min_interval_length, max_interval_length=max_interval_length, \
+							median_interval_length=median_interval_length,\
 							md5sum=md5sum, original_path=original_path)
 			if not data_dir:
 				data_dir = self.data_dir

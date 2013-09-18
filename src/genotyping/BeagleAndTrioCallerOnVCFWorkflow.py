@@ -187,7 +187,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 				refFastaFList=self.registerReferenceData.refFastaFList, \
 				sampleIDKeepFile=self.extractRefPanelSampleIDJob.output,\
 				parentJobLs=[self.auxDirJob, self.extractRefPanelSampleIDJob]+self.firstVCFJobData.jobLs, \
-				extraDependentInputLs=[], transferOutput=transferOutput, \
+				extraDependentInputLs=[self.firstVCFJobData.tbi_F], transferOutput=transferOutput, \
 				extraArguments=None, job_max_memory=2000)
 		
 		# output a plink pedigree that contains these HC members only
@@ -725,7 +725,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 				inputF=VCFJobData.file, outputF=outputVCF, \
 				refFastaFList=self.registerReferenceData.refFastaFList, sampleIDKeepFile=self.extractRefPanelSampleIDJob.output,\
 				parentJobLs=[self.highCoveragePanelDirJob, self.extractRefPanelSampleIDJob] + VCFJobData.jobLs, \
-				extraDependentInputLs=[], transferOutput=False, \
+				extraDependentInputLs=[VCFJobData.tbi_F], transferOutput=False, \
 				extraArguments=None, \
 				job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
 							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
@@ -838,7 +838,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		
 		#borrow PL to from pre-Beagle VCF to genotype 
 		outputFile = File(os.path.join(self.mapDirJob.folder, '%s.beagled.withPL.vcf'%(intervalFileBasenamePrefix)))
-		combineBeagleAndPreBeagleVariantsJob = self.addGATKJob(executable=self.CombineVariantsJava, \
+		combineBeagleAndPreBeagleVariantsJob = self.addGATKJob(executable=self.CombineBeagleAndPreBeagleVariantsJava, \
 					GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, \
 					GATKAnalysisType="CombineBeagleAndPreBeagleVariants",\
 					inputFile=None, inputArgumentOption=None, \
@@ -1044,7 +1044,8 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 															clusterSizeMultipler=0.2)
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='RemoveMendelErrorSiteByGATK', \
 															clusterSizeMultipler=0.5)
-		
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='CombineBeagleAndPreBeagleVariantsJava', \
+															clusterSizeMultipler=0.6)
 		#BeagleOnHCMOnkeys and BeagleJava are separate now because the former takes much less time than latter
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath,\
 										name='BeagleOnHCMOnkeys', clusterSizeMultipler=0.1)

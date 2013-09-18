@@ -3,10 +3,13 @@
 Examples:
 	%s 
 	
-	%s -i gatk/Contig799.vcf.gz -j samtools/Contig799.vcf.gz -l 1000000 -c Contig799 -o /tmp/output
+	%s -i gatk/Contig799.vcf.gz -j samtools/Contig799.vcf.gz -l 1000000 -c Contig799 -o /tmp/overlapSummary.tsv.gz
+		--overlappingSitesOutputFname /tmp/overlapSite.tsv.gz
+		--perSampleConcordanceOutputFname /tmp/Contig799_perSampleConcordance.tsv.gz
 
 Description:
-	2012.7.29 add option perSampleMatchFraction, default=0, which skips per-sample mismatch fraction caculation.
+	2013.09.10 all three output files need to be explicitly specified on the commandline.
+	2012.7.29
 	2011-11-7
 """
 
@@ -21,10 +24,8 @@ __doc__ = __doc__%(sys.argv[0], sys.argv[0])
 sys.path.insert(0, os.path.expanduser('~/lib/python'))
 sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
-import csv
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, utils
-from pymodule import VCFFile
-from pymodule import SNP
+from pymodule import ProcessOptions, PassingData, utils
+from pymodule import VCFFile, MatrixFile
 from pymodule.yhio.SNP import nt2number
 from AbstractVCFMapper import AbstractVCFMapper
 
@@ -32,17 +33,18 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 	__doc__ = __doc__
 	option_default_dict = AbstractVCFMapper.option_default_dict.copy()
 	option_default_dict.update({
-						('jnputFname', 1, ): ['', 'j', 1, '2nd VCF input file. either plain vcf or gzipped is ok. could be unsorted.', ],\
-						('perSampleMatchFraction', 0, ): [0, 'p', 0, 'whether calculating per-sample mismatch fraction or not.', ],\
-						})
-						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
+				('jnputFname', 1, ): ['', 'j', 1, '2nd VCF input file. either plain vcf or gzipped is ok. could be unsorted.', ],\
+				('overlappingSitesOutputFname', 0, ): ['', '', 1, 'output filename that would contain locations of all overlap sites between two VCF. no output if not given.'],\
+				('perSampleConcordanceOutputFname', 0, ): ['', '', 1, 'output filename for the per-sample matching result.\
+			Per-sample concordance will not be run if this is not given.', ],\
+				})
 
 	def __init__(self,  **keywords):
 		"""
 		"""
 		AbstractVCFMapper.__init__(self, **keywords)
 	
-	def outputOverlapSites(self, overlapping_sites_set, outputFname):
+	def outputOverlapSites(self, overlapping_sites_set=None, outputFname=None):
 		"""
 		2011-12.9
 			overlapping_sites_set is a set of (chromosome, pos) tuples.
@@ -52,20 +54,22 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 		sys.stderr.write("Outputting overlap %s sites ..."%(len(overlapping_sites_set)))
 		header = ['chromosome', 'position', 'random']
 		overlapping_sites_list = list(overlapping_sites_set)
-		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		writer = MatrixFile(outputFname, openMode='w', delimiter='\t')
 		writer.writerow(header)
 		overlapping_sites_list.sort()
 		for chromosome, pos in overlapping_sites_list:
 			writer.writerow([chromosome, pos, 0])
 		sys.stderr.write("%s sites.\n"%(len(overlapping_sites_list)))
 	
-	def calculateOverlappingSites(self, vcfFile1=None, vcfFile2=None, outputFname=None, outputFnamePrefix=None,\
+	def calculateOverlappingSites(self, vcfFile1=None, vcfFile2=None, outputFname=None, overlappingSitesOutputFname=None,\
 						chromosome=None, chrLength=None):
 		"""
+		2013.09.10
+			added argument overlappingSitesOutputFname
 		2013.07.17 vcf files are no longer pre-loaded. read in locus ids first. 
 		2012.8.16
 		"""
-		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		writer = MatrixFile(outputFname, openMode='w', delimiter='\t')
 		header = ['#chromosome', 'length', '#sitesInInput1', '#sitesInInput2', '#overlapping', 'overlappingOverTotal', \
 				'overlappingOverInput1', 'overlappingOverInput2', '#segregatingSitesNormalized', ]
 		
@@ -79,9 +83,10 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 		no_of_sites_of_input1 = len(vcf1_locus_id_list)
 		no_of_sites_of_input2 = len(vcf2_locus_id_list)
 		overlapping_sites_set = set(vcf1_locus_id_list)&set(vcf2_locus_id_list)
-		if outputFnamePrefix:
-			outputFname = "%s_overlapSitePos.tsv"%(outputFnamePrefix)
-			self.outputOverlapSites(overlapping_sites_set, outputFname)
+		if overlappingSitesOutputFname:
+			#outputFname = "%s_overlapSitePos.tsv"%(outputFnamePrefix)
+			self.outputOverlapSites(overlapping_sites_set=overlapping_sites_set, outputFname=overlappingSitesOutputFname)
+		
 		no_of_overlapping_sites = len(overlapping_sites_set)
 		no_of_total_sites = no_of_sites_of_input1+no_of_sites_of_input2-no_of_overlapping_sites
 		if no_of_total_sites>0:
@@ -136,7 +141,7 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 		2012.8.16
 		"""
 		sys.stderr.write("Finding matches for each sample at overlapping sites ...")
-		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
+		writer = MatrixFile(outputFname, openMode='w', delimiter='\t')
 		header = ['sample_id', 'no_of_matches', 'no_of_non_NA_pairs', 'matchFraction']
 		no_of_samples_to_compare = len(overlapping_sample_id_set)
 		
@@ -204,7 +209,7 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 		
 		vcfFile1 = VCFFile(inputFname=self.inputFname, minDepth=self.minDepth)
 		vcfFile2 = VCFFile(inputFname=self.jnputFname, minDepth=self.minDepth)
-		
+		"""
 		if self.outputFnamePrefix:
 			outputFnamePrefix = self.outputFnamePrefix
 		elif self.outputFname:
@@ -213,14 +218,16 @@ class CheckTwoVCFOverlap(AbstractVCFMapper):
 			sys.stderr.write("could not get outputFnamePrefix from self.outputFnamePrefix %s or self.outputFname %s.\n"%\
 							(self.outputFnamePrefix, self.outputFname))
 			sys.exit(1)
-		overallOverlapOutputFname = '%s.tsv'%(outputFnamePrefix)
-		perSampleMismatchOutputFname = '%s_perSample.tsv'%(outputFnamePrefix)
+		"""
+		#overallOverlapOutputFname = '%s.tsv'%(outputFnamePrefix)
+		#perSampleConcordanceOutputFname = '%s_perSample.tsv'%(outputFnamePrefix)
 		
-		pdata = self.calculateOverlappingSites(vcfFile1=vcfFile1, vcfFile2=vcfFile2, outputFname=overallOverlapOutputFname,
-							outputFnamePrefix=outputFnamePrefix, chromosome=self.chromosome, chrLength=self.chrLength)
-		if self.perSampleMatchFraction:
+		pdata = self.calculateOverlappingSites(vcfFile1=vcfFile1, vcfFile2=vcfFile2, outputFname=self.outputFname,
+							overlappingSitesOutputFname=self.overlappingSitesOutputFname, \
+							chromosome=self.chromosome, chrLength=self.chrLength)
+		if self.perSampleConcordanceOutputFname:
 			self.calculatePerSampleMismatchFraction(vcfFile1=vcfFile1, vcfFile2=vcfFile2, \
-												outputFname=perSampleMismatchOutputFname,\
+												outputFname=self.perSampleConcordanceOutputFname,\
 												overlapping_sample_id_set=pdata.overlapping_sample_id_set)
 		
 		
