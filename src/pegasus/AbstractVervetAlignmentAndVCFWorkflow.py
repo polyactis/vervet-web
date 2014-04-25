@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 import copy
 import subprocess, cStringIO
-from Pegasus.DAX3 import *
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus,\
 	AbstractAlignmentAndVCFWorkflow
 from vervet.src import VervetDB

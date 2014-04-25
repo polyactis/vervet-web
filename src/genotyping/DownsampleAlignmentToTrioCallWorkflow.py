@@ -8,13 +8,20 @@ Examples:
 		-t ~/NetworkData/vervet/db/ -D ~/NetworkData/vervet/db/ 
 		--alnId2targetDepth 558:1,649:1,618:4,557:1,615:1,626:4 --db_passwd secret --no_of_sampling 5
 	
-	# 2012.1.10 down-sample a  VRC (--site_id_ls 447) trio to 1X coverage, top 5 contigs, 20 samplings (--no_of_sampling 20)
-	# "--noOfCallingJobsPerNode 1" controls clustering of calling programs.
-	%s -u yh --ref_ind_seq_id 524 --site_type 2 --hostname localhost
-		-o dags/DownsampleAlignment/DownsampleAln558To1_618To1_649To1_20sampling_top5Contigs.xml -j hcondor -l hcondor
-		--contigMaxRankBySize 5 --noOfCallingJobsPerNode 1 --clusters_size 30 --site_id_ls 447
-		-t ~/NetworkData/vervet/db/ -D ~/NetworkData/vervet/db/
-		--no_of_sampling 20 --alnId2targetDepth 558:1,618:1,649:1
+	#2013.10.03
+	%s --ref_ind_seq_id 3488 --site_id_ls 447 --sequence_filtered 1 --local_realigned 0 --reduce_reads 0
+		--completedAlignment 1 --excludeContaminant --alignment_method_id 6
+		--ind_aln_id_ls 5372,5373,5374,5376,5382,5384,5386,5391,5412,5489,5490
+		-o dags/DownsampleAlignment/DownsampleEverySingleOf103AlignmentsTo1X_Beagle_Chr28.xml
+		-j hcondor -l hcondor --minContigID 28 --maxContigID 28 --noOfCallingJobsPerNode 1
+		--clusters_size 15 -t ~/NetworkData/vervet/db/ -D ~/NetworkData/vervet/db/
+		--refineGenotypeCallerType 2 --GATKGenotypeCallerType HaplotypeCaller
+		--heterozygosityForGATK 0.01 --alignmentDepthIntervalMethodShortName 10XVRCRef3488MinLength1000
+		--no_of_sampling 1
+		--originalVCFFolder ~/NetworkData/vervet/workflow/AlignmentToCall/AlignmentToTrioCall_VRC_103Alignments_Chr28AlnDepthMethod4_Ref3488.2013.Sep.18T174612/RefineSNP/
+		--alnId2targetDepth 5382:1 --genotypeCallerType 0
+		--originalTrioInconsistencyFname MendelInconsistency/TrioInconsistency_VRC_103Alignments_Chr28AlnDepthMethod4_Ref3488_Beagle.2013.Oct.3T084955/folderTrioInconsistency/trio_inconsistency.tsv
+		--db_user yh --needSSHDBTunnel --hostname localhost 
 	
 	# 2013.09.16 run downsampling workflow on 103 alignments. "--noOfCallingJobsPerNode 3" controls clustering of calling programs.
 	# "--clusters_size 30" controls clustering for other programs.
@@ -46,17 +53,25 @@ import random
 from Pegasus.DAX3 import Executable, File, PFN, Job, Link
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus
 from vervet.src.qc.CalculateTrioInconsistencyPipeline import CalculateTrioInconsistencyPipeline
+from vervet.src.qc.CheckTwoVCFOverlapPipeline import CheckTwoVCFOverlapPipeline
+from vervet.src.db import VervetDB
 from AlignmentToTrioCallPipeline import AlignmentToTrioCallPipeline
+from AlignmentToCallPipeline import AlignmentToCallPipeline
 
 parentClass = AlignmentToTrioCallPipeline
-class DownsampleAlignmentToTrioCallWorkflow(parentClass, CalculateTrioInconsistencyPipeline):
+class DownsampleAlignmentToTrioCallWorkflow(parentClass, CalculateTrioInconsistencyPipeline, CheckTwoVCFOverlapPipeline):
 	__doc__ = __doc__
 	option_default_dict = parentClass.option_default_dict.copy()
 	option_default_dict.update({
 						("probToSample", 1, float): [0.1, '', 1, 'probability for a read in a bam to be included in down-sampled bam, overridden by alnId2targetDepth'],\
-						("no_of_sampling", 1, int): [10, '', 1, 'how many samplings to run'],\
-						("alnId2targetDepth", 1, ): [None, '', 1, 'a coma-separated list, in the form of alignment_id:targetDepth. 620:1,632:1,648:1'],\
+						("no_of_sampling", 1, int): [10, '', 1, 'how many samplings to run, deprecated'],\
+						("alignmentMinCoverageToDownsample", 1, float): [10, '', 1, 'minimum coverage (median-depth) for an alignment to be chosen for downsampling'],\
+						("alignmentMaxCoverageToDownsample", 1, float): [100, '', 1, 'maximum coverage (median-depth) for an alignment to be chosen for downsampling'],\
+						("alnId2targetDepth", 0, ): [None, '', 1, '[deprecated] a coma-separated list, in the form of alignment_id:targetDepth. 620:1,632:1,648:1'],\
+						("targetDepth", 0, int): [1, '', 1, 'the target depth for each downsampling'],\
 						('minDepth', 0, float): [0, '', 1, 'minimum depth for a call to regarded as non-missing', ],\
+						('originalVCFFolder', 1, ): [None, '', 1, 'the folder that contains the calls before downsampling', ],\
+						('originalTrioInconsistencyFname', 1, ): [None, '', 1, 'file that contains trio inconsistency results from original calls', ],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 	#no overlap, and use 2Mb as interval (deal with alignment, not 2M loci)
@@ -89,6 +104,10 @@ class DownsampleAlignmentToTrioCallWorkflow(parentClass, CalculateTrioInconsiste
 		
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, \
 										name='DownsampleSamJava', clusterSizeMultipler=0.001)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'qc/AnalyzeGenotypeConcordanceInRelationToPerturbedMonkey.py'), \
+										name='AnalyzeGenotypeConcordanceInRelationToPerturbedMonkey', clusterSizeMultipler=0.3)
+		self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.join(self.vervetSrcPath, 'qc/AnalyzeTrioInconsistencyInRelationToPerturbedMonkey.py'), \
+										name='AnalyzeTrioInconsistencyInRelationToPerturbedMonkey', clusterSizeMultipler=0.3)
 		
 	def registerJars(self, workflow=None):
 		"""
@@ -167,7 +186,8 @@ class DownsampleAlignmentToTrioCallWorkflow(parentClass, CalculateTrioInconsiste
 							extraDependentInputLs=[baiF], transferOutput=False, \
 							extraArguments=None, job_max_memory=3000, needBAMIndexJob=True)
 					
-						outputBamF = File(os.path.join(downsampleDirJob.output, "%s_%s_%s.bam"%(alignmentBasenamePrefix, chromosome, probToSample)))
+						outputBamF = File(os.path.join(downsampleDirJob.output, "%s_%s_%sTo%s.bam"%(alignmentBasenamePrefix, chromosome, \
+																								alignment.median_depth, targetDepth)))
 						downsampleJob = self.addDownsampleSamJob(executable=workflow.DownsampleSamJava, DownsampleSamJar=self.DownsampleSamJar, \
 										inputFile=selectAlignmentJob.output, \
 										probToSample=probToSample, outputFile=outputBamF, \
@@ -203,6 +223,92 @@ class DownsampleAlignmentToTrioCallWorkflow(parentClass, CalculateTrioInconsiste
 		sys.stderr.write(" job count=%s.\n"%(self.no_of_jobs))
 		return returnData
 	
+	def setup(self, **keywords):
+		"""
+		2013.10.02
+		"""
+		parentClass.setup(self, **keywords)
+		
+		outputDirPrefix = "downSample"
+		self.auxDirJob = self.addMkDirJob(outputDir="%sAuxilliary"%(outputDirPrefix))
+		
+		#output complete pedigree, use Individual.id as id
+		# used by programs that analyze concordance and trio-inconsistency results
+		pedigreeFileFormat = 5
+		pedFile = File(os.path.join(self.auxDirJob.output, 'pedigree.format%s.txt'%(pedigreeFileFormat)))
+		#sampleID2FamilyCountF = File(os.path.join(self.auxDirJob.output, 'pedigree.sampleID2FamilyCount.%s.format%s.txt'%\
+		#						(inputFileBasenamePrefix, pedigreeFileFormat)))
+		self.wholePedigreeJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
+				inputFile=None, outputFile=pedFile, \
+				sampleID2FamilyCountF=None,\
+				polymuttDatFile = None,\
+				outputFileFormat=pedigreeFileFormat, \
+				replicateIndividualTag=self.replicateIndividualTag,\
+				treatEveryOneIndependent=self.treatEveryOneIndependent,\
+				parentJobLs=[self.auxDirJob], \
+				extraDependentInputLs=None, transferOutput=True, \
+				extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
+		
+		
+		#a job that outputs alignment coverage (alignment.read_group, median_depth)
+		alignmentDepthFile = File(os.path.join(self.auxDirJob.folder, 'refIndSeq%s_AlignmentDepth.tsv'%(self.ref_ind_seq_id)))
+		self.outputAlignmentDepthJob = self.addOutputVCFAlignmentDepthRangeJob(executable=self.OutputVCFAlignmentDepthRange, \
+						inputFile=None, \
+						ref_ind_seq_id=self.ref_ind_seq_id, depthFoldChange=None, minGQ=None,\
+						outputFile=alignmentDepthFile, outputFileFormat=1,\
+						data_dir=self.data_dir,\
+						sequence_filtered=self.sequence_filtered, excludeContaminant=self.excludeContaminant, \
+						local_realigned=self.local_realigned, reduce_reads=self.reduce_reads, \
+						completedAlignment=self.completedAlignment, \
+						alignment_method_id=self.alignment_method_id, \
+						alignment_outdated_index=self.alignment_outdated_index,\
+						extraArgumentList=None,\
+						parentJobLs=[self.auxDirJob], \
+						extraDependentInputLs=None, transferOutput=True, \
+						job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
+		
+	def addConcordanceAnalysisJob(self, inputFile=None, outputFile=None,\
+						perturbedMonkeyList=None, wholePedigreeJob=None, outputAlignmentDepthJob=None, \
+						parentJobLs=None, transferOutput=True, job_max_memory=None, walltime=None):
+		"""
+		2013.10.03
+		"""
+		if parentJobLs is None:
+			parentJobLs = []
+		job = self.addGenericJob(executable=self.AnalyzeGenotypeConcordanceInRelationToPerturbedMonkey, \
+					inputFile=inputFile, outputFile=outputFile, \
+					parentJobLs=parentJobLs + [wholePedigreeJob, outputAlignmentDepthJob], \
+					extraArgumentList=["--perturbedMonkeyList %s"%(','.join(perturbedMonkeyList)), \
+									'--individualAlignmentCoverageFname', outputAlignmentDepthJob.output, \
+									"--pedigreeFname", wholePedigreeJob.output ], \
+					extraDependentInputLs=[outputAlignmentDepthJob.output, wholePedigreeJob.output],\
+					extraOutputLs=None,\
+					transferOutput=transferOutput, \
+					key2ObjectForJob=None, job_max_memory=job_max_memory, walltime=walltime)
+		return job
+	
+	def addTrioInconsistencyAnalysisJob(self, inputFile=None, outputFile=None,\
+						originalTrioInconsistencyFile=None,
+						perturbedMonkeyList=None, wholePedigreeJob=None, outputAlignmentDepthJob=None, \
+						parentJobLs=None, transferOutput=True, job_max_memory=None, walltime=None):
+		"""
+		2013.10.03
+		"""
+		if parentJobLs is None:
+			parentJobLs = []
+		job = self.addGenericJob(executable=self.AnalyzeTrioInconsistencyInRelationToPerturbedMonkey, \
+					inputFile=inputFile, outputFile=outputFile, \
+					parentJobLs=parentJobLs + [wholePedigreeJob, outputAlignmentDepthJob], \
+					extraArgumentList=["--perturbedMonkeyList %s"%(','.join(perturbedMonkeyList)), \
+									'--individualAlignmentCoverageFname', outputAlignmentDepthJob.output, \
+									"--pedigreeFname", wholePedigreeJob.output,\
+									"--originalTrioInconsistencyFname", originalTrioInconsistencyFile], \
+					extraDependentInputLs=[outputAlignmentDepthJob.output, wholePedigreeJob.output, originalTrioInconsistencyFile],\
+					extraOutputLs=None,\
+					transferOutput=transferOutput, \
+					key2ObjectForJob=None, job_max_memory=job_max_memory, walltime=walltime)
+		return job
+	
 	def run(self):
 		"""
 		2011-7-11
@@ -212,6 +318,8 @@ class DownsampleAlignmentToTrioCallWorkflow(parentClass, CalculateTrioInconsiste
 		pdata = self.setup_run()
 		workflow = pdata.workflow
 		db_vervet = self.db
+		
+		self.setup()
 		
 		cumulativeMedianDepth = self.db.getCumulativeAlignmentMedianDepth(alignmentLs=pdata.alignmentLs, \
 										defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
@@ -237,21 +345,37 @@ class DownsampleAlignmentToTrioCallWorkflow(parentClass, CalculateTrioInconsiste
 		
 		origAlignmentDataLs = self.alignmentDataLs
 		
+		"""
 		#reduce the trio consistency by the same trio across different samplings 
 		allTrioInconsistencyFile = File('trio_inconsistency_avg_all_samples.tsv')
 		allTrioInconsistencyJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixByAverageColumnsWithSameKey, \
 						outputF=allTrioInconsistencyFile, extraArguments='-k 0 -v 1,2,3', parentJobLs=None, \
 						extraDependentInputLs=None, transferOutput=True)
-		
+		"""
 		trioLs = self.getDuoTrioFromAlignmentLs(db_vervet, self.alignmentLs)
 		
 		#add jobs to select only certain chromosome(s), (maxContigID, minContigID) out of alignment files
+		originalVCFData = self.registerAllInputFiles(inputDir=self.originalVCFFolder, input_site_handler=None, \
+					checkEmptyVCFByReading=self.checkEmptyVCFByReading, pegasusFolderName='%sOriginalVCF'%(self.pegasusFolderName),\
+					maxContigID=self.maxContigID, minContigID=self.minContigID, \
+					db_vervet=None, needToKnowNoOfLoci=False,
+					minNoOfLociInVCF=None, includeIndelVCF=True)
+		originalTrioInconsistencyFile = self.registerOneInputFile(inputFname=self.originalTrioInconsistencyFname, folderName=self.pegasusFolderName, \
+								checkFileExistence=True)
 		
-		for i in xrange(self.no_of_sampling):
-			downsampleDir="downsampleBam_%s"%(i+1)
+		#for i in xrange(self.no_of_sampling):
+		noOfDownsampledMonkeys = 0
+		for alignmentData in origAlignmentDataLs:	#downsample every single alignment
+			if alignmentData.alignment.median_depth<self.alignmentMinCoverageToDownsample or alignmentData.alignment.median_depth>self.alignmentMaxCoverageToDownsample:
+				#skip if original alignment's coverage is too low or too high
+				continue
+			noOfDownsampledMonkeys += 1
+			perturbedMonkeyList = [alignmentData.alignment.read_group]
+			downsampleDir="downsample_%s_%sTo%s"%(alignmentData.alignment.read_group, alignmentData.alignment.median_depth, self.targetDepth)
 			downsampleDirJob = self.addMkDirJob(outputDir=downsampleDir)
+			alnId2targetDepth = {alignmentData.alignment.id: self.targetDepth}
 			alignmentDataLs = self.addDownsampleJobToSelectedAlignment(alignmentDataLs=origAlignmentDataLs, \
-											alnId2targetDepth=self.alnId2targetDepth, downsampleDirJob=downsampleDirJob,\
+											alnId2targetDepth=alnId2targetDepth, downsampleDirJob=downsampleDirJob,\
 											chr2IntervalDataLs=self.chr2IntervalDataLs)
 			#--genotypeCallerType: '0: SAMtools, 1: GATK (--GATKGenotypeCallerType ...), 2: Platypus'
 			genotypeCallJobData = self.addGenotypeCallJobs(alignmentDataLs=alignmentDataLs, chr2IntervalDataLs=self.chr2IntervalDataLs,\
@@ -263,6 +387,20 @@ class DownsampleAlignmentToTrioCallWorkflow(parentClass, CalculateTrioInconsiste
 						cumulativeMedianDepth=cumulativeMedianDepth, \
 						sourceVCFFolder=None, extraArgumentPlatypus="")
 			
+			concordanceWithOriginalData = self.addCheckingVCFOverlapSubWorkflow(workflow=workflow, chr2size = self.chr2size, \
+						inputVCFData1=genotypeCallJobData, \
+						inputVCFData2=originalVCFData, \
+						registerReferenceData=pdata.registerReferenceData,\
+						outputDirPrefix="%s/CheckOverlapAndConcordance"%(downsampleDir))
+			
+			outputFile = File(os.path.join(downsampleDirJob.output, 'ConcordanceInRelationToPerturbedMonkey.tsv'))
+			self.addConcordanceAnalysisJob(inputFile=concordanceWithOriginalData.perSampleMatchFractionReduceJob.output, \
+								outputFile=outputFile, perturbedMonkeyList=perturbedMonkeyList, \
+								wholePedigreeJob=self.wholePedigreeJob, outputAlignmentDepthJob=self.outputAlignmentDepthJob, \
+								parentJobLs=[downsampleDirJob, concordanceWithOriginalData.perSampleMatchFractionReduceJob], \
+								transferOutput=True,\
+								job_max_memory=2000, walltime=120)
+			
 			#reduce small-interval jobs into bigger ones so that trioInconsistency jobs do not explode
 				#one per trio,
 				# bigIntervalSize is measured in bp
@@ -273,14 +411,24 @@ class DownsampleAlignmentToTrioCallWorkflow(parentClass, CalculateTrioInconsiste
 							registerReferenceData=pdata.registerReferenceData, fileBasenamePrefix="", \
 							intervalJobLs=intervalJobLs, outputDirJob=outputDirJob, bigIntervalSize=bigIntervalSize,
 							transferOutput=False, job_max_memory=7000, walltime=300, needBGzipAndTabixJob=False)
-			trioInconsistencJobData = self.addCalculateTrioInconsistencyJobs(inputVCFData=bigIntervalGenotypeCallJobData, \
+			trioInconsistencyJobData = self.addCalculateTrioInconsistencyJobs(inputVCFData=bigIntervalGenotypeCallJobData, \
 				trioLs=trioLs, \
 				addTrioSpecificPlotJobs=None, addTrioContigSpecificPlotJobs=None,\
 				outputDirPrefix="%s/"%downsampleDir)
+			outputFile = File(os.path.join(downsampleDirJob.output, 'TrioInconsistencyInRelationToPerturbedMonkey.tsv'))
+			self.addTrioInconsistencyAnalysisJob(inputFile=trioInconsistencyJobData.trioInconsistencySummaryJob.output, \
+								outputFile=outputFile, \
+								originalTrioInconsistencyFile=originalTrioInconsistencyFile, perturbedMonkeyList=perturbedMonkeyList, \
+								wholePedigreeJob=self.wholePedigreeJob, outputAlignmentDepthJob=self.outputAlignmentDepthJob, \
+								parentJobLs=[trioInconsistencyJobData.trioInconsistencySummaryJob], \
+								transferOutput=True,\
+								job_max_memory=2000, walltime=120)
+			
 			#add trio inconsistency summary output to reduction job
-			self.addInputToStatMergeJob(statMergeJob=allTrioInconsistencyJob, \
-								inputF=trioInconsistencJobData.trioInconsistencySummaryJob.output, \
-								parentJobLs=[trioInconsistencJobData.trioInconsistencySummaryJob])
+			#self.addInputToStatMergeJob(statMergeJob=allTrioInconsistencyJob, \
+			#					inputF=trioInconsistencyJobData.trioInconsistencySummaryJob.output, \
+			#					parentJobLs=[trioInconsistencyJobData.trioInconsistencySummaryJob])
+		sys.stderr.write(" %s monkeys to be downsampled to %s.\n"%(noOfDownsampledMonkeys, self.targetDepth))
 		self.end_run()
 
 if __name__ == '__main__':

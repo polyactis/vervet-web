@@ -17,7 +17,7 @@ Examples:
 		--local_data_dir ~/NetworkData/vervet/db/ --needSSHDBTunnel
 		
 	# 2012.4.13 run VRC with 5 SK + 5 Nevis, sequenced filtered (--sequence_filtered 1), alignment by method 2 (--alignment_method_id 2)
-	%s -u yh -a 524 -s 2  -z localhost -o dags/AlignmentToCall/AlignmentToTrioCall_ReplicateIndividual_VRC_SK_Nevis_FilteredSeq_top1000Contigs.xml 
+	%s -u yh -a 524 -s 2 -z localhost -o dags/AlignmentToCall/AlignmentToTrioCall_ReplicateIndividual_VRC_SK_Nevis_FilteredSeq_top1000Contigs.xml 
 		-j hcondor -l hcondor -N1000 --noOfCallingJobsPerNode 3 --clusters_size 30 -S 447,417,420,427,431,432,435,437,439,440,442 
 		--data_dir ~/NetworkData/vervet/db/
 		--local_data_dir ~/NetworkData/vervet/db/
@@ -32,18 +32,18 @@ Examples:
 		--local_data_dir ~/NetworkData/vervet/db/
 		--sequence_filtered 1 --alignment_method_id 2 -q aux/alnStatForFilter.2012.6.13.tsv --onlyKeepBiAllelicSNP -L 0.30 --needSSHDBTunnel
 		
-	# 2012.8.15 run TrioCaller on method 14 samtools calls, contig ID from 96 to 100 (--minContigID 96 --maxContigID 100)
+	# 2013.10.13 run TrioCaller on method 230 samtools calls, contig ID from 96 to 100 (--minContigID 96 --maxContigID 100)
 	# sequenced filtered (--sequence_filtered 1), alignment by method 2 (--alignment_method_id 2), onlyKeepBiAllelicSNP (--onlyKeepBiAllelicSNP) 
 	# calling job clusters size=1, others =1 (--noOfCallingJobsPerNode 1 --clusters_size 1)
 	# add --notToUseDBToInferVCFNoOfLoci (not guess #loci from the 1st number in filename) if input VCF files are not db affiliated
 	# 3000 (--intervalSize 3000) sites per unit, 500 overlapping between units (--intervalOverlapSize 500)
 	# add "--treatEveryOneIndependent" if you want to treat everyone independent (no mendelian constraints from TrioCaller)
-	%s --run_type 2 -I ~/NetworkData/vervet/db/genotype_file/method_14/
-		-u yh -a 524  -z localhost -o  dags/AlignmentToCall/TrioCallerOnMethod14Contig96_100.xml
-		-j hcondor -l hcondor
-		--noOfCallingJobsPerNode 1 --clusters_size 1
-		--data_dir ~/NetworkData/vervet/db/ --local_data_dir ~/NetworkData/vervet/db/
-		--minContigID 96 --maxContigID 100 --sequence_filtered 1 --alignment_method_id 2  --onlyKeepBiAllelicSNP --needSSHDBTunnel
+	%s --run_type 2
+		-I ~/NetworkData/vervet/db/genotype_file/method_230/ -u yh -a 3280 -z localhost
+		-o dags/AlignmentToCall/TrioCallerOnMethod230.xml -j hcondor -l hcondor --noOfCallingJobsPerNode 1
+		--clusters_size 30 --data_dir ~/NetworkData/vervet/db/ --local_data_dir ~/NetworkData/vervet/db/
+		--sequence_filtered 1 --onlyKeepBiAllelicSNP --needSSHDBTunnel --intervalSize 3000 --intervalOverlapSize 500
+		--alignment_method_id 2 --maxContigID 3000 --minContigID 1 --minNoOfLociInVCF 2
 		# --notToUseDBToInferVCFNoOfLoci --intervalSize 3000 --intervalOverlapSize 500 --treatEveryOneIndependent
 	
 	#2013.1.4 run polymutt on method 36, no overlapping between intervals, --intervalOverlapSize 0
@@ -72,7 +72,7 @@ sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 import copy
 from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, utils
 from pymodule import VCFFile
-from Pegasus.DAX3 import *
+from Pegasus.DAX3 import Executable, File, Job
 from vervet.src import VervetDB, AbstractVervetWorkflow
 from vervet.src.genotyping.AlignmentToCallPipeline import AlignmentToCallPipeline
 
@@ -92,6 +92,7 @@ class AlignmentToTrioCallPipeline(parentClass):
 						('depthFoldChange', 1, float): [2.0, 'y', 1, 'a variant is retained if its depth within this fold change of meanDepth,', ],\
 						("treatEveryOneIndependent", 0, int): [0, '', 0, 'toggle this to treat everyone in the pedigree independent and also no replicates'],\
 						("run_type", 1, int): [1, 'n', 1, '1: TrioCaller on alignments; 2: TrioCaller on VCF files; 3: Polymutt on VCF files'],\
+						("refineGenotypeCallerType", 0, int): [1, '', 1, '1: TrioCaller, 2: Beagle, 3: Beagle + TrioCaller'],\
 						})
 						#('bamListFname', 1, ): ['/tmp/bamFileList.txt', 'L', 1, 'The file contains path to each bam file, one file per line.'],\
 	#2012.8.26 run_type 2 lower the default. In the addTrioCallerJobsONVCFFiles(), these two numbers refer to the number of sites, not base pairs. 
@@ -167,6 +168,107 @@ class AlignmentToTrioCallPipeline(parentClass):
 					key2ObjectForJob=key2ObjectForJob, walltime=walltime, **keywords)
 		return job
 	
+	def addRefineGenotypeJobsViaBeagle(self, inputFile=None, vcfBaseFname=None, outputDirJob=None, statDirJob=None, \
+					refFastaFList=None, intervalData=None,\
+					baseInputVolume=450*2000000, realInputVolume=None,\
+					parentJobLs=None, \
+					transferOutput=False, \
+					no_of_cpus=None, job_max_memory=2000, walltime=180, \
+					max_walltime=None, **keywords):
+		
+		returnData = PassingData()
+		
+		if not hasattr(self, "outputPedigreeJob"):
+			#output pedigree, with no replicating certain individuals, no trio/duo splitting
+			#plink format
+			#for Beagle to read in
+			pedigreeFileFormat = 4
+			inputFileBasenamePrefix = utils.getFileBasenamePrefixFromPath(inputFile.name)
+			pedFile = File(os.path.join(outputDirJob.output, 'pedigree.%s.format%s.txt'%\
+									(inputFileBasenamePrefix, pedigreeFileFormat)))
+			#sampleID2FamilyCountF = File(os.path.join(self.auxDirJob.output, 'pedigree.sampleID2FamilyCount.%s.format%s.txt'%\
+			#						(inputFileBasenamePrefix, pedigreeFileFormat)))
+			self.outputPedigreeJob = self.addOutputVRCPedigreeInTFAMGivenOrderFromFileJob(executable=self.OutputVRCPedigreeInTFAMGivenOrderFromFile, \
+					inputFile=inputFile, outputFile=pedFile, \
+					sampleID2FamilyCountF=None,\
+					polymuttDatFile = None,\
+					outputFileFormat=pedigreeFileFormat, \
+					replicateIndividualTag=self.replicateIndividualTag,\
+					treatEveryOneIndependent=self.treatEveryOneIndependent,\
+					parentJobLs=parentJobLs + [outputDirJob], \
+					extraDependentInputLs=None, transferOutput=True, \
+					extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
+			
+		##### Part 2 run Beagle on everyone with reference panel
+		# run Beagle
+		#refPanelFile=selectDistantMembersVariantsJob.output,\
+		outputFnamePrefix = os.path.join(outputDirJob.folder, '%s.beagled'%(vcfBaseFname))
+		beagleJob = self.addBeagle4Job(executable=self.BeagleJava, \
+						inputFile=inputFile, refPanelFile=None,\
+						pedFile=self.outputPedigreeJob.output,\
+						outputFnamePrefix=outputFnamePrefix, \
+						burninIterations=7, phaseIterations=10, \
+						noOfSamplingHaplotypesPerSample=4, duoscale=2, trioscale=2, \
+						extraArguments=None, extraArgumentList=None,\
+						parentJobLs=[outputDirJob, \
+									self.outputPedigreeJob] + parentJobLs, \
+						transferOutput=False, no_of_cpus=None, \
+						job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
+							minJobPropertyValue=4000, maxJobPropertyValue=13000).value,\
+						walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
+							minJobPropertyValue=60, maxJobPropertyValue=1200).value,\
+						)
+		returnData.beagleJob = beagleJob
+		
+		#index .vcf.gz, output of beagle, without index, GATK can't work on gzipped vcf
+		tabixIndexFile = File('%s.tbi'%(beagleJob.output.name))
+		tabixJob = self.addGenericJob(executable=self.tabix, \
+						inputFile=beagleJob.output, inputArgumentOption="",\
+						outputFile=None, outputArgumentOption="-o", \
+						extraDependentInputLs=None, \
+						extraOutputLs=[beagleJob.output, tabixIndexFile], transferOutput=False, \
+						frontArgumentList=["-p vcf"], \
+						extraArguments=None, \
+						extraArgumentList=None, \
+						parentJobLs=[beagleJob, outputDirJob],\
+						no_of_cpus=None, \
+					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
+							minJobPropertyValue=2000, maxJobPropertyValue=4000).value,\
+					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
+							minJobPropertyValue=60, maxJobPropertyValue=180).value)
+		
+		#borrow PL to from pre-Beagle VCF to genotype 
+		outputFile = File(os.path.join(outputDirJob.folder, '%s.beagled.withPL.vcf'%(vcfBaseFname)))
+		combineBeagleAndPreBeagleVariantsJob = self.addGATKJob(executable=self.CombineBeagleAndPreBeagleVariantsJava, \
+					GenomeAnalysisTKJar=self.GenomeAnalysisTKJar, \
+					GATKAnalysisType="CombineBeagleAndPreBeagleVariants",\
+					inputFile=None, inputArgumentOption=None, \
+					refFastaFList=refFastaFList, \
+					inputFileList=None, argumentForEachFileInInputFileList="--variant",\
+					interval=None, outputFile=outputFile, outputArgumentOption="--out", \
+					frontArgumentList=None, extraArguments=None, \
+					extraArgumentList=["--variant:first", beagleJob.output, "--variant:second", inputFile, \
+								"-genotypeMergeOptions PRIORITIZE", "-priority first,second"], \
+					extraOutputLs=None, \
+					extraDependentInputLs=[inputFile] + tabixJob.outputLs, \
+					parentJobLs=[beagleJob, tabixJob]+ parentJobLs, transferOutput=False, \
+					no_of_cpus=None, \
+					key2ObjectForJob=None,\
+					job_max_memory = self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=4000, \
+							minJobPropertyValue=2000, maxJobPropertyValue=4000).value,\
+					walltime= self.scaleJobWalltimeOrMemoryBasedOnInput(realInputVolume=realInputVolume, \
+							baseInputVolume=baseInputVolume, baseJobPropertyValue=60, \
+							minJobPropertyValue=60, maxJobPropertyValue=600).value)
+		#do not use "--variant:beagle" to name your vcf file as GATK would think it's in Beagle format
+		returnData.refineGenotypeJob = combineBeagleAndPreBeagleVariantsJob	#the final gentoype job
+		returnData.refineGenotypeJob.intervalData = intervalData	#attached so that it could be used by downstream jobs
+		return returnData
+	
 	def addRefineSNPGenotypeJob(self, inputFile=None, vcfBaseFname=None, outputDirJob=None, statDirJob=None, \
 					refFastaFList=None, intervalData=None,\
 					baseInputVolume=450*2000000, realInputVolume=None,\
@@ -179,7 +281,22 @@ class AlignmentToTrioCallPipeline(parentClass):
 			#memory/walltime setting
 			#base for Platypus is 450X coverage in 2Mb region => 80 minutes
 		"""
-
+		if (self.refineGenotypeCallerType==1):
+			return self.addRefineGenotypeJobsViaTrioCaller(inputFile, vcfBaseFname, outputDirJob, statDirJob, 
+								refFastaFList, intervalData, baseInputVolume, realInputVolume,
+								parentJobLs, transferOutput, no_of_cpus, job_max_memory, walltime, max_walltime)
+		else:
+			return self.addRefineGenotypeJobsViaBeagle(inputFile, vcfBaseFname, outputDirJob, statDirJob, 
+									refFastaFList, intervalData, baseInputVolume, realInputVolume, 
+									parentJobLs, transferOutput, no_of_cpus, job_max_memory, walltime, max_walltime)
+	
+	def addRefineGenotypeJobsViaTrioCaller(self, inputFile=None, vcfBaseFname=None, outputDirJob=None, statDirJob=None, \
+					refFastaFList=None, intervalData=None,\
+					baseInputVolume=450*2000000, realInputVolume=None,\
+					parentJobLs=None, \
+					transferOutput=False, \
+					no_of_cpus=None, job_max_memory=2000, walltime=180, \
+					max_walltime=None, **keywords):
 		
 		returnData = PassingData()
 		if getattr(self, "outputPedigreeJob", None) is None:
@@ -481,7 +598,7 @@ class AlignmentToTrioCallPipeline(parentClass):
 							inputFile=refineGenotypeJob.output, \
 							inputArgumentOption="-i", \
 							outputFile=outputFile, outputArgumentOption="-o", \
-							parentJobLs=[trioCallerOutputDirJob]+ refineGenotypeJob, \
+							parentJobLs=[trioCallerOutputDirJob, refineGenotypeJob], \
 							extraDependentInputLs=None, extraOutputLs=None, \
 							frontArgumentList=None, extraArguments=None, extraArgumentList=None, \
 							transferOutput=False, sshDBTunnel=None, \
@@ -584,14 +701,13 @@ class AlignmentToTrioCallPipeline(parentClass):
 		"""
 		if self.run_type!=1:
 			self.needSplitChrIntervalData = False	#2013.06.21 turn this off before setup_run() to not construct chr2IntervalDataLs
+		else:
+			self.needSplitChrIntervalData = True
 		pdata = self.setup_run()
 		workflow = pdata.workflow
 		db_vervet = self.db
 		
-		if self.run_type==1:
-			alignmentLs = db_vervet.getAlignments(self.ref_ind_seq_id, ind_seq_id_ls=self.ind_seq_id_ls, ind_aln_id_ls=self.ind_aln_id_ls,\
-										alignment_method_id=self.alignment_method_id, data_dir=self.local_data_dir)
-		elif self.run_type in [2,3]:
+		if self.run_type in [2,3]:
 			inputData = self.registerAllInputFiles(workflow, self.inputDir, input_site_handler=self.input_site_handler, \
 									checkEmptyVCFByReading=self.checkEmptyVCFByReading,\
 									pegasusFolderName=self.pegasusFolderName,\
@@ -604,43 +720,28 @@ class AlignmentToTrioCallPipeline(parentClass):
 			alignmentLs = db_vervet.getAlignmentsFromVCFSampleIDList(vcfFile.getSampleIDList())
 			del vcfFile
 		
-		alignmentLs = db_vervet.filterAlignments(alignmentLs=alignmentLs, sequence_filtered=self.sequence_filtered, \
-												individual_site_id_set=set(self.site_id_ls),\
-												mask_genotype_method_id=None, parent_individual_alignment_id=None,\
-									country_id_set=set(self.country_id_ls), tax_id_set=set(self.tax_id_ls),\
-									excludeContaminant=self.excludeContaminant)
-		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=alignmentLs, \
-															defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
+		cumulativeMedianDepth = db_vervet.getCumulativeAlignmentMedianDepth(alignmentLs=pdata.alignmentLs, \
+											defaultSampleAlignmentDepth=self.defaultSampleAlignmentDepth)
 		
 		registerReferenceData = pdata.registerReferenceData
 		
 		
 		if self.run_type==1:
-			alignmentDataLs = self.registerAlignmentAndItsIndexFile(workflow=workflow, alignmentLs=alignmentLs, data_dir=self.data_dir)
-			chr2size = self.chr2size
 			#chr2size = set(['Contig149'])	#temporary when testing Contig149
 			#chr2size = set(['1MbBAC'])	#temporary when testing the 1Mb-BAC (formerly vervet_path2)
-			chrLs = chr2size.keys()
-			chr2IntervalDataLs = self.getChr2IntervalDataLsBySplitChrSize(chr2size=chr2size, \
-															intervalSize=self.intervalSize, \
-															intervalOverlapSize=self.intervalOverlapSize)
-			# 2012.8.2 if maxContigID/minContigID is not well defined. restrictContigDictionry won't do anything.
-			chr2IntervalDataLs = self.restrictContigDictionry(dc=chr2IntervalDataLs, \
-													maxContigID=self.maxContigID, minContigID=self.minContigID)
 			#2012.6.12
-			self.outputAlignmentDepthAndOthersForFilter(db_vervet=db_vervet, outputFname=self.alnStatForFilterFname, \
-												ref_ind_seq_id=self.ref_ind_seq_id, \
-												foldChange=self.depthFoldChange, minGQ=30)	#minGQ doesn't matter anymore.
-			alnStatForFilterF = self.registerOneInputFile(inputFname=os.path.abspath(self.alnStatForFilterFname))
-			
-			self.addGenotypeCallJobs(workflow=workflow, alignmentDataLs=alignmentDataLs, chr2IntervalDataLs=chr2IntervalDataLs, \
+			#self.outputAlignmentDepthAndOthersForFilter(db_vervet=db_vervet, outputFname=self.alnStatForFilterFname, \
+			#									ref_ind_seq_id=self.ref_ind_seq_id, \
+			#									foldChange=self.depthFoldChange, minGQ=30)	#minGQ doesn't matter anymore.
+			self.addGenotypeCallJobs(workflow=workflow, alignmentDataLs=pdata.alignmentDataLs, chr2IntervalDataLs=self.chr2IntervalDataLs, \
 						registerReferenceData=registerReferenceData, \
 						site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 						intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, \
 						site_type=self.site_type, data_dir=self.data_dir,\
-						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, maxSNPMissingRate=self.maxSNPMissingRate,\
-						alnStatForFilterF=alnStatForFilterF, cumulativeMedianDepth=cumulativeMedianDepth,\
+						outputDirPrefix="",\
+						genotypeCallerType=self.genotypeCallerType,\
+						cumulativeMedianDepth=cumulativeMedianDepth,\
 						transferOutput=True)
 		elif self.run_type in [2, 3]:
 			self.addTrioCallerJobsONVCFFiles(workflow=workflow, alignmentLs=alignmentLs, inputData=inputData, \
@@ -661,6 +762,7 @@ class AlignmentToTrioCallPipeline(parentClass):
 						registerReferenceData=registerReferenceData, \
 						namespace=workflow.namespace, version=workflow.version, site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
+						outputDirPrefix="", \
 						intervalSize=self.intervalSize, intervalOverlapSize=self.intervalOverlapSize, \
 						site_type=self.site_type, data_dir=self.data_dir,\
 						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP, maxSNPMissingRate=self.maxSNPMissingRate,\

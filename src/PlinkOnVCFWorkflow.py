@@ -28,10 +28,10 @@ Examples:
 		--LDPruneWindowShiftSize 100
 		#--minContigID 90 --maxContigID 100
 	
-	# 2012.8.10 Plink Mendel Error
+	# 2013.10.13 Plink Mendel Error (use --maxContigID to skip sex chromosomes)
 	%s  -I ~/NetworkData/vervet/db/genotype_file/method_14/ -o dags/PlinkMendelError/PlinkMendelError_Method14.xml
 		--checkEmptyVCFByReading --clusters_size 4  --needSSHDBTunnel
-		--ref_ind_seq_id 529
+		--ref_ind_seq_id 529 --maxContigID 3000 --ref_genome_sequence_type_id 9
 		--site_handler hcondor --input_site_handler hcondor
 		--db_user yh --hostname localhost
 		--local_data_dir ~/NetworkData/vervet/db/ --data_dir ~/NetworkData/vervet/db/ 
@@ -460,6 +460,7 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 		returnData.meanMedianModePerLocusMendelErrorJob = meanMedianModePerLocusMendelErrorJob
 		returnData.calculateMendelErrorRateJob = calculateMendelErrorRateJob
 		returnData.mergeOutputDirJob = mergeOutputDirJob
+		returnData.splitPlinkLMendelFileSNPIDIntoChrPositionJob = splitPlinkLMendelFileSNPIDIntoChrPositionJob
 		return returnData
 	
 	def addPlinkMendelErrorJobs(self, workflow=None, inputData=None, \
@@ -602,10 +603,13 @@ class PlinkOnVCFWorkflow(GenericVCFWorkflow):
 			
 			inputJob = copy.deepcopy(inputJob)	#2013.07.25 make a copy of it , rather than change the original's tfamFile/famFile
 			if inputJob.output.name[-4:]=='tped':	#2013.07.25 make sure addPlinkJob could get the right tfamFile
-				inputJob.tfamFile = getattr(tfamJob, 'tfamFile', inputJob.tfamFile)
+				inputJob.tfamFile = getattr(tfamJob, 'tfamFile', getattr(inputJob, 'tfamFile', None))
+				if not hasattr(inputJob, 'tpedFile'):	#2013.11.14 addPlinkJob() would try to parse tpedFile from parentPlinkJob
+					inputJob.tpedFile = inputF
 			elif inputJob.output.name[-4:]=='.bed':	#2013.07.25 make sure addPlinkJob could get the right famFile
-				inputJob.famFile = getattr(famJob, 'famFile', inputJob.famFile)
-			
+				inputJob.famFile = getattr(famJob, 'famFile', getattr(inputJob, 'famFile', None))
+				if not hasattr(inputJob, 'bedFile'):	#2013.11.14
+					inputJob.bedFile = inputF
 			plinkMendelJob = self.addPlinkJob(executable=self.plink, \
 					parentPlinkJob=inputJob,\
 					outputFnamePrefix=mendelFnamePrefix, outputOption='--out',\

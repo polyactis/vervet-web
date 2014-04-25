@@ -12,7 +12,8 @@ Examples:
 	# 2011.12.16 run on hoffman2 condor (site depth >=1, --minDepth 1)  (turn on checkEmptyVCFByReading, --checkEmptyVCFByReading)
 	# only contig ID<=100 (-x)
 	%s --ref_ind_seq_id 524 -I AlignmentToTrioCallPipeline_VRC_Aln559_600_Trio620_632_648_top2Contigs.2011.12.14T1432/trioCaller/
-		-o TrioInconsistency_TrioCall_VRC_Aln559_600_Trio620_632_648_top2Contigs.xml -l hcondor -j hcondor
+		-o dags/MendelInconsistency/TrioInconsistency_TrioCall_VRC_Aln559_600_Trio620_632_648_top2Contigs.xml
+		-l hcondor -j hcondor
 		--db_user yh --hostname localhost
 		-t ~/NetworkData/vervet/db/
 		-D ~/NetworkData/vervet/db/  --clusters_size 1 --checkEmptyVCFByReading --minDepth 1 -x 100

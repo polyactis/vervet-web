@@ -13,10 +13,12 @@ from pymodule import ProcessOptions, getListOutOfStr, PassingData, yh_pegasus, N
 from pymodule.pegasus.AbstractVCFWorkflow import AbstractVCFWorkflow
 from vervet.src import VervetDB
 
-class AbstractVervetWorkflow(AbstractVCFWorkflow):
+parentClass = AbstractVCFWorkflow
+
+class AbstractVervetWorkflow(parentClass):
 	__doc__ = __doc__
-	option_default_dict = copy.deepcopy(AbstractVCFWorkflow.option_default_dict)
-	option_default_dict.update(AbstractVCFWorkflow.db_option_dict.copy())
+	option_default_dict = copy.deepcopy(parentClass.option_default_dict)
+	option_default_dict.update(parentClass.db_option_dict.copy())
 	
 	option_default_dict.update({
 						})
@@ -26,7 +28,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		"""
 		2012.6.12
 		"""
-		AbstractVCFWorkflow.__init__(self, **keywords)
+		parentClass.__init__(self, **keywords)
 		
 		self.db = self.db_vervet	#2013.1.25 main db
 
@@ -273,6 +275,10 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 	def addOutputVCFAlignmentDepthRangeJob(self, executable=None, inputFile=None, \
 						ref_ind_seq_id=None, depthFoldChange=None, minGQ=None,\
 						outputFile=None, outputFileFormat=None,\
+						data_dir=None,
+						sequence_filtered=None, excludeContaminant=None, \
+						local_realigned=None, reduce_reads=None, completedAlignment=None, \
+						alignment_method_id=None, alignment_outdated_index=None,\
 						extraArgumentList=None,\
 						parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
 						job_max_memory=2000, sshDBTunnel=False, **keywords):
@@ -282,7 +288,8 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		extraOutputLs = []
 		if extraDependentInputLs is None:
 			extraArgumentList = []
-		
+		if data_dir is not None:
+			extraArgumentList.append("--data_dir %s"%(data_dir))
 		if outputFileFormat is not None:
 			extraArgumentList.append("--outputFileFormat %s"%(outputFileFormat))
 		if ref_ind_seq_id is not None:
@@ -291,6 +298,20 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 			extraArgumentList.append("--depthFoldChange %s"%(depthFoldChange))
 		if minGQ is not None:
 			extraArgumentList.append("--minGQ %s"%(minGQ))
+		if sequence_filtered is not None:
+			extraArgumentList.append("--sequence_filtered %s"%(sequence_filtered))
+		if excludeContaminant is not None:
+			extraArgumentList.append("--excludeContaminant")
+		if local_realigned is not None:
+			extraArgumentList.append("--local_realigned %s"%(local_realigned))
+		if reduce_reads is not None:
+			extraArgumentList.append("--reduce_reads %s"%(reduce_reads))
+		if completedAlignment is not None:
+			extraArgumentList.append("--completedAlignment %s"%(completedAlignment))
+		if alignment_method_id is not None:
+			extraArgumentList.append("--alignment_method_id %s"%(alignment_method_id))
+		if alignment_outdated_index is not None:
+			extraArgumentList.append("--alignment_outdated_index %s"%(alignment_outdated_index))
 		job= self.addGenericDBJob(executable=executable, inputFile=inputFile, outputFile=outputFile, \
 						parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
 						extraOutputLs=extraOutputLs,\
@@ -304,6 +325,8 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		2012.9.24
 			establish db connection for all derivative classes
 		"""
+		parentClass.connectDB(self)	#2013.11.25
+		
 		db_vervet = VervetDB.VervetDB(drivername=self.drivername, db_user=self.db_user,
 					db_passwd=self.db_passwd, hostname=self.hostname, dbname=self.dbname, schema=self.schema)
 		db_vervet.setup(create_tables=False)
@@ -343,7 +366,7 @@ class AbstractVervetWorkflow(AbstractVCFWorkflow):
 		if workflow==None:
 			workflow=self
 		
-		AbstractVCFWorkflow.registerCustomExecutables(self, workflow=workflow)
+		parentClass.registerCustomExecutables(self, workflow=workflow)
 		
 		namespace = workflow.namespace
 		version = workflow.version

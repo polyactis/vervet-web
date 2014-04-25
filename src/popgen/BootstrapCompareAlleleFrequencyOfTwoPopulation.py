@@ -107,7 +107,7 @@ class BootstrapCompareAlleleFrequencyOfTwoPopulation(CompareAlleleFrequencyOfTwo
 		#a ReduceMatrixByAverageColumnsWithSameKey job
 		outputFile = File(os.path.join(topOutputDir, 'medianAlleleSharingStatAcrossAllSampling.tsv'))
 		medianReduceJob = self.addStatMergeJob(workflow, statMergeProgram=workflow.ReduceMatrixByAverageColumnsWithSameKey, \
-						outputF=outputFile, extraArguments='-k 0 -v 1-8', parentJobLs=[topOutputDirJob], \
+						outputF=outputFile, extraArguments='--keyColumnLs 0 -v 1-8', parentJobLs=[topOutputDirJob], \
 						extraDependentInputLs=None, transferOutput=True)
 		#a MergeSameHeaderTablesIntoOne job
 		outputFile = File(os.path.join(topOutputDir, 'alleleSharingStatAcrossAllSampling.tsv'))

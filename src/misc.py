@@ -1354,6 +1354,64 @@ class VariantDiscovery(object):
 		
 	"""
 	
+	
+	@classmethod
+	def countLociInRandomChromosomeScaffolds(cls, db_vervet=None, data_dir=None, ref_seq_id=None, genotype_method_id=None, outputFname=None ):
+		"""
+		2013.11.16
+			Find the scaffolds (title !=^CAE) in 3498 sequence, find their genotype files (method 109), count SNPs
+				print the size of the biggest scaffold, => gap size if it's removed entirely
+		"""
+		if data_dir is None:
+			data_dir = db_vervet.data_dir
+		from pymodule import MatrixFile
+		from Bio import SeqIO
+		
+		#output
+		writer = MatrixFile(inputFname=outputFname, openMode='w', delimiter='\t')
+		writer.writeHeader(["scaffoldName", "length", "noOfLoci"])
+		#get a set of unlocated scaffolds
+		sys.stderr.write("Finding scaffold IDs from ind_seq_id = %s "%(ref_seq_id))
+		ref_seq = VervetDB.IndividualSequence.get(ref_seq_id)
+		ref_seq_path = os.path.join(data_dir, ref_seq.path)
+		handler = open(ref_seq_path, "rU")
+		scaffoldID2Size = {}
+		for record in SeqIO.parse(handler, "fasta"):
+			contig_id = record.id
+			
+			if contig_id.find("Scaffold")>=0:
+				scaffoldID2Size[contig_id] = len(record.seq)
+		handler.close()
+		maxScaffoldSize = max(scaffoldID2Size.values())
+		sys.stderr.write(" %s scaffolds, with max size=%s.\n"%(len(scaffoldID2Size), maxScaffoldSize))
+		
+		sys.stderr.write("Finding all genotype files of method %s ..."%(genotype_method_id))
+		#find all genotype files
+		no_of_loci_in_unlocated_scaffolds = 0
+		counter= 0
+		real_counter = 0
+		genotype_method = VervetDB.GenotypeMethod.get(genotype_method_id)
+		for genotype_file in genotype_method.genotype_file_ls:
+			counter += 1
+			if genotype_file.chromosome in scaffoldID2Size:
+				no_of_loci_in_unlocated_scaffolds  += genotype_file.no_of_loci
+				writer.writerow([genotype_file.chromosome, scaffoldID2Size.get(genotype_file.chromosome), genotype_file.no_of_loci])
+				real_counter += 1
+		writer.close()
+		sys.stderr.write("%s genotype files, %s in unlocated scaffolds. Total number of loci in unlocated scaffolds: %s.\n"%
+						(counter, real_counter, no_of_loci_in_unlocated_scaffolds))
+		
+		"""
+			#2013.11.18
+			data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+			outputFname = os.path.expanduser("~/NetworkData/vervet/workflow/tmp/NoOfLociInUnlocatedScaffolds_GenotypeMethod109.tsv")
+			VariantDiscovery.countLociInRandomChromosomeScaffolds(db_vervet=db_vervet, data_dir=data_dir, ref_seq_id=3498, \
+				genotype_method_id=109, outputFname=outputFname)
+			sys.exit(0)
+		"""
+		
+		
+	
 	class GetBACEndHitsOnContigs(object):
 		"""
 		2011-6-28
@@ -1777,15 +1835,15 @@ class VariantDiscovery(object):
 		refNameSet = set(tid2refName.values())
 		tid2Seq = {}
 		from Bio import SeqIO
-		handle = open(refFastaFname, "rU")
-		for record in SeqIO.parse(handle, "fasta"):
+		handler = open(refFastaFname, "rU")
+		for record in SeqIO.parse(handler, "fasta"):
 			contig_id = record.id.split()[0]
 			if contig_id in refNameSet:
 				tid = samfile.gettid(contig_id)
 				tid2Seq[tid] = record.seq
 			if len(tid2Seq)>=len(refNameSet):	#enough data, exit.
 				break
-		handle.close()
+		handler.close()
 		samfile.close()
 		
 		# output the matrix in the end
@@ -5228,7 +5286,7 @@ class DBVervet(object):
 	
 	
 	@classmethod
-	def drawPedigree(cls, db_vervet, outputFnamePrefix=None, baseNodeSize=40, monkeyCoverageFname=None):
+	def drawPedigree(cls, db_vervet=None, outputFnamePrefix=None, baseNodeSize=40, monkeyCoverageFname=None):
 		"""
 		2012.2.10
 			add argument monkeyCoverageFname to override coverage data from db
@@ -6889,8 +6947,9 @@ class DBVervet(object):
 	
 	@classmethod
 	def outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(cls, db_vervet=None, outputFname=None, site_id=447,\
-											targetCoverageNotNull=True):
+									targetCoverageNotNull=True):
 		"""
+		2013.10.02 add IndividualSequence constraints, is_contaminated=0, outdated_index=0
 		2012.7.23
 			add argument targetCoverageNotNull, if True, means select individuals who has target coverage (to be sequenced)
 		2012.6.19
@@ -6901,7 +6960,7 @@ class DBVervet(object):
 			3. get number of descendant given individual ID from db
 			animal ID, target coverage, actual coverage, no of descendant
 		"""
-		sys.stderr.write("Outputting VRC monkeys with target coverage, actual coverage, #descendant ...")
+		sys.stderr.write("Outputting VRC monkeys with target coverage, actual coverage, #descendant to %s ..."%(outputFname))
 		import csv
 		writer = csv.writer(open(outputFname, 'w'), delimiter='\t')
 		header = ['UCLAID', 'targetCoverage', 'actualCoverage', 'noOfDescendants','batchNumberList','batchCoverageList']
@@ -6917,14 +6976,14 @@ class DBVervet(object):
 			else:
 				no_of_descendant = None
 			actual_coverage_ls = []
-			sub_query = VervetDB.IndividualSequence.query.filter_by(individual_id=row.id).filter_by(filtered=1)
+			sub_query = VervetDB.IndividualSequence.query.filter_by(individual_id=row.id).filter_by(filtered=1).filter_by(is_contaminated=0).filter_by(outdated_index=0)
 			for isq in sub_query:
 				actual_coverage_ls.append('%.3f'%isq.coverage)
 			
 			batch_number_ls = [str(batch.id) for batch in row.sequence_batch_ls]	#2012.7.5
 			batch_coverage_ls = [str(batch.coverage) for batch in row.sequence_batch_ls]
 			if len(actual_coverage_ls)==0:	#nothing there for the filtered sequences. check the unfiltered ones.
-				sub_query = VervetDB.IndividualSequence.query.filter_by(individual_id=row.id).filter_by(filtered=0)
+				sub_query = VervetDB.IndividualSequence.query.filter_by(individual_id=row.id).filter_by(filtered=0).filter_by(is_contaminated=0).filter_by(outdated_index=0)
 				for isq in sub_query:
 					if isq.coverage:
 						actual_coverage_ls.append('%.3f'%isq.coverage)
@@ -6938,17 +6997,6 @@ class DBVervet(object):
 		sys.stderr.write("%s monkeys.\n"%(counter))
 		
 	"""
-		#2012.6.19
-		outputFname = '/tmp/VRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
-		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(db_vervet, outputFname=outputFname, site_id=447)
-		sys.exit(0)
-		
-		#2012.7.23
-		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
-		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(db_vervet, outputFname=outputFname, site_id=447,\
-			targetCoverageNotNull=False)
-		sys.exit(0)
-		
 		#2012.8.20
 		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
 		outputFname = '/tmp/VRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
@@ -6962,7 +7010,54 @@ class DBVervet(object):
 			targetCoverageNotNull=False)
 		sys.exit(0)
 		
+		#2012.6.19
+		outputFname = '/tmp/VRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(db_vervet, outputFname=outputFname, site_id=447)
+		sys.exit(0)
 		
+		#2012.7.23
+		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(db_vervet, outputFname=outputFname, site_id=447,\
+			targetCoverageNotNull=False)
+		sys.exit(0)
+		
+
+		
+		
+	"""
+	
+	@classmethod
+	def outputSequencedPedigreeMembersWithHierarchyLevels(cls, db_vervet=None, outputFname=None):
+		"""
+		2013.10.16
+		"""
+		from vervet.src.db import VervetDB
+		from pymodule import MatrixFile
+		
+		DG = db_vervet.constructPedgree()
+		nodeID2distanceToLeaf = DG.calculateNodeHierarchyLevel()
+		
+		query = VervetDB.Individual.query.filter(VervetDB.Individual.target_coverage!=None).filter_by(site_id=447)
+		targetCoverageHierarchyLevel2counter = {}
+		for row in query:
+			distanceToFounder = nodeID2distanceToLeaf.get(row.id)
+			key = (row.target_coverage, distanceToFounder)
+			if key not in targetCoverageHierarchyLevel2counter:
+				targetCoverageHierarchyLevel2counter[key] =0
+			targetCoverageHierarchyLevel2counter[key] += 1
+		
+		writer = MatrixFile(outputFname, openMode='w', delimiter='\t')
+		writer.writeHeader(["targetCoverage", "hierarchyLevel", "counter"])
+		for key, value in targetCoverageHierarchyLevel2counter.iteritems():
+			writer.writerow([key[0], key[1], value])
+		writer.close()
+		
+	
+	"""
+	#2013.10.16
+		outputFname = os.path.expanduser('')
+		DBVervet.outputSequencedPedigreeMembersWithHierarchyLevels(db_vervet=db_vervet, outputFname=outputFname)
+		sys.exit(0)
 	"""
 	
 	@classmethod
@@ -7551,6 +7646,107 @@ class QC(object):
 		QC.plotNoOfLociAndGenomeSpanByMaxSwitchFrequency(inputFname=inputFname, outputFnamePrefix=outputFnamePrefix)
 		sys.exit(0)
 	"""
+	@classmethod
+	def compareProblemSNPOverlap_ByAlignmentQuality_vs_SueList(cls, locusMissingFractionFname=None, sueListFname=None, outputFname=None):
+		
+		"""
+		2013.12.06
+		"""
+		from pymodule import MatrixFile
+		reader = MatrixFile(sueListFname)
+		#skip header
+		reader.next()
+		sueListLocusIDSet = set()
+		for row in reader:
+			sueListLocusIDSet.add(row[0].strip())
+		sys.stderr.write("%s loci in sue's list.\n"%(len(sueListLocusIDSet)))
+		
+		
+		locusMissingFractionReader = MatrixFile(locusMissingFractionFname)
+		locusMissingFractionReader.constructColName2IndexFromHeader()
+		locusMissingFraction2locusIDSet = {}
+		missingFractionIndex = locusMissingFractionReader.getColIndexGivenColHeader("missingFraction")
+		locusIDIndex = locusMissingFractionReader.getColIndexGivenColHeader("locusID")
+		counter = 0
+		for row in locusMissingFractionReader:
+			counter +=1
+			locusID = row[locusIDIndex]
+			missingFraction = float(row[missingFractionIndex])
+			if missingFraction not in locusMissingFraction2locusIDSet:
+				locusMissingFraction2locusIDSet[missingFraction] = set()
+			locusMissingFraction2locusIDSet[missingFraction].add(locusID)
+		sys.stderr.write("%s distinct missing fraction, %s loci, from %s.\n"%(len(locusMissingFraction2locusIDSet), counter, locusMissingFractionFname))
+		
+		locusMissingFraction_locusIDSet_List = locusMissingFraction2locusIDSet.items()
+		locusMissingFraction_locusIDSet_List.sort(reverse=True)
+		
+		writer = MatrixFile(outputFname, openMode='w', delimiter='\t')
+		header = ['locusMissingFraction', "overlap", "total", "fractionInSueList"]
+		writer.writeHeader(header)
+		counter = 0
+		cumulativeTotal = 0.0
+		cumulativeOverlap = 0.0
+		for locusMissingFraction, locusIDSet in locusMissingFraction_locusIDSet_List:
+			overlap = len(locusIDSet & sueListLocusIDSet)
+			total = len(locusIDSet)
+			
+			cumulativeTotal += total
+			cumulativeOverlap += overlap
+			if cumulativeTotal>0:
+				overlapFraction = float(cumulativeOverlap)/len(sueListLocusIDSet)
+			else:
+				overlapFraction = -1
+			data_row = [locusMissingFraction, cumulativeOverlap, cumulativeTotal, overlapFraction]
+			writer.writerow(data_row)
+			counter += 1
+		writer.close()
+		sys.stderr.write("%s entries outputted to %s.\n"%(counter, outputFname))
+	
+	"""
+	
+	#2013.12.12
+		locusMissingFractionFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/missingFractionPerLocusStat_minCoverage4Samples.tsv.gz")
+		sueListFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/locusLiftOverProbability.ByNewChromosome.OverlapWithMethod225.lessThan0.001.uniqueLoci.tsv")
+		outputFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/locusLiftOverProbability.ByNewChromosome.OverlapWithMethod225.lessThan0.001_vs_minCov4Samples_markedMissingFraction.tsv")
+		QC.compareProblemSNPOverlap_ByAlignmentQuality_vs_SueList(locusMissingFractionFname=locusMissingFractionFname, \
+																sueListFname=sueListFname, outputFname=outputFname)
+		sys.exit(0)
+		
+		#2013.12.12
+		locusMissingFractionFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/missingFractionPerLocusStat_minCoverage4Samples.tsv.gz")
+		sueListFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/SueProblemSNPs_v2_DefiniteProblem_overlap_locusLiftOverProbability.ByNewChromosome.OverlapWithMethod225.lessThan0.1.tsv")
+		outputFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/SueProblemSNPs_v2_DefiniteProblem_overlap_locusLiftOverProbability.ByNewChromosome.OverlapWithMethod225.lessThan0.1_vs_minCov4Samples_markedMissingFraction.tsv")
+		QC.compareProblemSNPOverlap_ByAlignmentQuality_vs_SueList(locusMissingFractionFname=locusMissingFractionFname, \
+																sueListFname=sueListFname, outputFname=outputFname)
+		sys.exit(0)
+
+		#2013.12.12
+		locusMissingFractionFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/missingFractionPerLocusStat_minCoverage4Samples.tsv.gz")
+		sueListFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/SueProblemSNPs_v2.tsv")
+		outputFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/SueProblemSNPs_v2_vs_minCov4Samples_markedMissingFraction.tsv")
+		QC.compareProblemSNPOverlap_ByAlignmentQuality_vs_SueList(locusMissingFractionFname=locusMissingFractionFname, \
+																sueListFname=sueListFname, outputFname=outputFname)
+		sys.exit(0)
+		
+		
+		#2013.12.06
+		locusMissingFractionFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/locusMissingFraction_minCoverage4Samples_vs_maxCoverage4Samples.tsv.gz")
+		sueListFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/SueProblemSNPs_v1_Chr6_8.tsv")
+		outputFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/SueProblemSNPs_v1_Chr6_8_vs_minCov4Samples_markedMissingFraction.tsv")
+		QC.compareProblemSNPOverlap_ByAlignmentQuality_vs_SueList(locusMissingFractionFname=locusMissingFractionFname, \
+																sueListFname=sueListFname, outputFname=outputFname)
+		sys.exit(0)
+		
+		
+		#2013.12.06
+		locusMissingFractionFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/locusMissingFraction_minCoverage4Samples_vs_maxCoverage4Samples.tsv.gz")
+		sueListFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/SueProblemSNPs_v1_Chr6_8.tsv")
+		outputFname = os.path.expanduser("~/NetworkData/vervet/workflow/MarkGenotypeMissing/SueProblemSNPs_v1_Chr6_8_vs_minCov4Samples_markedMissingFraction.tsv")
+		QC.compareProblemSNPOverlap_ByAlignmentQuality_vs_SueList(locusMissingFractionFname=locusMissingFractionFname, \
+																sueListFname=sueListFname, outputFname=outputFname)
+		sys.exit(0)
+		
+	"""
 
 class VervetGenome(object):
 	"""
@@ -7608,7 +7804,230 @@ class VervetGenome(object):
 		del reader
 		sys.stderr.write("%s contigs.\n"%(len(contig_id2size)))
 		return contig_id2size
+	
+	@classmethod
+	def compareTwoReferenceGenomes(self, NCBIGenomeFname=None, localVervetGenomeFname=None, differingBasePositionFname=None,
+								differingSegmentLocalSeqOutputFname=None, differingSegmentNCBISeqOutputFname=None,\
+								chromosomeIDMatchType=1):
+		"""
+		2014.03.10
+			chromosomeIDMatchType 1: NCBI (... chromosome 1, ...) vs local (CAE1)
+				2: CAE1 vs CAE1
+		"""
+		from Bio import SeqIO
+		from pymodule import utils, MatrixFile
 		
+		NCBIGenomeFileHandler = utils.openGzipFile(NCBIGenomeFname, openMode="r")
+		localFileHandler = utils.openGzipFile(localVervetGenomeFname, openMode="r")
+		differingBasePositionWriter = MatrixFile(differingBasePositionFname, openMode='w')
+		differingBasePositionWriter.writeHeader(["SNPID", "Chromosome", "Position", "localBase", "NCBIBase"])
+		differingSegmentLocalSeqOutputFile = open(differingSegmentLocalSeqOutputFname, 'w')
+		differingSegmentNCBISeqOutputFile = open(differingSegmentNCBISeqOutputFname, 'w')
+		
+		chromosomeID2sequence = {}
+		
+		#localFileSeqIOReader = SeqIO.read(localFileHandler, "fasta")
+		sys.stderr.write("Reading fasta records from %s ... \n  "%(localVervetGenomeFname))
+		noOfRecords = 0
+		
+		for record in SeqIO.parse(localFileHandler, "fasta"):
+			if chromosomeIDMatchType==1:
+				chromosomeID = record.id[3:].strip()	#id looks like CAE1, CAEX
+			else:
+				chromosomeID = record.id.strip()
+			chromosomeID2sequence[chromosomeID] = record.seq
+			noOfRecords += 1
+		sys.stderr.write("%s records from %s.\n"%(noOfRecords, localVervetGenomeFname))
+		
+		import re
+		from Bio.SeqRecord import SeqRecord
+		from Bio.Alphabet import IUPAC
+		from Bio.Seq import Seq
+		
+		chromosomeID = None
+		NCBIchrSeq = None
+		localChrSeq = None
+		differingSegmentStartPosition = None
+		previousDifferingPosition = None
+		counter = 0
+		
+		NCBIchrIDRX = re.compile(r' chromosome ([0-9XY]+), whole')	#">gi|511782591|gb|CM001941.1| Chlorocebus...1994-021 chromosome 1, whole genome ..."
+		for record in SeqIO.parse(NCBIGenomeFileHandler, "fasta"):
+			counter += 1
+			#reset these two for new chromosomes
+			differingSegmentStartPosition = None
+			previousDifferingPosition = None
+			if chromosomeIDMatchType==1:
+				NCBIchrIDRXSearchResult = NCBIchrIDRX.search(record.description)
+				#id and name are only first 27 characters. description is full.
+				if NCBIchrIDRXSearchResult is None:
+					sys.stderr.write("could not find the chromosome ID from id=%s, name=%s, description=%s .\n"%(record.id, record.name, record.description))
+					continue
+				chromosomeID = NCBIchrIDRXSearchResult.group(1)
+			else:
+				chromosomeID = record.id.strip()
+			if chromosomeID in chromosomeID2sequence:
+				localChrSeqRecord = chromosomeID2sequence.get(chromosomeID)
+			else:
+				sys.stderr.write("chromosome %s from %s is not in %s."%(chromosomeID, NCBIGenomeFname, localVervetGenomeFname))
+				continue
+			NCBIchrSeq = record.seq.tostring().upper()
+			localChrSeq = localChrSeqRecord.tostring().upper()
+			if NCBIchrSeq == localChrSeq:
+				pass
+			else:
+				sys.stderr.write("local (length=%s) and NCBI (length=%s) sequences for chromosome %s do not match.\n"%(\
+										len(localChrSeq), len(NCBIchrSeq), chromosomeID))
+				for i in range(min(len(localChrSeq), len(NCBIchrSeq))):
+					if localChrSeq[i]!=NCBIchrSeq[i]:
+						currentDifferingPosition = i+1
+						differingBasePositionWriter.writerow(["CAE%s_%s"%(chromosomeID, currentDifferingPosition), chromosomeID, currentDifferingPosition, localChrSeq[i], NCBIchrSeq[i] ])
+						if differingSegmentStartPosition is None:
+							differingSegmentStartPosition = currentDifferingPosition
+						
+						if previousDifferingPosition is None:
+							previousDifferingPosition = currentDifferingPosition
+						else:
+							if abs(currentDifferingPosition-previousDifferingPosition)<25:	# within 25 bases, still one trunk
+								previousDifferingPosition = currentDifferingPosition
+							else:
+								#output the differing segments
+								segmentTitle = "CAE%s_%s_%s"%(chromosomeID, differingSegmentStartPosition, previousDifferingPosition)
+								localChrSeqSegment = localChrSeq[differingSegmentStartPosition-1:previousDifferingPosition]
+								NCBISeqSegment = NCBIchrSeq[differingSegmentStartPosition-1:previousDifferingPosition]
+								localSegSegmentRecord = SeqRecord(Seq(localChrSeqSegment, IUPAC.unambiguous_dna),
+																id=segmentTitle, name=segmentTitle,
+																description=segmentTitle)
+								NCBISeqSegmentRecord = SeqRecord(Seq(NCBISeqSegment, IUPAC.unambiguous_dna),
+																id=segmentTitle, name=segmentTitle,
+																description=segmentTitle)
+								SeqIO.write(localSegSegmentRecord, differingSegmentLocalSeqOutputFile, "fasta")
+								SeqIO.write(NCBISeqSegmentRecord, differingSegmentNCBISeqOutputFile, "fasta")
+								
+								previousDifferingPosition = currentDifferingPosition
+								differingSegmentStartPosition = currentDifferingPosition
+						#sys.stderr.write("\t position %s, local=%s, NCBI=%s.\n"%(i, localChrSeq[i], NCBIchrSeq[i]))
+			if differingSegmentStartPosition is not None and previousDifferingPosition is not None and localChrSeq is not None and NCBIchrSeq is not None:
+				#output the last differing segment
+				segmentTitle = "CAE%s_%s_%s"%(chromosomeID, differingSegmentStartPosition, previousDifferingPosition)
+				localChrSeqSegment = localChrSeq[differingSegmentStartPosition-1:previousDifferingPosition]
+				NCBISeqSegment = NCBIchrSeq[differingSegmentStartPosition-1:previousDifferingPosition]
+				localSegSegmentRecord = SeqRecord(Seq(localChrSeqSegment, IUPAC.unambiguous_dna),
+												id=segmentTitle, name=segmentTitle,
+												description=segmentTitle)
+				NCBISeqSegmentRecord = SeqRecord(Seq(NCBISeqSegment, IUPAC.unambiguous_dna),
+												id=segmentTitle, name=segmentTitle,
+												description=segmentTitle)
+				SeqIO.write(localSegSegmentRecord, differingSegmentLocalSeqOutputFile, "fasta")
+				SeqIO.write(NCBISeqSegmentRecord, differingSegmentNCBISeqOutputFile, "fasta")
+		
+		sys.stderr.write(" %s records in %s.\n"%(counter, NCBIGenomeFname))
+		NCBIGenomeFileHandler.close()
+		localFileHandler.close()
+		differingBasePositionWriter.close()
+		differingSegmentLocalSeqOutputFile.close()
+		differingSegmentNCBISeqOutputFile.close()
+		
+	"""
+		#2014.04.05
+		NCBIAcc="000409795.2"
+		NCBIGenomeFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/NCBI_VervetRef_GCA_%s.fasta.gz"%(NCBIAcc))
+		localVervetGenomeFname = os.path.expanduser("~/NetworkData/vervet/db/individual_sequence/3499_indID1_codeVRC_ref_sequencer3_seqType1_filtered0_version5.fasta")
+		differingBasePositionFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_%s_differingBasePosition.tsv"%(NCBIAcc))
+		differingSegmentLocalSeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_%s.differingSegmentLocalSequence.fasta"%(NCBIAcc))
+		differingSegmentNCBISeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_%s.differingSegmentNCBISequence.fasta"%(NCBIAcc))
+		VervetGenome.compareTwoReferenceGenomes(NCBIGenomeFname=NCBIGenomeFname, localVervetGenomeFname=localVervetGenomeFname,\
+				differingBasePositionFname=differingBasePositionFname,\
+				differingSegmentLocalSeqOutputFname=differingSegmentLocalSeqOutputFname, \
+				differingSegmentNCBISeqOutputFname=differingSegmentNCBISeqOutputFname)
+		sys.exit(0)
+		
+		#2014.03.13
+		NCBIGenomeFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/Chlorocebus_sabaeus_1.0.2014.03.12.plus.random.fasta")
+		localVervetGenomeFname = os.path.expanduser("~/NetworkData/vervet/db/individual_sequence/3500_indID1_codeVRC_ref_sequencer3_seqType1_filtered0_version6.fasta")
+		differingBasePositionFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3500_vs_1.0a.2014.03.12.plus.random.differingBasePosition.tsv")
+		differingSegmentLocalSeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3500_vs_1.0a.2014.03.12.plus.random.differingSegmentLocalSequence.fasta")
+		differingSegmentNCBISeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3500_vs_1.0a.2014.03.12.plus.random.differingSegmentNCBISequence.fasta")
+		VervetGenome.compareTwoReferenceGenomes(NCBIGenomeFname=NCBIGenomeFname, localVervetGenomeFname=localVervetGenomeFname,\
+				differingBasePositionFname=differingBasePositionFname,\
+				differingSegmentLocalSeqOutputFname=differingSegmentLocalSeqOutputFname, \
+				differingSegmentNCBISeqOutputFname=differingSegmentNCBISeqOutputFname, chromosomeIDMatchType=2)
+		sys.exit(0)
+		
+		
+		#2014.03.13
+		NCBIGenomeFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/Chlorocebus_sabaeus_1.0.2014.03.12.fasta")
+		localVervetGenomeFname = os.path.expanduser("~/NetworkData/vervet/db/individual_sequence/3499_indID1_codeVRC_ref_sequencer3_seqType1_filtered0_version5.fasta")
+		differingBasePositionFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_1.0a.2014.03.12.differingBasePosition.tsv")
+		differingSegmentLocalSeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_1.0a.2014.03.12.differingSegmentLocalSequence.fasta")
+		differingSegmentNCBISeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_1.0a.2014.03.12.differingSegmentNCBISequence.fasta")
+		VervetGenome.compareTwoReferenceGenomes(NCBIGenomeFname=NCBIGenomeFname, localVervetGenomeFname=localVervetGenomeFname,\
+				differingBasePositionFname=differingBasePositionFname,\
+				differingSegmentLocalSeqOutputFname=differingSegmentLocalSeqOutputFname, \
+				differingSegmentNCBISeqOutputFname=differingSegmentNCBISeqOutputFname, chromosomeIDMatchType=2)
+		sys.exit(0)
+		
+		
+		#2014.03.10
+		NCBIGenomeFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/NCBI_VervetRef_GCA_000409795.1.fasta.gz")
+		localVervetGenomeFname = os.path.expanduser("~/NetworkData/vervet/db/individual_sequence/3499_indID1_codeVRC_ref_sequencer3_seqType1_filtered0_version5.fasta")
+		differingBasePositionFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_000409795.1_differingBasePosition.tsv")
+		differingSegmentLocalSeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_000409795.1.differingSegmentLocalSequence.fasta")
+		differingSegmentNCBISeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_000409795.1.differingSegmentNCBISequence.fasta")
+		VervetGenome.compareTwoReferenceGenomes(NCBIGenomeFname=NCBIGenomeFname, localVervetGenomeFname=localVervetGenomeFname,\
+				differingBasePositionFname=differingBasePositionFname,\
+				differingSegmentLocalSeqOutputFname=differingSegmentLocalSeqOutputFname, \
+				differingSegmentNCBISeqOutputFname=differingSegmentNCBISeqOutputFname)
+		sys.exit(0)
+		
+		
+		#2014.03.10
+		NCBIGenomeFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/NCBI_VervetRef_GCA_000409795.1.fasta.gz")
+		localVervetGenomeFname = os.path.expanduser("~/NetworkData/vervet/db/individual_sequence/3499_indID1_codeVRC_ref_sequencer3_seqType1_filtered0_version5.fasta")
+		differingBasePositionFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_000409795.1_differingBasePosition.tsv")
+		differingSegmentLocalSeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_000409795.1.differingSegmentLocalSequence.fasta")
+		differingSegmentNCBISeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_000409795.1.differingSegmentNCBISequence.fasta")
+		VervetGenome.compareTwoReferenceGenomes(NCBIGenomeFname=NCBIGenomeFname, localVervetGenomeFname=localVervetGenomeFname,\
+				differingBasePositionFname=differingBasePositionFname,\
+				differingSegmentLocalSeqOutputFname=differingSegmentLocalSeqOutputFname, \
+				differingSegmentNCBISeqOutputFname=differingSegmentNCBISeqOutputFname)
+		sys.exit(0)
+
+		...
+		localVervetGenomeFname = os.path.expanduser("~/NetworkData/vervet/db/individual_sequence/3488_indID1_codeVRC_ref_sequencer3_seqType1_filtered0_version3.fasta")
+		...
+		sys.exit(0)
+
+
+
+#2014.03.11 check if these differing positions are included in the mapping set.
+~/script/shell/matchTwoFilesThroughOneKey.sh 2 1 MappingSetJan2014/Vervet148KFinal.bim ../raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_000409795.1_differingBasePosition.tsv ../raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_000409795.1_differingBasePosition.overlap.with.148KMappingset.tsv
+
+# filter out positions that the base changes are just swap of the ref/alt alleles.
+
+import sys, os, math, numpy
+sys.path.insert(0, os.path.expanduser('~/lib/python'))
+sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
+from pymodule import MatrixFile
+inputFile = MatrixFile("../raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_000409795.1_differingBasePosition.overlap.with.148KMappingset.tsv")
+outputFile = MatrixFile("../raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_000409795.1_differingBasePosition.overlap.with.148KMappingset.differentAltRefAllele.tsv", openMode='w')
+noOfRowsWithMatchingAltRefAlleles=0
+for row in inputFile:
+	refAllele=row[4]
+	altAllele=row[5]
+	localBase=row[9]
+	NCBIBase=row[10].upper()
+	localBase=localBase.upper()
+	if (refAllele==localBase and altAllele==NCBIBase) or (refAllele==NCBIBase and altAllele==localBase):
+		noOfRowsWithMatchingAltRefAlleles += 1
+	else:
+		outputFile.writeRow(row)
+
+inputFile.close()
+outputFile.close()
+
+
+	"""
 	
 	@classmethod
 	def drawHistogramOfNFractionInContig(cls, contigAGPFname=None, outputFnamePrefix=None, topNumber=150, contig_id_set=None):
@@ -7787,8 +8206,8 @@ class VervetGenome(object):
 		sequences = []
 		from Bio import SeqIO
 		from pymodule import utils
-		handle = utils.openGzipFile(contigFastaFname, openMode="r")	# open mode was 'rU' in open()
-		for record in SeqIO.parse(handle, "fasta"):
+		handler = utils.openGzipFile(contigFastaFname, openMode="r")	# open mode was 'rU' in open()
+		for record in SeqIO.parse(handler, "fasta"):
 			contig_id = record.id.split()[0]
 			if contig_id in selected_contig_id_set:
 				record.id = contig_id	#superfluous. record.id is 1st word of description.
@@ -7796,7 +8215,7 @@ class VervetGenome(object):
 				sequences.append(record)
 			if len(sequences)>=len(selected_contig_id_set):
 				break
-		handle.close()
+		handler.close()
 		sys.stderr.write("Done.\n")
 		
 		sys.stderr.write("Dumping %s sequences to %s ..."%(len(sequences), outputFname))
@@ -7863,8 +8282,8 @@ class VervetGenome(object):
 		sys.stderr.write("Picking selected contigs and their sequences ...")
 		from Bio import SeqIO
 		from pymodule import PassingData
-		handle = open(contigFastaFname, "rU")
-		input_seq_iterator = SeqIO.parse(handle, 'fasta')
+		handler = open(contigFastaFname, "rU")
+		input_seq_iterator = SeqIO.parse(handler, 'fasta')
 		passingData = PassingData(input_seq_iterator =input_seq_iterator, counter=0, no_of_good_records=0)
 		#setattr(input_seq_iterator, 'no_of_good_records', 0)
 		#setattr(input_seq_iterator, 'counter', 0)
@@ -8261,15 +8680,15 @@ class VervetGenome(object):
 		noOfRecordsWithEmptySequence=0
 		for inputFname in glob.glob("%s/*_random.fa"%(unlocatedScaffoldFolder)):
 			sys.stderr.write(" \t %s "%(inputFname))
-			handle = open(inputFname, "r")
-			for record in SeqIO.parse(handle, "fasta") :
+			handler = open(inputFname, "r")
+			for record in SeqIO.parse(handler, "fasta") :
 				if len(record.seq)>0:
 					noOfRecords += 1
 					noOfBases += len(record.seq)
 					SeqIO.write([record], outf, "fasta")
 				else:
 					noOfRecordsWithEmptySequence += 1
-			handle.close()
+			handler.close()
 			sys.stderr.write("  noOfRecordsWithEmptySequence=%s, noOfRecords=%s, noOfBases=%s \n"%(noOfRecordsWithEmptySequence, noOfRecords, noOfBases))
 		outf.close()
 		sys.stderr.write("Added %s scaffolds and %s bases. %s scaffolds with empty sequence.\n"%(noOfRecords, noOfBases, noOfRecordsWithEmptySequence))
@@ -8618,7 +9037,7 @@ class Main(object):
 	__doc__ = __doc__
 	option_default_dict = {
 						('drivername', 1,):['postgresql', 'v', 1, 'which type of database? mysql or postgres', ],\
-						('hostname', 1, ): ['localhost', 'z', 1, 'hostname of the db server', ],\
+						('hostname', 1, ): ['128.97.66.147', 'z', 1, 'hostname of the db server', ],\
 						('dbname', 1, ): ['vervetdb', 'd', 1, 'database name', ],\
 						('schema', 0, ): ['public', 'k', 1, 'database schema name', ],\
 						('db_user', 1, ): [None, 'u', 1, 'database username', ],\
@@ -8656,6 +9075,39 @@ class Main(object):
 		#import MySQLdb
 		#conn = MySQLdb.connect(db=self.dbname, host=self.hostname, user = self.db_user, passwd = self.db_passwd)
 		#curs = conn.cursor()
+		
+		#2014.04.05
+		NCBIAcc="000409795.2"
+		NCBIGenomeFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/NCBI_VervetRef_GCA_%s.fasta.gz"%(NCBIAcc))
+		localVervetGenomeFname = os.path.expanduser("~/NetworkData/vervet/db/individual_sequence/3499_indID1_codeVRC_ref_sequencer3_seqType1_filtered0_version5.fasta")
+		differingBasePositionFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_%s_differingBasePosition.tsv"%(NCBIAcc))
+		differingSegmentLocalSeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_%s.differingSegmentLocalSequence.fasta"%(NCBIAcc))
+		differingSegmentNCBISeqOutputFname = os.path.expanduser("~/NetworkData/vervet/raw_sequence/vervetRef_3499_vs_NCBI_VervetRef_GCA_%s.differingSegmentNCBISequence.fasta"%(NCBIAcc))
+		VervetGenome.compareTwoReferenceGenomes(NCBIGenomeFname=NCBIGenomeFname, localVervetGenomeFname=localVervetGenomeFname,\
+				differingBasePositionFname=differingBasePositionFname,\
+				differingSegmentLocalSeqOutputFname=differingSegmentLocalSeqOutputFname, \
+				differingSegmentNCBISeqOutputFname=differingSegmentNCBISeqOutputFname)
+		sys.exit(0)
+		
+		#2014.03.21
+		outputFname = '/tmp/AllVRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
+		#outputFname = '/tmp/VRCMonkeyTargetRealCoverageAndNoOfDescendant.tsv'
+		DBVervet.outputVRCMonkeysTargetAndRealCoverageAndNumberOfDescendant(db_vervet, outputFname=outputFname, site_id=447,\
+			targetCoverageNotNull=False)
+		sys.exit(0)
+		
+		#2013.11.18
+		data_dir = os.path.expanduser("~/NetworkData/vervet/db/")
+		outputFname = os.path.expanduser("~/NetworkData/vervet/workflow/tmp/NoOfLociInUnlocatedScaffolds_GenotypeMethod109.tsv")
+		VariantDiscovery.countLociInRandomChromosomeScaffolds(db_vervet=db_vervet, data_dir=data_dir, ref_seq_id=3498, \
+			genotype_method_id=109, outputFname=outputFname)
+		sys.exit(0)
+		
+		#2013.10.16
+		outputFname = os.path.expanduser('/tmp/VRCSequencedMonkeysWithHierarchyLevel.tsv')
+		DBVervet.outputSequencedPedigreeMembersWithHierarchyLevels(db_vervet=db_vervet, outputFname=outputFname)
+		sys.exit(0)
+		
 		
 		#2013.08.26
 		refGenomeFastaFname = os.path.expanduser("~/NetworkData/vervet/db/individual_sequence/3498_indID1_codeVRC_ref_sequencer3_seqType1_filtered0_version4.fasta")
