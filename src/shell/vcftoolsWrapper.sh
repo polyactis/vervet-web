@@ -53,7 +53,11 @@ echo recodeStringPosition: $recodeStringPosition
 if test $isVCFEmpty -eq 0
 then
 	$vcftoolsPath $arguments
-	
+	exitCode=$?
+	if test $exitCode -ne 0; then
+		echo "error in running vcftools, exiting ..."
+		exit $exitCode;
+	fi
 	if test -n "$recodeStringPosition" && test -n "$outputNamePrefix"
 	then
 		recodeVCF=$outputNamePrefix.recode.vcf

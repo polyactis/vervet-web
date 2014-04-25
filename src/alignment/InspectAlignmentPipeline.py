@@ -2,11 +2,6 @@
 """
 Examples:
 	
-	#2011-11-4 run on condorpool
-	%s -a 524 -j condorpool -l condorpool -u yh -z uclaOffice -o InspectTop804ContigsAlnRefSeq524Alignments.xml
-		--ind_aln_id_ls 552-661
-		--contigMaxRankBySize 804
-	
 	#2011-11-5 run it on hoffman2, need ssh tunnel for db (--needSSHDBTunnel)
 	%s -a 524 -j hoffman2 -l hoffman2 -u yh -z uclaOffice -o MarkDupAlnID552_661Pipeline_hoffman2.xml 
 		--ind_aln_id_ls 552-661 -e /u/home/eeskin/polyacti/ --tmpDir /u/home/eeskin/polyacti/NetworkData/ 
@@ -43,6 +38,19 @@ Examples:
 		#--individual_sequence_file_raw_id_type 2 --country_id_ls 135,136,144,148,151 --tax_id_ls 60711 #sabaeus
 		#--ind_seq_id_ls 632-3230 --site_id_ls 447 --sequence_filtered 1 --excludeContaminant	#VRC sequences
 		#--sequence_filtered 1 --alignment_method_id  2
+	
+	#2013.10.03
+	mLength=100;
+	%s --country_id_ls 1,129,130,131,132,133,134,136,144,148,151,152 --tax_id_ls 460675
+		--alignmentDepthIntervalMethodShortName 16CynosurusRef3488MinLength$mLength
+		--sequence_filtered 1 --local_realigned 1 --reduce_reads 0 --completedAlignment 1
+		--excludeContaminant --ind_seq_id_ls 632-5000 -a 3488 --ref_genome_tax_id 60711
+		--ref_genome_sequence_type_id 1 --ref_genome_version 1 -j hcondor -l hcondor
+		-u yh -z localhost --contigMaxRankBySize 3000
+		-o dags/InspectAlignment/InspectCynosurusAlignment_RefSeq3488MinLength$mLength\_AlnMethod6.xml
+		--clusters_size 1 --data_dir ~/NetworkData/vervet/db/ --local_data_dir ~/NetworkData/vervet/db/
+		-J ~/bin/jdk/bin/java --skipAlignmentWithStats --needSSHDBTunnel --sequence_filtered 1
+		--alignment_method_id 6 --completedAlignment 1 --min_segment_length $mLength
 		
 Description:
 	2012.3.21
@@ -261,7 +269,7 @@ class InspectAlignmentPipeline(parentClass):
 					addOrReplaceReadGroupsJava=self.addOrReplaceReadGroupsJava, \
 					AddOrReplaceReadGroupsJar=self.AddOrReplaceReadGroupsJar, \
 					BuildBamIndexFilesJava=self.BuildBamIndexFilesJava, BuildBamIndexJar=self.BuildBamIndexJar, \
-					mv=self.mv, namespace=self.namespace, version=self.version, data_dir=self.data_dir, tmpDir=self.tmpDir)
+					mv=self.mv, data_dir=self.data_dir, tmpDir=self.tmpDir)
 		
 		passingData.flagStatMapFolderJob = self.addMkDirJob(outputDir="%sFlagStatMap"%(passingData.outputDirPrefix))
 		

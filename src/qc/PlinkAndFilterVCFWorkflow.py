@@ -201,7 +201,7 @@ class PlinkAndFilterVCFWorkflow(parentClass, PlinkOnVCFWorkflow):
 		# 2012.5.1 filter only on the 1st vcf folder
 		vcf2PlinkJobData1 = self.addVCF2PlinkJobs(inputData=self.inputData, db_vervet=self.db_vervet, minMAC=None, minMAF=None,\
 						maxSNPMissingRate=None, transferOutput=False,\
-						maxContigID=self.maxContigID, outputDirPrefix="vcf2plinkRuntype%s_s1"%(self.run_type), \
+						maxContigID=self.maxContigID, outputDirPrefix="runType%s_s1_vcf2plink"%(self.run_type), \
 						outputPedigreeAsTFAM=True,\
 						treatEveryOneIndependent=treatEveryOneIndependent,\
 						returnMode=2, ModifyTPEDRunType=ModifyTPEDRunType, chr_id2cumu_chr_start=chr_id2cumu_chr_start,\
@@ -209,7 +209,7 @@ class PlinkAndFilterVCFWorkflow(parentClass, PlinkOnVCFWorkflow):
 		
 		if self.run_type ==1 or self.run_type==3:
 			mendelWorkflowData = self.addPlinkMendelErrorJobs(inputData=vcf2PlinkJobData1, transferOutput=True,\
-						maxContigID=self.maxContigID, outputDirPrefix="mendelRuntype%s_s2"%(self.run_type), \
+						maxContigID=self.maxContigID, outputDirPrefix="runType%s_s2_MendelError"%(self.run_type), \
 						locusSamplingRate=self.locusSamplingRate, 
 						returnMode=2)
 		
@@ -229,7 +229,7 @@ class PlinkAndFilterVCFWorkflow(parentClass, PlinkOnVCFWorkflow):
 			LDPruneWorkflowData = self.addPlinkLDPruneJobs(inputData=vcf2PlinkJobData1, transferOutput=True,\
 					maxContigID=self.maxContigID, LDPruneMinR2=self.LDPruneMinR2, \
 					LDPruneWindowSize=self.LDPruneWindowSize, LDPruneWindowShiftSize=self.LDPruneWindowShiftSize, \
-					outputDirPrefix="ldPruneRuntype%s_s2"%(self.run_type), returnMode=1, \
+					outputDirPrefix="runType%s_s2_LDPrune"%(self.run_type), returnMode=1, \
 					mergeListFile=mergeListFile)
 			#plinkMergeJobData = LDPruneWorkflowData.jobDataLs[-1]	#last job from LD-prune workflow is the plink merge job.
 			#plinkMergeJob = plinkMergeJobData.jobLs[0]
@@ -249,7 +249,7 @@ class PlinkAndFilterVCFWorkflow(parentClass, PlinkOnVCFWorkflow):
 								alnStatForFilterF=alnStatForFilterF, keepSNPPosF=keepSNPPosF, \
 								onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP,\
 								minMAC=self.minMAC, minMAF=self.minMAF, maxSNPMissingRate=self.maxSNPMissingRate,\
-								minDepthPerGenotype=self.minDepthPerGenotype, outputDirPrefix="filterRunType%s_s3"%(self.run_type),\
+								minDepthPerGenotype=self.minDepthPerGenotype, outputDirPrefix="runType%s_s3_filterVCF_andKeepSNP"%(self.run_type),\
 								minNeighborDistance=self.minNeighborDistance, transferOutput=True,\
 								keepSNPPosParentJobLs=keepSNPPosParentJobLs)
 		if self.run_type==3:	#add LD pruning
@@ -260,7 +260,7 @@ class PlinkAndFilterVCFWorkflow(parentClass, PlinkOnVCFWorkflow):
 			# addUngenotypedDuoParents = True (because Mark mendel error genotype missing needs it)
 			vcf2PlinkJobData2 = self.addVCF2PlinkJobs(inputData=filterReturnData, db_vervet=self.db_vervet, minMAC=None, minMAF=None,\
 							maxSNPMissingRate=None, transferOutput=False,\
-							maxContigID=self.maxContigID, outputDirPrefix="vcf2plinkRuntype%s_s4"%(self.run_type),\
+							maxContigID=self.maxContigID, outputDirPrefix="runType%s_s4_vcf2plink"%(self.run_type),\
 							outputPedigreeAsTFAM=True,\
 							treatEveryOneIndependent=True,\
 							returnMode=2, ModifyTPEDRunType=3, chr_id2cumu_chr_start=chr_id2cumu_chr_start,\
@@ -276,7 +276,7 @@ class PlinkAndFilterVCFWorkflow(parentClass, PlinkOnVCFWorkflow):
 												transferOutput=False, \
 												maxContigID=self.maxContigID, \
 												famJob=vcf2PlinkJobData1.famJob, tfamJob=vcf2PlinkJobData1.tfamJob, \
-												outputDirPrefix='markMendelErrorGenotypeMissing_s5', returnMode=2)
+												outputDirPrefix='runType%s_s5_markMendelErrorGenotypeMissing'%(self.run_type), returnMode=2)
 			
 			#LD pruning
 			mergeListFile = self.registerOneInputFile(inputFname="%s.merge.s6"%self.mergeListFname, \
@@ -287,7 +287,7 @@ class PlinkAndFilterVCFWorkflow(parentClass, PlinkOnVCFWorkflow):
 							famJob=LDPruneFamilyFileJob, tfamJob=LDPruneTFamilyFileJob, \
 							maxContigID=self.maxContigID, LDPruneMinR2=self.LDPruneMinR2, \
 							LDPruneWindowSize=self.LDPruneWindowSize, LDPruneWindowShiftSize=self.LDPruneWindowShiftSize, \
-							outputDirPrefix="ldPruneRunType%s_s6"%(self.run_type), returnMode=1, \
+							outputDirPrefix="runType%s_s6_LDPrune"%(self.run_type), returnMode=1, \
 							mergeListFile=mergeListFile)
 			#plinkMergeJobData = LDPruneWorkflowData.jobDataLs[-1]	#last job from LD-prune workflow is the plink merge job.
 			plinkMergeJob = LDPruneWorkflowData.plinkMergeJob
@@ -306,7 +306,7 @@ class PlinkAndFilterVCFWorkflow(parentClass, PlinkOnVCFWorkflow):
 						keepSNPPosF=keepSNPPosF, \
 						onlyKeepBiAllelicSNP=self.onlyKeepBiAllelicSNP,\
 						minMAC=self.minMAC, minMAF=self.minMAF, maxSNPMissingRate=self.maxSNPMissingRate,\
-						minDepthPerGenotype=self.minDepthPerGenotype, outputDirPrefix="filterRunType%s_s7"%(self.run_type),\
+						minDepthPerGenotype=self.minDepthPerGenotype, outputDirPrefix="runType%s_s7_filterVCF_andKeepSNP"%(self.run_type),\
 						minNeighborDistance=self.minNeighborDistance, transferOutput=True,\
 						keepSNPPosParentJobLs=keepSNPPosParentJobLs)
 		

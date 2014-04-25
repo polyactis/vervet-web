@@ -2145,8 +2145,10 @@ class VervetDB(ElixirDB):
 						country_id_set=None, tax_id_set=None, excludeContaminant=False, is_contaminated=None, \
 						excludeTissueIDSet=set([6]),\
 						local_realigned=1, reduce_reads=None, completedAlignment=None, \
+						alignment_method_id=None, outdated_index=None,\
 						completeAlignmentCheckFunction=None, report=True):
 		"""
+		2013.10.04 added alignment_method_id, outdated_index
 		2013.07.03 added argument is_contaminated (whether to fetch contaminated samples or not)
 		2013.05.04 added argument completeAlignmentCheckFunction
 			if mask_genotype_method_id is 0 or '0', then this requires alignment.mask_genotype_method_id to be null. 
@@ -2180,13 +2182,15 @@ class VervetDB(ElixirDB):
 			sys.stderr.write("Filter %s alignments to select individual_sequence, %s<=coverage <=%s & site-id=%s & \n\
 	sequence_filtered=%s & from %s sites & %s countries & %s taxonomies & local_realigned=%s, reduce_reads=%s \n\
 	excludeContaminant=%s, is_contaminated=%s, excludeTissueIDSet=%s, \n\
-	mask_genotype_method_id=%s, parent_individual_alignment_id=%s, completedAlignment=%s ..."%\
+	mask_genotype_method_id=%s, parent_individual_alignment_id=%s, completedAlignment=%s, \n\
+	alignment_method_id=%s, outdated_index=%s  ..."%\
 							(len(alignmentLs), min_coverage, max_coverage, individual_site_id, sequence_filtered, \
 							getattr(individual_site_id_set, '__len__', returnZeroFunc)(),\
 							getattr(country_id_set, '__len__', returnZeroFunc)(),\
 							getattr(tax_id_set, '__len__', returnZeroFunc)(),\
 							local_realigned, reduce_reads, excludeContaminant, is_contaminated, repr(excludeTissueIDSet),\
 							mask_genotype_method_id, parent_individual_alignment_id, completedAlignment,\
+							alignment_method_id, outdated_index,\
 							)
 						)
 		newAlignmentLs = []
@@ -2248,6 +2252,10 @@ class VervetDB(ElixirDB):
 					sys.stderr.write("VervetDB.getAlignments() warning: completeness (%s) of alignment %s, (file=%s, read_group=%s) does not match given(%s). Skip.\n"%\
 									(isAlignmentCompleted, alignment.id, alignment.path, alignment.getReadGroup(), completedAlignment))
 					continue
+			if alignment_method_id is not None and alignment.alignment_method_id!=alignment_method_id:
+				continue
+			if outdated_index is not None and alignment.outdated_index!=outdated_index:
+				continue
 			newAlignmentLs.append(alignment)
 		if report:
 			sys.stderr.write(" kept %s alignments. Done.\n"%(len(newAlignmentLs)))

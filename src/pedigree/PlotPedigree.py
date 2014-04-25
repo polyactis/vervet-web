@@ -263,7 +263,7 @@ class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 			
 			if individual.sex not in sex2NodePropertyList:
 				sex2NodePropertyList[sex] = []
-			individual_sequence = VervetDB.IndividualSequence.query.filter_by(sequencer='GA').\
+			individual_sequence = VervetDB.IndividualSequence.query.filter_by(sequencer_id=2).\
 				filter_by(individual_id=individual.id).first()
 			node_color = 0.8	#color for the sequenced
 			
@@ -274,9 +274,11 @@ class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 			if coverage is None and individual_sequence is not None:
 				coverage = individual_sequence.coverage
 			
-			if coverage is None:
+			if coverage is None:	#un-sequenced monkeys
 				node_size = baseNodeSize
-				node_color = 0	#not sequenced in a different color
+				node_color = 0	#not sequenced in a different color, 0 is blue. [0-1] depends on mpl.cm.jet.
+				#2014.03.04 temporary
+				node_color = 0.2
 			else:
 				node_size = baseNodeSize
 				if individual.id==1:	#the reference
@@ -294,9 +296,12 @@ class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 				
 			
 			if individual.vrc_founder:
-				node_color = 0.25
+				node_color = 0.2	#[0-1] depends on mpl.cm.jet.
 				if individual_sequence is None:
 					node_size = baseNodeSize*2
+					#2014.03.04 temporary
+					node_size = baseNodeSize
+					
 			
 			sex2NodePropertyList[sex].append((v, node_size, node_color))
 		sys.stderr.write("Done.\n")
@@ -352,7 +357,12 @@ class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 		cb.set_label('Legend for the edge color, IBD-kinship')
 		sys.stderr.write(".\n")
 	
-	def drawGraphNodes(self, G=None, pos=None, sex2NodePropertyList=None):
+	def drawGraphNodes(self, G=None, pos=None, sex2NodePropertyList=None, alpha=0.9):
+		"""
+		2014.03.04, temporary, change alpha to 0.9
+		
+		default alpha=0.3
+		"""
 		import matplotlib as mpl
 		for sex, node_property_ls in sex2NodePropertyList.iteritems():
 			if sex=='M':
@@ -373,7 +383,7 @@ class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 				node_size_ar = node_size_ar*1.5	#by default, the square is smaller than a circle icon.
 			
 			nx.draw_networkx_nodes(G, pos, nodelist=node_list, node_color=node_color_list, node_size=node_size_ar, \
-								node_shape=node_shape, alpha=0.3, width=0, linewidths=0, cmap =mpl.cm.jet, vmin=0, vmax=1.0)
+								node_shape=node_shape, alpha=alpha, width=0, linewidths=0, cmap =mpl.cm.jet, vmin=0, vmax=1.0)
 	
 	
 	
@@ -412,10 +422,10 @@ class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 		#nx.draw_graphviz(DG, prog=layout,with_labels=False, alpha=0.5)
 		if monkeyPair2data and minEdgeColor and maxEdgeColor:
 			self.drawOutlierEdge(DG, db_vervet=db_vervet, pos=pos, monkeyPair2data=monkeyPair2data, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
-		if monkeyPair2data and minEdgeColor and maxEdgeColor:
+			#if monkeyPair2data and minEdgeColor and maxEdgeColor:
 			#draw outlier edges in the end because the new axes() would change the current figure in pylab
 			self.drawEdgeColorLegend(DG, pos=pos, minEdgeColor=minEdgeColor, maxEdgeColor=maxEdgeColor)
-		pylab.savefig('%s_graphviz_%s_graph.png'%(outputFnamePrefix, layout), dpi=100)
+		pylab.savefig('%s_graphviz_%s_graph.png'%(outputFnamePrefix, layout), dpi=25)
 		
 		"""
 		###spectral layout output
@@ -669,6 +679,12 @@ class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 		sex2NodePropertyList = self.getSex2NodePropertyList(DG=DG, db_vervet=self.db_vervet, monkey_id2coverage=None, \
 											baseNodeSize=self.defaultNodeSize,\
 											nodeSizeInProportionToCoverage=True)
+		#2014.03.04 temporarily draw teh whole pedigree
+		self.drawPedigree(DG=DG, db_vervet=self.db_vervet, outputFnamePrefix=self.outputFnamePrefix, \
+						monkey_id2coverage=monkey_id2coverage, \
+						sex2NodePropertyList=sex2NodePropertyList)
+		#2014.03.14 halts after whole pedigree is drawn
+		sys.exit(0)
 		
 		###########  2012.11.30 draw particular monkey with its ancestors & descendants
 		for monkeyID in ['1986085', '2005038', '1982001', '1984010', '1986007', '1986002', '1983087', '1978007', '1987011']:
@@ -712,10 +728,10 @@ class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 									monkeyPair2IBDVector=monkeyPair2IBDVector, monkeyIDInIBDDataSet=monkeyIDInIBDDataSet,\
 									monkeyPairDesignated=self.monkeyPairDesignated)
 		"""
-		self.drawPedigree(db_vervet=self.db_vervet, outputFnamePrefix=self.outputFnamePrefix, baseNodeSize=40, \
+		self.drawPedigree(DG=DG, db_vervet=self.db_vervet, outputFnamePrefix=self.outputFnamePrefix, \
 						monkey_id2coverage=monkey_id2coverage, \
 						monkeyPair2data=outlierData.monkeyPair2data, minEdgeColor=outlierData.minDelta, \
-						maxEdgeColor=outlierData.maxDelta)
+						maxEdgeColor=outlierData.maxDelta, sex2NodePropertyList=sex2NodePropertyList)
 		"""
 		
 		#for monkeyID, monkeyPair2data in outlierData.monkeyID2monkeyPair2data.iteritems():
@@ -739,7 +755,7 @@ class PlotPedigree(AbstractVervetMapper, DetectWrongLabelByCompKinshipVsIBD):
 			noOfOutliers = len(monkeyPair2data)
 			if noOfOutliers>=10:
 				outputFnamePrefix = '%s_%soutlier_%s'%(self.outputFnamePrefix, noOfOutliers, monkeyID)
-				self.drawPedigree(DG, db_vervet=self.db_vervet, outputFnamePrefix=outputFnamePrefix, \
+				self.drawPedigree(DG=DG, db_vervet=self.db_vervet, outputFnamePrefix=outputFnamePrefix, \
 						monkey_id2coverage=monkey_id2coverage, \
 						monkeyPair2data=monkeyPair2data, minEdgeColor=outlierData.minDelta, \
 						maxEdgeColor=outlierData.maxDelta, sex2NodePropertyList=sex2NodePropertyList)

@@ -137,6 +137,7 @@ Column 6-N: affection status (optional)"],\
 		
 		# order the pedigree members based on their distance to the founders
 		founderDistance2NodeList = graphData.DG.orderMembersByDistanceToFounders()
+		#2013.10.16 YH: bug needs to be fixed here. orderMembersByDistanceToFounders() does not return a data structure like founderDistance2NodeList.
 		
 		individualName2polymorphismData = {}
 		chromosomeLength = self.inputPolymorphismTableFile.snpData.col_id_ls[-1][2]	#stop of the last locus is chromosomeLength

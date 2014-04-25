@@ -413,7 +413,7 @@ class CalculateVCFStatPipeline(AbstractVervetWorkflow):
 			outputFnamePrefix = os.path.join(plotOutputDir, 'SNPDensityWindowSize%s_Plot'%(self.windowSize))
 			self.addPlotVCFtoolsStatJob(executable=workflow.PlotVCFtoolsStat, inputFileList=[snpDensityOutputF], \
 								outputFnamePrefix=outputFnamePrefix, \
-								whichColumn=None, whichColumnHeader="SNPS/KB", whichColumnPlotLabel="SNPS/KB", need_svg=False, \
+								whichColumn=None, whichColumnHeader="VARIANTS/KB", whichColumnPlotLabel="VARIANTS/KB", need_svg=False, \
 								logY=0, valueForNonPositiveYValue=-1, \
 								xColumnPlotLabel="position", chrLengthColumnHeader="chrLength", chrColumnHeader="CHROM", \
 								minChrLength=self.minChrLengthForPlot, xColumnHeader="BIN_START", minNoOfTotal=50,\

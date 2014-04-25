@@ -32,7 +32,7 @@ else:   #32bit
 	sys.path.insert(0, os.path.join(os.path.expanduser('~/script')))
 
 from Pegasus.DAX3 import File, Executable, PFN
-from pymodule import ProcessOptions, getListOutOfStr, PassingData, GenomeDB, NextGenSeq
+from pymodule import ProcessOptions, getListOutOfStr, PassingData, NextGenSeq, utils
 from pymodule.pegasus import yh_pegasus
 from vervet.src import VervetDB, AbstractVervetWorkflow
 
@@ -58,13 +58,134 @@ class CheckTwoVCFOverlapPipeline(parentClass):
 		"""
 		parentClass.registerCustomExecutables(self, workflow=workflow)
 		
-	def addCheckingOverlapSubWorkflow(self, workflow=None, inputVCFData1=None, inputVCFData2=None, \
-					outputDirPrefix="", **keywords):
+	def addCheckingVCFOverlapSubWorkflow(self, workflow=None, chr2size=None, inputVCFData1=None, inputVCFData2=None, \
+					registerReferenceData=None, outputDirPrefix="", **keywords):
 		"""
 		2013.09.05
 		"""
+		if workflow is None:
+			workflow = self
+		if registerReferenceData is None:
+			registerReferenceData = self.registerReferenceData
+		
+		sys.stderr.write("Adding Check-VCF overlap jobs between %s (patch 1) and %s (patch 2), job count=%s..."%
+						(len(inputVCFData1.jobDataLs), len(inputVCFData2.jobDataLs), self.no_of_jobs))
+		returnData = PassingData()
+		
+		mapDirJob = self.addMkDirJob(outputDir="%sMap"%(outputDirPrefix))
+		reduceDirJob = self.addMkDirJob(outputDir="%sReduce"%(outputDirPrefix))
+		plotOutputDirJob = self.addMkDirJob(outputDir="%sPlot"%(outputDirPrefix))
+		
+		overlapStatF = File(os.path.join(reduceDirJob.output, 'overlapSites.perChromosome.stat.tsv.gz'))
+		overlapSitesByChromosomeMergeJob=self.addStatMergeJob(statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+					outputF=overlapStatF, parentJobLs=[reduceDirJob], \
+					extraDependentInputLs=None, transferOutput=True, extraArguments=None)
+		
+		overlapSitesMergeJob=self.addStatMergeJob(statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
+					outputF=File(os.path.join(reduceDirJob.output, "overlapSites.tsv.gz")), parentJobLs=[reduceDirJob], \
+					extraDependentInputLs=None, transferOutput=True, extraArguments=None)
+		
+		perSampleMatchFractionFile = File(os.path.join(reduceDirJob.output, 'perSampleMatchFraction.tsv.gz'))
+		perSampleMatchFractionReduceJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixBySumSameKeyColsAndThenDivide, \
+					outputF=perSampleMatchFractionFile, parentJobLs=[reduceDirJob], extraDependentInputLs=[], transferOutput=True, \
+					extraArguments='-k 0 -v 1-2')
+		returnData.perSampleMatchFractionReduceJob = perSampleMatchFractionReduceJob
+		
+		outputFile = File( os.path.join(plotOutputDirJob.output, 'perSampleMatchFraction_Hist.png'))
+		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
+		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[perSampleMatchFractionFile], \
+							outputFile=outputFile, \
+					whichColumn=None, whichColumnHeader="no_of_matches_by_no_of_non_NA_pairs", whichColumnPlotLabel="matchFraction", \
+					logY=None, logCount=True, valueForNonPositiveYValue=50,\
+					minNoOfTotal=10,\
+					figureDPI=100, samplingRate=1,\
+					parentJobLs=[plotOutputDirJob, perSampleMatchFractionReduceJob ], \
+					extraDependentInputLs=None, \
+					extraArguments=None, transferOutput=True,  job_max_memory=2000)
+		
+		overlapStatSumF = File(os.path.join(reduceDirJob.output, 'overlapSites.wholeGenome.stat.tsv'))
+		overlapStatSumJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
+						outputF=overlapStatSumF, parentJobLs=[reduceDirJob], extraDependentInputLs=[], transferOutput=True, \
+						extraArguments='-k 1000000 -v 1-25000')	#The key column (-k 1000000) doesn't exist.
+						# essentially merging every rows into one 
+						##25000 is a random big upper limit. 100 monkeys => 101*3 + 9 => 312 columns
+						#2012.8.17 the number of columns no longer expand as the number of samples because it's split into perSampleMatchFractionFile.
+		self.addInputToStatMergeJob(statMergeJob=overlapStatSumJob, inputF=overlapStatF, \
+							parentJobLs=[overlapSitesByChromosomeMergeJob])
+		
+		vcfJobDataRBTree1 = self.constructGenomeFileRBTreeByFilenameInterval(jobDataStructure=inputVCFData1, chr2size=chr2size)
+		vcfJobDataRBTree2 = self.constructGenomeFileRBTreeByFilenameInterval(jobDataStructure=inputVCFData2, chr2size=chr2size)
+		
+		noOfPairs=0
+		for vcfJobDataNode1 in vcfJobDataRBTree1:
+			chromosome = vcfJobDataNode1.key.chromosome
+			chrLength = chr2size.get(chromosome)
+			if chrLength is None:
+				sys.stderr.write("Warning: size for chromosome %s is unknown. set it to 1000.\n"%(chromosome))
+				chrLength = 1000
+			jobData1 = vcfJobDataNode1.value
+			
+			vcfJobDataNodeListInTree2 = []
+			vcfJobDataRBTree2.findNodes(key=vcfJobDataNode1.key, node_ls=vcfJobDataNodeListInTree2)
+			for vcfJobDataNode2 in vcfJobDataNodeListInTree2:
+				noOfPairs += 1
+				jobData2 = vcfJobDataNode2.value
+				
+				#narrow down either VCF file based on the interval info
+				overlap_start = max(vcfJobDataNode1.key.start, vcfJobDataNode2.key.start)
+				overlap_stop = min(vcfJobDataNode1.key.stop, vcfJobDataNode2.key.stop)
+				if overlap_start!=vcfJobDataNode1.key.start or overlap_stop!=vcfJobDataNode1.key.stop:
+					fileBasenamePrefix = "%s"%(utils.getFileBasenamePrefixFromPath(jobData1.file.name))
+					outputF = File(os.path.join(mapDirJob.output, "%s_%s_%s_%s.vcf"%(fileBasenamePrefix, chromosome, overlap_start, overlap_stop)))
+					selectVCF1Job = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
+										inputF=jobData1.file, outputF=outputF, \
+										interval="%s:%s-%s"%(chromosome, overlap_start, overlap_stop),\
+										refFastaFList=registerReferenceData.refFastaFList, \
+										parentJobLs=[mapDirJob] + jobData1.jobLs, extraDependentInputLs=jobData1.fileLs[1:], transferOutput=False, \
+										extraArguments=None, extraArgumentList=None, job_max_memory=2000, walltime=None)
+					jobData1 = self.constructJobDataFromJob(selectVCF1Job)
+				if overlap_start!=vcfJobDataNode2.key.start or overlap_stop!=vcfJobDataNode2.key.stop:
+					fileBasenamePrefix = "%s"%(utils.getFileBasenamePrefixFromPath(jobData2.file.name))
+					outputF = File(os.path.join(mapDirJob.output, "%s_%s_%s_%s.vcf"%(fileBasenamePrefix, chromosome, overlap_start, overlap_stop)))
+					selectVCF2Job = self.addSelectVariantsJob(SelectVariantsJava=self.SelectVariantsJava, \
+										inputF=jobData2.file, outputF=outputF, \
+										interval="%s:%s-%s"%(chromosome, overlap_start, overlap_stop),\
+										refFastaFList=registerReferenceData.refFastaFList, \
+										parentJobLs=[mapDirJob] + jobData2.jobLs, extraDependentInputLs=jobData2.fileLs[1:], transferOutput=False, \
+										extraArguments=None, extraArgumentList=None, job_max_memory=2000, walltime=None)
+					jobData2 = self.constructJobDataFromJob(selectVCF2Job)
+				
+				fileBasenamePrefix = "%s_vs_%s"%(utils.getFileBasenamePrefixFromPath(jobData1.file.name), 
+												utils.getFileBasenamePrefixFromPath(jobData2.file.name))
+				
+				outputFnamePrefix = os.path.join(mapDirJob.output, fileBasenamePrefix)
+				outputFile = File("%s.tsv.gz"%(outputFnamePrefix))
+				perSampleConcordanceOutputFile = File("%s_perSample.tsv.gz"%(outputFnamePrefix))
+				overlapSiteOutputFile = File("%s_overlapSitePos.tsv.gz"%(outputFnamePrefix))
+				checkTwoVCFOverlapJob = self.addCheckTwoVCFOverlapJob(executable=workflow.CheckTwoVCFOverlapCC, \
+						vcf1=jobData1.file, vcf2=jobData2.file, chromosome=chromosome, chrLength=chrLength, \
+						outputFile=outputFile, perSampleConcordanceOutputFile=perSampleConcordanceOutputFile, \
+						overlapSiteOutputFile=overlapSiteOutputFile,\
+						parentJobLs=[mapDirJob] + jobData1.jobLs + jobData2.jobLs, \
+						extraDependentInputLs=jobData1.fileLs[1:] + jobData2.fileLs[1:], \
+						transferOutput=False, extraArguments=None,\
+						#"--minDepth %s "%(self.minDepth),\
+						job_max_memory=1000)
+				
+				self.addInputToStatMergeJob(statMergeJob=overlapSitesByChromosomeMergeJob, \
+							inputF=checkTwoVCFOverlapJob.output, \
+							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
+				self.addInputToStatMergeJob(statMergeJob=overlapSitesMergeJob, \
+							inputF=checkTwoVCFOverlapJob.overlapSitePosFile, \
+							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
+				self.addInputToStatMergeJob(statMergeJob=perSampleMatchFractionReduceJob, \
+							inputF=checkTwoVCFOverlapJob.perSampleFile, \
+							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
+		sys.stderr.write("%s pairs of VCF files, %s jobs.\n"%(noOfPairs, self.no_of_jobs))
+		return returnData
 	
-	addAllJobs = addCheckingOverlapSubWorkflow
+	
+	addAllJobs = addCheckingVCFOverlapSubWorkflow
 	
 	def run(self):
 		"""
@@ -82,62 +203,30 @@ class CheckTwoVCFOverlapPipeline(parentClass):
 		pdata = self.setup_run()
 		workflow = pdata.workflow
 		
-		chr2size = self.chr2size
 		
-		
-		statOutputDir = "statDir"
-		statOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=statOutputDir)
-		
-		#import re
-		#chr_pattern = re.compile(r'(\w+\d+).*')
-		input_site_handler = self.input_site_handler
-		
-		counter = 1
-		
-		
-		plotOutputDir = "%sPlot"%(self.pegasusFolderName)
-		plotOutputDirJob = yh_pegasus.addMkDirJob(workflow, mkdir=workflow.mkdirWrap, outputDir=plotOutputDir)
-		counter += 1
-		
-		overlapStatF = File('overlapSites.perChromosome.stat.tsv')
-		overlapSitesByChromosomeMergeJob=self.addStatMergeJob(statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-					outputF=overlapStatF, parentJobLs=None, \
-					extraDependentInputLs=None, transferOutput=True, extraArguments=None)
-		counter += 1
-		
-		overlapSitesMergeJob=self.addStatMergeJob(statMergeProgram=workflow.mergeSameHeaderTablesIntoOne, \
-					outputF=File("overlapSites.tsv"), parentJobLs=None, \
-					extraDependentInputLs=None, transferOutput=True, extraArguments=None)
-		counter += 1
-		
-		perSampleMatchFractionFile = File('perSampleMatchFraction.tsv')
-		perSampleMatchFractionReduceJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixBySumSameKeyColsAndThenDivide, \
-					outputF=perSampleMatchFractionFile, extraDependentInputLs=[], transferOutput=True, \
-					extraArguments='-k 0 -v 1-2')
-		outputFile = File( os.path.join(plotOutputDir, 'perSampleMatchFraction_Hist.png'))
-		#no spaces or parenthesis or any other shell-vulnerable letters in the x or y axis labels (whichColumnPlotLabel, xColumnPlotLabel)
-		self.addDrawHistogramJob(workflow=workflow, executable=workflow.DrawHistogram, inputFileList=[perSampleMatchFractionFile], \
-							outputFile=outputFile, \
-					whichColumn=None, whichColumnHeader="no_of_matches_by_no_of_non_NA_pairs", whichColumnPlotLabel="matchFraction", \
-					logY=None, logCount=True, valueForNonPositiveYValue=50,\
-					minNoOfTotal=10,\
-					figureDPI=100, samplingRate=1,\
-					parentJobLs=[plotOutputDirJob, perSampleMatchFractionReduceJob ], \
-					extraDependentInputLs=None, \
-					extraArguments=None, transferOutput=True,  job_max_memory=2000)
-		counter += 2
-		
-		overlapStatSumF = File('overlapSites.wholeGenome.stat.tsv')
-		overlapStatSumJob = self.addStatMergeJob(statMergeProgram=workflow.ReduceMatrixByChosenColumn, \
-						outputF=overlapStatSumF, extraDependentInputLs=[], transferOutput=True, \
-						extraArguments='-k 1000000 -v 1-25000')	#The key column (-k 1000000) doesn't exist.
-						# essentially merging every rows into one 
-						##25000 is a random big upper limit. 100 monkeys => 101*3 + 9 => 312 columns
-						#2012.8.17 the number of columns no longer expand as the number of samples because it's split into perSampleMatchFractionFile.
-		self.addInputToStatMergeJob(statMergeJob=overlapStatSumJob, inputF=overlapStatF, \
-							parentJobLs=[overlapSitesByChromosomeMergeJob])
-		counter += 1
-		
+		inputVCFData1 = self.registerAllInputFiles(inputDir=self.vcf1Dir, input_site_handler=None, \
+					checkEmptyVCFByReading=self.checkEmptyVCFByReading, pegasusFolderName='%s_vcf1'%(self.pegasusFolderName),\
+					maxContigID=self.maxContigID, minContigID=self.minContigID, \
+					db_vervet=None, needToKnowNoOfLoci=False,
+					minNoOfLociInVCF=None, includeIndelVCF=True)
+		#split the VCFs
+		outputDirJob = self.addMkDirJob(outputDir='%s_vcf1_split'%(self.pegasusFolderName))
+		inputVCFData1 = self.addSplitVCFSubWorkflow(inputVCFData=inputVCFData1, intervalSize=self.intervalSize, chr2size=self.chr2size,
+							registerReferenceData=self.registerReferenceData, outputDirJob=outputDirJob)
+		inputVCFData2 = self.registerAllInputFiles(inputDir=self.vcf2Dir, input_site_handler=None, \
+					checkEmptyVCFByReading=self.checkEmptyVCFByReading, pegasusFolderName='%s_vcf2'%(self.pegasusFolderName),\
+					maxContigID=self.maxContigID, minContigID=self.minContigID, \
+					db_vervet=None, needToKnowNoOfLoci=False,
+					minNoOfLociInVCF=None, includeIndelVCF=True)
+		#split the VCFs
+		outputDirJob = self.addMkDirJob(outputDir='%s_vcf2_split'%(self.pegasusFolderName))
+		inputVCFData2 = self.addSplitVCFSubWorkflow(inputVCFData=inputVCFData2, intervalSize=self.intervalSize, chr2size=self.chr2size,
+							registerReferenceData=self.registerReferenceData, outputDirJob=outputDirJob)
+		self.addCheckingVCFOverlapSubWorkflow(workflow=workflow, chr2size = self.chr2size, inputVCFData1=inputVCFData1, inputVCFData2=inputVCFData2, \
+							registerReferenceData=pdata.registerReferenceData,\
+							outputDirPrefix="")
+
+		"""
 		vcfFileID2object_1 = self.getVCFFileID2object(self.vcf1Dir)
 		vcfFileID2object_2 = self.getVCFFileID2object(self.vcf2Dir)
 		sharedVCFFileIDSet = set(vcfFileID2object_1.keys())&set(vcfFileID2object_2.keys())
@@ -146,48 +235,8 @@ class CheckTwoVCFOverlapPipeline(parentClass):
 		for vcfFileID in sharedVCFFileIDSet:
 			gatkVCFAbsPath = vcfFileID2object_1.get(vcfFileID).vcfFilePath
 			samtoolsVCFAbsPath = vcfFileID2object_2.get(vcfFileID).vcfFilePath
-			if not NextGenSeq.isVCFFileEmpty(gatkVCFAbsPath) and not NextGenSeq.isVCFFileEmpty(samtoolsVCFAbsPath, \
-									checkContent=self.checkEmptyVCFByReading):	#make sure the samtools vcf is not empty
-				gatkVCFFileBaseName = os.path.basename(gatkVCFAbsPath)
-				chromosome = vcfFileID
-				chr_size = chr2size.get(chromosome)
-				if chr_size is None:
-					sys.stderr.write("size for chromosome %s is unknown. set it to 1000.\n"%(chromosome))
-					chr_size = 1000
-				
-				vcf1 = File(os.path.join('vcf1', gatkVCFFileBaseName))	#relative path
-				vcf1.addPFN(PFN("file://" + gatkVCFAbsPath, input_site_handler))
-				workflow.addFile(vcf1)
-				
-				vcf2 = File(os.path.join('vcf2', os.path.basename(samtoolsVCFAbsPath)))	#relative path
-				vcf2.addPFN(PFN("file://" + samtoolsVCFAbsPath, input_site_handler))
-				workflow.addFile(vcf2)
-				
-				
-				outputFnamePrefix = os.path.join(statOutputDir, os.path.splitext(gatkVCFFileBaseName)[0])
-				outputFile = File("%s.tsv"%(outputFnamePrefix))
-				perSampleConcordanceOutputFile = File("%s_perSample.tsv"%(outputFnamePrefix))
-				overlapSiteOutputFile = File("%s_overlapSitePos.tsv"%(outputFnamePrefix))
-				checkTwoVCFOverlapJob = self.addCheckTwoVCFOverlapJob(workflow, executable=workflow.CheckTwoVCFOverlapCC, \
-						vcf1=vcf1, vcf2=vcf2, chromosome=chromosome, chrLength=chr_size, \
-						outputFile=outputFile, perSampleConcordanceOutputFile=perSampleConcordanceOutputFile, \
-						overlapSiteOutputFile=overlapSiteOutputFile,\
-						parentJobLs=[statOutputDirJob], \
-						extraDependentInputLs=[], transferOutput=False, extraArguments=" -m %s "%(self.minDepth),\
-						perSampleMatchFraction=self.perSampleMatchFraction,\
-						job_max_memory=1000)
-				
-				self.addInputToStatMergeJob(statMergeJob=overlapSitesByChromosomeMergeJob, \
-							inputF=checkTwoVCFOverlapJob.output, \
-							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
-				self.addInputToStatMergeJob(statMergeJob=overlapSitesMergeJob, \
-							inputF=checkTwoVCFOverlapJob.overlapSitePosFile, \
-							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
-				self.addInputToStatMergeJob(statMergeJob=perSampleMatchFractionReduceJob, \
-							inputF=checkTwoVCFOverlapJob.perSampleFile, \
-							parentJobLs=[checkTwoVCFOverlapJob], extraDependentInputLs=[])
-				counter += 1
-		sys.stderr.write("%s jobs.\n"%(self.no_of_jobs))
+		"""
+		
 		
 		self.end_run()
 		

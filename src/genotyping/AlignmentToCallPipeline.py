@@ -1,30 +1,22 @@
 #!/usr/bin/env python
 """
 Examples:
-	# scaffold (120) is used as reference in alignment. get genome sequence id from 1 to 8.
-	%s -o workflow.xml -a 120 --ind_seq_id_ls 1-8 --genotypeCallerType2 -s2
+	#2013.10.07 call population sabaeus, only at certain intervals
+	tax_id=60711 
+	%s -a 3488 --country_id_ls 1,129,130,131,132,133,134,136,144,148,151,152
+		--tax_id_ls $tax_id --sequence_filtered 1 --local_realigned 1 --reduce_reads 0
+		--completedAlignment 1 --excludeContaminant
+		-o dags/AlignmentToCall/AlignmentToCall_VervetTax$tax_id\_LocalRealigned1_vs_3488_ChrRank0_2000_AlnDepthIntervalMethod8_Min1Kb_FreeBayes.xml
+		-u yh --hostname localhost --alignment_method_id 6 --data_dir ~/NetworkData/vervet/db/
+		--local_data_dir ~/NetworkData/vervet/db -J ~/bin/jdk/bin/java
+		--noOfCallingJobsPerNode 3 --clusters_size 40 --contigMinRankBySize 0
+		--contigMaxRankBySize 2000 --intervalSize 1000000 --intervalOverlapSize 0
+		--ref_genome_tax_id 60711 --ref_genome_sequence_type_id 1
+		--ref_genome_version 1 --genotypeCallerType 3 --heterozygosityPrior 0.01
+		--GATKGenotypeCallerType HaplotypeCaller --mask_genotype_method_id 227
+		--minAlignmentDepthIntervalLength 1000 --alignmentDepthIntervalMethodShortName PopSabaeusRef3488MinLength100
+		--alignmentDepthMinFold 0.01 --alignmentDepthMaxFold 2 -l hcondor -j hcondor
 	
-	# 1Mb-BAC (9) is used as reference.
-	%s -o workflow.xml -a 9 --ind_seq_id_ls 1-4 --genotypeCallerType2 -s2
-	
-	# 8 genomes versus top 156 contigs
-	%s -o workflow_8GenomeVsTop156Contigs.xml -u yh  -a 128 --ind_seq_id_ls 1-8 -N 156 --genotypeCallerType2 -s2
-	
-	# 2011-7-21 use GATK + coverage filter, top 2 contigs
-	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 --ind_seq_id_ls 1-8 -N 2 --genotypeCallerType1  -s2
-	
-	# 2011-7-21 use GATK + coverage filter on hoffman2 and site_handler, top 5 contigs
-	%s -o workflow_8GenomeVsTop2Contig_GATK.xml -u yh  -a 120 --ind_seq_id_ls 1-8
-		-N 5 --genotypeCallerType1 --site_handler hoffman2 -e ~ --data_dir ~/NetworkData/vervet/db  -s2
-		-J ~/bin/jdk/bin/java
-	
-	#2011-8-31 work 10 VWP and one VRC ref monkeys, variants only
-	%s -a 9 --ind_aln_id_ls 495,498-507 -u yh  
-		--site_handler condorpool --genotypeCallerType1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC.xml -s2 -q /tmp/all_isq_coverage.tsv
-	
-	%s -a 120 --ind_aln_id_ls 34,38 -u yh --site_handler hoffman2
-		--genotypeCallerType1 -o AlignmentToCallPipeline_10VWP_VRC_ref_vs_1Mb_BAC_hoffman2.xml  -s2 -e ~
-		--data_dir ~/NetworkData/vervet/db -N 4 -q /tmp/all_isq_coverage.tsv
 	
 	#2011-9-14 top 25 contigs, variants only, run on uschpc cluster
 	%s --ind_aln_id_ls 559-656 --input_site_handler uschpc --site_handler uschpc -u yh -a 524 -s 2 -e /home/cmb-03/mn/yuhuang
@@ -85,7 +77,7 @@ Examples:
 		--genotypeCallerType 1
 		--contigMaxRankBySize 1000 --maxContigID 731 --minContigID 731 --intervalSize 200000 --intervalOverlapSize 0
 		#--individual_sequence_file_raw_id_type 2 --country_id_ls 135,136,144,148,151 --tax_id_ls 60711 #sabaeus
-		#--heterozygosityForGATK 0.01
+		#--heterozygosityPrior 0.01
 		# 2013.2.25 add this to try HaplotypeCaller
 		#--minPruningForGATKHaplotypCaller 2 --GATKGenotypeCallerType HaplotypeCaller
 	
@@ -107,7 +99,7 @@ Description:
 """
 import sys, os, math
 __doc__ = __doc__%(sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0],\
-				sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0], sys.argv[0])
+				sys.argv[0])
 
 
 #bit_number = math.log(sys.maxint)/math.log(2)
@@ -134,11 +126,11 @@ class AlignmentToCallPipeline(parentClass):
 						("polymuttPath", 1, ): ["%s/bin/polymutt", '', 1, 'path to the polymutt binary'],\
 						("trioCallerPath", 1, ): ["%s/script/vervet/bin/trioCaller/TrioCaller", '', 1, 'path to TrioCaller binary'],\
 						("GATKGenotypeCallerType", 1, ): ['UnifiedGenotyper', '', 1, 'passed to -T of GATK. alternative is HaplotypeCaller'],\
-						("heterozygosityForGATK", 1, float): [0.005, '', 1, 'heterozygosity prior for GATK. GATK default is 0.001 '],\
+						("heterozygosityPrior", 1, float): [0.005, '', 1, 'heterozygosity prior for GATK. GATK default is 0.001 '],\
 						("minPruningForGATKHaplotypCaller", 1, int): [2, '', 1, 'The minimum allowed pruning factor in assembly graph.\n\
 	Paths with <= X supporting kmers are pruned from the graph.\n\
 	default in GATK2 is 1.'],\
-						("genotypeCallerType", 0, int): [0, '', 1, '0: SAMtools, 1: GATK (--GATKGenotypeCallerType ...), 2: Platypus'],\
+						("genotypeCallerType", 0, int): [0, '', 1, '0: SAMtools, 1: GATK (--GATKGenotypeCallerType ...), 2: Platypus, 3: FreeBayes'],\
 						}
 	
 	commonCallPipelineOptionDict.update(parentClass.partitionWorkflowOptionDict.copy())
@@ -159,7 +151,6 @@ class AlignmentToCallPipeline(parentClass):
 		self.pathToInsertHomePathList.extend(['polymuttPath', 'trioCallerPath'])
 		
 		parentClass.__init__(self, **keywords)
-		self.needSplitChrIntervalData = False	#2013.09.01 as it'll be handled in run()
 	
 	
 	def addRefFastaFileSplitJobs(self, workflow, refFastaF, selectAndSplitFasta, chrLs, mkdir=None, samtools=None,
@@ -387,25 +378,25 @@ class AlignmentToCallPipeline(parentClass):
 			setattr(self, indelOutputDirJobAttrName, indelOutputDirJob)
 		
 		#2011-9-22 union of all GATK intervals for one contig
-		gatkUnionOutputFname = os.path.join(callOutputDirJob.folder, '%s.vcf'%chromosome)
-		gatkUnionOutputF = File(gatkUnionOutputFname)
-		gatkUnionJob = self.addGATKCombineVariantsJob(refFastaFList=refFastaFList, outputFile=gatkUnionOutputF, \
+		combineCallOutputFname = os.path.join(callOutputDirJob.folder, '%s.vcf'%chromosome)
+		combineCallOutputF = File(combineCallOutputFname)
+		combineCallJob = self.addGATKCombineVariantsJob(refFastaFList=refFastaFList, outputFile=combineCallOutputF, \
 													genotypeMergeOptions='UNSORTED', \
 			parentJobLs=[callOutputDirJob], \
 			extraArguments=None, extraArgumentList=None, extraDependentInputLs=None,\
 			transferOutput=False, job_max_memory=job_max_memory,walltime=180)
 		
-		gatkGzipUnionOutputF = File("%s.gz"%gatkUnionOutputFname)
-		bgzip_tabix_gatkUnionOutputF_job = self.addBGZIP_tabix_Job(\
-				parentJob=gatkUnionJob, inputF=gatkUnionJob.output, outputF=gatkGzipUnionOutputF, \
+		gatkGzipUnionOutputF = File("%s.gz"%combineCallOutputFname)
+		bgzip_tabix_combineCallOutputF_job = self.addBGZIP_tabix_Job(\
+				parentJob=combineCallJob, inputF=combineCallJob.output, outputF=gatkGzipUnionOutputF, \
 				transferOutput=transferOutput)
 		
 		indelUnionOutputF = File(os.path.join(indelOutputDirJob.folder, '%s.indel.vcf'%chromosome))
 		selectIndelJob = self.addGATKJob(executable=self.SelectVariantsJava, GATKAnalysisType="SelectVariants",\
-			inputFile=gatkUnionJob.output, inputArgumentOption="--variant", refFastaFList=refFastaFList, inputFileList=None,\
+			inputFile=combineCallJob.output, inputArgumentOption="--variant", refFastaFList=refFastaFList, inputFileList=None,\
 			argumentForEachFileInInputFileList=None,\
 			interval=None, outputFile=indelUnionOutputF, \
-			parentJobLs=[indelOutputDirJob, gatkUnionJob], transferOutput=False, job_max_memory=job_max_memory,\
+			parentJobLs=[indelOutputDirJob, combineCallJob], transferOutput=False, job_max_memory=job_max_memory,\
 			frontArgumentList=None, extraArguments="-selectType INDEL -selectType MNP", \
 			extraArgumentList=None, extraOutputLs=None, \
 			extraDependentInputLs=None, no_of_cpus=None, walltime=80)
@@ -416,17 +407,17 @@ class AlignmentToCallPipeline(parentClass):
 		
 		SNPOnlyOutputF = File(os.path.join(snpOutputDirJob.folder, '%s.SNP.vcf'%chromosome))
 		selectSNPJob = self.addGATKJob(executable=self.SelectVariantsJava, GATKAnalysisType="SelectVariants",\
-			inputFile=gatkUnionJob.output, inputArgumentOption="--variant", refFastaFList=refFastaFList, inputFileList=None,\
+			inputFile=combineCallJob.output, inputArgumentOption="--variant", refFastaFList=refFastaFList, inputFileList=None,\
 			argumentForEachFileInInputFileList=None,\
 			interval=None, outputFile=SNPOnlyOutputF, \
-			parentJobLs=[snpOutputDirJob, gatkUnionJob], transferOutput=False, job_max_memory=job_max_memory,\
+			parentJobLs=[snpOutputDirJob, combineCallJob], transferOutput=False, job_max_memory=job_max_memory,\
 			frontArgumentList=None, extraArguments="-selectType SNP", \
 			extraArgumentList=None, extraOutputLs=None, \
 			extraDependentInputLs=None, no_of_cpus=None, walltime=80)
 		bgzip_tabix_job = self.addBGZIP_tabix_Job(parentJob=selectSNPJob, \
 				inputF=selectSNPJob.output, outputF=File("%s.gz"%SNPOnlyOutputF.name), \
 				transferOutput=transferOutput)
-		return PassingData(callUnionJob=gatkUnionJob, callOutputDirJob=callOutputDirJob, selectIndelJob=selectIndelJob, selectSNPJob=selectSNPJob)
+		return PassingData(callUnionJob=combineCallJob, callOutputDirJob=callOutputDirJob, selectIndelJob=selectIndelJob, selectSNPJob=selectSNPJob)
 	
 	def addGenotypeCallJobs(self, workflow=None, alignmentDataLs=None, chr2IntervalDataLs=None, \
 				registerReferenceData=None, \
@@ -497,6 +488,7 @@ class AlignmentToCallPipeline(parentClass):
 		
 		# add merge jobs for every reference
 		returnData = PassingData(jobDataLs=[])
+		chromosome2jobData = {}	#2013.10.22 
 		no_of_chromosomes = 0
 		no_of_intervals = 0
 		for chromosome, intervalDataLs in chr2IntervalDataLs.iteritems():
@@ -515,11 +507,14 @@ class AlignmentToCallPipeline(parentClass):
 			"""
 			#self.addRefFastaJobDependency(workflow, wholeRefUnionOfIntersectionJob, refFastaF=refFastaF, fastaDictJob=fastaDictJob, \
 			#							refFastaDictF=refFastaDictF, fastaIndexJob = fastaIndexJob, refFastaIndexF = refFastaIndexF)
+			if chromosome not in chromosome2jobData:
+				chromosome2jobData[chromosome] = PassingData(genotypingJobLs=[], refineGenotypeJobLs=[])
 			if genotypeCallerType>=1:
 				#2011-9-22 union of all GATK intervals for one contig
-				combineChromosomeJobData = self.addCombineChromosomeVCFJob(outputDirPrefix=outputDirPrefix, callerName="GATKType%s"%(genotypeCallerType), \
+				combineChromosomeJobData = self.addCombineChromosomeVCFJob(outputDirPrefix=outputDirPrefix, callerName="CallerType%s"%(genotypeCallerType), \
 								chromosome=chromosome, refFastaFList=refFastaFList,\
 								job_max_memory=5000, transferOutput=True)
+			
 			elif genotypeCallerType==0:
 				#2011-9-22 union job for SNPs
 				samtoolsUnionOutputFname = os.path.join(samtoolsDirJob.folder, '%s.vcf.gz'%chromosome)
@@ -535,7 +530,7 @@ class AlignmentToCallPipeline(parentClass):
 								outputF=samtoolsIndelUnionOutputF, transferOutput=True, \
 								vcf_job_max_memory=vcf_job_max_memory)
 			if hasattr(self, "addRefineSNPGenotypeJob"):
-				combineChromosomeRefineSNPJobData = self.addCombineChromosomeVCFJob(outputDirPrefix=outputDirPrefix, callerName="RefineSNP", \
+				combineChromosomeRefineSNPJobData = self.addCombineChromosomeVCFJob(outputDirPrefix=outputDirPrefix, callerName="Refine", \
 								chromosome=chromosome, refFastaFList=refFastaFList,\
 								job_max_memory=5000, transferOutput=True)
 			no_of_chromosomes += 1
@@ -566,13 +561,13 @@ class AlignmentToCallPipeline(parentClass):
 									
 				if genotypeCallerType>=1:	#non-SAMtools
 					#extra caller
-					gatkOutputFname = os.path.join(combineChromosomeJobData.callOutputDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
-					gatkOutputF = File(gatkOutputFname)
+					callOutputFname = os.path.join(combineChromosomeJobData.callOutputDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
+					callOutputFile = File(callOutputFname)
 					
 					if genotypeCallerType==1:	#GATK
 						#2013.05.09 add downsample setting for gatk job 
 						genotypingJob= self.addGATKCallJob(genotyperJava=self.genotyperJava, GenomeAnalysisTKJar=self.GenomeAnalysisTK2Jar, \
-							gatkOutputF=gatkOutputF, refFastaFList=refFastaFList, \
+							outputFile=callOutputFile, refFastaFList=refFastaFList, \
 							parentJobLs=[combineChromosomeJobData.callOutputDirJob]+intervalData.jobLs, \
 							extraArguments=" --downsample_to_coverage 250 --downsampling_type BY_SAMPLE", \
 							extraDependentInputLs=None, transferOutput=False, \
@@ -580,7 +575,7 @@ class AlignmentToCallPipeline(parentClass):
 							no_of_gatk_threads=no_of_gatk_threads, \
 							site_type=site_type, \
 							interval=bcftoolsInterval,\
-							heterozygosityForGATK=self.heterozygosityForGATK, \
+							heterozygosityPrior=self.heterozygosityPrior, \
 							minPruningForGATKHaplotypCaller=self.minPruningForGATKHaplotypCaller, \
 							GATKGenotypeCallerType = self.GATKGenotypeCallerType,\
 							walltime=genotypingJobWalltime,\
@@ -612,7 +607,7 @@ class AlignmentToCallPipeline(parentClass):
 						#--maxReads=MAXREADS   Maximium coverage in window
 						bufferSize=1000	#used to be 15kb, too much for 725 monkeys
 						maxReads=bufferSize/100*cumulativeMedianDepth*4	#100 is read length. maxReads is 4X median number of reads in this buffer window
-						genotypingJob = self.addPlatypusCallJob(executable=self.Platypus, outputFile=gatkOutputF, \
+						genotypingJob = self.addPlatypusCallJob(executable=self.Platypus, outputFile=callOutputFile, \
 							refFastaFList=refFastaFList, \
 							sourceVCFFile=sourceVCFFile, interval=mpileupInterval, skipRegionsFile=None,\
 							site_type=site_type, \
@@ -621,10 +616,21 @@ class AlignmentToCallPipeline(parentClass):
 							job_max_memory=genotypingJobMaxMemory, no_of_cpus=1, \
 							walltime=genotypingJobWalltime, \
 							parentJobLs=[combineChromosomeJobData.callOutputDirJob], extraDependentInputLs=[sourceVCFIndexFile], transferOutput=False)
-						
+					elif genotypeCallerType==3:
+						#2013.10.07 freebayes
+						genotypingJob = self.addFreeBayesJob(executable=self.freebayes, outputFile=callOutputFile, \
+							refFastaFList=refFastaFList, \
+							interval=bcftoolsInterval, heterozygosity=self.heterozygosityPrior, minCoverage=2,\
+							site_type=site_type, \
+							extraArguments=None, job_max_memory=genotypingJobMaxMemory, no_of_cpus=1, \
+							walltime=genotypingJobWalltime, \
+							parentJobLs=[combineChromosomeJobData.callOutputDirJob]+intervalData.jobLs, \
+							extraDependentInputLs=None, transferOutput=False)
+					chromosome2jobData[chromosome].genotypingJobLs.append(genotypingJob)
 					#add this output to a GATK union job
-					self.addInputToStatMergeJob(statMergeJob=combineChromosomeJobData.callUnionJob, parentJobLs=[genotypingJob], \
-											inputArgumentOption="--variant")
+					#self.addInputToStatMergeJob(statMergeJob=combineChromosomeJobData.callUnionJob, parentJobLs=[genotypingJob], \
+					#						inputArgumentOption="--variant")
+					
 				else:	#SAMtools
 					#samtools part
 					samtoolsOutputFname = os.path.join(samtoolsDirJob.folder, '%s.orig.vcf'%vcfBaseFname)
@@ -732,13 +738,13 @@ class AlignmentToCallPipeline(parentClass):
 				unionOutputF = File(unionOutputFname)
 				genotypeUnionJob.addArguments(javaMemRequirement, '-jar', GenomeAnalysisTKJar, "-T", "CombineVariants",\
 					"-L", interval, "-R", refFastaF, \
-					"-B:gatk,VCF", gatkOutputF, "-B:samtools,VCF", samtoolsOutputF, \
+					"-B:gatk,VCF", callOutputFile, "-B:samtools,VCF", samtoolsOutputF, \
 					"--out", unionOutputF, \
 					'-U', '-S LENIENT', "-genotypeMergeOptions PRIORITIZE")	#no support for multi-threading
 				genotypeUnionJob.addProfile(Profile(Namespace.GLOBUS, key="maxmemory", value="%s"%job_max_memory))
 				genotypeUnionJob.addProfile(Profile(Namespace.CONDOR, key="requirements", value="(memory>=%s)"%job_max_memory))
 				self.addJobUse(DOCJob, file=GenomeAnalysisTKJar, transfer=True, register=True, link=Link.INPUT)
-				genotypeUnionJob.uses(gatkOutputF, transfer=True, register=True, link=Link.INPUT)
+				genotypeUnionJob.uses(callOutputFile, transfer=True, register=True, link=Link.INPUT)
 				genotypeUnionJob.uses(samtoolsOutputF, transfer=True, register=True, link=Link.INPUT)
 				genotypeUnionJob.uses(unionOutputF, transfer=True, register=True, link=Link.OUTPUT)
 				workflow.addJob(genotypeUnionJob)
@@ -768,9 +774,11 @@ class AlignmentToCallPipeline(parentClass):
 				workflow.depends(parent=genotypeIntersectionJob, child=wholeRefUnionOfIntersectionJob)
 				"""
 				
-				if genotypeCallerType==1 or genotypeCallerType==0:
+				if genotypeCallerType in [0,1,3]:
 					if genotypeCallerType==1:	#GATK
 						jobAndInputOptionList=[(genotypingJob, "-I")]
+					elif genotypeCallerType==3:	#freebayes
+						jobAndInputOptionList=[(genotypingJob, "--bam")]
 					else:	#SAMtools
 						jobAndInputOptionList = [(genotypingJob, "")]
 					for job, jobInputOption in jobAndInputOptionList:
@@ -792,13 +800,26 @@ class AlignmentToCallPipeline(parentClass):
 								transferOutput=False, \
 								no_of_cpus=None, job_max_memory=2000, walltime=180, \
 								max_walltime=None)
-					self.addInputToStatMergeJob(statMergeJob=combineChromosomeRefineSNPJobData.callUnionJob, \
-											parentJobLs=[refineGenotypeJobData.refineGenotypeJob], \
-											inputArgumentOption="--variant")
+					chromosome2jobData[chromosome].refineGenotypeJobLs.append(refineGenotypeJobData.refineGenotypeJob)
 					returnData.jobDataLs.append(self.constructJobDataFromJob(refineGenotypeJobData.refineGenotypeJob))
 				else:
 					returnData.jobDataLs.append(self.constructJobDataFromJob(genotypingJob))
-		
+			#combine intervals hierarchically, to avoid open file number limit on cluster
+			self.hierarchicalCombineIntervalJobIntoOneChromosome(unionJob=combineChromosomeJobData.callUnionJob, \
+					refFastaFList=refFastaFList, fileBasenamePrefix="subUnion",\
+					intervalJobLs=chromosome2jobData[chromosome].genotypingJobLs, \
+					maxNoOfIntervalJobsInOneUnion=250,\
+					outputDirJob=combineChromosomeJobData.callOutputDirJob,
+					transferOutput=False, job_max_memory=None, walltime=120, needBGzipAndTabixJob=False)
+					#transferOutput = False and needBGzipAndTabixJob=False because both are for intermediate files.
+					# unionJob will transfer and bgzip final chromosomal level output
+			if hasattr(self, "addRefineSNPGenotypeJob"):
+				self.hierarchicalCombineIntervalJobIntoOneChromosome(unionJob=combineChromosomeRefineSNPJobData.callUnionJob, \
+					refFastaFList=refFastaFList, fileBasenamePrefix="subUnionRefineSNP",\
+					intervalJobLs=chromosome2jobData[chromosome].refineGenotypeJobLs, \
+					maxNoOfIntervalJobsInOneUnion=250,\
+					outputDirJob=combineChromosomeRefineSNPJobData.callOutputDirJob,
+					transferOutput=False, job_max_memory=None, walltime=120, needBGzipAndTabixJob=False)
 		sys.stderr.write(" %s jobs covering %s chromosomes, %s intervals.\n"%\
 						(self.no_of_jobs, no_of_chromosomes, no_of_intervals))
 		return returnData
@@ -901,12 +922,57 @@ class AlignmentToCallPipeline(parentClass):
 					key2ObjectForJob=None, no_of_cpus=no_of_cpus, walltime=walltime, **keywords)
 		return job
 		
+	def addFreeBayesJob(self, workflow=None, executable=None, outputFile=None, \
+					refFastaFList=None, \
+					interval=None, heterozygosity=0.001, minCoverage=2,\
+					site_type=2, \
+					extraArguments=None, job_max_memory=4000, no_of_cpus=1, \
+					walltime=None, \
+					parentJobLs=None, extraDependentInputLs=None, transferOutput=False, \
+					**keywords):
+		"""
+		2013.10.07 https://github.com/ekg/freebayes
 		
+		"""
+		
+		if workflow is None:
+			workflow = self
+		if extraDependentInputLs is None:
+			extraDependentInputLs = []
+		
+		refFastaF = refFastaFList[0]
+		
+		frontArgumentList = ["--fasta-reference", refFastaF, "--min-coverage %s"%minCoverage,\
+							"--ploidy 2", "--theta %s"%heterozygosity, ]
+		if isinstance(interval, File):
+			#Limit analysis to targets listed in the BED-format FILE.
+			frontArgumentList.extend(["--targets", interval])
+			extraDependentInputLs.append(interval)
+		else:
+			# Limit analysis to the specified region, 0-base coordinates,
+			#end_position included.  Either '-' or '..' maybe used as a separator.
+			frontArgumentList.extend(["--region", interval])
+		if site_type==1:	#all sites, not just variant sites
+			frontArgumentList.append("--report-monomorphic")
+		
+		for refFastaFile in refFastaFList:
+			extraDependentInputLs.append(refFastaFile)
+		#job.uses(bamListF, transfer=True, register=True, link=Link.INPUT)
+		
+		job = self.addGenericJob(workflow=workflow, executable=executable, inputFile=None, \
+					outputFile=outputFile, outputArgumentOption='--vcf', inputFileList=None, \
+					parentJob=None, parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
+					extraOutputLs=None, \
+					transferOutput=transferOutput, \
+					frontArgumentList=frontArgumentList, extraArguments=extraArguments, \
+					extraArgumentList=None, job_max_memory=job_max_memory,  sshDBTunnel=None, \
+					key2ObjectForJob=None, no_of_cpus=no_of_cpus, walltime=walltime, **keywords)
+		return job
 	
-	def addGATKCallJob(self, workflow=None, genotyperJava=None, GenomeAnalysisTKJar=None, gatkOutputF=None, \
+	def addGATKCallJob(self, workflow=None, genotyperJava=None, GenomeAnalysisTKJar=None, outputFile=None, \
 					refFastaFList=None, \
 					interval=None, \
-					heterozygosityForGATK=0.001, minPruningForGATKHaplotypCaller=None, GATKGenotypeCallerType = 'UnifiedGenotyper', \
+					heterozygosityPrior=0.001, minPruningForGATKHaplotypCaller=None, GATKGenotypeCallerType = 'UnifiedGenotyper', \
 					site_type=2, \
 					extraArguments=None, job_max_memory=4000, no_of_gatk_threads=1, \
 					walltime=None, \
@@ -914,7 +980,7 @@ class AlignmentToCallPipeline(parentClass):
 					**keywords):
 		"""
 		2013.2.25 added argument GATKGenotypeCallerType, (default is UnifiedGenotyper, could try HaplotypeCaller)
-			added argument heterozygosityForGATK, minPruningForGATKHaplotypCaller
+			added argument heterozygosityPrior, minPruningForGATKHaplotypCaller
 			use addGenericJob
 		2012.7.30
 			interval could be a BED file, rather than just a string (chromosome:start-stop).
@@ -934,8 +1000,8 @@ class AlignmentToCallPipeline(parentClass):
 		# 2011-11-22 "-mmq 30",  is no longer included
 		if site_type==1:
 			extraArgumentList.append('--output_mode EMIT_ALL_SITES')	#2011-8-24 new GATK no longers ues "-all_bases"
-		if heterozygosityForGATK:
-			extraArgumentList.append("--heterozygosity %s"%(heterozygosityForGATK))
+		if heterozygosityPrior:
+			extraArgumentList.append("--heterozygosity %s"%(heterozygosityPrior))
 		if minPruningForGATKHaplotypCaller and GATKGenotypeCallerType=='HaplotypeCaller':
 			extraArgumentList.append("--minPruning %s"%(minPruningForGATKHaplotypCaller))
 		if GATKGenotypeCallerType=='UnifiedGenotyper':	#2013.2.25 only for UnifiedGenotyper, not for HaplotypeCaller
@@ -944,7 +1010,7 @@ class AlignmentToCallPipeline(parentClass):
 		job = self.addGATKJob(workflow=workflow, executable=genotyperJava, GenomeAnalysisTKJar=GenomeAnalysisTKJar, \
 							GATKAnalysisType=GATKGenotypeCallerType,\
 					inputFile=None, inputArgumentOption=None, refFastaFList=refFastaFList, inputFileList=None,\
-					interval=interval, outputFile=gatkOutputF, \
+					interval=interval, outputFile=outputFile, \
 					parentJobLs=parentJobLs, transferOutput=transferOutput, job_max_memory=job_max_memory,\
 					frontArgumentList=None, extraArguments=extraArguments, extraArgumentList=extraArgumentList, \
 					extraOutputLs=None, \
@@ -1027,7 +1093,7 @@ class AlignmentToCallPipeline(parentClass):
 		
 		genotypingExecutableSet = set([self.genotyperJava, self.samtools, self.CallVariantBySamtools, \
 									self.MergeVCFReplicateHaplotypesJava, self.Platypus, self.trioCallerWrapper, \
-									self.MergeVCFReplicateGenotypeColumnsJava])
+									self.MergeVCFReplicateGenotypeColumnsJava, self.freebayes])
 		#2012.1.3. added polymutt
 		if hasattr(self, 'polymuttPath'):	#some inherited classes do not have polymuttPath
 			polymutt = self.addOneExecutableFromPathAndAssignProperClusterSize(path=os.path.expanduser(self.polymuttPath), \
@@ -1074,6 +1140,7 @@ class AlignmentToCallPipeline(parentClass):
 		2011-7-11
 		"""
 		
+		self.needSplitChrIntervalData = False	#2013.09.01 as it'll be handled in run()
 		pdata = self.setup_run()
 		workflow = pdata.workflow
 		
@@ -1149,7 +1216,8 @@ class AlignmentToCallPipeline(parentClass):
 						site_handler=self.site_handler, input_site_handler=self.input_site_handler,\
 						needFastaIndexJob=self.needFastaIndexJob, needFastaDictJob=self.needFastaDictJob, \
 						site_type=self.site_type, data_dir=self.data_dir, \
-						outputDirPrefix="alignmentID%d"%(alignment.id))
+						outputDirPrefix="alignmentID%d"%(alignment.id),
+						genotypeCallerType=self.genotypeCallerType)
 				
 		
 		self.end_run()

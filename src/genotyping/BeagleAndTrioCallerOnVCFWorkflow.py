@@ -139,7 +139,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 				replicateIndividualTag=self.replicateIndividualTag,\
 				treatEveryOneIndependent=self.treatEveryOneIndependent,\
 				parentJobLs=self.firstVCFJobData.jobLs + [self.auxDirJob], \
-				extraDependentInputLs=[], transferOutput=True, \
+				extraDependentInputLs=None, transferOutput=True, \
 				extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
 		
 		#output pedigree, with no replicating certain individuals, no trio/duo splitting
@@ -156,7 +156,7 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 				replicateIndividualTag=self.replicateIndividualTag,\
 				treatEveryOneIndependent=self.treatEveryOneIndependent,\
 				parentJobLs=self.firstVCFJobData.jobLs + [self.auxDirJob], \
-				extraDependentInputLs=[], transferOutput=True, \
+				extraDependentInputLs=None, transferOutput=True, \
 				extraArguments=None, job_max_memory=2000, sshDBTunnel=self.needSSHDBTunnel)
 		
 		#ExtractSamplesFromVCF samples with coverage >=min_coverage
@@ -318,354 +318,6 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 		self.reduceTrioCallerReplicateConcordanceJob_HomoOnly = reduceTrioCallerReplicateConcordanceJob_HomoOnly
 		
 		return returnData
-	
-	def addBeagle3Job(self, workflow=None, executable=None, BeagleJar=None, \
-					phasedBeagleInputFile=None,\
-					likelihoodBeagleInputFile=None, triosBeagleInputFile=None, pairsBeagleInputFile=None,\
-					unphasedBeagleInputFile=None,\
-					markersBeagleInputFile=None,
-					outputFnamePrefix=None, noOfIterations=None, noOfSamplingHaplotypesPerSample=None, \
-					parentJobLs=None, transferOutput=True, job_max_memory=2000,\
-					frontArgumentList=None, extraArguments=None, extraArgumentList=None, extraOutputLs=None, \
-					extraDependentInputLs=None, no_of_cpus=None, walltime=120, **keywords):
-		"""
-		i.e.
-			
-		2013.06.13 a generic function to add Beagle version 3 jobs
-		
-		crocea@vervetNFS:~/bin/Beagle/example/imputation$ 
-		prefix=method_36_Contig791_replicated_phasedByGATK_noMendelError_unphased_minProb0.65;
-		java -Xmx15g -XX:PermSize=1000m -XX:MaxPermSize=6000m
-			-jar ~/bin/Beagle/beagle.jar like=$prefix\_familySize1.bgl
-			pairs=$prefix\_familySize2.bgl trios=$prefix\_familySize3.bgl
-			markers=$prefix.markers out=$prefix\_beagled missing=?
-			unphased=...bgl
-			
-		Note:
-			"missing=? " can not be used if all input is likelihood data.
-		
-		Beagle help http://faculty.washington.edu/browning/beagle/beagle.html
-		
-		niterations=<number of iterations> where <number of iterations> is a positive even 
-			integer giving the number of iterations of the phasing algorithm. If an odd integer is 
-			specified, the next even integer is used. The niterations argument is optional. The default 
-			value is niterations=10. The default value typically gives good accuracy
-		
-		nsamples=<number of samples> where <number of samples> is positive integer giving 
-			the number of haplotype pairs to sample for each individual during each iteration of the 
-			phasing algorithm. The nsamples argument is optional. The default value is nsamples=4.
-			If you are phasing an extremely large sample (say > 4000 individuals), you may want to 
-			use a smaller nsamples parameter (e.g. 1 or 2) to reduce computation time. If you are 
-			phasing a small sample (say < 200 individuals), you may want to use a larger nsamples
-			parameter (say 10 or 20) to increase accuracy.
-		"""
-		if workflow is None:
-			workflow = self
-		if executable is None:
-			executable = self.java
-		if BeagleJar is None:
-			BeagleJar = self.BeagleJar
-		if frontArgumentList is None:
-			frontArgumentList = []
-		if extraArgumentList is None:
-			extraArgumentList = []
-		if extraDependentInputLs is None:
-			extraDependentInputLs = []
-		if extraOutputLs is None:
-			extraOutputLs = []
-		
-		#place holder for key output files, corresponding to these input like=, unphased=, trios=, pairs=
-		key2ObjectForJob = {"likelihoodPhasedOutputFile":None,\
-						"singletonPhasedOutputFile":None,\
-						"pairsPhasedOutputFile":None,\
-						"triosPhasedOutputFile":None,\
-						}
-		
-		memRequirementObject = self.getJVMMemRequirment(job_max_memory=job_max_memory, minMemory=2000)
-		job_max_memory = memRequirementObject.memRequirement
-		javaMemRequirement = memRequirementObject.memRequirementInStr
-		
-		frontArgumentList.extend([javaMemRequirement, '-jar', BeagleJar, "out=%s"%(outputFnamePrefix)])
-		extraDependentInputLs.append(BeagleJar)
-		
-		if noOfIterations is not None:
-			frontArgumentList.append("niterations=%s"%(noOfIterations))
-		if noOfSamplingHaplotypesPerSample is not None:
-			frontArgumentList.append("nsamples=%s"%(noOfSamplingHaplotypesPerSample))
-		
-		logFile=File('%s.log'%(outputFnamePrefix))
-		extraOutputLs.append(logFile)
-		key2ObjectForJob['logFile'] = logFile
-		
-		phasedBeagleFileSuffix = '.bgl.phased.gz'
-		onlyLikelihoodInput = True	#determines whether missing=? should be added
-		if likelihoodBeagleInputFile:
-			frontArgumentList.extend(["like=%s"%(likelihoodBeagleInputFile.name)])
-			extraDependentInputLs.append(likelihoodBeagleInputFile)
-			inputFBasenamePrefix = utils.getFileBasenamePrefixFromPath(likelihoodBeagleInputFile.name)
-			
-			phasedFile = File('%s.%s%s'%(outputFnamePrefix, inputFBasenamePrefix, phasedBeagleFileSuffix))
-			extraOutputLs.append(phasedFile)
-			key2ObjectForJob['likelihoodPhasedOutputFile'] = phasedFile
-			#additional output for the likelihood input
-			for suffix in ['.bgl.dose.gz', '.bgl.gprobs.gz', '.bgl.r2']:
-				_outputFile=File('%s.%s%s'%(outputFnamePrefix, inputFBasenamePrefix, suffix))
-				extraOutputLs.append(_outputFile)
-		
-		if triosBeagleInputFile:
-			frontArgumentList.extend(["trios=%s"%(triosBeagleInputFile.name)])
-			extraDependentInputLs.append(triosBeagleInputFile)
-			onlyLikelihoodInput = False
-			inputFBasenamePrefix = utils.getFileBasenamePrefixFromPath(triosBeagleInputFile.name)
-			
-			phasedFile = File('%s.%s%s'%(outputFnamePrefix, inputFBasenamePrefix, phasedBeagleFileSuffix))
-			extraOutputLs.append(phasedFile)
-			key2ObjectForJob['triosPhasedOutputFile'] = phasedFile
-		
-		if pairsBeagleInputFile:
-			frontArgumentList.extend(["pairs=%s"%(pairsBeagleInputFile.name)])
-			extraDependentInputLs.append(pairsBeagleInputFile)
-			onlyLikelihoodInput = False
-			inputFBasenamePrefix = utils.getFileBasenamePrefixFromPath(pairsBeagleInputFile.name)
-			
-			phasedFile = File('%s.%s%s'%(outputFnamePrefix, inputFBasenamePrefix, phasedBeagleFileSuffix))
-			extraOutputLs.append(phasedFile)
-			key2ObjectForJob['pairsPhasedOutputFile'] = phasedFile
-		
-		if unphasedBeagleInputFile:
-			frontArgumentList.extend(["unphased=%s"%(unphasedBeagleInputFile.name)])
-			extraDependentInputLs.append(unphasedBeagleInputFile)
-			onlyLikelihoodInput = False
-			inputFBasenamePrefix = utils.getFileBasenamePrefixFromPath(unphasedBeagleInputFile.name)
-			
-			phasedFile = File('%s.%s%s'%(outputFnamePrefix, inputFBasenamePrefix, phasedBeagleFileSuffix))
-			extraOutputLs.append(phasedFile)
-			key2ObjectForJob['singletonPhasedOutputFile'] = phasedFile
-			#additional likelihood-related output
-			for suffix in ['.bgl.dose.gz', '.bgl.gprobs.gz', '.bgl.r2']:
-				_outputFile=File('%s.%s%s'%(outputFnamePrefix, inputFBasenamePrefix, suffix))
-				extraOutputLs.append(_outputFile)
-		
-		if phasedBeagleInputFile:	#reference panel
-			frontArgumentList.extend(["phased=%s"%(phasedBeagleInputFile.name)])
-			extraDependentInputLs.append(phasedBeagleInputFile)
-			
-		
-		if markersBeagleInputFile:
-			frontArgumentList.extend(["markers=%s"%(markersBeagleInputFile.name)])
-			extraDependentInputLs.append(markersBeagleInputFile)
-		if not onlyLikelihoodInput:
-			frontArgumentList.append("missing=?")
-		
-		job = self.addGenericJob(workflow=workflow, executable=executable, inputFile=None, \
-					inputArgumentOption=None,  inputFileList=None,\
-					argumentForEachFileInInputFileList=None,\
-					parentJob=None, parentJobLs=parentJobLs, extraDependentInputLs=extraDependentInputLs, \
-					extraOutputLs=extraOutputLs, \
-					transferOutput=transferOutput, \
-					frontArgumentList=frontArgumentList, extraArguments=extraArguments, \
-					extraArgumentList=extraArgumentList, job_max_memory=job_max_memory,  sshDBTunnel=None, \
-					key2ObjectForJob=key2ObjectForJob, no_of_cpus=no_of_cpus, walltime=walltime, **keywords)
-		
-		return job
-	
-	def addBeagle4Job(self, workflow=None, executable=None, BeagleJar=None, \
-					inputFile=None, refPanelFile=None, pedFile=None,\
-					outputFnamePrefix=None, \
-					burninIterations=None, phaseIterations=None, \
-					noOfSamplingHaplotypesPerSample=None, singlescale=None, duoscale=None, trioscale=None,\
-					frontArgumentList=None, extraArguments=None, extraArgumentList=None, extraOutputLs=None, \
-					extraDependentInputLs=None, parentJobLs=None, transferOutput=True, job_max_memory=2000,\
-					no_of_cpus=None, walltime=120, **keywords):
-		"""
-		i.e.
-			
-		2013.06.22 a generic function to add Beagle version 4 job
-		
-		java commandline example:
-			...
-		
-		Beagle help http://faculty.washington.edu/browning/beagle/beagle.html
-		
-		gt=[file] specifies a VCF file containing a GT (genotype) format field for each marker.
-		gl=[file] specifies a VCF file containing a GL or PL (genotype likelihood) format field for
-			each marker. If both GL and PL format fields are present for a sample, the GL format will
-			be used. See also the maxlr parameter.
-		ref=[file] specifies a reference VCF file containing additional samples and phased
-			genotypes for each marker. Use of an appropriate reference panel can increase accuracy.
-		ped=[file] specifies a Linkage-format pedigree file for specifying family relationships.
-			The pedigree file has one line per individual. The first 4 white-space delimited fields of
-			each line are 1) pedigree ID, 2) individual ID, 3) father's ID, and 4) mother's ID. A "0" is
-			used in column 3 or 4 if the father or mother is unknown. Beagle uses the data in columns
-			2-4 to identify parent-offspring duos and trios. Any or all columns of the pedigree file
-			after column 4 may be omitted. See also the duoscale and trioscale parameters.
-		out=[prefix] specifies the output filename prefix. The prefix may be an absolute or
-			relative filename, but it cannot be a directory name.
-		excludesamples=[file] specifies a file containing non-reference samples (one sample per
-			line) to be excluded from the analysis and output files.
-		excluderefsamples=[file] specifies a file containing reference samples (one sample per
-			line) to be excluded from the analysis.
-		excludemarkers=[file] specifies a file containing markers (one marker per line) to be
-			excluded from the analysis and the output files. An excluded marker identifier can either
-			be an identifier from the VCF record's ID field or genomic coordinates in the format:
-			CHROM:POS.
-		chrom=[chrom:start-end] specifies a chromosome or chromosome interval using a
-			chromosome identifier in the VCF file and the starting and ending positions of the
-			interval. The entire chromosome, the beginning of the chromosome, and the end of a
-			chromosome can be specified by chrom=[chrom], chrom=[chrom:-end], and chrom=[chrom:start-] respectively.
-		
-		window=[positive integer] (default: window=24000).
-		overlap=[positive integer] (default: overlap=3000)
-		gprobs=[true/false] (default: gprobs=true).
-		usephase=[true/false] (default: usephase=false).
-		singlescale=[positive number] (default: singlescale=1.0), change the scale to x, program samples x*x faster
-		duoscale=[positive number]
-		trioscale=[positive number] 
-		burnin-its=[non-negative integer] (default: burnin=5).
-		phase-its=[non-negative integer] (default: phase-its=5)
-		
-		
-		Advanced options not recommended for general use:
-		
-		dump=[file] specifies a file containing sample identifiers (one identifier per line). For
-			each marker window, all the sampled haplotypes for these individuals which are sampled
-			after the burn-in iterations are printed to an output VCF files (dump.[window #].gz).
-		nsamples=[positive integer] specifies the number of haplotype pairs to sample for each
-			individual during each iteration of the algorithm (default: nsamples=4).
-		buildwindow=[positive integer] specifies the number of markers used to build the
-			haplotype frequency model at each locus (default: buildwindow=500).
-		
-		
-		Three output files are created whose names begin with the output file prefix specified on
-			the command line argument and whose names end with the suffixes: .log, .vcf.gz, and .ibd.
-
-		"""
-		if workflow is None:
-			workflow = self
-		if executable is None:
-			executable = self.java
-		if BeagleJar is None:
-			BeagleJar = self.Beagle4Jar
-		if frontArgumentList is None:
-			frontArgumentList = []
-		if extraArgumentList is None:
-			extraArgumentList = []
-		if extraDependentInputLs is None:
-			extraDependentInputLs = []
-		if extraOutputLs is None:
-			extraOutputLs = []
-		
-		key2ObjectForJob = {}
-		
-		extraArgumentList.extend(["out=%s"%(outputFnamePrefix)])
-		if inputFile:
-			extraArgumentList.append("gl=%s"%(inputFile.name))
-			extraDependentInputLs.append(inputFile)
-		if refPanelFile:
-			extraArgumentList.append("ref=%s"%(refPanelFile.name))
-			extraDependentInputLs.append(refPanelFile)
-		if pedFile:
-			extraArgumentList.append("ped=%s"%(pedFile.name))
-			extraDependentInputLs.append(pedFile)
-		if burninIterations is not None:
-			extraArgumentList.append("burnin-its=%s"%(burninIterations))
-		if phaseIterations is not None:
-			extraArgumentList.append("phase-its=%s"%(phaseIterations))
-		if noOfSamplingHaplotypesPerSample is not None:
-			extraArgumentList.append("nsamples=%s"%(noOfSamplingHaplotypesPerSample))
-		if singlescale is not None:
-			extraArgumentList.append("singlescale=%s"%(singlescale))
-		if duoscale is not None:
-			extraArgumentList.append("duoscale=%s"%(duoscale))
-		if trioscale is not None:
-			extraArgumentList.append("trioscale=%s"%(trioscale))
-		
-		outputVCFFile = File("%s.vcf.gz"%(outputFnamePrefix))
-		extraOutputLs.append(outputVCFFile)	#this would be accessible through job.output and job.vcfOutputFile 
-		key2ObjectForJob['vcfOutputFile'] = outputVCFFile
-		
-		logFile=File('%s.log'%(outputFnamePrefix))
-		extraOutputLs.append(logFile)
-		key2ObjectForJob['logFile'] = logFile	#this would be accessible as job.logFile
-		
-		job = self.addGenericJavaJob(executable=executable, jarFile=BeagleJar, \
-					inputFile=None, inputArgumentOption=None, \
-					inputFileList=None, argumentForEachFileInInputFileList=None,\
-					outputFile=None, outputArgumentOption=None,\
-					frontArgumentList=frontArgumentList, \
-					extraArguments=extraArguments, extraArgumentList=extraArgumentList, \
-					extraOutputLs=extraOutputLs, \
-					extraDependentInputLs=extraDependentInputLs, \
-					parentJobLs=parentJobLs, transferOutput=transferOutput, job_max_memory=job_max_memory,\
-					key2ObjectForJob=key2ObjectForJob, \
-					no_of_cpus=no_of_cpus, walltime=walltime, **keywords)
-		return job
-	
-	def convertVCF2Beagle(self, workflow=None, VCFJobData=None, outputDirJob=None, \
-						outputFileBasenamePrefix=None,\
-						outputPedigreeJob=None, pedigreeSplitStructure=None,\
-						transferOutput=False, \
-						job_max_memory=None, walltime=None):
-		"""
-		2013.06.23 deprecated as Beagle v4 is used and it accepts VCF files
-		2013.05.01
-			convert VCF file into Beagle input format
-		"""
-		
-		#replicate the individuals involved in more than one trio/duo
-		#2012.4.2 replicate individuals who appear in more than 1 families
-		#note: remove individuals in pedigree file but not in VCF file
-		
-		#GATK ProduceBeagleInput
-		beagleLikelihoodFile = File(os.path.join(outputDirJob.folder, "%s.bgl"%(outputFileBasenamePrefix)))
-		produceBeagleInputJob = self.addGATKJob(executable=self.ProduceBeagleInputJava, \
-					GATKAnalysisType="ProduceBeagleInput", \
-					inputFile=VCFJobData.file, inputArgumentOption="--variant:VCF", \
-					refFastaFList=self.registerReferenceData.refFastaFList, \
-					outputFile=beagleLikelihoodFile, \
-					parentJobLs=VCFJobData.jobLs + [outputDirJob], \
-					transferOutput=transferOutput, \
-					extraArguments=None, extraArgumentList=None, \
-					extraOutputLs=None, extraDependentInputLs=None, \
-					job_max_memory=job_max_memory, \
-					no_of_cpus=None, walltime=walltime)
-		
-		#a SplitPedigreeVCFIntoBeagleTriosDuosFiles job
-		#need pedigreeFile (from outputPedigreeJob)
-		outputFnamePrefix = os.path.join(outputDirJob.folder, outputFileBasenamePrefix)
-		
-		key2File= {'size1File': None, 'size2File': None, 'size3File':None}	#to store output files
-			#size1File: output for singletons (likelihood format)
-			#size2File: output for duos (Beagle genotype format)
-			#size3File: output for trios (Beagle genotype format)
-		markerFile = File("%s.markers"%(outputFnamePrefix))
-		extraOutputLs = []	#first is the markers file
-		extraOutputLs.append(markerFile)
-		key2File['markerFile'] = markerFile
-		for familySize, familyLs in pedigreeSplitStructure.familySize2familyLs.iteritems():
-			if familyLs:	#non-empty
-				outputFile = File('%s_familySize%s.bgl'%(outputFnamePrefix, familySize))
-				key2File['size%sFile'%(familySize)] = outputFile
-				extraOutputLs.append(outputFile)
-		
-		splitPedigreeVCFIntoBeagleTriosDuosFilesJob = self.addGenericJob(executable=self.SplitPedigreeVCFIntoBeagleTriosDuosFiles, \
-						inputFile=VCFJobData.file, \
-						outputFile=None, \
-						parentJobLs=VCFJobData.jobLs + [produceBeagleInputJob, outputDirJob, outputPedigreeJob], \
-						extraDependentInputLs=[produceBeagleInputJob.output, outputPedigreeJob.output], \
-						extraOutputLs=extraOutputLs,  transferOutput=transferOutput, \
-						extraArguments=None, \
-						extraArgumentList=["--gatkPrintBeagleFname", produceBeagleInputJob.output, \
-										"--plinkPedigreeFname", outputPedigreeJob.output, \
-										"--minProbForValidCall %s"%(self.minProbForValidCall), \
-										"--dummyIndividualNamePrefix dummy", \
-										"--outputFnamePrefix", outputFnamePrefix], \
-						job_max_memory=job_max_memory, \
-						sshDBTunnel=None, key2ObjectForJob=key2File, objectWithDBArguments=None, \
-						no_of_cpus=None, walltime=walltime)
-		
-		#
-		return splitPedigreeVCFIntoBeagleTriosDuosFilesJob
 	
 	def mapEachInterval(self, workflow=None, intervalData=None, chromosome=None, \
 					VCFJobData=None, passingData=None, 
@@ -1004,13 +656,15 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 						**keywords)
 		
 		self.concatenateOverlapIntervalsIntoOneVCFSubWorkflow(passingData=passingData, \
-						intervalJobLs=mergeVCFReplicateColumnsJobLs, outputDirJob=self.reduceOutputDirJob, \
-						transferOutput=True, job_max_memory=job_max_memory, walltime=walltime,\
-						**keywords)
-		self.concatenateOverlapIntervalsIntoOneVCFSubWorkflow(passingData=passingData, \
 						intervalJobLs=refineGenotypeJobLs, outputDirJob=self.replicateVCFDirJob, \
 						transferOutput=True, job_max_memory=job_max_memory, walltime=walltime, \
 						**keywords)
+		
+		self.concatenateOverlapIntervalsIntoOneVCFSubWorkflow(passingData=passingData, \
+						intervalJobLs=mergeVCFReplicateColumnsJobLs, outputDirJob=self.reduceOutputDirJob, \
+						transferOutput=True, job_max_memory=job_max_memory, walltime=walltime,\
+						**keywords)
+		
 		
 		for pdata in mapEachIntervalDataLs:
 			#add this output to the union job
@@ -1044,8 +698,6 @@ class BeagleAndTrioCallerOnVCFWorkflow(AbstractVervetWorkflow, parentClass):
 															clusterSizeMultipler=0.2)
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='RemoveMendelErrorSiteByGATK', \
 															clusterSizeMultipler=0.5)
-		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath, name='CombineBeagleAndPreBeagleVariantsJava', \
-															clusterSizeMultipler=0.6)
 		#BeagleOnHCMOnkeys and BeagleJava are separate now because the former takes much less time than latter
 		self.addOneExecutableFromPathAndAssignProperClusterSize(path=self.javaPath,\
 										name='BeagleOnHCMOnkeys', clusterSizeMultipler=0.1)

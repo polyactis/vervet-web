@@ -200,7 +200,7 @@ class GenericVCFWorkflow(AbstractVervetWorkflow):
 			else:
 				transferOneContigPlinkOutput = False
 			i += 1
-			vcf2plinkJob = self.addFilterJobByvcftools(workflow, vcftoolsWrapper=workflow.vcftoolsWrapper, \
+			vcf2plinkJob = self.addFilterJobByvcftools(vcftoolsWrapper=workflow.vcftoolsWrapper, \
 						inputVCFF=inputF, \
 						outputFnamePrefix=outputFnamePrefix, \
 						parentJobLs=[topOutputDirJob]+jobData.jobLs, \
