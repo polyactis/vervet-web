@@ -1,0 +1,1 @@
+This is a project about genetic analysis on vervet monkeys based on next-gen sequencing data. It has source code for pipeline building, analysis, visualization, database management and a web portal.
